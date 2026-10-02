@@ -10,9 +10,9 @@
 // object-state SYCLBIN load fix (see program_manager.cpp):
 //   - ProgramManager::isAOTBinaryTarget
 //   - ProgramManager::getBinImageState
-// Both are pure, static, and hardware-independent, so they can be exercised
-// directly without a UR mock. getBinImageState is what the SYCLBIN selector
-// and the kernel_bundle AOT partition rely on to agree on an image's state.
+//   - ProgramManager::needsDynamicLink
+// All three are pure, static, and hardware-independent, so they can be
+// exercised directly without a UR mock.
 //
 //===----------------------------------------------------------------------===//
 
@@ -127,4 +127,33 @@ TEST(AOTBinaryTarget, GetBinImageStateAOTWithImports) {
                   SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{"Dep"}};
   EXPECT_EQ(detail::ProgramManager::getBinImageState(&AOT.image()),
             bundle_state::object);
+}
+
+TEST(AOTBinaryTarget, NeedsDynamicLinkNull) {
+  EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(nullptr));
+}
+
+TEST(AOTBinaryTarget, NeedsDynamicLinkNonAOT) {
+  // A JIT SPIR-V image never needs dynamicLink, even with imports: it goes
+  // through the ordinary urProgramLinkExp path instead.
+  ImageHolder JIT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64,
+                  SYCL_DEVICE_BINARY_TYPE_SPIRV, /*ImportedSymbols=*/{"Dep"}};
+  EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(&JIT.image()));
+}
+
+TEST(AOTBinaryTarget, NeedsDynamicLinkAOTNoImports) {
+  // Pure format check: an export-only native-AOT image still can't go
+  // through urProgramLinkExp when linked against another (see
+  // SYCLBINAOTLink.AOTOnlyLinkSkipsJITLink).
+  ImageHolder AOT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{}};
+  EXPECT_TRUE(detail::ProgramManager::needsDynamicLink(&AOT.image()));
+}
+
+TEST(AOTBinaryTarget, NeedsDynamicLinkAOTWithImports) {
+  // A native-AOT image with unresolved cross-image symbols can't go through
+  // urProgramLinkExp and must be routed through dynamicLink() instead.
+  ImageHolder AOT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{"Dep"}};
+  EXPECT_TRUE(detail::ProgramManager::needsDynamicLink(&AOT.image()));
 }

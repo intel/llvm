@@ -701,8 +701,11 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
         CheckAndDecompressImage(Img);
         Format = MainImg.getFormat();
       }
-      // Skip this image if its format differs from the main image.
-      if (Img->getFormat() != Format)
+      // Skip this image if its format differs from the main image, unless
+      // it is a native AOT dependency that will be routed through
+      // dynamicLink() (see needsDynamicLink), which does not require
+      // matching formats.
+      if (Img->getFormat() != Format && !needsDynamicLink(Img))
         continue;
 
       DeviceImagesToLink.insert(Img);
@@ -859,6 +862,90 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   // Decompress all DeviceImagesToLink
   for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
     CheckAndDecompressImage(BinImg);
+
+  // Native AOT dependency images (see needsDynamicLink) can't go through
+  // urProgramLinkExp and must be routed through dynamicLink() instead, but
+  // only if there is actually a dependency to link against.
+  // Cheap check; only build device_image_plain below when needed.
+  bool AnyNeedsDynamicLink =
+      !DeviceImagesToLink.empty() && needsDynamicLink(&Img);
+  for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
+    AnyNeedsDynamicLink |= needsDynamicLink(BinImg);
+
+  if (AnyNeedsDynamicLink) {
+    context Context = createSyclObjFromImpl<context>(ContextImpl);
+    device Dev = createSyclObjFromImpl<device>(*BuildDev);
+    std::vector<device_image_plain> Imgs;
+    Imgs.reserve(DeviceImagesToLink.size() + 1);
+    Imgs.push_back(getDeviceImageFromBinaryImage(&Img, Context, Dev));
+    for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
+      Imgs.push_back(getDeviceImageFromBinaryImage(BinImg, Context, Dev));
+
+    std::vector<device_image_plain> LinkedResults =
+        linkDeviceImages(std::move(Imgs), {*BuildDev}, property_list{});
+
+    // Every other result is a dynamic-link peer that must outlive the
+    // returned program (dynamic link is in-place, not a merge). Find
+    // Img's result by pointer identity, or front() if statically linked.
+    device_image_plain *MainResult;
+    if (needsDynamicLink(&Img)) {
+      auto MainIt = std::find_if(
+          LinkedResults.begin(), LinkedResults.end(),
+          [&Img](const device_image_plain &Result) {
+            return getSyclObjImpl(Result)->get_bin_image_ref() == &Img;
+          });
+      assert(MainIt != LinkedResults.end() &&
+             "the requested kernel's image must be one of the link results");
+      MainResult = &*MainIt;
+    } else {
+      assert(!LinkedResults.empty() &&
+             "Img is static-linkable, so the static-link group is non-empty");
+      MainResult = &LinkedResults.front();
+    }
+
+    adapter_impl &Adapter = ContextImpl.getAdapter();
+    ur_program_handle_t MainProgram =
+        getSyclObjImpl(*MainResult)->get_ur_program();
+    const RTDeviceBinaryImage *MainBinImg =
+        getSyclObjImpl(*MainResult)->get_bin_image_ref();
+    Adapter.call<UrApiKind::urProgramRetain>(MainProgram);
+    Managed<ur_program_handle_t> BuiltProgram(MainProgram, Adapter);
+
+    // MainResult already owns a reference to MainProgram via BuiltProgram,
+    // so drop it from the peer set to avoid holding that handle twice.
+    LinkedResults.erase(LinkedResults.begin() +
+                        (MainResult - LinkedResults.data()));
+
+    // Keep only the peers' UR program handles alive (via a fresh retain),
+    // not the device_image_plain objects themselves: those also carry a
+    // context reference, which would otherwise keep the context alive for
+    // as long as this program stays registered.
+    std::vector<Managed<ur_program_handle_t>> PeerPrograms;
+    PeerPrograms.reserve(LinkedResults.size());
+    for (device_image_plain &Peer : LinkedResults) {
+      ur_program_handle_t PeerProgram = getSyclObjImpl(Peer)->get_ur_program();
+      Adapter.call<UrApiKind::urProgramRetain>(PeerProgram);
+      PeerPrograms.emplace_back(PeerProgram, Adapter);
+    }
+
+    {
+      std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+      if (!PeerPrograms.empty())
+        m_DynamicLinkPeerImages[BuiltProgram] = std::move(PeerPrograms);
+      // Register BuiltProgram against every dependency image so
+      // removeImages() can release the peers kept alive above. Skip
+      // MainBinImg: its own program creation already registered it here.
+      if (&Img != MainBinImg)
+        NativePrograms.insert(
+            {BuiltProgram, {ContextImpl.shared_from_this(), &Img}});
+      for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
+        if (BinImg != MainBinImg)
+          NativePrograms.insert(
+              {BuiltProgram, {ContextImpl.shared_from_this(), BinImg}});
+    }
+
+    return BuiltProgram;
+  }
 
   std::vector<const RTDeviceBinaryImage *> AllImages;
   AllImages.reserve(DeviceImagesToLink.size() + 1);
@@ -1949,8 +2036,10 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
             ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
                 Img->getImageID());
           }
-          // Also clean up any merged image associated with this program
+          // Also clean up any merged image / dynamic-link peers associated
+          // with this program
           m_MergedImages.erase(CurIt->first);
+          m_DynamicLinkPeerImages.erase(CurIt->first);
           NativePrograms.erase(CurIt);
         }
       }
@@ -2077,6 +2166,12 @@ bool ProgramManager::isAOTBinaryTarget(const char *DeviceTargetSpec) {
   return strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
              0 ||
          strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0;
+}
+
+bool ProgramManager::needsDynamicLink(const RTDeviceBinaryImage *BinImage) {
+  if (!BinImage)
+    return false;
+  return isAOTBinaryTarget(BinImage->getRawData().DeviceTargetSpec);
 }
 
 bundle_state
@@ -2837,6 +2932,86 @@ void ProgramManager::dynamicLink(device_images_range Imgs) {
       get_ur_handles(*getSyclObjImpl(Imgs.front().get_context()));
   Adapter->call<UrApiKind::urProgramDynamicLinkExp>(URCtx, URPrograms.size(),
                                                     URPrograms.data());
+}
+
+std::vector<device_image_plain>
+ProgramManager::linkDeviceImages(std::vector<device_image_plain> Imgs,
+                                 devices_range Devs,
+                                 const property_list &PropList) {
+  // Native AOT images cannot participate in urProgramLinkExp (which expects
+  // SPIR-V via ZE_MODULE_FORMAT_IL_SPIRV) and must be routed through
+  // urProgramDynamicLinkExp instead. Partition by intrinsic image format
+  // rather than by bundle_state: an AOT object SYCLBIN with unresolved
+  // imports arrives in bundle_state::object, which a state-based partition
+  // (under fast-link only) would misclassify as JIT.
+  //
+  // The predicate is ProgramManager::needsDynamicLink, shared by both
+  // callers of linkDeviceImages (the explicit kernel_bundle::link() path
+  // and getBuiltURProgram's implicit path) so they cannot drift. Targets
+  // currently classified as native AOT are spir64_x86_64 (OpenCL CPU) and
+  // spir64_gen (Intel GPU); NVPTX64/AMDGCN SYCLBINs emit PTX/HIP IR rather
+  // than native object images, so they take the static-link branch below.
+  auto NeedsDynamicLink = [](const device_image_plain &Img) {
+    return ProgramManager::needsDynamicLink(
+        getSyclObjImpl(Img)->get_bin_image_ref());
+  };
+  // Manually partition (stable) instead of std::stable_partition, whose
+  // libstdc++ implementation can fall back to the deprecated
+  // std::get_temporary_buffer when it cannot allocate scratch space.
+  std::vector<device_image_plain> Reordered;
+  Reordered.reserve(Imgs.size());
+  size_t NumStaticLinkImgs = 0;
+  for (const device_image_plain &Img : Imgs)
+    if (!NeedsDynamicLink(Img)) {
+      Reordered.push_back(Img);
+      ++NumStaticLinkImgs;
+    }
+  for (const device_image_plain &Img : Imgs)
+    if (NeedsDynamicLink(Img))
+      Reordered.push_back(Img);
+  Imgs = std::move(Reordered);
+  device_images_range StaticLinkImgs{Imgs.begin(),
+                                     Imgs.begin() + NumStaticLinkImgs};
+  device_images_range DynLinkImgs{Imgs.begin() + NumStaticLinkImgs, Imgs.end()};
+
+  // If there are dynamic-link images, the static link should allow
+  // unresolved symbols. Only invoke the static link (urProgramLinkExp)
+  // when there is at least one image for it; a dynamic-link-only link
+  // (e.g. cross-library link of native AOT object SYCLBINs) has nothing
+  // for urProgramLinkExp to do and passing an empty program list to it
+  // is invalid. The dynamic-link images are handled by the dynamicLink
+  // path below.
+  std::vector<device_image_plain> LinkedResults =
+      StaticLinkImgs.empty()
+          ? std::vector<device_image_plain>{}
+          : link(StaticLinkImgs, Devs, PropList,
+                 /*AllowUnresolvedSymbols=*/!DynLinkImgs.empty());
+
+  if (!DynLinkImgs.empty()) {
+    // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
+    // ZE_MODULE_FORMAT for the whole descriptor, so it cannot mix the
+    // static-link result with these inputs in one call. Build each
+    // program independently with ALLOW_UNRESOLVED_SYMBOLS (keeping its
+    // imported references intact), then resolve the cross-module
+    // references via dynamicLink(), which is the L0 API designed for
+    // linking already-built modules of arbitrary formats.
+    //
+    // Routing the build through ProgramManager::build (rather than
+    // calling urProgramCreateWithBinary + urProgramBuildExp inline)
+    // keeps the result image plumbed through the standard build path
+    // and reuses NativePrograms registration, addDeviceGlobalInitializer,
+    // the program cache, kernel-id collection, and origin tracking.
+    LinkedResults.reserve(LinkedResults.size() + DynLinkImgs.size());
+    for (device_image_impl &DynLinkImg : DynLinkImgs) {
+      LinkedResults.push_back(
+          build(DevImgPlainWithDeps{createSyclObjFromImpl<device_image_plain>(
+                    DynLinkImg)},
+                Devs, PropList, /*AllowUnresolvedSymbols=*/true));
+    }
+    dynamicLink(LinkedResults);
+  }
+
+  return LinkedResults;
 }
 
 device_image_plain
