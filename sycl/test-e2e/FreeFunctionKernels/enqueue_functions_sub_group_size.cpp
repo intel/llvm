@@ -24,6 +24,7 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
+#include <algorithm>
 #include <iostream>
 
 namespace syclext = sycl::ext::oneapi;
@@ -69,5 +70,14 @@ template <int SIMD> int test(sycl::queue &q) {
 
 int main() {
   sycl::queue q;
-  return test<32>(q);
+  int Ret = test<32>(q);
+
+  // Sub-group size 16 isn't guaranteed on all devices (e.g. CUDA/HIP only
+  // expose 32), so only exercise it when the device actually reports support
+  // for it rather than skipping it unconditionally.
+  auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(SGSizes.begin(), SGSizes.end(), 16) != SGSizes.end())
+    Ret |= test<16>(q);
+
+  return Ret;
 }
