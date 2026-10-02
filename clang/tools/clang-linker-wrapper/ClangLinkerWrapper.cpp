@@ -3329,7 +3329,7 @@ getDeviceInput(const ArgList &Args) {
   SmallVector<sycl::SYCLBINLinkTarget> &SYCLBINLinkTargets =
       *SYCLBINLinkTargetsOrErr;
   BitVector CoveredSYCLBINLinkTargets(SYCLBINLinkTargets.size());
-  sycl::SYCLBINSymbols SYCLBINSymbols;
+  sycl::SYCLBINSymbols Symbols;
 
   // Try to extract device code from the linker input files.
   bool WholeArchive = Args.hasArg(OPT_wholearchive_flag);
@@ -3379,8 +3379,8 @@ getDeviceInput(const ArgList &Args) {
         return std::move(Err);
     }
     if (Error Err = sycl::unpackSYCLBINFiles(*Filename, SYCLBINLinkTargets,
-                                             CoveredSYCLBINLinkTargets,
-                                             SYCLBINSymbols, Binaries))
+                                             CoveredSYCLBINLinkTargets, Symbols,
+                                             Binaries))
       return std::move(Err);
 
     for (auto &Binary : Binaries) {
@@ -3403,7 +3403,7 @@ getDeviceInput(const ArgList &Args) {
             "none of the SYCLBIN files being linked contain device code "
             "that can be linked for target '%s'",
             Target.TheTriple.str().c_str());
-    if (Error Err = sycl::checkForUndefinedSYCLBINSymbols(SYCLBINSymbols))
+    if (Error Err = sycl::checkForUndefinedSYCLBINSymbols(Symbols))
       return std::move(Err);
   }
 

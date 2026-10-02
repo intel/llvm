@@ -80,6 +80,31 @@
 // CHECK_PHASES: 2: clang-linker-wrapper, {0, 1}, image, (host-sycl)
 // CHECK_PHASES-NOT: {{[0-9]+}}:
 
+/// Phase-limiting options stop before the link step, so the SYCLBIN files are
+/// unused, as object files would be, and no link is performed.
+// RUN: %clangxx -fsycl-link -c \
+// RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   %t/a.syclbin %t/b.syclbin -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PHASE_LIMIT \
+// RUN:   --implicit-check-not=clang-linker-wrapper
+// RUN: %clangxx -fsycl-link -S \
+// RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   %t/a.syclbin %t/b.syclbin -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PHASE_LIMIT \
+// RUN:   --implicit-check-not=clang-linker-wrapper
+// RUN: %clangxx -fsycl-link -E \
+// RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   %t/a.syclbin %t/b.syclbin -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PHASE_LIMIT \
+// RUN:   --implicit-check-not=clang-linker-wrapper
+// RUN: %clangxx -fsycl-link -fsyntax-only \
+// RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   %t/a.syclbin %t/b.syclbin -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PHASE_LIMIT \
+// RUN:   --implicit-check-not=clang-linker-wrapper
+// CHECK_PHASE_LIMIT: warning: {{.*}}a.syclbin: 'linker' input unused
+// CHECK_PHASE_LIMIT: warning: {{.*}}b.syclbin: 'linker' input unused
+
 /// SYCLBIN files cannot be linked together with other inputs.
 // RUN: not %clangxx -fsycl-link \
 // RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
