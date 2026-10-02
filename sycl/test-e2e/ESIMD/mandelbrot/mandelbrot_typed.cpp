@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// The gather4.typed/scatter4.typed messages exist only on pre-Xe2 devices.
+// The gather4.typed/scatter4.typed messages exist only before Xe2.
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_lnl_m || arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl || arch-intel_gpu_nvl_u || arch-intel_gpu_nvl_s
+// REQUIRES: gpu-intel-gen11 || gpu-intel-gen12 || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.ppm
 //
