@@ -12459,11 +12459,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       for (auto &ToolChainMember :
            llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
         const ToolChain *TC = ToolChainMember.second;
-        SmallVector<BoundArch> Archs =
-            D.getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, *TC);
-        if (Archs.empty())
-          Archs.emplace_back();
-        for (const BoundArch &Arch : Archs)
+        for (const BoundArch &Arch :
+             D.getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, *TC))
           CmdArgs.push_back(Args.MakeArgString(
               "--syclbin-link-target=" + TC->getTripleString() +
               (Arch.empty() ? "" : "=" + Arch.ArchName.str())));
