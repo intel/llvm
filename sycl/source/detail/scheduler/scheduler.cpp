@@ -676,6 +676,8 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
         MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
       throw;
     }
+    Resources.clear();
+    Event.reset();
   }
 }
 

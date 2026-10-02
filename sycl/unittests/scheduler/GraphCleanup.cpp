@@ -501,6 +501,28 @@ TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOutsideMutex) {
   EXPECT_FALSE(MSPtr->hasDeferredResources());
 }
 
+TEST_F(SchedulerTest, BlockingAuxiliaryResourcesReleasedOutsideMutex) {
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  auto NestedWait = detail::event_impl::create_completed_host_event();
+  int NestedWaits = 0;
+
+  for (int I = 0; I < 3; ++I) {
+    auto Completed = detail::event_impl::create_completed_host_event();
+    std::shared_ptr<const void> Resource(
+        new int{}, [NestedWait, &NestedWaits](const void *Ptr) {
+          delete static_cast<const int *>(Ptr);
+          NestedWait->wait();
+          ++NestedWaits;
+        });
+    MSPtr->registerAuxiliaryResources(Completed, {Resource});
+  }
+
+  MSPtr->cleanupAuxiliaryResources(detail::BLOCKING);
+  EXPECT_EQ(NestedWaits, 3);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
 TEST_F(SchedulerTest, SlowPathWaitReleasesResourcesDeferredByCleanup) {
   unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
