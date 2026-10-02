@@ -16,9 +16,13 @@
 #include <detail/buffer_impl.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -462,5 +466,90 @@ TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOnWait) {
   EventImplPtr->wait();
   ASSERT_TRUE(MockAuxResourceDeleted);
   ASSERT_FALSE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, SchedulerAccessWaitsForReplacement) {
+  auto *MSPtr = new MockScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  detail::GlobalHandler &GlobalHandler = detail::GlobalHandler::instance();
+
+  std::mutex Mutex;
+  std::condition_variable CV;
+  bool AccessAcquired = false;
+  bool ReleaseAccess = false;
+  bool AccessWasValid = false;
+  std::thread AccessThread([&] {
+    auto Access = detail::GlobalHandler::getSchedulerAccess();
+    AccessWasValid = Access.get() == MSPtr;
+    {
+      std::lock_guard<std::mutex> Lock{Mutex};
+      AccessAcquired = true;
+    }
+    CV.notify_one();
+
+    std::unique_lock<std::mutex> Lock{Mutex};
+    CV.wait(Lock, [&] { return ReleaseAccess; });
+  });
+
+  {
+    std::unique_lock<std::mutex> Lock{Mutex};
+    if (!CV.wait_for(Lock, std::chrono::seconds(5),
+                     [&] { return AccessAcquired; })) {
+      Lock.unlock();
+      {
+        std::lock_guard<std::mutex> ReleaseLock{Mutex};
+        ReleaseAccess = true;
+      }
+      CV.notify_one();
+      AccessThread.join();
+      FAIL() << "scheduler access thread did not acquire its guard";
+      return;
+    }
+  }
+  if (!AccessWasValid) {
+    {
+      std::lock_guard<std::mutex> Lock{Mutex};
+      ReleaseAccess = true;
+    }
+    CV.notify_one();
+    AccessThread.join();
+    FAIL() << "scheduler access guard did not refer to the attached scheduler";
+    return;
+  }
+
+  std::atomic<bool> ReplacementComplete{false};
+  std::thread ReplacementThread([&] {
+    GlobalHandler.attachScheduler(nullptr);
+    ReplacementComplete.store(true, std::memory_order_release);
+  });
+
+  const auto Deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  bool AccessClosed = false;
+  while (std::chrono::steady_clock::now() < Deadline) {
+    auto Access = detail::GlobalHandler::getSchedulerAccess();
+    if (!Access.get()) {
+      AccessClosed = true;
+      break;
+    }
+    std::this_thread::yield();
+  }
+  EXPECT_TRUE(AccessClosed);
+  if (AccessClosed) {
+    EXPECT_FALSE(ReplacementComplete.load(std::memory_order_acquire));
+  }
+
+  {
+    std::lock_guard<std::mutex> Lock{Mutex};
+    ReleaseAccess = true;
+  }
+  CV.notify_one();
+  AccessThread.join();
+  ReplacementThread.join();
+
+  EXPECT_TRUE(ReplacementComplete.load(std::memory_order_acquire));
+  GlobalHandler.attachScheduler(new MockScheduler());
+  auto ReopenedAccess = detail::GlobalHandler::getSchedulerAccess();
+  EXPECT_NE(ReopenedAccess.get(), nullptr);
 }
 } // anonymous namespace
