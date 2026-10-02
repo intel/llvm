@@ -1066,14 +1066,16 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    // There are no explicit restrictions in L0 programming guide, so assume all
-    // are supported
     ur_memory_scope_capability_flags_t result =
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+
+    // System scope requires device atomics on host memory.
+    if (Device->ZeDeviceMemoryAccessProperties->hostAllocCapabilities &
+        ZE_MEMORY_ACCESS_CAP_FLAG_ATOMIC)
+      result |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
 
     return ReturnValue(result);
   }
