@@ -212,6 +212,8 @@ TEST_F(AsyncAllocTests, HandlerOverloadDependsOnAfterAlloc) {
 // the backend either, as nothing would take ownership of it.
 TEST_F(AsyncAllocTests, HandlerOverloadNoEvents) {
   queue Q = makeQueue(/*InOrder=*/true);
+  auto Pool = Q.get_context().ext_oneapi_get_default_memory_pool(
+      Q.get_device(), usm::alloc::device);
   constexpr size_t Iterations = 4;
 
   for (size_t I = 0; I < Iterations; ++I) {
@@ -221,10 +223,17 @@ TEST_F(AsyncAllocTests, HandlerOverloadNoEvents) {
     });
     oneapiext::submit(Q,
                       [&](handler &CGH) { oneapiext::async_free(CGH, Ptr); });
+
+    void *PoolPtr = nullptr;
+    oneapiext::submit(Q, [&](handler &CGH) {
+      PoolPtr = oneapiext::async_malloc_from_pool(CGH, 1024, Pool);
+    });
+    oneapiext::submit(
+        Q, [&](handler &CGH) { oneapiext::async_free(CGH, PoolPtr); });
   }
 
-  EXPECT_EQ(CounterAlloc, Iterations);
-  EXPECT_EQ(CounterFree, Iterations);
+  EXPECT_EQ(CounterAlloc, 2 * Iterations);
+  EXPECT_EQ(CounterFree, 2 * Iterations);
   EXPECT_EQ(CounterAllocWithEvent, size_t{0});
   EXPECT_EQ(CounterFreeWithEvent, size_t{0});
   EXPECT_EQ(CounterEventsWait, size_t{0});
