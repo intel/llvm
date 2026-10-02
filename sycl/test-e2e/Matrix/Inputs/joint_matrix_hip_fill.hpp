@@ -61,7 +61,7 @@ void hip_matrix_fill() {
                     sub_c{};
                 joint_matrix<sub_group, InType, use::b, K, N, layout::row_major>
                     sub_b{};
-                joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
+                joint_matrix<sub_group, InType, use::a, M, K, layout::row_major>
                     sub_a{};
 
                 joint_matrix_fill(sg, sub_a, 1);
