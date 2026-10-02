@@ -34,7 +34,7 @@ namespace detail {
 class filter_selector_impl;
 } // namespace detail
 
-class __SYCL_EXPORT __SYCL_DEPRECATED(
+class __SYCL_EXPORT_DEPRECATED(
     "filter_selector is deprecated, use a SYCL 2020 device selector callable "
     "instead") filter_selector : public device_selector {
 public:
