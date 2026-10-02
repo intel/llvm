@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Sep 14, 2026
-        return "32dcb8b6d0e3a4ad138cee7cbf1217ac78ba2fd1"
+        # Sep 29, 2026
+        return "7c4c6d75af167be816bd969f8d5d0022b13035df"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -215,9 +215,6 @@ class ComputeBench(Suite):
             ):
                 # old adapter doesn't support graph mode for SYCL
                 continue
-            if runtime in SYCL_RUNTIMES:
-                # TODO: this benchmark fails with SIGABRT on SYCL; fix and re-enable!
-                continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
             )
@@ -251,9 +248,6 @@ class ComputeBench(Suite):
             # SYCL only supports graph mode, UR & L0 support both emulated
             # and non-emulated graph APIs.
             if runtime in SYCL_RUNTIMES:
-                # TODO: SubmitGraph benchmarks fail on SYCL with SIGSEGV
-                # or a simple 'ERROR' in parsing; fix and re-enable!
-                continue
                 emulate_graphs = [0]
             else:  # level-zero and unified-runtime
                 # SubmitGraph with L0 / UR graph segfaults on PVC
