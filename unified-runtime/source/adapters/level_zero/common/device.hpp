@@ -271,6 +271,8 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeDevicePitchedAllocInfo> ZeDevicePitchedAllocProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<ZeStruct<ze_float_atomic_ext_properties_t>>
+      ZeDeviceFloatAtomicExtProperties;
   ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
                     std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
