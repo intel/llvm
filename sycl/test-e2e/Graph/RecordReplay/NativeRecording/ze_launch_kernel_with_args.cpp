@@ -1,5 +1,7 @@
 // REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
 // REQUIRES: level_zero_dev_kit
+// API 1.14+ is required for zeCommandListAppendLaunchKernelWithArguments
+// REQUIRES: level-zero-headers-ge-1.14
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv
