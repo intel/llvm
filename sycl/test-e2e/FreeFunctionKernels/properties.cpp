@@ -52,15 +52,19 @@ void range_wg_1dsize_hint_before(float start, float *ptr) {
 
 template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void range_sg_1dsize_before(float start, float *ptr) {
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclexp::nd_range_kernel<1>)) void range_sg_1dsize_before(float start,
+                                                               float *ptr) {
   kernel_code(start, ptr);
 }
 
 template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
-void range_sg_1dsize_after(float start, float *ptr) { kernel_code(start, ptr); }
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclexp::sub_group_size<SGSIZE>)) void range_sg_1dsize_after(float start,
+                                                                  float *ptr) {
+  kernel_code(start, ptr);
+}
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::device_has<sycl::aspect::gpu>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
@@ -73,14 +77,20 @@ void range_has_after(float start, float *ptr) { kernel_code(start, ptr); }
 template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
-void range_several_after(float start, float *ptr) { kernel_code(start, ptr); }
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
+        syclexp::sub_group_size<SGSIZE>)) void range_several_after(float start,
+                                                                   float *ptr) {
+  kernel_code(start, ptr);
+}
 
 template <size_t SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void range_several_before(float start, float *ptr) { kernel_code(start, ptr); }
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+        (syclexp::nd_range_kernel<1>)) void range_several_before(float start,
+                                                                 float *ptr) {
+  kernel_code(start, ptr);
+}
 
 template <typename T> bool check_result(T *ptr) {
   for (size_t i = 0; i < NUM; ++i) {
