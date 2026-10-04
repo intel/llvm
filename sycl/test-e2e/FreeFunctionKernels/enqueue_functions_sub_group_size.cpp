@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// REQUIRES: sg-32
+// REQUIRES: sg-16 || sg-32
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Device incompatible error
 
@@ -70,12 +70,14 @@ template <int SIMD> int test(sycl::queue &q) {
 
 int main() {
   sycl::queue q;
-  int Ret = test<32>(q);
+  int Ret = 0;
 
-  // Sub-group size 16 isn't guaranteed on all devices (e.g. CUDA/HIP only
-  // expose 32), so only exercise it when the device actually reports support
-  // for it rather than skipping it unconditionally.
+  // Neither sub-group size 16 nor 32 is guaranteed on all devices (e.g.
+  // CUDA/HIP only expose 32, some older GPUs only expose 16), so only
+  // exercise each one when the device actually reports support for it.
   auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(SGSizes.begin(), SGSizes.end(), 32) != SGSizes.end())
+    Ret |= test<32>(q);
   if (std::find(SGSizes.begin(), SGSizes.end(), 16) != SGSizes.end())
     Ret |= test<16>(q);
 

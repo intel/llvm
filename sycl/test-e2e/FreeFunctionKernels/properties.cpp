@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// REQUIRES: sg-32
+// REQUIRES: sg-16 || sg-32
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -191,11 +191,12 @@ int main() {
   ret |= test_has_desc<range_has_before, float>(q, ctxt);
   ret |= test_has_desc<range_has_after, float>(q, ctxt);
 
-  // Sub-group size 32 is guaranteed by REQUIRES: sg-32. Size 16 isn't
-  // guaranteed on all devices (e.g. CUDA/HIP only expose 32), so only
-  // exercise it when the device actually reports support for it.
-  ret |= test_sg_properties<32>(q, ctxt);
+  // Neither sub-group size 16 nor 32 is guaranteed on all devices (e.g.
+  // CUDA/HIP only expose 32, some older GPUs only expose 16), so only
+  // exercise each one when the device actually reports support for it.
   auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(SGSizes.begin(), SGSizes.end(), 32) != SGSizes.end())
+    ret |= test_sg_properties<32>(q, ctxt);
   if (std::find(SGSizes.begin(), SGSizes.end(), 16) != SGSizes.end())
     ret |= test_sg_properties<16>(q, ctxt);
 
