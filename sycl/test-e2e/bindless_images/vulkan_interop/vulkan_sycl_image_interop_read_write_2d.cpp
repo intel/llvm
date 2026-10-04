@@ -10,27 +10,27 @@
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // Fills an image with Vulkan (copy or clear), reads it and writes it in place
-// with a SYCL kernel, and checks the image with Vulkan. Vulkan may compress
-// large images and color attachments.
+// with a SYCL kernel, and checks the image with Vulkan. 32x33 is too small to
+// be compressed, and 1366 isn't a multiple of the tile width.
 
 // clang-format off
 // RUN: %{run} %t.out --type float --channels 4 32x33
 // RUN: %{run} %t.out --type unorm8 --channels 4 --clear 32x33
-// RUN: %{run} %t.out --type float --channels 1 1283x721
-// RUN: %{run} %t.out --type float --channels 2 --clear 1283x721
-// RUN: %{run} %t.out --type float --channels 4 1283x721
-// RUN: %{run} %t.out --type half --channels 1 --clear 1283x721
-// RUN: %{run} %t.out --type half --channels 4 1283x721
-// RUN: %{run} %t.out --type unorm8 --channels 1 1283x721
-// RUN: %{run} %t.out --type unorm8 --channels 4 --clear 1283x721
-// RUN: %{run} %t.out --type snorm8 --channels 2 1283x721
-// RUN: %{run} %t.out --type snorm8 --channels 4 --clear 1283x721
-// RUN: %{run} %t.out --type unorm16 --channels 2 --clear 1283x721
-// RUN: %{run} %t.out --type unorm16 --channels 4 1283x721
-// RUN: %{run} %t.out --type snorm16 --channels 1 1283x721
-// RUN: %{run} %t.out --type snorm16 --channels 4 --clear 1283x721
-// RUN: %{run} %t.out --type float --channels 4 --semaphores 1283x721
-// RUN: %{run} %t.out --type unorm8 --channels 4 --clear --semaphores 1283x721
+// RUN: %{run} %t.out --type float --channels 1 1920x1080
+// RUN: %{run} %t.out --type float --channels 2 --clear 1366x768
+// RUN: %{run} %t.out --type float --channels 4 1920x1080
+// RUN: %{run} %t.out --type half --channels 1 1920x1080
+// RUN: %{run} %t.out --type half --channels 4 --clear 3840x2160
+// RUN: %{run} %t.out --type unorm8 --channels 1 1366x768
+// RUN: %{run} %t.out --type unorm8 --channels 4 --clear 1920x1080
+// RUN: %{run} %t.out --type snorm8 --channels 2 1920x1080
+// RUN: %{run} %t.out --type snorm8 --channels 4 --clear 1366x768
+// RUN: %{run} %t.out --type unorm16 --channels 2 --clear 1920x1080
+// RUN: %{run} %t.out --type unorm16 --channels 4 1366x768
+// RUN: %{run} %t.out --type snorm16 --channels 1 1920x1080
+// RUN: %{run} %t.out --type snorm16 --channels 4 --clear 1920x1080
+// RUN: %{run} %t.out --type float --channels 4 --semaphores 1920x1080
+// RUN: %{run} %t.out --type unorm8 --channels 4 --clear --semaphores 1920x1080
 // clang-format on
 
 #include "../helpers/interop_read_write.hpp"
