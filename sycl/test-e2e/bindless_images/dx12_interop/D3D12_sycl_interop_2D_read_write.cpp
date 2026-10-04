@@ -20,14 +20,14 @@
 // RUN: %{run} %t.exe --type float --channels 4 1920x1080
 // RUN: %{run} %t.exe --type float --channels 1 --clear 1366x768
 // RUN: %{run} %t.exe --type half --channels 1 1366x768
-// RUN: %{run} %t.exe --type half --channels 2 1920x1080
+// RUN: %{run} %t.exe --type half --channels 2 --dx12-resource 1920x1080
 // RUN: %{run} %t.exe --type half --channels 4 --clear 3840x2160
 // RUN: %{run} %t.exe --type unorm8 --channels 1 1920x1080
 // RUN: %{run} %t.exe --type unorm8 --channels 2 --clear 1366x768
 // RUN: %{run} %t.exe --type unorm8 --channels 4 1920x1080
 // RUN: %{run} %t.exe --type snorm8 --channels 1 1366x768
 // RUN: %{run} %t.exe --type snorm8 --channels 2 1920x1080
-// RUN: %{run} %t.exe --type snorm8 --channels 4 --clear 1920x1080
+// RUN: %{run} %t.exe --type snorm8 --channels 4 --clear --dx12-resource 1920x1080
 // RUN: %{run} %t.exe --type unorm16 --channels 1 1920x1080
 // RUN: %{run} %t.exe --type unorm16 --channels 2 --clear 1920x1080
 // RUN: %{run} %t.exe --type unorm16 --channels 4 1366x768
@@ -221,7 +221,8 @@ std::vector<uint32_t> readback(D3D12Context &ctx, ID3D12Resource *texture,
 }
 
 int runTest(const ChannelFormat &f, DXGI_FORMAT format, int width, int height,
-            bool clear, bool useSemaphores) {
+            bool clear, bool useSemaphores,
+            syclexp::external_mem_handle_type handleType) {
   D3D12Context ctx = createD3D12Context();
   D3D12ImageResources imgRes = createTexture(ctx, width, height, format, clear);
 
@@ -257,8 +258,7 @@ int runTest(const ChannelFormat &f, DXGI_FORMAT format, int width, int height,
     sycl::queue q{queueProps};
 
     syclexp::external_mem_descriptor<syclexp::resource_win32_handle> memDesc{
-        imgRes.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
-        imgRes.allocationSize};
+        imgRes.sharedHandle, handleType, imgRes.allocationSize};
     syclexp::external_mem extMem = syclexp::import_external_memory(memDesc, q);
     syclexp::image_descriptor imgDesc(sycl::range<2>(width, height), f.channels,
                                       f.channelType);
@@ -335,6 +335,7 @@ int main(int argc, char **argv) {
   int channels = 4;
   bool clear = false;
   bool useSemaphores = false;
+  auto handleType = syclexp::external_mem_handle_type::win32_nt_handle;
   std::string type = "float";
 
   for (int i = 1; i < argc; ++i) {
@@ -343,6 +344,8 @@ int main(int argc, char **argv) {
       clear = true;
     } else if (arg == "--semaphores") {
       useSemaphores = true;
+    } else if (arg == "--dx12-resource") {
+      handleType = syclexp::external_mem_handle_type::win32_nt_dx12_resource;
     } else if (arg == "--channels" && i + 1 < argc) {
       channels = std::stoi(argv[++i]);
     } else if (arg == "--type" && i + 1 < argc) {
@@ -374,5 +377,5 @@ int main(int argc, char **argv) {
             << " | Semaphores: " << (useSemaphores ? "ON" : "OFF") << std::endl;
 
   return runTest(*format, getFormat(type, channels), width, height, clear,
-                 useSemaphores);
+                 useSemaphores, handleType);
 }

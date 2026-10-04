@@ -92,10 +92,14 @@ void beginCommandBuffer(VkCommandBuffer cmd) {
 }
 
 void transitionImage(VkCommandBuffer cmd, VkImage image,
-                     VkImageLayout oldLayout, VkImageLayout newLayout) {
+                     VkImageLayout oldLayout, VkImageLayout newLayout,
+                     uint32_t srcQueueFamily = VK_QUEUE_FAMILY_IGNORED,
+                     uint32_t dstQueueFamily = VK_QUEUE_FAMILY_IGNORED) {
   VkImageMemoryBarrier barrier = createImageMemoryBarrier(
       image, 1, oldLayout, newLayout, VK_ACCESS_MEMORY_WRITE_BIT,
       VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
+  barrier.srcQueueFamilyIndex = srcQueueFamily;
+  barrier.dstQueueFamilyIndex = dstQueueFamily;
   vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0,
                        nullptr, 1, &barrier);
@@ -176,8 +180,10 @@ int runTest(const ChannelFormat &f, VkFormat format, int width, int height,
     vkCmdCopyBufferToImage(fillCmd, staging.buffer, imgRes.image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
   }
+  // Release the image to SYCL
   transitionImage(fillCmd, imgRes.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                  VK_IMAGE_LAYOUT_GENERAL);
+                  VK_IMAGE_LAYOUT_GENERAL, vkCtx.queueFamilyIndex,
+                  VK_QUEUE_FAMILY_EXTERNAL);
   // Without semaphores, SYCL starts after the fill completed
   submit(vkCtx, fillCmd, VK_NULL_HANDLE, fillDone);
   if (!useSemaphores)
@@ -232,8 +238,10 @@ int runTest(const ChannelFormat &f, VkFormat format, int width, int height,
     VkCommandPool readbackPool;
     VkCommandBuffer readbackCmd = createCommandBuffer(vkCtx, readbackPool);
     beginCommandBuffer(readbackCmd);
+    // Acquire the image from SYCL
     transitionImage(readbackCmd, imgRes.image, VK_IMAGE_LAYOUT_GENERAL,
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_QUEUE_FAMILY_EXTERNAL, vkCtx.queueFamilyIndex);
     vkCmdCopyImageToBuffer(readbackCmd, imgRes.image,
                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer,
                            1, &region);
