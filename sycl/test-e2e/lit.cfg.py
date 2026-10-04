@@ -1052,10 +1052,17 @@ if any(
 ):
     config.available_features.add("jit")
 
-# "spir-family" is true whenever the active build target(s) compile to any
-# SPIR triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for
-# tests that only care "is this a SPIR backend" not which triple specifically.
+# "spir-family" is true for a build target/device whose triple is any SPIR
+# triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for tests
+# that only care "is this a SPIR backend" not which triple specifically. Kept
+# per-target (not a global available_feature) so it doesn't leak onto
+# non-SPIR targets/devices when a build/run combines multiple triples.
 SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
+config.spir_family_targets = {
+    target
+    for target in config.sycl_build_targets
+    if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+}
 matched_spir_triple = next(
     (
         config.target_to_triple.get(target)
@@ -1064,10 +1071,11 @@ matched_spir_triple = next(
     ),
     None,
 )
-if matched_spir_triple is not None:
-    config.available_features.add("spir-family")
 
 # %aot_options expands to the AOT flags for the matched build target.
+# spir64 is included here (not just spir64_gen) because intel/llvm CI only runs
+# a spir64 configuration for these AOT tests, not a dedicated spir64_gen one;
+# TODO drop spir64 once a spir64_gen CI run exists.
 if matched_spir_triple in ("spir64", "spir64_gen"):
     aot_options = (
         "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
@@ -1288,6 +1296,8 @@ for full_name, sycl_device in zip(
     # Add corresponding target feature
     target = config.backend_to_target[be]
     features.add(target)
+    if target in config.spir_family_targets:
+        features.add("spir-family")
 
     if be == "hip":
         if not config.amd_arch:

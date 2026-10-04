@@ -191,11 +191,17 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         "target-amd": {"sg-16", "sg-32", "sg-64"},
     }
 
+    def per_target_features(self, config, t):
+        extra = set(self.target_sg_sizes.get(t, set()))
+        if t in config.spir_family_targets:
+            extra.add("spir-family")
+        return extra
+
     def select_build_targets_for_test(self, test):
         supported_targets = set()
         for t in test.config.sycl_build_targets:
             features = test.config.available_features.union(
-                {t}, self.target_sg_sizes.get(t, set())
+                {t}, self.per_target_features(test.config, t)
             )
             if self.getMissingRequiresBuildOnly(features, test.requires):
                 continue
@@ -217,7 +223,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             for t in supported_targets
             if not self.getMatchedXFail(
                 test.config.available_features.union(
-                    {t}, self.target_sg_sizes.get(t, set())
+                    {t}, self.per_target_features(test.config, t)
                 ),
                 test.xfails,
             )
