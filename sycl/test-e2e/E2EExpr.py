@@ -20,6 +20,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-spir_x86_64",
         "jit",
         "opencl-cpu-rt",
+        "spir-family",
         "spirv-backend",
         "linux",
         "system-linux",
