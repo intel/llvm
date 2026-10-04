@@ -72,9 +72,7 @@ int main() {
   sycl::queue q;
   int Ret = 0;
 
-  // Neither sub-group size 16 nor 32 is guaranteed on all devices (e.g.
-  // CUDA/HIP only expose 32, some older GPUs only expose 16), so only
-  // exercise each one when the device actually reports support for it.
+  // Only exercise sub-group size when the device actually supports for it.
   auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
   if (std::find(SGSizes.begin(), SGSizes.end(), 32) != SGSizes.end())
     Ret |= test<32>(q);
