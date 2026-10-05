@@ -33,9 +33,9 @@ void event_impl::initContextIfNeeded() {
     return;
 
   const device SyclDevice;
-  MIsHostEvent = false;
-  MContext =
-      detail::queue_impl::getDefaultOrNew(*detail::getSyclObjImpl(SyclDevice));
+  // Also gives the binding the adapter it releases its backend event with.
+  setContextImpl(*detail::queue_impl::getDefaultOrNew(
+      *detail::getSyclObjImpl(SyclDevice)));
   assert(MContext);
 }
 

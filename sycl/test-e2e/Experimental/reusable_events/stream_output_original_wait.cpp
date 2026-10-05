@@ -131,9 +131,13 @@ int main() {
       CGH.single_task([=] { *Marker = Gen + 1; });
     });
 
-    // Re-signal the kernel's event on an unrelated queue and complete it.
+    // Re-signal the kernel's event on an unrelated queue and complete it. The
+    // status is polled: E->wait() would also wait for the stream flush of the
+    // held kernel (review-10-01 #4), which needs the gate open.
     syclex::enqueue_signal_event(Q2, *E);
-    E->wait();
+    auto SignalDeadline = std::chrono::steady_clock::now() + 10s;
+    while (!isComplete(*E) && std::chrono::steady_clock::now() < SignalDeadline)
+      std::this_thread::sleep_for(1ms);
     check(isComplete(*E), "the new signal is not complete", Gen);
     // Drop the public event in every other generation.
     if (Gen % 2)

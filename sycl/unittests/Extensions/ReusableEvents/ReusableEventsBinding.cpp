@@ -315,10 +315,8 @@ TEST_P(ReusableEventsBindingSupportTest,
 
 // tests-10-02 U03: a default constructed event, which gets the default context
 // when it is first signaled.
-// Known defect: review-10-02 #2 (lazy context initialization leaves the
-// binding's adapter null; waiting for or releasing the backend event asserts).
 TEST_P(ReusableEventsBindingSupportTest,
-       DISABLED_UnsignaledDefaultConstructedEventStaysCompleteForHeldConsumer) {
+       UnsignaledDefaultConstructedEventStaysCompleteForHeldConsumer) {
   const sycl::context DefaultContext = sycl::queue{Dev}.get_context();
   heldConsumerOfFirstSignal(DefaultContext, [] { return sycl::event{}; });
 }
@@ -1143,10 +1141,8 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 // tests-10-02 U26: a default constructed event.
-// Known defect: review-10-02 #2 (lazy context initialization leaves the
-// binding's adapter null; waiting for or releasing the backend event asserts).
 TEST_F(ReusableEventsBindingTest,
-       DISABLED_DefaultEventWaitListAcrossResignalAndRelease) {
+       DefaultEventWaitListAcrossResignalAndRelease) {
   waitListAcrossResignal(Dev, WaitListEvent::Default, /*HeldConsumer=*/true);
   waitListAcrossResignal(Dev, WaitListEvent::Default, /*HeldConsumer=*/false);
 }

@@ -1,10 +1,6 @@
 // REQUIRES: level_zero_v2_adapter
 // REQUIRES: aspect-usm_device_allocations, aspect-usm_host_allocations
 
-// XFAIL: *
-// XFAIL-TRACKER: review-10-02 #2 (lazy context initialization of a default
-// constructed event leaves the adapter of its binding null)
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

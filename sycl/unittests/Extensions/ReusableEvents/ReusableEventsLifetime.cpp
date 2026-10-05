@@ -115,10 +115,8 @@ TEST_P(ReusableEventsLifetimeSupportTest, MadeEventSignalsOwnTheirHandles) {
 
 // tests-10-02 U01: a default constructed event gets its context, the default
 // one, when it is first signaled.
-// Known defect: review-10-02 #2 (lazy context initialization leaves the
-// binding's adapter null; waiting for or releasing the backend event asserts).
 TEST_P(ReusableEventsLifetimeSupportTest,
-       DISABLED_DefaultConstructedEventSignalsOwnTheirHandles) {
+       DefaultConstructedEventSignalsOwnTheirHandles) {
   TwoSignals Signals;
   {
     sycl::queue Q{Dev, sycl::property::queue::in_order{}};
@@ -131,6 +129,32 @@ TEST_P(ReusableEventsLifetimeSupportTest,
     return ownershipBalancedLocked(Signals.First) &&
            ownershipBalancedLocked(Signals.Second);
   }));
+}
+
+ur_result_t redefinedUrEventCreateWithNativeHandle(void *pParams) {
+  auto params =
+      *static_cast<ur_event_create_with_native_handle_params_t *>(pParams);
+  std::lock_guard<std::mutex> Lock(BackendMutex);
+  **params.pphEvent = newFakeEvent();
+  return UR_RESULT_SUCCESS;
+}
+
+// tests-10-02 U01, get_native: the native handle of a default constructed
+// event, which gets the default context when it is first asked for it, is
+// created for the event and released with it.
+TEST_F(ReusableEventsLifetimeTest,
+       DefaultConstructedEventNativeHandleIsReleased) {
+  mock::getCallbacks().set_replace_callback(
+      "urEventCreateWithNativeHandle", &redefinedUrEventCreateWithNativeHandle);
+  ur_event_handle_t Handle = nullptr;
+  {
+    sycl::event E;
+    sycl::detail::getSyclObjImpl(E)->getNative();
+    Handle = handleOf(E);
+    ASSERT_NE(Handle, nullptr);
+    EXPECT_NE(bindingOf(E)->MAdapter, nullptr);
+  }
+  EXPECT_EQ(releases(Handle), 1);
 }
 
 // tests-10-02 U02. Copies and moves of an event are the same event: they all
