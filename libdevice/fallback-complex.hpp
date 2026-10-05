@@ -184,7 +184,7 @@ static inline float __complex__ __sqrf(float __complex__ z) {
 static inline float __complex__ __devicelib_cacosf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
-  const float __pi(__spirv_ocl_atan2(+0.0f, -0.0f));
+  const float __pi(static_cast<float>(__DEVICELIB_PI));
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return CMPLXF(z_imag, z_real);
@@ -206,19 +206,25 @@ static inline float __complex__ __devicelib_cacosf(float __complex__ z) {
     return CMPLXF(__pi / 2.0f, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return CMPLXF(__pi / 2.0f, -z_imag);
+  // acos(z) = pi - acos(-z) for real(z) < 0; evaluating on the right
+  // half-plane keeps z + sqrt(z^2-1) from cancelling.  Im(acos) keeps the
+  // sign opposite to imag(z) either way.
+  const bool refl = __spirv_SignBitSet(z_real);
+  float __complex__ zr = refl ? -z : z;
   float __complex__ w =
-      __devicelib_clogf(z + __devicelib_csqrtf(__sqrf(z) - 1.0f));
+      __devicelib_clogf(zr + __devicelib_csqrtf(__sqrf(zr) - 1.0f));
+  float re = __spirv_ocl_fabs(__devicelib_cimagf(w));
+  if (refl)
+    re = __pi - re;
   if (__spirv_SignBitSet(z_imag))
-    return CMPLXF(__spirv_ocl_fabs(__devicelib_cimagf(w)),
-                  __spirv_ocl_fabs(__devicelib_crealf(w)));
-  return CMPLXF(__spirv_ocl_fabs(__devicelib_cimagf(w)),
-                -__spirv_ocl_fabs(__devicelib_crealf(w)));
+    return CMPLXF(re, __spirv_ocl_fabs(__devicelib_crealf(w)));
+  return CMPLXF(re, -__spirv_ocl_fabs(__devicelib_crealf(w)));
 }
 
 static inline float __complex__ __devicelib_casinhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
-  const float __pi(__spirv_ocl_atan2(+0.0f, -0.0f));
+  const float __pi(static_cast<float>(__DEVICELIB_PI));
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return z;
@@ -236,8 +242,11 @@ static inline float __complex__ __devicelib_casinhf(float __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return CMPLXF(__spirv_ocl_copysign(z_imag, z_real),
                   __spirv_ocl_copysign(__pi / 2.0f, z_imag));
+  // asinh is odd: evaluate on the right half-plane, where sqrt(z^2+1) ~ +z and
+  // the sum cannot cancel, then take the signs from the original argument.
+  float __complex__ zr = __spirv_SignBitSet(z_real) ? -z : z;
   float __complex__ w =
-      __devicelib_clogf(z + __devicelib_csqrtf(__sqrf(z) + 1.0f));
+      __devicelib_clogf(zr + __devicelib_csqrtf(__sqrf(zr) + 1.0f));
   return CMPLXF(__spirv_ocl_copysign(__devicelib_crealf(w), z_real),
                 __spirv_ocl_copysign(__devicelib_cimagf(w), z_imag));
 }
@@ -251,7 +260,7 @@ static inline float __complex__ __devicelib_casinf(float __complex__ z) {
 static inline float __complex__ __devicelib_cacoshf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
-  const float __pi(__spirv_ocl_atan2(+0.0f, -0.0f));
+  const float __pi(static_cast<float>(__DEVICELIB_PI));
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return CMPLXF(__spirv_ocl_fabs(z_real), z_imag);
@@ -273,16 +282,23 @@ static inline float __complex__ __devicelib_cacoshf(float __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return CMPLXF(__spirv_ocl_fabs(z_imag),
                   __spirv_ocl_copysign(__pi / 2.0f, z_imag));
+  // acosh(z) = acosh(-z) + i*copysign(pi, imag(z)) for real(z) < 0; evaluating
+  // on the right half-plane keeps z + sqrt(z^2-1) from cancelling.
+  const bool refl = __spirv_SignBitSet(z_real);
+  float __complex__ zr = refl ? -z : z;
   float __complex__ w =
-      __devicelib_clogf(z + __devicelib_csqrtf(__sqrf(z) - 1.0f));
+      __devicelib_clogf(zr + __devicelib_csqrtf(__sqrf(zr) - 1.0f));
+  float im = __spirv_ocl_fabs(__devicelib_cimagf(w));
+  if (refl)
+    im = __pi - im;
   return CMPLXF(__spirv_ocl_copysign(__devicelib_crealf(w), 0.0f),
-                __spirv_ocl_copysign(__devicelib_cimagf(w), z_imag));
+                __spirv_ocl_copysign(im, z_imag));
 }
 
 static inline float __complex__ __devicelib_catanhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
-  const float __pi(__spirv_ocl_atan2(+0.0f, -0.0f));
+  const float __pi(static_cast<float>(__DEVICELIB_PI));
   if (__spirv_IsInf(z_imag))
     return CMPLXF(__spirv_ocl_copysign(0.0f, z_real),
                   __spirv_ocl_copysign(__pi / 2.0f, z_imag));

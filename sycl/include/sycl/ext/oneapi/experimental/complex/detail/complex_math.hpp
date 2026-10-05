@@ -14,6 +14,13 @@
 
 #include <math.h>
 
+#if __cplusplus >= 202002L && __has_include(<version>)
+#include <version> // defines __cpp_lib_math_constants
+#endif
+#if __cpp_lib_math_constants
+#include <numbers>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -340,6 +347,14 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 }
 
 namespace cplx::detail {
+// Correctly rounded pi; the atan2(+0, -0) idiom from libc++ is 1 ulp low for
+// float on Intel GPUs. Kept as double: pi_v<sycl::half> is ill-formed.
+#if __cpp_lib_math_constants
+inline constexpr double __pi_d = std::numbers::pi_v<double>;
+#else
+inline constexpr double __pi_d = 3.14159265358979323846;
+#endif
+
 // __sqr, computes pow(x, 2)
 
 template <class _Tp>
@@ -357,7 +372,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     asinh(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
+  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return __x;
@@ -376,7 +391,10 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
   if (sycl::isinf(__x.imag()))
     return complex<_Tp>(sycl::copysign(__x.imag(), __x.real()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
-  complex<_Tp> __z = log(__x + sqrt(cplx::detail::__sqr(__x) + _Tp(1)));
+  // asinh is odd: evaluate on the right half-plane, where sqrt(x^2+1) ~ +x and
+  // the sum cannot cancel, then take the signs from the original argument.
+  const complex<_Tp> __xr = sycl::signbit(__x.real()) ? -__x : __x;
+  complex<_Tp> __z = log(__xr + sqrt(cplx::detail::__sqr(__xr) + _Tp(1)));
   return complex<_Tp>(sycl::copysign(__z.real(), __x.real()),
                       sycl::copysign(__z.imag(), __x.imag()));
 }
@@ -387,7 +405,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     acosh(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
+  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return complex<_Tp>(sycl::fabs(__x.real()), __x.imag());
@@ -411,9 +429,15 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
   if (sycl::isinf(__x.imag()))
     return complex<_Tp>(sycl::fabs(__x.imag()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
-  complex<_Tp> __z = log(__x + sqrt(cplx::detail::__sqr(__x) - _Tp(1)));
+  // acosh(x) = acosh(-x) + i*copysign(pi, imag(x)) for real(x) < 0; evaluating
+  // on the right half-plane keeps x + sqrt(x^2-1) from cancelling.
+  const bool __refl = sycl::signbit(__x.real());
+  const complex<_Tp> __xr = __refl ? -__x : __x;
+  complex<_Tp> __z = log(__xr + sqrt(cplx::detail::__sqr(__xr) - _Tp(1)));
+  const _Tp __im =
+      __refl ? __pi - sycl::fabs(__z.imag()) : sycl::fabs(__z.imag());
   return complex<_Tp>(sycl::copysign(__z.real(), _Tp(0)),
-                      sycl::copysign(__z.imag(), __x.imag()));
+                      sycl::copysign(__im, __x.imag()));
 }
 
 // atanh
@@ -422,7 +446,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     atanh(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
+  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
   if (sycl::isinf(__x.imag())) {
     return complex<_Tp>(sycl::copysign(_Tp(0), __x.real()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
@@ -526,7 +550,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     acos(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
+  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return complex<_Tp>(__x.imag(), __x.real());
@@ -550,10 +574,17 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
   if (__x.real() == 0 && (__x.imag() == 0 || sycl::isnan(__x.imag())))
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
-  complex<_Tp> __z = log(__x + sqrt(cplx::detail::__sqr(__x) - _Tp(1)));
+  // acos(x) = pi - acos(-x) for real(x) < 0; evaluating on the right
+  // half-plane keeps x + sqrt(x^2-1) from cancelling.  Im(acos) keeps the
+  // sign opposite to imag(x) either way.
+  const bool __refl = sycl::signbit(__x.real());
+  const complex<_Tp> __xr = __refl ? -__x : __x;
+  complex<_Tp> __z = log(__xr + sqrt(cplx::detail::__sqr(__xr) - _Tp(1)));
+  const _Tp __re =
+      __refl ? __pi - sycl::fabs(__z.imag()) : sycl::fabs(__z.imag());
   if (sycl::signbit(__x.imag()))
-    return complex<_Tp>(sycl::fabs(__z.imag()), sycl::fabs(__z.real()));
-  return complex<_Tp>(sycl::fabs(__z.imag()), -sycl::fabs(__z.real()));
+    return complex<_Tp>(__re, sycl::fabs(__z.real()));
+  return complex<_Tp>(__re, -sycl::fabs(__z.real()));
 }
 
 // atan
