@@ -249,14 +249,16 @@ interfaces are needed to pass along this information.
 For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
 
 If `-fno-sycl-rdc` is specified, the compiler finalizes device code and performs
-offload processing on every module individually.
+offload processing on every module individually during compile time.
 
 With the new offload model, `-fno-sycl-rdc` is specified at the compile step:
 ```
-clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 -fno-sycl-rdc input1.cpp -c -o object1.o
-clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 -fno-sycl-rdc input2.cpp -c -o object2.o
-clang++ --offload-new-driver -fsycl -fsycl-targets=T1,T2 object1.o object2.o -o a.out
+clang++ --offload-new-driver -fsycl -fsycl-targets=T -fno-sycl-rdc input1.cpp -c -o object1.o
+clang++ --offload-new-driver -fsycl -fsycl-targets=T -fno-sycl-rdc input2.cpp -c -o object2.o
+clang++ --offload-new-driver -fsycl -fsycl-targets=T object1.o object2.o -o a.out
 ```
+Only one SYCL offloading target is currently supported with `-fno-sycl-rdc`.
+
 `clang-linker-wrapper --no-sycl-rdc --emit-fatbin-only` is invoked per
 translation unit at compile time to finalize each TU's device code
 independently. It outputs a wrapper module in bitcode form that holds the
