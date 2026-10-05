@@ -1,3 +1,6 @@
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
@@ -23,11 +26,13 @@ template <typename T> int run(queue &q, const std::complex<T> *in, int n) {
     d_in[i] = in[i];
 
   q.parallel_for(range<1>(n), [=](id<1> i) {
-     d_out[4 * i + 0] = std::acos(d_in[i]);
-     d_out[4 * i + 1] = std::asin(d_in[i]);
-     d_out[4 * i + 2] = std::acosh(d_in[i]);
-     d_out[4 * i + 3] = std::asinh(d_in[i]);
-   }).wait();
+    const size_t idx = i[0];
+    d_out[4 * idx + 0] = std::acos(d_in[idx]);
+    d_out[4 * idx + 1] = std::asin(d_in[idx]);
+    d_out[4 * idx + 2] = std::acosh(d_in[idx]);
+    d_out[4 * idx + 3] = std::asinh(d_in[idx]);
+  });
+  q.wait_and_throw();
 
   const char *names[] = {"acos", "asin", "acosh", "asinh"};
   const T tol = 8 * std::numeric_limits<T>::epsilon();
@@ -50,8 +55,11 @@ template <typename T> int run(queue &q, const std::complex<T> *in, int n) {
   return fails;
 }
 
-int main() {
-  queue q;
+int main() try {
+  queue q{[](sycl::exception_list el) {
+    for (auto &e : el)
+      std::rethrow_exception(e);
+  }};
   int fails = 0;
 
   {
@@ -73,4 +81,7 @@ int main() {
   }
 
   return fails;
+} catch (const std::exception &e) {
+  std::cout << "exception: " << e.what() << "\n";
+  return 1;
 }

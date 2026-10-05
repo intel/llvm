@@ -11,15 +11,9 @@
 #include "common.hpp"
 
 #include <sycl/builtins.hpp>
+#include <sycl/detail/numbers.hpp>
 
 #include <math.h>
-
-#if __cplusplus >= 202002L && __has_include(<version>)
-#include <version> // defines __cpp_lib_math_constants
-#endif
-#if __cpp_lib_math_constants
-#include <numbers>
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -347,14 +341,6 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
 }
 
 namespace cplx::detail {
-// Correctly rounded pi; the atan2(+0, -0) idiom from libc++ is 1 ulp low for
-// float on Intel GPUs. Kept as double: pi_v<sycl::half> is ill-formed.
-#if __cpp_lib_math_constants
-inline constexpr double __pi_d = std::numbers::pi_v<double>;
-#else
-inline constexpr double __pi_d = 3.14159265358979323846;
-#endif
-
 // __sqr, computes pow(x, 2)
 
 template <class _Tp>
@@ -372,7 +358,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     asinh(const complex<_Tp> &__x) {
-  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
+  const _Tp __pi(static_cast<_Tp>(sycl::detail::numbers::pi));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return __x;
@@ -405,7 +391,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     acosh(const complex<_Tp> &__x) {
-  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
+  const _Tp __pi(static_cast<_Tp>(sycl::detail::numbers::pi));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return complex<_Tp>(sycl::fabs(__x.real()), __x.imag());
@@ -446,7 +432,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     atanh(const complex<_Tp> &__x) {
-  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
+  const _Tp __pi(static_cast<_Tp>(sycl::detail::numbers::pi));
   if (sycl::isinf(__x.imag())) {
     return complex<_Tp>(sycl::copysign(_Tp(0), __x.real()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
@@ -550,7 +536,7 @@ template <class _Tp>
 __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     acos(const complex<_Tp> &__x) {
-  const _Tp __pi(static_cast<_Tp>(cplx::detail::__pi_d));
+  const _Tp __pi(static_cast<_Tp>(sycl::detail::numbers::pi));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return complex<_Tp>(__x.imag(), __x.real());
