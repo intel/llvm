@@ -54,6 +54,17 @@
 // CHK-FSYCL-IS-DEVICE: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc"
 // CHK-FSYCL-IS-HOST: "-cc1"{{.*}} "-fsycl-is-host"
 
+/// Check that -S with a device-only compilation produces textual LLVM IR, with
+/// or without -emit-llvm. Unlike upstream, the intel/llvm driver keeps textual
+/// LLVM IR for -fsycl-device-only -S (see the TEXTUAL checks in sycl.cpp);
+/// device assembly is requested with -fsycl-device-obj=asm instead.
+// RUN: %clang -### -fsycl -fsycl-device-only -S %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DEVICE-ONLY-LL %s
+// RUN: %clang -### -fsycl -fsycl-device-only -S -emit-llvm %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DEVICE-ONLY-LL %s
+// CHK-DEVICE-ONLY-LL: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm"
+// CHK-DEVICE-ONLY-LL-SAME: "-o" "{{[^"]*}}.ll"
+
 /// Check that SYCL compilation defaults to relocatable device code (-fgpu-rdc
 /// is passed to both the device and the host -cc1 invocation) and that
 /// -fno-gpu-rdc disables it.
