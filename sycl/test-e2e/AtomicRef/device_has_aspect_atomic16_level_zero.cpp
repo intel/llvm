@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, level_zero_dev_kit
+// REQUIRES: arch-intel_gpu_cri
 // RUN: %{build} -o %t.out %level_zero_options
 // RUN: %{run} %t.out
 

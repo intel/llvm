@@ -1655,8 +1655,17 @@ public:
           .value_or(0);
     }
     CASE(ext_oneapi_atomic16) {
-      // Likely L0 doesn't check it properly. Need to double-check.
-      return has_extension("cl_ext_float_atomics");
+      // TODO: Only verified on CRI (see AtomicRef tests). Extend to other
+      // architectures once 16-bit atomics are tested there.
+      using arch = sycl::ext::oneapi::experimental::architecture;
+      try {
+        return has_extension("cl_ext_float_atomics") &&
+               extOneapiArchitectureIs(arch::intel_gpu_cri);
+      } catch (const sycl::exception &) {
+        // If we're here it means the device does not support architecture
+        // querying
+        return false;
+      }
     }
     CASE(ext_oneapi_virtual_functions) {
       // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem
