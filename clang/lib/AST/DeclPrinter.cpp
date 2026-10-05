@@ -1284,10 +1284,20 @@ void DeclPrinter::VisitTemplateDecl(const TemplateDecl *D) {
 
   if (const TemplateTemplateParmDecl *TTP =
         dyn_cast<TemplateTemplateParmDecl>(D)) {
-    if (TTP->wasDeclaredWithTypename())
-      Out << "typename";
-    else
-      Out << "class";
+    switch (TTP->templateParameterKind()) {
+    case TemplateNameKind::TNK_Concept_template:
+      Out << "concept";
+      break;
+    case TemplateNameKind::TNK_Var_template:
+      Out << "auto";
+      break;
+    default:
+      if (TTP->wasDeclaredWithTypename())
+        Out << "typename";
+      else
+        Out << "class";
+      break;
+    }
 
     if (TTP->isParameterPack())
       Out << " ...";
@@ -1882,7 +1892,8 @@ void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
     Out << ")";
   }
   if (!D->clauselist_empty()) {
-    OMPClausePrinter Printer(Out, Policy, Context.getLangOpts().OpenMP);
+    OMPClausePrinter Printer(Out, Policy,
+                             Context.getLangOpts().getOpenMPVersion());
     for (OMPClause *C : D->clauselists()) {
       Out << " ";
       Printer.Visit(C);
@@ -1893,7 +1904,8 @@ void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
 void DeclPrinter::VisitOMPRequiresDecl(OMPRequiresDecl *D) {
   Out << "#pragma omp requires ";
   if (!D->clauselist_empty()) {
-    OMPClausePrinter Printer(Out, Policy, Context.getLangOpts().OpenMP);
+    OMPClausePrinter Printer(Out, Policy,
+                             Context.getLangOpts().getOpenMPVersion());
     for (auto I = D->clauselist_begin(), E = D->clauselist_end(); I != E; ++I)
       Printer.Visit(*I);
   }
@@ -1946,7 +1958,8 @@ void DeclPrinter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
     Out << D->getVarName();
     Out << ")";
     if (!D->clauselist_empty()) {
-      OMPClausePrinter Printer(Out, Policy, Context.getLangOpts().OpenMP);
+      OMPClausePrinter Printer(Out, Policy,
+                               Context.getLangOpts().getOpenMPVersion());
       for (auto *C : D->clauselists()) {
         Out << " ";
         Printer.Visit(C);

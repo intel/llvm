@@ -24,9 +24,9 @@
 
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
-// CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
+// CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
 // CHK-FLOW-NEXT: llvm-offload-binary{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
-// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
+// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
 /// Verify phases used to generate SPIR-V instead of LLVM-IR
@@ -86,14 +86,14 @@
 // RUN:          -fno-sycl-libspirv -fsycl-targets=amd_gpu_gfx900 \
 // RUN:          -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
-// RUN:              -DTRIPLE=amdgcn-amd-amdhsa -DARCH=gfx900 %s
+// RUN:              -DTRIPLE=amdgpu9.00-amd-amdhsa -DARCH=gfx900 %s
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:          -fno-sycl-libspirv -fsycl-targets=nvidia_gpu_sm_75 \
 // RUN:          -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
 // RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_75 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
-// CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
+// CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
 // CHK_ARCH-NEXT: llvm-offload-binary{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]]{{.*}},kind=sycl{{.*}}"
 
 // Verify offload-packager option values
@@ -245,7 +245,7 @@
 // RUN:          -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx600 \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix AMD_ARCH %s
-// AMD_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=amdgcn-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
+// AMD_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=amdgpu6.00-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
 
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
@@ -311,8 +311,8 @@
 // RUN:  -Xsycl-target-backend=spir64_gen "-device pvc,bdw" \
 // RUN:  -Xsycl-target-linker=spir64_gen "-DFOO,BAR" \
 // RUN:  -nogpulib %s 2>&1 | FileCheck -check-prefix=MULTI_ARCH2 %s
-// MULTI_ARCH2: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx1010,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx908,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
+// MULTI_ARCH2: llvm-offload-binary{{.*}} "--image=file={{.*}}triple=amdgpu10.10-amd-amdhsa,arch=gfx1010,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
+// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=amdgpu9.08-amd-amdhsa,arch=gfx908,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_86,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_87,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_89,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"

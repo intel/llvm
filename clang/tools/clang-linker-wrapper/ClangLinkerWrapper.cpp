@@ -560,6 +560,18 @@ namespace amdgcn {
 // NOTE: copied from HIPUtility.cpp.
 static std::string normalizeForBundler(const llvm::Triple &T,
                                        bool HasTargetID) {
+  // FIXME: Short-term hack, mirrors HIPUtility.cpp. The HIP runtime (CLR)
+  // hardcodes the legacy "amdgcn-amd-amdhsa" spelling when parsing the target
+  // IDs embedded in the fatbin bundle. The new amdgpu subarch triples (e.g.
+  // "amdgpu9.00-amd-amdhsa"), and the plain canonical "amdgpu" arch name, do
+  // not match, producing hipErrorInvalidImage at load time. Force the legacy
+  // "amdgcn-amd-amdhsa" spelling in the bundle entry until CLR stops
+  // hardcoding this.
+  if (HasTargetID && T.isAMDGCN())
+    return ("amdgcn-" + T.getVendorName() + "-" + T.getOSName() + "-" +
+            T.getEnvironmentName())
+        .str();
+
   return HasTargetID ? (T.getArchName() + "-" + T.getVendorName() + "-" +
                         T.getOSName() + "-" + T.getEnvironmentName())
                            .str()
@@ -1757,7 +1769,14 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   // Collect bitcode libraries from --bitcode-library option
   for (StringRef Library : Args.getAllArgValues(OPT_bitcode_library_EQ)) {
     auto [LibraryTriple, LibraryPath] = Library.split('=');
-    if (llvm::Triple(LibraryTriple) != Triple)
+    // Match on arch/vendor/OS only: the device triple embedded in the
+    // compiled offload image may carry AMDGPU subarch information (e.g.
+    // amdgpu9.00-amd-amdhsa) that the driver-provided --bitcode-library
+    // triple (e.g. amdgcn-amd-amdhsa) does not.
+    llvm::Triple LibTriple(LibraryTriple);
+    if (LibTriple.getArch() != Triple.getArch() ||
+        LibTriple.getVendor() != Triple.getVendor() ||
+        LibTriple.getOS() != Triple.getOS())
       continue;
 
     if (!llvm::sys::fs::exists(LibraryPath))
@@ -3362,8 +3381,12 @@ getDeviceInput(const ArgList &Args) {
       continue;
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
-    if (Error Err = extractOffloadBinaries(Buffer, Binaries))
-      return std::move(Err);
+    if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
+      // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
+      // which is not in OffloadBinary format. Consume the parse error and
+      // fall through to the SYCL bundled objects extraction path.
+      consumeError(std::move(Err));
+    }
     if (Binaries.size() == OldSize) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
         return std::move(Err);

@@ -93,3 +93,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
 target_link_libraries(LLVMSYCLLowerIR
   PUBLIC LLVMGenXIntrinsics
   )
+
+# vc-intrinsics' add_compile_definitions(VC_INTR_LLVM_VERSION_MAJOR=...) in
+# its top-level CMakeLists.txt is directory-scoped and does not propagate to
+# LLVMSYCLLowerIR.
+# FIXME: Remove this once https://github.com/intel/vc-intrinsics is fixed.
+target_compile_definitions(LLVMSYCLLowerIR PUBLIC
+  VC_INTR_LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR})
