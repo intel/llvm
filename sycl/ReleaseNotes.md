@@ -49,6 +49,13 @@ in the next ABI-breaking release:
 
 ## Known Issues
 
+- In a one-step SYCL AOT compile-and-link, implied backend settings can be
+  supplied both in the embedded device image and on the linker-wrapper command
+  line. This can pass `-options` to `ocloc` twice. `ocloc` concatenates the two
+  option values in command-line order; it does not reject the duplicate or
+  discard the first value. This duplication predates the tool-specific option
+  mapping.
+
 - ...
 
 # Release notes Mar'25
