@@ -1,6 +1,6 @@
 //==--- queue_submit.cpp - SYCL queue submit test --------------==//
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out %threads_lib
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: run-mode
