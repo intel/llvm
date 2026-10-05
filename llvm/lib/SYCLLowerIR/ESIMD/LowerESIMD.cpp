@@ -450,6 +450,73 @@ public:
         {"scatter4_scaled",
          {"scatter4.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), a(4)}}},
 
+        // Typed (image) surface gather of up to 4 channels per pixel.
+        // arg0: i32 channel mask, constant
+        // arg1: vXi1 predicate (overloaded)
+        // arg2: i32 surface index
+        // arg3: vXi32 U pixel coordinates (overloaded)
+        // arg4: vXi32 V pixel coordinates
+        // arg5: vXi32 R pixel coordinates
+        // arg6: old value of the data read
+        {"gather4_typed",
+         {"gather4.typed", {t(2), ai1(0), aSI(1), a(2), a(3), a(4), u(-1)}}},
+
+        // Typed (image) surface scatter of up to 4 channels per pixel.
+        // arg0: i32 channel mask, constant
+        // arg1: vXi1 predicate (overloaded)
+        // arg2: i32 surface index
+        // arg3: vXi32 U pixel coordinates (overloaded)
+        // arg4: vXi32 V pixel coordinates
+        // arg5: vXi32 R pixel coordinates
+        // arg6: data to write (overloaded)
+        {"scatter4_typed",
+         {"scatter4.typed", {t(2), ai1(0), aSI(1), a(2), a(3), a(4), a(5)}}},
+
+        // Xe2+ LSC typed (image) surface gather of up to 4 channels per pixel.
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i8 L1 cache hint, constant
+        // arg2: i8 L2/L3 cache hint, constant
+        // arg3: i8 channel mask, constant
+        // arg4: i32 surface index
+        // arg5: vXi32 U pixel coordinates (overloaded)
+        // arg6: vXi32 V pixel coordinates
+        // arg7: vXi32 R pixel coordinates
+        // arg8: vXi32 LOD (mipmap level)
+        // arg9: pass-through values for the disabled pixels
+        {"lsc_load_merge_quad_typed_bti",
+         {"lsc.load.merge.quad.typed.bti",
+          {ai1(0), t8(3), t8(4), t8(2), aSI(1), a(2), a(3), a(4), a(5),
+           a(6)}}},
+
+        // Xe2+ LSC typed (image) surface scatter of up to 4 channels per pixel.
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i8 L1 cache hint, constant
+        // arg2: i8 L2/L3 cache hint, constant
+        // arg3: i8 channel mask, constant
+        // arg4: i32 surface index
+        // arg5: vXi32 U pixel coordinates (overloaded)
+        // arg6: vXi32 V pixel coordinates
+        // arg7: vXi32 R pixel coordinates
+        // arg8: vXi32 LOD (mipmap level)
+        // arg9: data to write (overloaded)
+        {"lsc_store_quad_typed_bti",
+         {"lsc.store.quad.typed.bti",
+          {ai1(0), t8(3), t8(4), t8(2), aSI(1), a(2), a(3), a(4), a(5), a(6)}}},
+
+        // Xe2+ LSC typed (image) surface prefetch of up to 4 channels per pixel.
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i8 L1 cache hint, constant
+        // arg2: i8 L2/L3 cache hint, constant
+        // arg3: i8 channel mask, constant
+        // arg4: i32 surface index
+        // arg5: vXi32 U pixel coordinates (overloaded)
+        // arg6: vXi32 V pixel coordinates
+        // arg7: vXi32 R pixel coordinates
+        // arg8: vXi32 LOD (mipmap level)
+        {"lsc_prefetch_quad_typed_bti",
+         {"lsc.prefetch.quad.typed.bti",
+          {ai1(0), t8(2), t8(3), t8(1), aSI(1), a(2), a(3), a(4), a(5)}}},
+
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 surface index
         // arg2: vXi32 element offset in bytes
