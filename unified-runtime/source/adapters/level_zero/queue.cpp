@@ -811,7 +811,7 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ::ur_platform_handle_t PlatformOpque{};
   ::ur_adapter_handle_t AdapterHandleOpque =
-      ur::level_zero::common_cast(ur::level_zero::GlobalAdapter);
+      ur::level_zero::common_cast(Context->getPlatform()->Adapter);
   UR_CALL(ur::level_zero::urPlatformGet(AdapterHandleOpque, NumEntries,
                                         &PlatformOpque, nullptr));
 

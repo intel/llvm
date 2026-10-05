@@ -218,6 +218,9 @@ def do_configure(args, passthrough_args):
                 "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
                     llvm_spirv64_sanitizers
                 ),
+                # Disable compiler-rt tests (e.g. builtins) for the spirv64
+                # runtime target so they are not added to `check-all`.
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_INCLUDE_TESTS=OFF",
             ]
         )
 

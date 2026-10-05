@@ -28,6 +28,7 @@
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/VirtualFileSystem.h"
 
 #include <map>
 #include <set>
@@ -343,6 +344,7 @@ public:
   //       modes. Fold this functionality into Types::getCompilationPhases and
   //       handleArguments.
   phases::ID getFinalPhase(const llvm::opt::DerivedArgList &DAL,
+                           llvm::ArrayRef<InputTy>,
                            llvm::opt::Arg **FinalPhaseArg = nullptr) const;
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
   executeProgram(llvm::ArrayRef<llvm::StringRef> Args) const;
@@ -820,6 +822,11 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
+  /// -fsycl-link is used to link SYCLBIN files into an executable SYCLBIN.
+  bool SYCLBINLinkSeen = false;
+
+  void setSYCLBINLinkSeen() { SYCLBINLinkSeen = true; }
+
   /// Use the new offload driver for OpenMP
   bool UseNewOffloadingDriver = false;
   void setUseNewOffloadingDriver() { UseNewOffloadingDriver = true; }
@@ -899,6 +906,10 @@ public:
   static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// getSYCLBINLinkSeen - -fsycl-link is used to link SYCLBIN input files
+  /// into a single SYCLBIN file in executable state.
+  bool getSYCLBINLinkSeen() const { return SYCLBINLinkSeen; };
 
   /// getUseNewOffloadingDriver - whether the new offload driver is in use
   /// for the current compilation (OpenMP, CUDA, HIP, or -foffload-via-llvm).
