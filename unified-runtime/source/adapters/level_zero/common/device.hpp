@@ -237,6 +237,11 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
             ZeDeviceIpVersionExt->ipVersion >= 0x05004000);
   }
 
+  bool isCRI() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            (ZeDeviceIpVersionExt->ipVersion & 0xffffc000) == 0x08c2c000);
+  }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }

@@ -16,7 +16,7 @@
 using urLevelZeroFloatAtomicsExtTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroFloatAtomicsExtTest);
 
-TEST_P(urLevelZeroFloatAtomicsExtTest, ExtensionMatchesFp16Flags) {
+TEST_P(urLevelZeroFloatAtomicsExtTest, ExtensionMatchesFp16FlagsOnCRI) {
   // Query the extension string from UR.
   size_t size = 0;
   ASSERT_SUCCESS(
@@ -61,5 +61,11 @@ TEST_P(urLevelZeroFloatAtomicsExtTest, ExtensionMatchesFp16Flags) {
               ZE_RESULT_SUCCESS);
   }
 
-  ASSERT_EQ(urReports, driverHasExt && floatProps.fp16Flags != 0);
+  uint32_t ipVersion = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IP_VERSION,
+                                 sizeof(ipVersion), &ipVersion, nullptr));
+  // Only CRI (and its steppings) reports the extension.
+  const bool isCRI = (ipVersion & 0xffffc000) == 0x08c2c000;
+
+  ASSERT_EQ(urReports, isCRI && driverHasExt && floatProps.fp16Flags != 0);
 }

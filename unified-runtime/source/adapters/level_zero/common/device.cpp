@@ -424,11 +424,14 @@ ur_result_t urDeviceGetInfo(
     // bit (global/local load/store, add, min/max) is treated as sufficient;
     // we assume devices reporting fp16 atomics also support 16-bit integer
     // atomics.
+    // Only verified on CRI.
+    // TODO: Extend to other architectures once 16-bit atomics are supported
+    // there.
     // TODO: cl_ext_float_atomics also covers fp32/fp64 atomics, so gating it on
     // fp16Flags alone is misleading for other consumers of
     // UR_DEVICE_INFO_EXTENSIONS. Replace this with a dedicated UR device info
     // query for 16-bit atomics.
-    if (Device->ZeDeviceFloatAtomicExtProperties->fp16Flags)
+    if (Device->isCRI() && Device->ZeDeviceFloatAtomicExtProperties->fp16Flags)
       SupportedExtensions += ("cl_ext_float_atomics ");
 
     return ReturnValue(SupportedExtensions.c_str());
