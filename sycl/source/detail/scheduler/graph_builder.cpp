@@ -1033,6 +1033,28 @@ Command *Scheduler::GraphBuilder::addCG(
       ToEnqueue.push_back(ConnCmd);
   }
 
+  // Events from another context cannot be passed to the backend barrier of
+  // this queue. Move them from the barrier wait list to the command
+  // dependencies, so that they are resolved by a connection command. NOP events
+  // have nothing to wait for, so they are left in the wait list.
+  if (Queue && NewCmd->getCG().getType() == CGType::BarrierWaitlist) {
+    auto &WaitList =
+        static_cast<CGBarrier &>(NewCmd->getCG()).MEventsWaitWithBarrier;
+    auto IsCrossContext = [Queue](const EventImplPtr &Event) {
+      return !Event->isDefaultConstructed() && !Event->isHost() &&
+             !Event->isNOP() &&
+             &Event->getContextImpl() != &Queue->getContextImpl();
+    };
+    for (const EventImplPtr &e : WaitList) {
+      if (IsCrossContext(e))
+        if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
+          ToEnqueue.push_back(ConnCmd);
+    }
+    WaitList.erase(
+        std::remove_if(WaitList.begin(), WaitList.end(), IsCrossContext),
+        WaitList.end());
+  }
+
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
 

@@ -3723,7 +3723,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (UrEvents.empty() && RawEvents.empty()) {
       // Nothing to synchronize with: the barrier wait list is empty and no
       // explicit depends_on() dependency contributed a native event, so the
-      // barrier has no effect.
+      // barrier has no effect. Cross-context events from the wait list have
+      // already been moved to the dependencies and are waited for on the host
+      // before this command is enqueued.
       return UR_RESULT_SUCCESS;
     }
 
