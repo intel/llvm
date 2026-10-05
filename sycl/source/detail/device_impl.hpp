@@ -1656,7 +1656,7 @@ public:
     }
     CASE(ext_oneapi_atomic16) {
       // TODO: Only verified on CRI (see AtomicRef tests). Extend to other
-      // architectures once 16-bit atomics are tested there.
+      // architectures once 16-bit atomics are supported there.
       using arch = sycl::ext::oneapi::experimental::architecture;
       try {
         return has_extension("cl_ext_float_atomics") &&

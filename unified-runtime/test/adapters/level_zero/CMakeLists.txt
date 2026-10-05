@@ -51,6 +51,7 @@ add_testing_binary(confirm_version confirm_version.cpp)
 
 add_l0_loader_devices_test(ze_calls event_cache_tests.cpp)
 add_l0_loader_devices_test(multi_queue multi_device_event_cache_tests.cpp)
+add_l0_loader_devices_test(float_atomics_ext urDeviceGetInfoFloatAtomics.cpp)
 
 add_conformance_devices_test(ipc ipc.cpp)
 target_link_libraries(ipc-test PRIVATE ur_umf)

@@ -16,7 +16,6 @@
 using urLevelZeroFloatAtomicsExtTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroFloatAtomicsExtTest);
 
-
 TEST_P(urLevelZeroFloatAtomicsExtTest, ExtensionMatchesFp16Flags) {
   // Query the extension string from UR.
   size_t size = 0;
