@@ -33,8 +33,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2026-05-05
-| Revision           | 2
+| Last Modified Date | 2026-07-30
+| Revision           | 3
 |========================================
 
 Dependencies
@@ -49,10 +49,10 @@ Overview
 --------
 
 The *NonSemantic.AuxData* extended instruction set encodes auxiliary
-data attached to LLVM IR `Function` and `GlobalVariable` objects
-specifically, LLVM *attributes* and LLVM *metadata*, so that this
-information can survive a round trip through SPIR-V and be restored
-on reverse translation.
+data attached to LLVM IR `Function`, `GlobalVariable`, and
+`Instruction` objects -- specifically, LLVM *attributes* and LLVM
+*metadata* -- so that this information can survive a round trip
+through SPIR-V and be restored on reverse translation.
 
 The information described by these instructions is, by construction,
 *non-semantic*: a SPIR-V consumer that does not understand or does not
@@ -86,6 +86,11 @@ Manual (https://llvm.org/docs/LangRef.html):
   as enumerated by `llvm::GlobalValue::LinkageTypes` and described in
   the "Linkage Types" section of the LLVM Language Reference Manual.
 
+- *Instruction metadata* - a named LLVM `MDNode` attached to an LLVM
+  `Instruction` (for example an `atomicrmw` instruction). Unlike
+  function or global variable metadata, this metadata is attached to
+  an instruction within a function body, not to a global object.
+
 The phrase "global object" refers collectively to either an LLVM
 `Function` or an LLVM `GlobalVariable`.
 
@@ -100,9 +105,20 @@ All instructions in this set:
 - have no associated capability and require no capability beyond
   what is required to use `OpExtInst` against a non-semantic
   extended instruction set;
-- may appear at module scope, after all type, constant, and global
-  declarations they reference have been declared, in the locations
-  permitted for non-semantic instructions by *SPV_KHR_non_semantic_info*.
+- may appear at module scope, in the locations permitted for
+  non-semantic instructions by *SPV_KHR_non_semantic_info*. When the
+  'Target' is a global object (*OpFunction* or module-scope
+  *OpVariable*), the instruction must appear after all type, constant,
+  and global declarations it references have been declared. When the
+  'Target' is an instruction result '<id>' defined inside a function
+  body (as with
+  <<NonSemanticAuxDataInstructionMetadata,*NonSemanticAuxDataInstructionMetadata*>>),
+  the 'Target' operand is a forward reference to an '<id>' that will
+  be defined later in the module; this is permitted because the
+  instruction is non-semantic and its result is never consumed. Because
+  an *OpExtInst* may not forward-reference its operands, such a record
+  must be emitted as *OpExtInstWithForwardRefsKHR*, and the module must
+  declare the *SPV_KHR_relaxed_extended_instruction* extension.
 
 A producer should emit all *NonSemantic.AuxData* instructions in the
 section of the module reserved for debug / non-semantic instructions
@@ -140,6 +156,7 @@ extended instruction set:
 |  2 | <<NonSemanticAuxDataGlobalVariableMetadata,*NonSemanticAuxDataGlobalVariableMetadata*>>
 |  3 | <<NonSemanticAuxDataGlobalVariableAttribute,*NonSemanticAuxDataGlobalVariableAttribute*>>
 |  4 | <<NonSemanticAuxDataLinkage,*NonSemanticAuxDataLinkage*>>
+|  5 | <<NonSemanticAuxDataInstructionMetadata,*NonSemanticAuxDataInstructionMetadata*>>
 |========================================
 
 [[LinkageType]]
@@ -329,6 +346,51 @@ instruction.
 | '<id>' 'Linkage Type'
 |======
 
+
+[cols="2*1,3*2,1,3,3,3"]
+|======
+9+a|[[NonSemanticAuxDataInstructionMetadata]]*NonSemanticAuxDataInstructionMetadata* +
+ +
+Record one named LLVM-IR metadata attachment on an instruction. +
+ +
+Unlike the other instructions in this set, the 'Target' of an
+*NonSemanticAuxDataInstructionMetadata* is the result '<id>' of an
+instruction defined inside a function body (for example an
+*OpAtomicIAdd* or an *OpFunctionCall*), not an *OpFunction* or
+module-scope *OpVariable*. When this instruction is emitted at module
+scope (as recommended), the 'Target' operand is a forward reference,
+so the record must be encoded as *OpExtInstWithForwardRefsKHR* and the
+module must declare the *SPV_KHR_relaxed_extended_instruction*
+extension. +
+ +
+'Result Type' must be *OpTypeVoid*. +
+ +
+'Target' is the '<id>' of the instruction the metadata is attached
+to. The referenced instruction must produce a result '<id>'. +
+ +
+'Metadata Name' and 'Metadata Value' operands have the same form,
+the same encoding rules, the same exclusions, and the same
+duplicate-skip recommendation as the corresponding operands of
+<<NonSemanticAuxDataFunctionMetadata,*NonSemanticAuxDataFunctionMetadata*>>. +
+ +
+A consumer must skip a *NonSemanticAuxDataInstructionMetadata*
+instruction whose 'Target' does not resolve to an instruction, or
+whose 'Metadata Name' is already attached to 'Target' through some
+other reverse-translation path, to avoid creating duplicate metadata
+attachments.
+
+| 7 + 'variable' | 12 or 4433 | '<id>' +
+'Result Type' | 'Result <id>' | '<id> Set' | 5
+| '<id>' 'Target'
+| '<id>' 'Metadata Name'
+| 'Metadata Value', 'Metadata Value', ... (zero or more)
+|======
+
+NOTE: The opcode is *OpExtInst* (12) only when the 'Target' precedes
+this record; when 'Target' is a forward reference (the recommended
+module-scope placement) the opcode is *OpExtInstWithForwardRefsKHR*
+(4433) and *SPV_KHR_relaxed_extended_instruction* must be declared.
+
 2. Encoding Notes
 -----------------
 
@@ -345,9 +407,12 @@ walks `Function::getAttributes().getFnAttrs()` (or
 `...Attribute` instruction per attribute, then walks
 `GlobalObject::getAllMetadata()` once and emits one `...Metadata`
 instruction per metadata attachment, in the order the LLVM data
-structures yield them. The reverse path performs the inverse
+structures yield them. For instructions, the translator emits one
+*NonSemanticAuxDataInstructionMetadata* instruction per attachment of
+the specific metadata kinds it recognizes; other instruction metadata
+is not preserved. The reverse path performs the inverse
 operation, calling the LLVM API that adds an attribute or sets a
-metadata kind on the corresponding global object.
+metadata kind on the corresponding object.
 
 The specification sets no restrictions regarding how much
 `NonSemanticAuxData` instructions can annotate a single 'Target' nor
@@ -382,4 +447,5 @@ Revision History
 |Rev|Date|Author|Changes
 |1|xxxx-xx-xx|Nick Sarnie|Initial draft
 |2|2026-05-05|Dmitry Sidorov|Finalize spec, add available_externally
+|3|2026-07-30|Marcos Maronas|Add InstructionMetadata (opcode 5) for instruction-level metadata
 |========================================

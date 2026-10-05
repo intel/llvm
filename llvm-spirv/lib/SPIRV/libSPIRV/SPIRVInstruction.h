@@ -2171,6 +2171,28 @@ protected:
   std::vector<SPIRVExtInst *> ContinuedInstructions;
 };
 
+// Same encoding as OpExtInst, but operands may forward-reference <id>s. Used
+// for NonSemantic.AuxData InstructionMetadata records.
+class SPIRVExtInstWithForwardRefsKHR : public SPIRVExtInst {
+public:
+  const static Op OC = OpExtInstWithForwardRefsKHR;
+  SPIRVExtInstWithForwardRefsKHR(SPIRVModule *BM, SPIRVId ResId,
+                                 SPIRVType *TheType,
+                                 SPIRVExtInstSetKind SetKind, SPIRVWord SetId,
+                                 SPIRVWord InstId,
+                                 const std::vector<SPIRVWord> &Args)
+      : SPIRVExtInst(BM, ResId, TheType, SetKind, SetId, InstId, Args) {
+    OpCode = OC;
+  }
+  SPIRVExtInstWithForwardRefsKHR() { OpCode = OC; }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    if (auto Ext = SPIRVExtInst::getRequiredExtension())
+      Module->addExtension(*Ext);
+    return ExtensionID::SPV_KHR_relaxed_extended_instruction;
+  }
+};
+
 class SPIRVCompositeConstruct : public SPIRVInstruction {
 public:
   const static Op OC = OpCompositeConstruct;

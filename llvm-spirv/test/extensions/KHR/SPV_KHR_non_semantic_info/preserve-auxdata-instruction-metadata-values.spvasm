@@ -1,0 +1,47 @@
+; REQUIRES: spirv-as
+
+; InstructionMetadata reverse translation: Metadata Value operands are
+; decoded, and a record whose name is already attached is skipped.
+
+; RUN: spirv-as %s --target-env spv1.0 -o %t.spv
+; RUN: llvm-spirv -r --spirv-preserve-auxdata %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+; RUN: llvm-spirv -r %t.spv -o %t.noaux.rev.bc
+; RUN: llvm-dis %t.noaux.rev.bc -o - | FileCheck %s --check-prefix=CHECK-NOAUX
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpExtension "SPV_KHR_non_semantic_info"
+               OpExtension "SPV_KHR_relaxed_extended_instruction"
+        %aux = OpExtInstImport "NonSemantic.AuxData"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn "f"
+               OpName %x "x"
+               OpName %sum "sum"
+               OpDecorate %fn LinkageAttributes "f" Export
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+        %u42 = OpConstant %uint 42
+       %fnTy = OpTypeFunction %uint %uint
+      %mdFoo = OpString "foo"
+      %mdBar = OpString "bar"
+     %first = OpString "first"
+    %second = OpString "second"
+        %md1 = OpExtInstWithForwardRefsKHR %void %aux 5 %sum %mdFoo %first %u42
+        %md2 = OpExtInstWithForwardRefsKHR %void %aux 5 %sum %mdFoo %second
+        %md3 = OpExtInstWithForwardRefsKHR %void %aux 5 %sum %mdBar
+         %fn = OpFunction %uint None %fnTy
+          %x = OpFunctionParameter %uint
+        %ent = OpLabel
+        %sum = OpIAdd %uint %x %u42
+               OpReturnValue %sum
+               OpFunctionEnd
+
+; CHECK: %sum = add i32 %x, 42, !foo ![[#FOO:]], !bar ![[#BAR:]]{{$}}
+; CHECK-NOT: "second"
+; CHECK-DAG: ![[#FOO]] = !{!"first", i32 42}
+; CHECK-DAG: ![[#BAR]] = !{}
+
+; CHECK-NOAUX: %sum = add i32 %x, 42{{$}}
