@@ -4547,7 +4547,7 @@ public:
     //    wgm.__init(arg);
     //    user_kernel(some arguments..., wgm, some arguments...);
     // }
-    const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+    auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
         std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
@@ -4571,6 +4571,8 @@ public:
     SpecialObjectClone->setInit(
         SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
     SpecialObjectClone->setInitStyle(VarDecl::CallInit);
+    SemaSYCLRef.SemaRef.FinalizeVarWithDestructor(SpecialObjectClone,
+                                                  RecordDecl);
     DefaultConstructor->setAccess(DefaultConstructorAccess);
 
     Stmt *DS = new (SemaSYCLRef.getASTContext())
