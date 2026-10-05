@@ -36,11 +36,12 @@ std::string wideToUtf8(const wchar_t *wideName) {
   if (len <= 1) {
     return {};
   }
-  std::string utf8(static_cast<size_t>(len - 1), '\0');
+  std::string utf8(static_cast<size_t>(len), '\0');
   if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideName, -1,
                           utf8.data(), len, nullptr, nullptr) != len) {
     return {};
   }
+  utf8.pop_back();
   return utf8;
 }
 #endif
