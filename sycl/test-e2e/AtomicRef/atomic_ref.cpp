@@ -6,8 +6,6 @@
 // UNSUPPORTED: target-nvidia, target-amd, spirv-backend
 // UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
 
-// This test is prepared with AI assistance
-
 #include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
@@ -35,8 +33,6 @@ template <typename T> int CheckResult(T result, T expected, T *data, queue &q) {
     passed = (result == expected);
   }
 
-  free(data, q);
-
   if (!passed) {
     std::cerr << "CheckResult FAILED: expected " << static_cast<float>(expected)
               << " but got " << static_cast<float>(result) << std::endl;
@@ -60,7 +56,9 @@ int test_atomic(T initial, OperandGen genOperand, ApplyOp applyOp, T expected) {
    }).wait();
 
   const T result = *data;
-  return CheckResult(result, expected, data, q);
+  auto ret = CheckResult(result, expected, data, q);
+  free(data, q);
+  return ret;
 }
 
 template <typename T> int test_atomic_sub() {
