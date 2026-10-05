@@ -105,6 +105,7 @@ clang/test/OffloadTools/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-linker-wrapper/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-sycl-linker/ @intel/dpcpp-tools-reviewers
+clang/docs/ClangLinkerWrapper.md @intel/dpcpp-doc-reviewers @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 ESIMD/ @intel/dpcpp-esimd-reviewers
@@ -190,7 +191,6 @@ sycl/source/detail/bindless* @intel/bindless-images-reviewers
 sycl/source/detail/memory_export.cpp @intel/bindless-images-reviewers
 sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
-sycl/test-e2e/CommonUtils/vulkan_common.hpp @intel/bindless-images-reviewers
 sycl/test-e2e/MemoryExport/ @intel/bindless-images-reviewers
 sycl/unittests/Extensions/BindlessImages/ @intel/bindless-images-reviewers
 

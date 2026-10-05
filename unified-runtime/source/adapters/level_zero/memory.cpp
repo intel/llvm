@@ -73,6 +73,9 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -93,6 +96,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -125,6 +129,9 @@ ur_result_t enqueueMemCopyRectHelper(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -145,6 +152,7 @@ ur_result_t enqueueMemCopyRectHelper(
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -208,6 +216,9 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   ur_command_list_ptr_t CommandList{};
   // We want to batch these commands to avoid extra submissions (costly)
@@ -226,6 +237,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -322,6 +334,9 @@ static ur_result_t enqueueMemImageCommandHelper(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -342,6 +357,7 @@ static ur_result_t enqueueMemImageCommandHelper(
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -988,6 +1004,9 @@ ur_result_t urEnqueueMemBufferMap(
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
+    // Release the wait list on early return, until the event owns it.
+    OnScopeExit ReleaseWaitList(
+        [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
     UR_CALL(createEventAndAssociateQueue(
         Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, Queue->CommandListMap.end(),
@@ -995,6 +1014,7 @@ ur_result_t urEnqueueMemBufferMap(
 
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
+    TmpWaitList = {};
   }
 
   // Translate the host access mode info.
@@ -1164,12 +1184,16 @@ ur_result_t urEnqueueMemUnmap(
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
+    // Release the wait list on early return, until the event owns it.
+    OnScopeExit ReleaseWaitList(
+        [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_UNMAP,
                                          Queue->CommandListMap.end(),
                                          IsInternal, false));
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
+    TmpWaitList = {};
   }
 
   ur_buffer::Mapping MapInfo = {};
@@ -1357,6 +1381,9 @@ ur_result_t urEnqueueUSMPrefetch(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
@@ -1377,6 +1404,7 @@ ur_result_t urEnqueueUSMPrefetch(
                                        CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &WaitList = (*Event)->WaitList;
   const auto &ZeCommandList = CommandList->first;
@@ -1423,6 +1451,9 @@ ur_result_t urEnqueueUSMAdvise(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(0, nullptr, Queue,
                                                    UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
@@ -1443,6 +1474,7 @@ ur_result_t urEnqueueUSMAdvise(
                                        CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -1664,12 +1696,29 @@ ur_result_t urMemBufferCreate(
         maybeImportUSM(Context->getPlatform()->ZeDriverHandleExpTranslated,
                        Context->ZeContext, Host, Size);
 
+  auto releaseImport = [Context](void *Ptr) {
+    ZeUSMImport.doZeUSMRelease(
+        Context->getPlatform()->ZeDriverHandleExpTranslated, Ptr);
+  };
+  std::unique_ptr<void, decltype(releaseImport)> importGuard(
+      HostPtrImported ? Host : nullptr, releaseImport);
+
   ur_buffer *Buffer = nullptr;
   auto HostPtrOrNull = (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
                            ? reinterpret_cast<char *>(Host)
                            : nullptr;
+
+  std::unique_ptr<ur_buffer, void (*)(ur_buffer *)> bufferGuard = {
+      nullptr, [](ur_buffer *handle) {
+        if (handle)
+          handle->free();
+        delete handle;
+      }};
+
   try {
     Buffer = new ur_buffer(Context, Size, HostPtrOrNull, HostPtrImported);
+    bufferGuard.reset(Buffer);
+    importGuard.release();
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1708,7 +1757,7 @@ ur_result_t urMemBufferCreate(
       die("urMemBufferCreate: not implemented");
   }
 
-  *RetBuffer = v1_cast(static_cast<ur_mem_handle_t_ *>(Buffer));
+  *RetBuffer = v1_cast(static_cast<ur_mem_handle_t_ *>(bufferGuard.release()));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1779,17 +1828,19 @@ ur_result_t urMemBufferPartition(
         "no read-only or write-only yet.");
   }
 
+  std::unique_ptr<ur_buffer> partitionedBuffer;
   try {
-    auto partitionedBuffer =
-        new ur_buffer(static_cast<ur_buffer *>(Buffer),
-                      BufferCreateInfo->origin, BufferCreateInfo->size);
-    *RetMem = v1_cast(static_cast<ur_mem_handle_t_ *>(partitionedBuffer));
+    partitionedBuffer = std::make_unique<ur_buffer>(
+        static_cast<ur_buffer *>(Buffer), BufferCreateInfo->origin,
+        BufferCreateInfo->size);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
+  *RetMem =
+      v1_cast(static_cast<ur_mem_handle_t_ *>(partitionedBuffer.release()));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1823,6 +1874,15 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   auto Context = v1_cast(ContextOpque);
   bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
 
+  std::unique_ptr<ur_buffer, void (*)(ur_buffer *)> Buffer = {
+      nullptr, [](ur_buffer *handle) {
+        if (handle) {
+          handle->DeviceMappedHostNativePtr = nullptr;
+          handle->free();
+          delete handle;
+        }
+      }};
+
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   // Get base of the allocation
@@ -1847,34 +1907,14 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_CONTEXT);
   }
 
-  ur_buffer *Buffer = nullptr;
   try {
-    Buffer = new ur_buffer(Context, Size, Device, ur_cast<char *>(NativeMem),
-                           OwnNativeHandle);
-    *Mem = v1_cast(static_cast<ur_mem_handle_t_ *>(Buffer));
+    Buffer.reset(new ur_buffer(Context, Size, Device,
+                               ur_cast<char *>(NativeMem),
+                               /*OwnZeMemHandle=*/false));
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
-  }
-
-  ur_platform_handle_t Plt = Context->getPlatform();
-  std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
-                                                 std::defer_lock);
-  // If we don't own the native handle then we can't control deallocation of
-  // that memory so there is no point of keeping track of the memory
-  // allocation for deferred memory release in the mode when indirect access
-  // tracking is enabled.
-  if (IndirectAccessTrackingEnabled && OwnNativeHandle) {
-    // We need to keep track of all memory allocations in the context
-    ContextsLock.lock();
-    // Retain context to be sure that it is released after all memory
-    // allocations in this context are released.
-    UR_CALL(ur::level_zero::v1::urContextRetain(ContextOpque));
-
-    Context->MemAllocs.emplace(std::piecewise_construct,
-                               std::forward_as_tuple(Ptr),
-                               std::forward_as_tuple(Context, OwnNativeHandle));
   }
 
   if (Device) {
@@ -1904,6 +1944,33 @@ ur_result_t urMemBufferCreateWithNativeHandle(
                 nullptr));
   }
 
+  ur_platform_handle_t Plt = Context->getPlatform();
+  std::unique_lock<ur_shared_mutex> ContextsLock(Plt->ContextsMutex,
+                                                 std::defer_lock);
+  // If we don't own the native handle then we can't control deallocation of
+  // that memory so there is no point of keeping track of the memory
+  // allocation for deferred memory release in the mode when indirect access
+  // tracking is enabled.
+  if (IndirectAccessTrackingEnabled && OwnNativeHandle) {
+    // We need to keep track of all memory allocations in the context
+    ContextsLock.lock();
+    try {
+      Context->MemAllocs.emplace(
+          std::piecewise_construct, std::forward_as_tuple(Ptr),
+          std::forward_as_tuple(Context, OwnNativeHandle));
+    } catch (const std::bad_alloc &) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    // Retain context to be sure that it is released after all memory
+    // allocations in this context are released.
+    UR_CALL(ur::level_zero::v1::urContextRetain(ContextOpque));
+  }
+
+  if (OwnNativeHandle)
+    Buffer->Allocations[Device].ReleaseAction =
+        ur_buffer::allocation_t::free_native;
+
+  *Mem = v1_cast(static_cast<ur_mem_handle_t_ *>(Buffer.release()));
   return UR_RESULT_SUCCESS;
 }
 
@@ -2250,6 +2317,10 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
         NeedCopy = false;
     }
 
+    std::unique_ptr<ze_event_handle_t, void (*)(ze_event_handle_t *)>
+        eventListGuard = {nullptr,
+                          [](ze_event_handle_t *handle) { delete[] handle; }};
+
     if (NeedCopy) {
       // Wait on all dependency events passed in to ensure that the memory which
       // is being init is updated correctly.
@@ -2266,6 +2337,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
           // dependencies, if they exist for device only.
           if (waitlist.ZeEventList == nullptr) {
             waitlist.ZeEventList = new ze_event_handle_t[numWaitEvents];
+            eventListGuard.reset(waitlist.ZeEventList);
           }
           waitlist.ZeEventList[EventListIndex] = phWaitEvents[i]->ZeEvent;
           waitlist.Length++;
@@ -2331,9 +2403,6 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                    (UrContext->ZeCommandListInit, ZeHandle, ZeHandleSrc, Size,
                     nullptr, 0u, nullptr));
-      }
-      if (waitlist.ZeEventList) {
-        delete[] waitlist.ZeEventList;
       }
     }
     Allocation.Valid = true;
@@ -2462,8 +2531,12 @@ ur_buffer::ur_buffer(ur_context_handle_t Context, size_t Size,
 
 ur_buffer::~ur_buffer() {
   if (isSubBuffer())
-    ur::level_zero::v1::urMemRelease(
-        reinterpret_cast<::ur_mem_handle_t>(SubBuffer->Parent));
+    try {
+      ur::level_zero::v1::urMemRelease(
+          reinterpret_cast<::ur_mem_handle_t>(SubBuffer->Parent));
+    } catch (...) {
+      UR_LOG_SAFE(ERR, "UR buffer destructor: Error releasing parent buffer");
+    }
 }
 
 ur_result_t ur::level_zero::v1::ur_mem_handle_t_::getZeHandle(

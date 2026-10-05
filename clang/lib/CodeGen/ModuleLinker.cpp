@@ -47,9 +47,10 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
                            F.Internalize, F.LinkFlags});
   }
 
-  // For SYCL no-RDC, link the per-TU device wrapper bitcode produced by
-  // clang-linker-wrapper --sycl-device-link into the host module so the SYCL
-  // runtime finds the device image at program startup.
+  // For SYCL no-RDC, link the per-TU wrapper module produced by
+  // clang-linker-wrapper --emit-fatbin-only into the host module so the SYCL
+  // runtime finds the device image at program startup. A raw device binary is
+  // embedded by CodeGenModule::embedSYCLDeviceBinary instead.
   if (CI.getLangOpts().SYCLIsHost && !CI.getLangOpts().CUDA &&
       !CI.getCodeGenOpts().OffloadBinaryToEmbedFile.empty()) {
     auto BCBuf = CI.getFileManager().getBufferForFile(
@@ -61,6 +62,10 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
       LinkModules.clear();
       return true;
     }
+    if (!llvm::isBitcode(
+            reinterpret_cast<const unsigned char *>((*BCBuf)->getBufferStart()),
+            reinterpret_cast<const unsigned char *>((*BCBuf)->getBufferEnd())))
+      return false;
     llvm::Expected<std::unique_ptr<llvm::Module>> MOrErr =
         llvm::parseBitcodeFile((*BCBuf)->getMemBufferRef(), Ctx);
     if (!MOrErr) {

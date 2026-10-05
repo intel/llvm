@@ -13,6 +13,11 @@
 
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "clang/Basic/DiagnosticFrontend.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <cassert>
 
 using namespace clang;
@@ -69,8 +74,22 @@ void CodeGenModule::EmitSYCLKernelCaller(const FunctionDecl *KernelEntryPointFn,
   CanQualType KernelNameType =
       Ctx.getCanonicalType(KernelEntryPointAttr->getKernelName());
   const SYCLKernelInfo &KernelInfo = Ctx.getSYCLKernelInfo(KernelNameType);
-  auto *Fn = llvm::Function::Create(FnTy, llvm::Function::ExternalLinkage,
-                                    KernelInfo.GetKernelName(), &getModule());
+
+  // The entry point inherits the linkage of the sycl_kernel_entry_point
+  // attributed function. If that function has external linkage and may be
+  // defined in multiple translation units (because it is an inline function
+  // or an instantiated function template specialization), then the kernel
+  // entry point also must permit multiple definitions and is thus emitted
+  // with weak linkage (weak_odr rather than linkonce_odr so that it is
+  // not discarded). Otherwise, the kernel entry point is emitted with
+  // strong external linkage.
+  GVALinkage GVAL = Ctx.GetGVALinkageForFunction(KernelEntryPointFn);
+  llvm::GlobalValue::LinkageTypes Linkage =
+      (GVAL == GVA_DiscardableODR || GVAL == GVA_StrongODR)
+          ? llvm::GlobalValue::WeakODRLinkage
+          : llvm::GlobalValue::ExternalLinkage;
+  auto *Fn = llvm::Function::Create(FnTy, Linkage, KernelInfo.GetKernelName(),
+                                    &getModule());
 
   // Emit the SYCL kernel caller function.
   CodeGenFunction CGF(*this);
@@ -83,4 +102,32 @@ void CodeGenModule::EmitSYCLKernelCaller(const FunctionDecl *KernelEntryPointFn,
   setDSOLocal(Fn);
   SetLLVMFunctionAttributesForDefinition(cast<Decl>(OutlinedFnDecl), Fn);
   CGF.FinishFunction();
+}
+
+llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
+  StringRef FileName = getCodeGenOpts().OffloadBinaryToEmbedFile;
+  auto BufferOrErr = getFileSystem()->getBufferForFile(FileName);
+  if (std::error_code EC = BufferOrErr.getError()) {
+    getDiags().Report(diag::err_cannot_open_file) << FileName << EC.message();
+    return nullptr;
+  }
+  std::unique_ptr<llvm::MemoryBuffer> Buffer = std::move(BufferOrErr.get());
+  // A wrapper module in bitcode form already carries the registration
+  // descriptor the SYCL runtime expects. It is linked into the host module by
+  // loadLinkModules, so there is nothing to embed here.
+  if (llvm::isBitcode(
+          reinterpret_cast<const unsigned char *>(Buffer->getBufferStart()),
+          reinterpret_cast<const unsigned char *>(Buffer->getBufferEnd())))
+    return nullptr;
+  llvm::Function *RegistrationFunc = nullptr;
+  if (llvm::Error Err = llvm::offloading::wrapSYCLBinaries(
+          getModule(),
+          ArrayRef<char>(Buffer->getBufferStart(), Buffer->getBufferSize()),
+          llvm::offloading::SYCLJITOptions(), /*IsFinalizedImage=*/true,
+          &RegistrationFunc)) {
+    getDiags().Report(diag::err_fe_error_backend)
+        << llvm::toString(std::move(Err));
+    return nullptr;
+  }
+  return RegistrationFunc;
 }

@@ -70,7 +70,8 @@ struct WorkItemLoopsPassOptions {
 ///
 /// Runs over all kernels with "kernel entry point" metadata. Work-item orders
 /// are sourced from the "work item order" function metadata on each kernel.
-class WorkItemLoopsPass final : public llvm::PassInfoMixin<WorkItemLoopsPass> {
+class WorkItemLoopsPass final
+    : public llvm::OptionalPassInfoMixin<WorkItemLoopsPass> {
 public:
   /// @brief Constructor.
   WorkItemLoopsPass(const WorkItemLoopsPassOptions &Options)

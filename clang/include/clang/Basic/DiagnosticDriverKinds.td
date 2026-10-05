@@ -106,6 +106,10 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_sycl_no_rdc_multiple_targets : Error<
+  "'%0' is not supported with multiple SYCL offloading targets">;
+
+
 // SYCL Windows-specific diagnostics
 def err_drv_sycl_requires_dynamic_crt : Error<
   "SYCL requires dynamic C++ runtime (/MD or /MDd); "
@@ -451,6 +455,11 @@ def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;
 def err_drv_incompatible_omp_arch : Error<"OpenMP target architecture '%0' pointer size is incompatible with host '%1'">;
 def err_drv_option_conflict : Error<"the option %0 conflicts with %1">;
+def err_drv_dyndbg_lto : Error<"'-fdynamic-debugging' incompatible with '-flto'">;
+def err_drv_dyndbg_incompatible : Error<"'-fdynamic-debugging' incompatible with '%0'">;
+def err_drv_dyndbg_ir : Error<"'-fdynamic-debugging' incompatible with IR input">;
+def warn_drv_dyndbg_req_debug : Warning<"'-fdynamic-debugging' ignored: requires debug info">,
+    InGroup<DynamicDebugging>;
 def err_drv_omp_host_target_not_supported : Error<
   "target '%0' is not a supported OpenMP host target">;
 def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
@@ -458,6 +467,11 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
   "compatible with offloading; e.g., '-fopenmp=libomp' or '-fopenmp=libiomp5'">;
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
+def err_drv_syclbin_link_mixed_inputs : Error<
+  "SYCLBIN file '%0' cannot be linked with non-SYCLBIN input '%1' when using "
+  "'-fsycl-link'">;
+def err_drv_syclbin_link_requires_opt : Error<
+  "linking SYCLBIN files with '-fsycl-link' requires '%0'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
@@ -749,6 +763,12 @@ def remark_printing_module_graph : Remark<
 def err_module_defined_outside_of_module_source : Error<
   "module '%0' is defined in file '%1', but module declarations are only "
   "allowed in C++ module inputs; use the '.cppm' extension or '-x c++module'">;
+def err_drv_depscan_log_path_empty : Error<
+  "'-fdepscan-log-path=' requires a non-empty file path">;
+def err_drv_depscan_log_path_inconsistent : Error<
+  "'-fdepscan-log-path' set inconsistently within a dependency scan: "
+  "%select{no log path|log path '%1'}0 conflicts with "
+  "%select{no log path|log path '%3'}2 requested earlier">;
 
 def warn_drv_delayed_template_parsing_after_cxx20 : Warning<
   "-fdelayed-template-parsing is deprecated after C++20">,
@@ -915,6 +935,9 @@ def err_drv_cannot_mix_options : Error<"cannot specify '%1' along with '%0'">;
 
 def err_drv_invalid_object_mode : Error<
   "OBJECT_MODE setting %0 is not recognized and is not a valid setting">;
+
+def err_drv_compile_mode_unsupported_aix : Error<
+  "32-bit compile mode is not supported. Use OBJECT_MODE=64, -maix64 or -m64">;
 
 def err_roptr_requires_data_sections: Error<"-mxcoff-roptr is supported only with -fdata-sections">;
 def err_roptr_cannot_build_shared: Error<"-mxcoff-roptr is not supported with -shared">;

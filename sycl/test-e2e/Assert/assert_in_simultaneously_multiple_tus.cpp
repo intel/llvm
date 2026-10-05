@@ -1,5 +1,6 @@
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22966
 //
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300

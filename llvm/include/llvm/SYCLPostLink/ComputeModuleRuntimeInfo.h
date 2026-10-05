@@ -10,13 +10,15 @@
 
 #pragma once
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/PropertySetIO.h"
 #include <string>
 namespace llvm {
 
 class Function;
-class Module;
 
 namespace sycl {
 
@@ -34,11 +36,11 @@ using EntryPointSet = SetVector<Function *>;
 PropSetRegTy computeDeviceLibProperties(const Module &M,
                                         const std::string &SYCLDeviceLibName);
 
-PropSetRegTy computeModuleProperties(const Module &M,
-                                     const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps,
-                                     bool AllowDeviceImageDependencies,
-                                     int IdQueriesRange);
+PropSetRegTy
+computeModuleProperties(const Module &M, const EntryPointSet &EntryPoints,
+                        const GlobalBinImageProps &GlobProps,
+                        bool AllowDeviceImageDependencies, int IdQueriesRange,
+                        bool AllowSubGroupSizeDisagreement = false);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);

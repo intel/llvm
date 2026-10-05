@@ -126,6 +126,15 @@ bool SemaSYCL::hasDependentExpr(Expr **Exprs, const size_t ExprsSize) {
 
 void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
                                                     StringRef NewName) {
+  // Keep accepting [[intel::named_sub_group_size]] for now so existing code
+  // remains source-compatible, but diagnose its deprecation.
+  if (A.getKind() == ParsedAttr::AT_IntelNamedSubGroupSize &&
+      A.getScopeName() && A.getScopeName()->isStr("intel")) {
+    Diag(A.getLoc(), diag::warn_deprecated_attribute)
+        << A.getNormalizedFullName();
+    return;
+  }
+
   // Additionally, diagnose deprecated [[intel::reqd_sub_group_size]] spelling
   if (A.getKind() == ParsedAttr::AT_IntelReqdSubGroupSize && A.getScopeName() &&
       A.getScopeName()->isStr("intel")) {
@@ -831,6 +840,42 @@ void SemaSYCL::addSYCLAddIRAttributesFunctionAttr(
   }
 }
 
+bool SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(const Decl *D,
+                                                  StringRef Attr) {
+  const auto *A = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+  if (!A)
+    return false;
+
+  if (D->isTemplated())
+    return false;
+
+  SmallVector<std::pair<std::string, std::string>, 4> Pairs =
+      A->getFilteredAttributeNameValuePairs(D->getASTContext());
+  return llvm::any_of(Pairs, [Attr](const auto &Pair) {
+    return StringRef(Pair.first) == Attr;
+  });
+}
+
+/// Returns true if \p RD itself declares an 'indirectly_callable' virtual
+/// member function, without looking at its base classes.
+static bool declaresIndirectlyCallableVirtualMethod(const CXXRecordDecl *RD) {
+  return llvm::any_of(RD->methods(), [](const CXXMethodDecl *MD) {
+    return MD->isVirtual() && SemaSYCL::hasSYCLAddIRAttributesFunctionAttr(
+                                  MD, "indirectly-callable");
+  });
+}
+
+bool SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(const CXXRecordDecl *RD) {
+  if (declaresIndirectlyCallableVirtualMethod(RD))
+    return true;
+
+  // forallBases returns false as soon as the callback does, i.e. as soon as we
+  // find a base class which declares such a function.
+  return !RD->forallBases([](const CXXRecordDecl *Base) {
+    return !declaresIndirectlyCallableVirtualMethod(Base);
+  });
+}
+
 void SemaSYCL::addSYCLAddIRAttributesKernelParameterAttr(
     Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
   ASTContext &Context = getASTContext();
@@ -1160,6 +1205,8 @@ SemaSYCL::mergeIntelNamedSubGroupSizeAttr(Decl *D,
 }
 
 void SemaSYCL::handleIntelNamedSubGroupSizeAttr(Decl *D, const ParsedAttr &AL) {
+  checkDeprecatedSYCLAttributeSpelling(AL);
+
   StringRef SizeStr;
   SourceLocation Loc;
   if (AL.isArgIdent(0)) {

@@ -61,18 +61,18 @@ public:
   template <typename IterTy>
   variadic_iterator(IterTy &&It) : It(std::forward<IterTy>(It)) {}
 
-  variadic_iterator &operator++() noexcept {
-    std::visit([](auto &&It) noexcept { ++It; }, It);
+  variadic_iterator &operator++() {
+    std::visit([](auto &&It) { ++It; }, It);
     return *this;
   }
-  bool operator!=(const variadic_iterator &Other) const noexcept {
+  bool operator!=(const variadic_iterator &Other) const {
     return It != Other.It;
   }
-  bool operator==(const variadic_iterator &Other) const noexcept {
+  bool operator==(const variadic_iterator &Other) const {
     return It == Other.It;
   }
 
-  decltype(auto) operator*() noexcept {
+  decltype(auto) operator*() {
     return std::visit(
         [](auto &&It) -> decltype(auto) {
           decltype(auto) Elem = *It;

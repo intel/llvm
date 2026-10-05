@@ -38,6 +38,10 @@ void populateSYCLDeviceTraitsMacrosArgs(
     Compilation &C, const llvm::opt::ArgList &Args,
     const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
 
+// Returns the -D__SYCL_TARGET_*__ macro (if any) for a SYCL device target
+// triple, given the device name bound to it.
+SmallString<64> getSYCLTargetMacro(const llvm::Triple &TT, StringRef Device);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -81,6 +85,16 @@ public:
 StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
 StringRef getGenGRFFlag(StringRef GRFMode);
+
+// Returns the rightmost "-device <arch>" value in Tokens, or empty if none.
+StringRef getEmbeddedDeviceArch(ArrayRef<const char *> Tokens);
+
+// Returns the full path of the ocloc tool to be used for AOT compilation and
+// for emitting the ocloc help information.  A user provided --ocloc-path= is
+// honored above all other lookup locations.  If not found, the tool (ocloc) is
+// returned with no directory.
+const char *getOclocPath(const Compilation &C, const ToolChain &TC,
+                         const llvm::opt::ArgList &Args);
 
 // Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
@@ -187,6 +201,9 @@ public:
   void AddClangCXXStdlibIncludeArgs(
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
+  VersionTuple
+  computeMSVCVersion(const Driver *D,
+                     const llvm::opt::ArgList &Args) const override;
 
   // Provides a vector of device library names including the full path that are
   // associated with the offloading kind.
@@ -209,6 +226,14 @@ private:
   const ToolChain &HostTC;
   SYCLInstallationDetector SYCLInstallation;
 };
+
+// TC is a SYCLToolChain only for SPIR/SPIR-V/NativeCPU triples (NVPTX/AMDGCN
+// reuse CudaToolChain/AMDGPUToolChain). Returns TC cast when safe, else
+// builds a scratch SYCLToolChain (owned by \p SYCLTC) from TC's triple.
+const SYCLToolChain &getSYCLToolChain(const Driver &D, const ToolChain &TC,
+                                      const ToolChain &HostTC,
+                                      const llvm::opt::ArgList &Args,
+                                      std::unique_ptr<SYCLToolChain> &SYCLTC);
 
 } // end namespace toolchains
 } // end namespace driver

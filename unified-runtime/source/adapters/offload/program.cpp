@@ -47,8 +47,9 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
   fprintf(stderr, "Performed CUDA bin workaround (size = %lu)\n", RealLength);
 #endif
 
-  auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
-                             RealLength, &hProgram->OffloadProgram);
+  auto Res =
+      olCreateProgram(hContext->OffloadContext, hContext->Device->OffloadDevice,
+                      RealBinary, RealLength, &hProgram->OffloadProgram);
 
   // Program owns the linked module now
   cuLinkDestroy(State);
@@ -134,9 +135,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     Res =
         ProgramCreateCudaWorkaround(hContext, RealBinary, RealLength, Program);
   } else {
-    Res = offloadResultToUR(olCreateProgram(hContext->Device->OffloadDevice,
-                                            RealBinary, RealLength,
-                                            &Program->OffloadProgram));
+    Res = offloadResultToUR(olCreateProgram(
+        hContext->OffloadContext, hContext->Device->OffloadDevice, RealBinary,
+        RealLength, &Program->OffloadProgram));
   }
 
   if (Res != UR_RESULT_SUCCESS) {

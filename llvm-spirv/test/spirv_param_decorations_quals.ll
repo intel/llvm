@@ -8,7 +8,7 @@
 ; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
 ; RUN: %if spirv-backend %{ llvm-spirv -r --spirv-target-env=SPV-IR %t.llc.spv -o %t.llc.rev.bc %}
 ; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
-; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-SPV-IR < %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-BACKEND < %t.llc.rev.ll %}
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
@@ -48,6 +48,14 @@ entry:
 ; CHECK-SPV-IR-DAG: ![[NoAliasDecoId]] = !{i32 38, i32 4}
 ; CHECK-SPV-IR-DAG: ![[VolatileDecoId]] = !{i32 21}
 ; CHECK-SPV-IR-DAG: ![[KernelArgTypeQual]] = !{!"volatile restrict"}
+
+; CHECK-BACKEND: define spir_kernel void @k(ptr addrspace(1) noalias %a)
+; CHECK-BACKEND-SAME: !kernel_arg_type_qual ![[BEKernelArgTypeQual:[0-9]+]]
+; CHECK-BACKEND-SAME: !spirv.ParameterDecorations ![[BEParamDecoListId:[0-9]+]]
+; CHECK-BACKEND-DAG: ![[BEParamDecoListId]] = !{![[BEParamDecoId:[0-9]+]]}
+; CHECK-BACKEND-DAG: ![[BEParamDecoId]] = !{![[BENoAliasDecoId:[0-9]+]]}
+; CHECK-BACKEND-DAG: ![[BENoAliasDecoId]] = !{i32 38, i32 4}
+; CHECK-BACKEND-DAG: ![[BEKernelArgTypeQual]] = !{!"restrict"}
 
 ; CHECK-LLVM-NOT: !spirv.ParameterDecorations
 ; CHECK-LLVM: define spir_kernel void @k(ptr addrspace(1) noalias %a) {{.*}} !kernel_arg_type_qual ![[KernelArgTypeQual:[0-9]+]] {{.*}} {

@@ -165,11 +165,11 @@ void SPIRVLowerLLVMIntrinsicBase::visitIntrinsicInst(CallInst &I) {
     I.setCalledFunction(F);
     return;
   }
-  FunctionCallee FC =
-      Mod->getOrInsertFunction(SPIRVFuncName, I.getFunctionType());
-  I.setCalledFunction(FC);
-
-  // Read LLVM IR with the intrinsic's implementation
+  // Read LLVM IR with the intrinsic's implementation. Do this before
+  // redirecting the call: if the module does not parse, the call must keep
+  // targeting the intrinsic, so that the failure surfaces through the
+  // writer's handling of the unlowered intrinsic instead of a call to a
+  // function that never receives a body.
   SMDiagnostic Err;
   auto MB = MemoryBuffer::getMemBuffer(MapEntry->ModuleText);
   auto EmulationModule = parseIR(MB->getMemBufferRef(), Err, *Context,
@@ -181,9 +181,14 @@ void SPIRVLowerLLVMIntrinsicBase::visitIntrinsicInst(CallInst &I) {
     raw_string_ostream ErrStream(ErrMsg);
     Err.print("", ErrStream);
     SPIRVErrorLog EL;
+    EL.setErrorHandlingKind(Opts.getErrorHandlingKind());
     EL.checkError(false, SPIRVEC_InvalidLlvmModule, ErrMsg);
     return;
   }
+
+  FunctionCallee FC =
+      Mod->getOrInsertFunction(SPIRVFuncName, I.getFunctionType());
+  I.setCalledFunction(FC);
 
   // Link in the intrinsic's implementation.
   if (!Linker::linkModules(*Mod, std::move(EmulationModule),

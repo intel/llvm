@@ -1,8 +1,5 @@
 # Clang Linker Wrapper
 
-```{contents}
-:local:
-```
 
 ## Introduction
 
@@ -26,7 +23,9 @@ USAGE: clang-linker-wrapper [options] -- <options to pass to the linker>
 OPTIONS:
   --cuda-path=<dir>      Set the system CUDA path
   --device-debug         Use debugging
-  --device-linker=<value> or <triple>=<value>
+  --device-compiler=[<kind>:][<triple>=]<value>
+                         Arguments to pass to the device compiler invocation
+  --device-linker=[<kind>:][<triple>=]<value>
                          Arguments to pass to the device linker invocation
   --dry-run              Print program arguments without running
   --help-hidden          Display all available options
@@ -35,6 +34,7 @@ OPTIONS:
   --linker-path=<path>   The linker executable to invoke
   -L <dir>               Add <dir> to the library search path
   -l <libname>           Search for library <libname>
+  --ocloc-path=<dir>     Path to the ocloc tool used for Intel GPU AOT compilation
   --opt-level=<O0, O1, O2, or O3>
                          Optimization level for LTO
   --override-image=<kind=file>
@@ -55,6 +55,22 @@ OPTIONS:
   --wrapper-verbose      Verbose output from the linker-wrapper
   --version              Display the version number and exit
   --                     The separator for the wrapped linker arguments
+```
+
+For SYCL SPIR targets, device compiler/linker values must carry a
+tool-specific prefix; other values are ignored:
+- JIT: `--device-compiler=sycl:<triple>=--jit-compiler-options=<arg>` and
+  `--device-linker=sycl:<triple>=--jit-linker-options=<arg>`.
+- AOT (Intel GPU): `--device-linker=sycl:<triple>=--ocloc-options=<arg>`.
+- AOT (Intel CPU): `--device-linker=sycl:<triple>=--opencl-aot-options=<arg>`.
+
+The short target name `spir64_gen` can be used in place of the full SYCL
+triple `spir64_gen-unknown-unknown`. For example, these equivalent Intel GPU
+options pass `-cl-mad-enable` to ocloc:
+
+```console
+--device-linker=sycl:spir64_gen=--ocloc-options=-cl-mad-enable
+--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-cl-mad-enable
 ```
 
 The linker wrapper will generate the appropriate runtime calls to register the

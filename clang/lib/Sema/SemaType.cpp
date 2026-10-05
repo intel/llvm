@@ -349,7 +349,11 @@ namespace {
         }
       }
 
-      llvm_unreachable("no Attr* for AttributedType*");
+      // The AttributedType can be inherited from another declarator, for
+      // example when __typeof__ reuses a type built for a different
+      // declaration, in which case there is no entry for it in this
+      // TypeProcessingState. Return null in that case.
+      return nullptr;
     }
 
     SourceLocation
@@ -893,7 +897,7 @@ TSTToUnaryTransformType(DeclSpec::TST SwitchTST) {
 #define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
   case TST_##Trait:                                                            \
     return UnaryTransformType::Enum;
-#include "clang/Basic/Traits.inc"
+#include "clang/Basic/BuiltinTraits.inc"
   default:
     llvm_unreachable("attempted to parse a non-unary transform builtin");
   }
@@ -1317,7 +1321,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
 
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case DeclSpec::TST_##Trait:
-#include "clang/Basic/Traits.inc"
+#include "clang/Basic/BuiltinTraits.inc"
     Result = S.GetTypeFromParser(DS.getRepAsType());
     assert(!Result.isNull() && "Didn't get a type for the transformation?");
     Result = S.BuildUnaryTransformType(
@@ -1335,12 +1339,11 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
                       ? AutoTypeKeyword::DecltypeAuto
                       : AutoTypeKeyword::Auto;
 
-    TemplateDecl *TypeConstraintConcept = nullptr;
+    TemplateName TypeConstraintConcept;
     llvm::SmallVector<TemplateArgument, 8> TemplateArgs;
     if (DS.isConstrainedAuto()) {
       if (TemplateIdAnnotation *TemplateId = DS.getRepAsTemplateId()) {
-        TypeConstraintConcept =
-            cast<TemplateDecl>(TemplateId->Template.get().getAsTemplateDecl());
+        TypeConstraintConcept = TemplateId->Template.get();
         TemplateArgumentListInfo TemplateArgsInfo;
         TemplateArgsInfo.setLAngleLoc(TemplateId->LAngleLoc);
         TemplateArgsInfo.setRAngleLoc(TemplateId->RAngleLoc);
@@ -3100,15 +3103,15 @@ InventTemplateParameter(TypeProcessingState &state, QualType T,
   // Create the TemplateTypeParmDecl here to retrieve the corresponding
   // template parameter type. Template parameters are temporarily added
   // to the TU until the associated TemplateDecl is created.
-  TemplateTypeParmDecl *InventedTemplateParam =
-      TemplateTypeParmDecl::Create(
-          S.Context, S.Context.getTranslationUnitDecl(),
-          /*KeyLoc=*/D.getDeclSpec().getTypeSpecTypeLoc(),
-          /*NameLoc=*/D.getIdentifierLoc(),
-          TemplateParameterDepth, AutoParameterPosition,
-          S.InventAbbreviatedTemplateParameterTypeName(
-              D.getIdentifier(), AutoParameterPosition), false,
-          IsParameterPack, /*HasTypeConstraint=*/Auto->isConstrained());
+  TemplateTypeParmDecl *InventedTemplateParam = TemplateTypeParmDecl::Create(
+      S.Context, S.Context.getTranslationUnitDecl(),
+      /*KeyLoc=*/D.getDeclSpec().getTypeSpecTypeLoc(),
+      /*NameLoc=*/D.getIdentifierLoc(), TemplateParameterDepth,
+      AutoParameterPosition,
+      S.InventAbbreviatedTemplateParameterTypeName(D.getIdentifier(),
+                                                   AutoParameterPosition),
+      false, IsParameterPack,
+      /*HasTypeConstraint=*/Auto->isConstrained());
   InventedTemplateParam->setImplicit();
   Info.TemplateParams.push_back(InventedTemplateParam);
 
@@ -3131,7 +3134,8 @@ InventTemplateParameter(TypeProcessingState &state, QualType T,
       if (!Invalid) {
         S.AttachTypeConstraint(
             AutoLoc.getNestedNameSpecifierLoc(), AutoLoc.getConceptNameInfo(),
-            AutoLoc.getNamedConcept(), /*FoundDecl=*/AutoLoc.getFoundDecl(),
+            AutoLoc.getNamedConcept(),
+            /*FoundDecl=*/AutoLoc.getFoundDecl(),
             AutoLoc.hasExplicitTemplateArgs() ? &TAL : nullptr,
             InventedTemplateParam, D.getEllipsisLoc());
       }
@@ -3158,15 +3162,16 @@ InventTemplateParameter(TypeProcessingState &state, QualType T,
         }
       }
       if (!Invalid) {
-        UsingShadowDecl *USD =
-            TemplateId->Template.get().getAsUsingShadowDecl();
-        TemplateDecl *CD = TemplateId->Template.get().getAsTemplateDecl();
+        TemplateName TN = TemplateId->Template.get();
+        UsingShadowDecl *USD = TN.getAsUsingShadowDecl();
+        TemplateDecl *CD = TN.getAsTemplateDecl();
         S.AttachTypeConstraint(
             D.getDeclSpec().getTypeSpecScope().getWithLocInContext(S.Context),
             DeclarationNameInfo(DeclarationName(TemplateId->Name),
                                 TemplateId->TemplateNameLoc),
-            CD,
-            /*FoundDecl=*/USD ? cast<NamedDecl>(USD) : CD,
+            TN,
+            /*FoundDecl=*/
+            USD ? cast<NamedDecl>(USD) : cast_if_present<NamedDecl>(CD),
             TemplateId->LAngleLoc.isValid() ? &TemplateArgsInfo : nullptr,
             InventedTemplateParam, D.getEllipsisLoc());
       }
@@ -3395,8 +3400,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::FunctionalCast:
       if (isa<DeducedTemplateSpecializationType>(Deduced))
         break;
-      if (SemaRef.getLangOpts().CPlusPlus23 && IsCXXAutoType &&
-          !Auto->isDecltypeAuto())
+      if (IsCXXAutoType && !Auto->isDecltypeAuto())
         break; // auto(x)
       [[fallthrough]];
     case DeclaratorContext::TypeName:
@@ -4373,7 +4377,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   // and at most one function declarator if this is a function declaration.
   // If T is a deduced class template specialization type, only parentheses
   // are allowed.
-  if (auto *DT = T->getAs<DeducedType>()) {
+  if (auto *DT = T->getAs<DeducedType>(); DT && !T->containsErrors()) {
     const AutoType *AT = T->getAs<AutoType>();
     bool IsClassTemplateDeduction = isa<DeducedTemplateSpecializationType>(DT);
     if ((AT && AT->isDecltypeAuto()) || IsClassTemplateDeduction) {
@@ -5744,10 +5748,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       if (T->containsUnexpandedParameterPack())
         T = Context.getPackExpansionType(T, std::nullopt);
       else
-        S.Diag(D.getEllipsisLoc(),
-               LangOpts.CPlusPlus11
-                 ? diag::warn_cxx98_compat_variadic_templates
-                 : diag::ext_variadic_templates);
+        S.DiagCompat(D.getEllipsisLoc(), diag_compat::variadic_templates);
       break;
 
     case DeclaratorContext::File:
@@ -6166,8 +6167,8 @@ namespace {
                                            TemplateId->NumArgs);
         SemaRef.translateTemplateArguments(TemplateArgsPtr, TemplateArgsInfo);
       }
-      DeclarationNameInfo DNI = DeclarationNameInfo(
-          TL.getTypePtr()->getTypeConstraintConcept()->getDeclName(),
+      DeclarationNameInfo DNI = Context.getNameForTemplate(
+          TL.getTypePtr()->getTypeConstraintConcept(),
           TemplateId->TemplateNameLoc);
 
       NamedDecl *FoundDecl;
@@ -6371,11 +6372,15 @@ namespace {
   };
 } // end anonymous namespace
 
-static void
-fillDependentAddressSpaceTypeLoc(DependentAddressSpaceTypeLoc DASTL,
-                                 const ParsedAttributesView &Attrs) {
-  for (const ParsedAttr &AL : Attrs) {
-    if (AL.getKind() == ParsedAttr::AT_AddressSpace) {
+static void fillDependentAddressSpaceTypeLoc(
+    DependentAddressSpaceTypeLoc DASTL,
+    ArrayRef<const ParsedAttributesView *> AttrLists) {
+  for (const ParsedAttributesView *Attrs : AttrLists) {
+    for (const ParsedAttr &AL : *Attrs) {
+      // Skip invalid or malformed attributes; they did not produce a type.
+      if (AL.getKind() != ParsedAttr::AT_AddressSpace || AL.isInvalid() ||
+          AL.getNumArgs() != 1 || !AL.isArgExpr(0))
+        continue;
       DASTL.setAttrNameLoc(AL.getLoc());
       DASTL.setAttrExprOperand(AL.getArgAsExpr(0));
       DASTL.setAttrOperandParensRange(SourceRange());
@@ -6450,7 +6455,13 @@ GetTypeSourceInfoForDeclarator(TypeProcessingState &State,
 
       case TypeLoc::DependentAddressSpace: {
         auto TL = CurrTL.castAs<DependentAddressSpaceTypeLoc>();
-        fillDependentAddressSpaceTypeLoc(TL, D.getTypeObject(i).getAttrs());
+        // An attribute written after the declarator-id appertains to the
+        // declared entity, not to a chunk, so every attribute list of the
+        // declarator has to be searched.
+        fillDependentAddressSpaceTypeLoc(TL, {&D.getTypeObject(i).getAttrs(),
+                                              &D.getAttributes(),
+                                              &D.getDeclSpec().getAttributes(),
+                                              &D.getDeclarationAttributes()});
         CurrTL = TL.getPointeeTypeLoc().getUnqualifiedLoc();
         break;
       }
@@ -9383,7 +9394,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     }
     case ParsedAttr::AT_HLSLResourceClass:
     case ParsedAttr::AT_HLSLResourceDimension:
-    case ParsedAttr::AT_HLSLROV:
+    case ParsedAttr::AT_HLSLIsROV:
     case ParsedAttr::AT_HLSLRawBuffer:
     case ParsedAttr::AT_HLSLIsArray:
     case ParsedAttr::AT_HLSLIsMultiSampled:
@@ -10123,8 +10134,7 @@ QualType Sema::ActOnPackIndexingType(QualType Pattern, Expr *IndexExpr,
   QualType Type = BuildPackIndexingType(Pattern, IndexExpr, Loc, EllipsisLoc);
 
   if (!Type.isNull())
-    Diag(Loc, getLangOpts().CPlusPlus26 ? diag::warn_cxx23_pack_indexing
-                                        : diag::ext_pack_indexing);
+    DiagCompat(Loc, diag_compat::pack_indexing);
   return Type;
 }
 

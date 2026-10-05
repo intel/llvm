@@ -1,7 +1,7 @@
 # LLVM/SPIR-V Bi-Directional Translator
 
-[![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions/workflows/check-out-of-tree-build.yml/badge.svg?branch=main&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22Out-of-tree+build+%26+tests%22+event%3Aschedule)
-[![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions/workflows/check-in-tree-build.yml/badge.svg?branch=main&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions?query=workflow%3A%22In-tree+build+%26+tests%22+event%3Aschedule)
+[![Out-of-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions/workflows/check-out-of-tree-build.yml/badge.svg?branch=main&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions/workflows/check-out-of-tree-build.yml?query=event%3Aschedule)
+[![In-tree build & tests](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions/workflows/check-in-tree-build.yml/badge.svg?branch=main&event=schedule)](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions/workflows/check-in-tree-build.yml?query=event%3Aschedule)
 
 This repository contains source code for the LLVM/SPIR-V Bi-Directional Translator, a library and tool for translation between LLVM IR and [SPIR-V](https://www.khronos.org/registry/spir-v/).
 This project currently only supports the OpenCL/compute "flavour" of SPIR-V: it consumes and produces SPIR-V modules that declare the `Kernel` capability.

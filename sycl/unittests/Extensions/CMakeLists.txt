@@ -23,10 +23,12 @@ add_sycl_unittest(ExtensionsTests OBJECT
   LaunchQueries.cpp
   EventMode.cpp
   DeviceInfo.cpp
+  SyclLsArchitectureName.cpp
   RootGroup.cpp
   USMPrefetch.cpp
   RegisterHostMemory.cpp
   ReusableEvents.cpp
+  AsyncAlloc.cpp
 )
 
 add_subdirectory(BindlessImages)

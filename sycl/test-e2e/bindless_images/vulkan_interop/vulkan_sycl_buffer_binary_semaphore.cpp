@@ -5,8 +5,9 @@
 // Linux fix tracked by GSD-12371, landed in driver 38362.
 // REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
-// UNSUPPORTED: linux && gpu-intel-gen12
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22405
+// Binary semaphore sharing is broken in driver on linux.
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78008
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
@@ -44,7 +45,7 @@
 */
 // clang-format on
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
@@ -87,7 +88,7 @@ int main(int argc, char **argv) {
             << " | Mode: " << modeStr << std::endl;
 
   // VULKAN SETUP
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
 
   // Exportable device-local buffers
   BufferResources inBuf = createExportableBuffer(

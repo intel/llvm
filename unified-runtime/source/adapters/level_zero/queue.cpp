@@ -811,7 +811,7 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ::ur_platform_handle_t PlatformOpque{};
   ::ur_adapter_handle_t AdapterHandleOpque =
-      ur::level_zero::common_cast(ur::level_zero::GlobalAdapter);
+      ur::level_zero::common_cast(Context->getPlatform()->Adapter);
   UR_CALL(ur::level_zero::urPlatformGet(AdapterHandleOpque, NumEntries,
                                         &PlatformOpque, nullptr));
 
@@ -2440,6 +2440,14 @@ ur_result_t ur::level_zero::v1::ur_queue_handle_t_::insertActiveBarriers(
   UR_CALL(ActiveBarriers.clear());
 
   if (ActiveBarriersWaitList.Length == 0) {
+    // createAndRetainUrZeEventList allocates the event arrays up front and can
+    // still end up with a zero length if every barrier event had already
+    // completed. Nothing takes ownership of the list on this path, so free it
+    // here instead of leaking it; there are no retained events to collect.
+    std::list<ur_event_handle_t> EventsToBeReleased;
+    UR_CALL(
+        ActiveBarriersWaitList.collectEventsForReleaseAndDestroyUrZeEventList(
+            EventsToBeReleased));
     return UR_RESULT_SUCCESS;
   }
 

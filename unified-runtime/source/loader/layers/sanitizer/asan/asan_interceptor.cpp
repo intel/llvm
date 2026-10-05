@@ -331,6 +331,10 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 ur_result_t AsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                               ur_queue_handle_t Queue,
                                               LaunchInfo &LaunchInfo) {
+  if (hasZeroGlobalWorkSize(LaunchInfo.WorkDim, LaunchInfo.GlobalWorkSize)) {
+    return UR_RESULT_SUCCESS;
+  }
+
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
@@ -866,6 +870,11 @@ ur_result_t AsanInterceptor::prepareLaunch(
         ArgNums - 1,
         sizeof(void *),
         {LaunchInfo.Data.getDevicePtr()}});
+  }
+
+  if (hasZeroGlobalWorkSize(LaunchInfo.WorkDim, LaunchInfo.GlobalWorkSize)) {
+    LaunchInfo.LocalWorkSize.assign(LaunchInfo.WorkDim, 1);
+    return UR_RESULT_SUCCESS;
   }
 
   if (LaunchInfo.LocalWorkSize.empty()) {
