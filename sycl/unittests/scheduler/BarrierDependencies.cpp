@@ -232,9 +232,8 @@ TEST_F(BarrierCrossContextTest, BarrierWaitListMixedContexts) {
   ASSERT_NE(E1Handle, nullptr);
   ASSERT_NE(E2Handle, nullptr);
 
-  event BarrierEvent = Q2.submit([&](handler &CGH) {
-    CGH.ext_oneapi_barrier({E1, E2});
-  });
+  event BarrierEvent =
+      Q2.submit([&](handler &CGH) { CGH.ext_oneapi_barrier({E1, E2}); });
   BarrierEvent.wait();
 
   ASSERT_EQ(BarrierEventsInWaitList.size(), 1u);
