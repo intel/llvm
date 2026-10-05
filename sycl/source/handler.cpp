@@ -409,6 +409,18 @@ getNativeGraphImpl(queue_impl &Queue) {
   return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
 }
 
+bool handler_impl::canBypassScheduler() {
+  queue_impl *Queue = get_queue_or_null();
+  // Streams need no separate check: the accessors they create are requirements.
+  // TODO checking the size of the events vector and avoiding the call is more
+  // efficient here at this point
+  return Queue && !get_graph_or_null() && !MSubgraphNode &&
+         !Queue->hasCommandGraph() && CGData.MRequirements.empty() &&
+         (CGData.MEvents.empty() ||
+          Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                     Queue->getContextImpl()));
+}
+
 } // namespace detail
 
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
@@ -470,17 +482,8 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
 detail::EventImplPtr handler::finalize() {
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
-  ext::oneapi::experimental::detail::graph_impl *Graph =
-      impl->get_graph_or_null();
 
-  // TODO checking the size of the events vector and avoiding the call is more
-  // efficient here at this point
-  const bool SchedulerBypass =
-      (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
-       !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
-       (impl->CGData.MEvents.size() == 0 ||
-        detail::Scheduler::areEventsSafeForSchedulerBypass(
-            impl->CGData.MEvents, Queue->getContextImpl())));
+  const bool SchedulerBypass = impl->canBypassScheduler();
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.

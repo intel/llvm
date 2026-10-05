@@ -16,6 +16,7 @@
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
 
 #include <gtest/gtest.h>
 
@@ -296,6 +297,90 @@ TEST_F(AsyncAllocTests, OutOfOrderHandlerOverloadEvents) {
   EXPECT_EQ(CounterAllocWithEvent, size_t{2});
   EXPECT_EQ(CounterFree, size_t{2});
   EXPECT_EQ(CounterFreeWithEvent, size_t{2});
+}
+
+// A handler submission which depends on a host task goes through the
+// scheduler. Its event can be handed out, e.g. as the last event of an in-order
+// queue, so the event of the allocation is requested even if the submission
+// does not return one.
+void checkHandlerOverloadAfterHostTaskEvents(queue &Q) {
+  auto Pool = Q.get_context().ext_oneapi_get_default_memory_pool(
+      Q.get_device(), usm::alloc::device);
+
+  std::mutex Mtx;
+  std::unique_lock<std::mutex> Lock{Mtx};
+  event HostTask = Q.submit([&](handler &CGH) {
+    CGH.host_task([&]() { std::lock_guard<std::mutex> Guard{Mtx}; });
+  });
+
+  void *Ptr = nullptr;
+  void *PoolPtr = nullptr;
+  oneapiext::submit(Q, [&](handler &CGH) {
+    CGH.depends_on(HostTask);
+    Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+  });
+  oneapiext::submit(Q, [&](handler &CGH) {
+    CGH.depends_on(HostTask);
+    PoolPtr = oneapiext::async_malloc_from_pool(CGH, 1024, Pool);
+  });
+
+  Lock.unlock();
+  Q.wait();
+  oneapiext::submit(Q, [&](handler &CGH) { oneapiext::async_free(CGH, Ptr); });
+  oneapiext::submit(Q,
+                    [&](handler &CGH) { oneapiext::async_free(CGH, PoolPtr); });
+  Q.wait();
+
+  EXPECT_EQ(CounterAlloc, size_t{2});
+  EXPECT_EQ(CounterAllocWithEvent, size_t{2});
+}
+
+TEST_F(AsyncAllocTests, InOrderHandlerOverloadAfterHostTaskEvents) {
+  queue Q = makeQueue(/*InOrder=*/true);
+  checkHandlerOverloadAfterHostTaskEvents(Q);
+}
+
+TEST_F(AsyncAllocTests, OutOfOrderHandlerOverloadAfterHostTaskEvents) {
+  queue Q = makeQueue(/*InOrder=*/false);
+  checkHandlerOverloadAfterHostTaskEvents(Q);
+}
+
+// A command group which also uses an accessor goes through the scheduler, so
+// the event of the allocation is requested even if the submission does not
+// return one, see checkHandlerOverloadAfterHostTaskEvents.
+TEST_F(AsyncAllocTests, HandlerOverloadWithRequirementEvents) {
+  queue Q = makeQueue(/*InOrder=*/true);
+  buffer<int, 1> Buf{range<1>{1}};
+
+  void *Ptr = nullptr;
+  oneapiext::submit(Q, [&](handler &CGH) {
+    accessor Acc{Buf, CGH, read_write};
+    Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+  });
+  Q.wait();
+  oneapiext::async_free(Q, Ptr);
+  Q.wait();
+
+  EXPECT_EQ(CounterAlloc, size_t{1});
+  EXPECT_EQ(CounterAllocWithEvent, size_t{1});
+}
+
+// A stream creates accessors, so a command group which uses one goes through
+// the scheduler as well.
+TEST_F(AsyncAllocTests, HandlerOverloadWithStreamEvents) {
+  queue Q = makeQueue(/*InOrder=*/true);
+
+  void *Ptr = nullptr;
+  oneapiext::submit(Q, [&](handler &CGH) {
+    stream Out{1024, 256, CGH};
+    Ptr = oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+  });
+  Q.wait();
+  oneapiext::async_free(Q, Ptr);
+  Q.wait();
+
+  EXPECT_EQ(CounterAlloc, size_t{1});
+  EXPECT_EQ(CounterAllocWithEvent, size_t{1});
 }
 
 // A host task dependency cannot be expressed to the backend, so the
