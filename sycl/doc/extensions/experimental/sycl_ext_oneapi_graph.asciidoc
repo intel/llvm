@@ -2223,7 +2223,7 @@ of failure. The following list describes the behavior that changes during
 recording mode. Features not listed below behave the same in recording mode as
 they do in non-recording mode.
 
-==== Event Limitations
+==== Event Limitations [[event-limitations]]
 
 For queue submissions that are being recorded to a modifiable `command_graph`,
 the only events that can be used as parameters to `handler::depends_on()`, or
@@ -2242,6 +2242,11 @@ code `invalid`.
 
 - Using the event outside of the recording scope will throw synchronously with error code
 `invalid`.
+
+These restrictions do not apply when an event is used by
+`enqueue_wait_event`, `enqueue_wait_events`, or `enqueue_signal_event` with the
+link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc#graph-external-property[
+`graph_external{true}`] property.
 
 ==== Queue Limitations
 
@@ -2434,6 +2439,13 @@ Recorded commands are not counted as submitted for the purposes of this query.
 The queue priority property defined by
 link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
 is ignored during queue recording.
+
+==== sycl_ext_oneapi_reusable_events
+
+Recording the event operations defined by
+link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc#reusable-events-graph-interaction[
+sycl_ext_oneapi_reusable_events] is currently supported only with
+<<native-recording, native recording>>.
 
 ==== sycl_ext_oneapi_work_group_memory
 
