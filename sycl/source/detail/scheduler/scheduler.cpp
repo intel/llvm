@@ -279,14 +279,18 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(event_impl &Event, bool *Success) {
+bool Scheduler::waitForEvent(event_impl &Event, bool *Success) {
+  const uint64_t Generation =
+      MAuxiliaryResourcesGeneration.load(std::memory_order_relaxed);
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
   GraphProcessor::waitForEvent(Event, Lock, ToCleanUp,
                                /*LockTheLock=*/false, Success);
-  cleanupCommands(ToCleanUp);
+  cleanupCommands(ToCleanUp, false);
+  return MAuxiliaryResourcesGeneration.load(std::memory_order_relaxed) !=
+         Generation;
 }
 
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
@@ -449,12 +453,26 @@ void Scheduler::releaseResources(BlockingT Blocking) {
   } while (Blocking == BlockingT::BLOCKING && !isDeferredMemObjectsEmpty());
 }
 
+void Scheduler::releaseResourcesAfterWait(event_impl &Event,
+                                          bool ScanAuxiliaryResources) {
+  const uint64_t Generation =
+      MAuxiliaryResourcesGeneration.load(std::memory_order_relaxed);
+  cleanupCommands({}, false);
+  cleanupAuxiliaryResourcesForEvent(Event);
+  if (ScanAuxiliaryResources || MAuxiliaryResourcesGeneration.load(
+                                    std::memory_order_relaxed) != Generation)
+    cleanupAuxiliaryResources(BlockingT::NON_BLOCKING);
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+}
+
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
   return Req->MSYCLMemObj->MRecord.get();
 }
 
-void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  cleanupAuxiliaryResources(BlockingT::NON_BLOCKING);
+void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds,
+                                bool ScanAuxiliaryResources) {
+  if (ScanAuxiliaryResources)
+    cleanupAuxiliaryResources(BlockingT::NON_BLOCKING);
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 
   if (Cmds.empty()) {
@@ -474,6 +492,8 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     {
       std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
       std::swap(DeferredCleanupCommands, MDeferredCleanupCommands);
+      MDeferredResourcesCount.fetch_sub(DeferredCleanupCommands.size(),
+                                        std::memory_order_relaxed);
     }
     for (Command *Cmd : DeferredCleanupCommands) {
       MGraphBuilder.cleanupCommand(Cmd);
@@ -483,6 +503,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
                                     Cmds.begin(), Cmds.end());
+    MDeferredResourcesCount.fetch_add(Cmds.size(), std::memory_order_relaxed);
   }
 }
 
@@ -523,6 +544,7 @@ void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
   {
     std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
     MDeferredMemObjRelease.push_back(MemObj);
+    MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
   }
   cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
 }
@@ -540,6 +562,8 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
     {
       std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
       MDeferredMemObjRelease.swap(TempStorage);
+      MDeferredResourcesCount.fetch_sub(TempStorage.size(),
+                                        std::memory_order_relaxed);
     }
     // if any objects in TempStorage exist - it is leaving scope and being
     // deleted
@@ -562,6 +586,7 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
         }
         ObjsReadyToRelease.push_back(*MemObjIt);
         MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+        MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
       }
     }
   }
@@ -573,6 +598,8 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   }
   if (!ObjsReadyToRelease.empty()) {
     std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+    MDeferredResourcesCount.fetch_add(ObjsReadyToRelease.size(),
+                                      std::memory_order_relaxed);
     MDeferredMemObjRelease.insert(
         MDeferredMemObjRelease.end(),
         std::make_move_iterator(ObjsReadyToRelease.begin()),
@@ -580,13 +607,15 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   }
 }
 
+template <typename MapT>
 static void registerAuxiliaryResourcesNoLock(
-    std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
-        &AuxiliaryResources,
-    const EventImplPtr &Event,
+    MapT &AuxiliaryResources, const EventImplPtr &Event,
     std::vector<std::shared_ptr<const void>> &&Resources) {
   std::vector<std::shared_ptr<const void>> &StoredResources =
-      AuxiliaryResources[Event];
+      AuxiliaryResources
+          .try_emplace(Event.get(), Event,
+                       std::vector<std::shared_ptr<const void>>{})
+          .first->second.second;
   StoredResources.insert(StoredResources.end(),
                          std::make_move_iterator(Resources.begin()),
                          std::make_move_iterator(Resources.end()));
@@ -595,33 +624,93 @@ static void registerAuxiliaryResourcesNoLock(
 void Scheduler::takeAuxiliaryResources(const EventImplPtr &Dst,
                                        const EventImplPtr &Src) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  auto Iter = MAuxiliaryResources.find(Src);
+  auto Iter = MAuxiliaryResources.find(Src.get());
   if (Iter == MAuxiliaryResources.end()) {
     return;
   }
+  // Moving onto an existing Dst entry removes one entry in total.
+  bool DstIsNewEntry =
+      MAuxiliaryResources.find(Dst.get()) == MAuxiliaryResources.end();
   registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Dst,
-                                   std::move(Iter->second));
+                                   std::move(Iter->second.second));
   MAuxiliaryResources.erase(Iter);
+  MAuxiliaryResourcesGeneration.fetch_add(1, std::memory_order_relaxed);
+  if (!DstIsNewEntry)
+    MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
 }
 
 void Scheduler::registerAuxiliaryResources(
     EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  bool IsNewEntry =
+      MAuxiliaryResources.find(Event.get()) == MAuxiliaryResources.end();
   registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
                                    std::move(Resources));
+  MAuxiliaryResourcesGeneration.fetch_add(1, std::memory_order_relaxed);
+  if (IsNewEntry)
+    MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+void Scheduler::cleanupAuxiliaryResourcesForEvent(event_impl &Event) {
+  AuxiliaryResourceMap::node_type Released;
+  {
+    std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+    auto It = MAuxiliaryResources.find(&Event);
+    if (It != MAuxiliaryResources.end() && Event.isCompleted()) {
+      Released = MAuxiliaryResources.extract(It);
+      MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+    }
+  }
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
-  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  for (auto It = MAuxiliaryResources.begin();
-       It != MAuxiliaryResources.end();) {
-    if (Blocking == BlockingT::BLOCKING) {
-      It->first->waitInternal();
-      It = MAuxiliaryResources.erase(It);
-    } else if (It->first->isCompleted())
-      It = MAuxiliaryResources.erase(It);
-    else
-      ++It;
+  if (Blocking == BlockingT::NON_BLOCKING) {
+    std::vector<decltype(MAuxiliaryResources)::node_type> Released;
+    {
+      std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+      for (auto It = MAuxiliaryResources.begin();
+           It != MAuxiliaryResources.end();) {
+        if (It->second.first->isCompleted()) {
+          Released.push_back(MAuxiliaryResources.extract(It++));
+          MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+        } else {
+          ++It;
+        }
+      }
+    }
+    return;
+  }
+
+  while (true) {
+    EventImplPtr Event;
+    std::vector<std::shared_ptr<const void>> Resources;
+    {
+      std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+      if (MAuxiliaryResources.empty())
+        return;
+
+      auto It = MAuxiliaryResources.begin();
+      Event = It->second.first;
+      Resources = std::move(It->second.second);
+      MAuxiliaryResources.erase(It);
+      MDeferredResourcesCount.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    try {
+      Event->waitInternal();
+    } catch (...) {
+      std::lock_guard<std::mutex> Lock{MAuxiliaryResourcesMutex};
+      const bool IsNewEntry =
+          MAuxiliaryResources.find(Event.get()) == MAuxiliaryResources.end();
+      registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
+                                       std::move(Resources));
+      MAuxiliaryResourcesGeneration.fetch_add(1, std::memory_order_relaxed);
+      if (IsNewEntry)
+        MDeferredResourcesCount.fetch_add(1, std::memory_order_relaxed);
+      throw;
+    }
+    Resources.clear();
+    Event.reset();
   }
 }
 
