@@ -1,5 +1,8 @@
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+// UNSUPPORTED: windows && !aspect-fp64
+// UNSUPPORTED-INTENDED: On Windows std::complex<float> device math comes from
+// MSVC's STL, which calls double C math functions (see std_complex_math_test).
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -o %t.out
