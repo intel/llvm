@@ -10,6 +10,7 @@
 #include "adapter.hpp"
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
+#include "ur_pool_manager.hpp"
 #include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
@@ -2025,6 +2026,32 @@ ur_device_handle_t_::useImmediateCommandLists() {
   default:
     return NotUsed;
   }
+}
+
+bool ur_device_handle_t_::isUsmPoolingDisabled() {
+  return isBMGOrNewer() && Platform->isDriverVersionNewerOrSimilar(1, 18, 0);
+}
+
+bool isUsmPoolingDisabled(const usm::pool_descriptor &Desc) {
+  bool Disabled = false;
+  if (Desc.hDevice) {
+    Disabled = common_cast(Desc.hDevice)->isUsmPoolingDisabled();
+  } else {
+    const auto &Devices = common_cast(Desc.hContext)->getDevices();
+    Disabled =
+        !Devices.empty() && std::all_of(Devices.begin(), Devices.end(),
+                                        [](ur_device_handle_t Device) {
+                                          return Device->isUsmPoolingDisabled();
+                                        });
+  }
+
+  if (Disabled) {
+    UR_LOG(INFO,
+           "USM pooling is disabled on Xe2 or newer devices with L0 driver "
+           "1.18 or newer, desc:{}",
+           logger::makeStringFromStreamable(Desc));
+  }
+  return Disabled;
 }
 
 bool ur_device_handle_t_::useRelaxedAllocationLimits() {

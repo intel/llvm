@@ -29,6 +29,10 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+namespace usm {
+struct pool_descriptor;
+} // namespace usm
+
 namespace ur::level_zero {
 
 typedef size_t DeviceId;
@@ -245,6 +249,10 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
             (ZeDeviceIpVersionExt->ipVersion & 0xffffc000) == 0x08c2c000);
   }
 
+  // USM pooling in the adapter is disabled on Xe2 or newer devices with
+  // L0 driver 1.18 or newer.
+  bool isUsmPoolingDisabled();
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }
@@ -346,5 +354,10 @@ inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
 
   return DevicesAndSubDevices;
 }
+
+// Returns true if USM pooling is disabled for the pool described by Desc.
+// Host pools are not associated with any device, so pooling of host memory is
+// disabled only if it is disabled for all devices in the context.
+bool isUsmPoolingDisabled(const usm::pool_descriptor &Desc);
 
 } // namespace ur::level_zero
