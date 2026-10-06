@@ -48,6 +48,10 @@ runs:
     run: |
       mkdir build-e2e
       tar -xf e2e_bin.tar.gz -C build-e2e
+      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
+        echo "::error::Downloaded E2E binaries artifact '${{ inputs.binaries_artifact }}' has no compiled test binaries under */Output/ (likely produced by a failed upstream build job). Failing fast instead of running thousands of doomed tests."
+        exit 1
+      fi
 
   - name: Deduce E2E CMake options
     id: cmake_opts
@@ -117,6 +121,15 @@ runs:
     run: |
       for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
       rm e2econf_files.txt
+
+  - name: Verify E2E binaries were built
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
+    shell: bash
+    run: |
+      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
+        echo "::error::No compiled E2E test binaries found under build-e2e/**/Output/ after the build step. Refusing to upload a broken artifact."
+        exit 1
+      fi
 
   - name: Pack E2E test binaries
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
