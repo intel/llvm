@@ -16,12 +16,19 @@
 
 namespace llvm {
 
+class TargetLibraryInfoImpl;
+
+/// \p TLII, if non-null, replaces the TargetLibraryInfoImpl this would
+/// otherwise synthesize from \p TM. Frontends must pass it when they configure
+/// target library info beyond what TargetMachine carries (e.g. the alternate
+/// math library from -faltmathlib=). It must outlive this call.
 LLVM_ABI Error runCodeGenPipeline(
     TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
     std::unique_ptr<ToolOutputFile> &DwoOS, CodeGenFileType CGFT,
     bool PrintPipelinePasses = false, bool DisableVerify = true,
     bool DisableSimplifyLibCalls = false,
-    IntrusiveRefCntPtr<vfs::FileSystem> VFS = vfs::getRealFileSystem());
+    IntrusiveRefCntPtr<vfs::FileSystem> VFS = vfs::getRealFileSystem(),
+    const TargetLibraryInfoImpl *TLII = nullptr);
 
 } // namespace llvm
 

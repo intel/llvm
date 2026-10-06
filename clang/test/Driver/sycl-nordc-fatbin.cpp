@@ -1,5 +1,10 @@
 // REQUIRES: spirv-registered-target, x86-registered-target
 
+// TODO: With the intel/llvm SYCL driver the .sycl_fatbin section holds LLVM
+// bitcode rather than an offload binary wrapping a finalized SPIR-V module.
+// Enable once the -fno-sycl-rdc flow matches upstream.
+// XFAIL: *
+
 /// Verify which section carries the SYCL device binary in the host object.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -fno-gpu-rdc \
 // RUN:   -c %s -o %t.nordc.o

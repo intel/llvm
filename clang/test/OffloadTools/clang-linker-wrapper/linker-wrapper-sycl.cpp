@@ -265,7 +265,7 @@
 // RUN: clang-linker-wrapper -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_amdgcn.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-AMD %s
 // CHK-CMDS-AOT-AMD: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-AOT-AMD-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
-// CHK-CMDS-AOT-AMD-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
+// CHK-CMDS-AOT-AMD-NEXT: sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -o [[CLANGOUT:.*]] -dumpdir /dev/null.amdgpu8.03.gfx803.img. --target=amdgpu8.03-amd-amdhsa -mcpu={{.*}}
 // CHK-CMDS-AOT-AMD-NEXT: clang-offload-bundler{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
 // CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: [[BUNDLEROUT]]

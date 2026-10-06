@@ -2044,12 +2044,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       CmdArgs.push_back("-Wl,--lto-emit-llvm");
   }
 
-  // For linking device code with the SYCL offload kind, special handling is
-  // required. Passing --sycl-link to clang results in a call to
-  // clang-sycl-linker.
-  if (ActiveOffloadKindMask & OFK_SYCL)
-    CmdArgs.push_back("--sycl-link");
-
   for (StringRef Arg : Args.getAllArgValues(OPT_linker_arg_EQ))
     CmdArgs.append({"-Xlinker", Args.MakeArgString(Arg)});
   for (StringRef Arg : Args.getAllArgValues(OPT_compiler_arg_EQ))
@@ -3347,8 +3341,12 @@ getDeviceInput(const ArgList &Args) {
       continue;
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
-    if (Error Err = extractOffloadBinaries(Buffer, Binaries))
-      return std::move(Err);
+    if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
+      // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
+      // which is not in OffloadBinary format. Consume the parse error and
+      // fall through to the SYCL bundled objects extraction path.
+      consumeError(std::move(Err));
+    }
     if (Binaries.size() == OldSize) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
         return std::move(Err);

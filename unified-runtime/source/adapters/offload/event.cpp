@@ -71,7 +71,8 @@ urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    ur_event_callback_t pfnNotify, void *pUserData) {
   // Liboffload only supports a transition from SUBMITTED to COMPLETE
   ol_queue_handle_t Queue;
-  OL_RETURN_ON_ERR(olCreateQueue(hEvent->UrQueue->OffloadDevice, &Queue));
+  OL_RETURN_ON_ERR(olCreateQueue(hEvent->UrQueue->UrContext->OffloadContext,
+                                 hEvent->UrQueue->OffloadDevice, &Queue));
   OL_RETURN_ON_ERR(olWaitEvents(Queue, &hEvent->OffloadEvent, 1));
   auto CallbackData =
       new callback_data_t{pfnNotify, hEvent, execStatus, pUserData};
