@@ -1,8 +1,8 @@
 name: 'Set up ur-test'
 description: >
-  Provision an isolated Python environment with ur_test_tools' own
-  dependencies (devops/scripts/ur_test_tools/requirements.txt) installed,
-  without touching the system/base Python installation.
+  Provision the Python dependencies required by UR test reporting (ur-test)
+  and LIT execution (devops/scripts/ur_test_tools/requirements.txt), without
+  touching the system/base Python installation.
 
 outputs:
   python:
@@ -31,6 +31,7 @@ runs:
       fi
 
       venv_dir="${RUNNER_TEMP:-$GITHUB_WORKSPACE}/ur-test-venv"
+      rm -rf "$venv_dir"
       if "$base_py" -m venv "$venv_dir" >/dev/null 2>&1; then
         venv_py="$venv_dir/bin/python"
         [ -f "$venv_py" ] || venv_py="$venv_dir/Scripts/python.exe"
@@ -46,8 +47,9 @@ runs:
       # fall back to a workspace-local --target install on the base interpreter.
       echo "::warning::'python -m venv' unavailable; falling back to a --target install."
       deps_dir="${RUNNER_TEMP:-$GITHUB_WORKSPACE}/ur-test-deps"
+      rm -rf "$deps_dir"
       mkdir -p "$deps_dir"
-      # --break-system-packages: nightly images have no venv and broken apt, same as devops/actions/run-tests/benchmark.
+      # Same --break-system-packages fallback as run-tests/benchmark for nightly images.
       "$base_py" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" -r devops/scripts/ur_test_tools/requirements.txt \
         || "$base_py" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" -r devops/scripts/ur_test_tools/requirements.txt
       echo "python=$base_py" >> "$GITHUB_OUTPUT"
