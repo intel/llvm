@@ -67,3 +67,19 @@
 // CHECK-PIPELINE: 24: backend, {23}, assembler, (host-sycl)
 // CHECK-PIPELINE: 25: assembler, {24}, object, (host-sycl)
 // CHECK-PIPELINE: 26: clang-linker-wrapper, {12, 25}, image, (host-sycl)
+
+// -fno-sycl-rdc is rejected for Native CPU and -fsycl-embed-ir, which need
+// host objects that the compile-step embedding cannot carry.
+// RUN: not %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=native_cpu -fno-sycl-rdc -fno-sycl-libspirv --no-offloadlib -c %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NATIVE-CPU %s
+// CHK-NATIVE-CPU: error: '-fno-sycl-rdc' is not supported with '-fsycl-targets=native_cpu' when using the new offloading model
+// RUN: not %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx90a -nogpulib -fno-sycl-libspirv -fsycl-embed-ir -fno-sycl-rdc --no-offloadlib -c %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-EMBED-IR %s
+// CHK-EMBED-IR: error: '-fno-sycl-rdc' is not supported with '-fsycl-embed-ir' when using the new offloading model
+
+// RDC and the old offloading model are not affected.
+// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv --no-offloadlib -c %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NATIVE-CPU-OK %s
+// RUN: %clang -### --no-offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=native_cpu -fno-sycl-rdc -fno-sycl-libspirv --no-offloadlib -c %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NATIVE-CPU-OK %s
+// CHK-NATIVE-CPU-OK-NOT: is not supported with
