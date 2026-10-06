@@ -3060,12 +3060,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
       } else if (!NeedsWrapping) {
-        // For per-TU -fno-sycl-rdc compile-step finalization
-        // (--emit-fatbin-only), output the wrapper bitcode directly. The host
-        // cc1 will link this .bc into the host module via
-        // -foffload-include-binary, so the SYCL registration IR (constructors
-        // calling __sycl_register_lib) is emitted correctly without compiling
-        // to an intermediate host object.
+        // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the
+        // host compilation links it in via -foffload-include-binary.
         Expected<StringRef> OutputFile =
             sycl::wrapSYCLBinariesFromFile(Modules, LinkerArgs,
                                            /*IsEmbeddedIR=*/false);
