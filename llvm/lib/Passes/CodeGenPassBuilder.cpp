@@ -151,6 +151,10 @@ CodeGenPassBuilder::CodeGenPassBuilder(TargetMachine &TM,
   if (Opt.EnableGlobalISelAbort)
     TM.Options.GlobalISelAbort = *Opt.EnableGlobalISelAbort;
 
+  if (Opt.EnableRegAllocFastTied != cl::boolOrDefault::BOU_UNSET)
+    TM.setEnableTiedFastRegAlloc(Opt.EnableRegAllocFastTied ==
+                                 cl::boolOrDefault::BOU_TRUE);
+
   // An explicit RegAlloc choice implies its pipeline: only the fast
   // allocator uses the unoptimized one.
   if (Opt.OptimizeRegAlloc == cl::boolOrDefault::BOU_UNSET) {
@@ -844,7 +848,8 @@ CodeGenPassBuilder::addRegAssignAndRewriteOptimized(PassManagerWrapper &PMW) {
 /// register allocation. No coalescing or scheduling.
 Error CodeGenPassBuilder::addFastRegAlloc(PassManagerWrapper &PMW) {
   addMachineFunctionPass(PHIEliminationPass(), PMW);
-  addMachineFunctionPass(TwoAddressInstructionPass(), PMW);
+  if (!TM.enableTiedFastRegAlloc())
+    addMachineFunctionPass(TwoAddressInstructionPass(), PMW);
   return addRegAssignAndRewriteFast(PMW);
 }
 
