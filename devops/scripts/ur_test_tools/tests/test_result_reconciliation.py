@@ -194,9 +194,7 @@ class LITLogParserTest(unittest.TestCase):
 
         slowest, histogram = LITLogParser(lines).extract_time_summary()
 
-        self.assertEqual(
-            slowest, ["41.86s: SYCL :: WorkGroupMemory/basic_usage.cpp"]
-        )
+        self.assertEqual(slowest, ["41.86s: SYCL :: WorkGroupMemory/basic_usage.cpp"])
         self.assertEqual(
             histogram,
             ["[40.0s,42.0s) :: [] :: [   1/2022]", "-" * 70],
