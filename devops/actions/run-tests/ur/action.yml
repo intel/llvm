@@ -71,6 +71,7 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
       PY: ${{ steps.python.outputs.exe }}
+      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping log filtering."
@@ -92,6 +93,7 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
       PY: ${{ steps.python.outputs.exe }}
+      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
     run: |
       if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test execution failed, but no test log is available."
@@ -111,6 +113,7 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PY: ${{ steps.python.outputs.exe }}
+      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping summary."
