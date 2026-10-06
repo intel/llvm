@@ -50,7 +50,7 @@ void range_wg_1dsize_hint_before(float start, float *ptr) {
   kernel_code(start, ptr);
 }
 
-template <size_t SGSIZE>
+template <unsigned SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (syclexp::nd_range_kernel<1>)) void range_sg_1dsize_before(float start,
@@ -58,7 +58,7 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
   kernel_code(start, ptr);
 }
 
-template <size_t SGSIZE>
+template <unsigned SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (syclexp::sub_group_size<SGSIZE>)) void range_sg_1dsize_after(float start,
@@ -74,7 +74,7 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::device_has<sycl::aspect::gpu>))
 void range_has_after(float start, float *ptr) { kernel_code(start, ptr); }
 
-template <size_t SGSIZE>
+template <unsigned SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
@@ -83,7 +83,7 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
   kernel_code(start, ptr);
 }
 
-template <size_t SGSIZE>
+template <unsigned SGSIZE>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<WGSIZE>))
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SGSIZE>))
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
@@ -171,7 +171,7 @@ bool test_several_properties(sycl::queue &q, sycl::context &ctxt,
   return ret;
 }
 
-template <size_t SGSIZE>
+template <unsigned SGSIZE>
 int test_sg_properties(sycl::queue &q, sycl::context &ctxt) {
   int ret = 0;
   ret |= test<range_sg_1dsize_before<SGSIZE>, float, sg_size_desc>(
