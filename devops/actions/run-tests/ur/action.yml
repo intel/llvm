@@ -36,9 +36,14 @@ runs:
       PY: ${{ steps.python.outputs.exe }}
     run: |
       "$PY" -c "import defusedxml" 2>/dev/null && exit 0
+      # Install into a workspace-local dir rather than --user: some containers run
+      # as a UID that cannot write to $HOME (where --user installs always land).
+      deps_dir="$GITHUB_WORKSPACE/.ur-test-deps"
+      mkdir -p "$deps_dir"
       # --break-system-packages: nightly images have no venv and broken apt, same as devops/actions/run-tests/benchmark.
-      "$PY" -m pip install --disable-pip-version-check --quiet --user --break-system-packages defusedxml==0.7.1 \
-        || "$PY" -m pip install --disable-pip-version-check --quiet --user defusedxml==0.7.1
+      "$PY" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" defusedxml==0.7.1 \
+        || "$PY" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" defusedxml==0.7.1
+      echo "PYTHONPATH=$deps_dir:$PYTHONPATH" >> "$GITHUB_ENV"
 
   - name: Run ${{ inputs.test_type }} tests
     id: run_tests
