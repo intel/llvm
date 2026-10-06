@@ -29,7 +29,8 @@ namespace {
 #ifdef _WIN32
 // SYCL/UR carry NT object names as wide strings (LPCWSTR); L0's
 // ze_external_semaphore_win32_ext_desc_t::name is char* interpreted as UTF-8
-// by NEO. Convert at the adapter boundary. Returns empty on invalid UTF-16.
+// by NEO. Convert at the adapter boundary. Returns empty on an empty or
+// invalid UTF-16 name.
 std::string wideToUtf8(const wchar_t *wideName) {
   int len = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideName, -1,
                                 nullptr, 0, nullptr, nullptr);
@@ -1411,7 +1412,15 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
         // L0's ze_external_memory_import_win32_handle_t::name is const void*
         // and NEO consumes the wide string (LPCWSTR) as-is. Only the semaphore
         // path (const char* name) needs the UTF-8 conversion.
-        importWin32->name = Win32Name->name;
+#ifdef _WIN32
+        externalMemoryData->win32NameStorage =
+            static_cast<const wchar_t *>(Win32Name->name);
+        importWin32->name = externalMemoryData->win32NameStorage.c_str();
+#else
+        delete importWin32;
+        delete externalMemoryData;
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
       }
 
       switch (memHandleType) {

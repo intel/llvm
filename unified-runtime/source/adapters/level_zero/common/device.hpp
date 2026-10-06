@@ -78,6 +78,9 @@ struct ur_ze_external_memory_data {
   void *importExtensionDesc;
   enum ur_ze_external_memory_desc_type type;
   size_t size;
+  // Owns the Win32 NT name referenced by importExtensionDesc. L0 reads it at
+  // map time (zeImageCreate/zeMemAllocDevice), after the import call returns.
+  std::wstring win32NameStorage;
 };
 
 struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
