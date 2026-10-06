@@ -1956,8 +1956,8 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                               const JobAction &JA,
                                               const ToolChain &HostTC,
                                               StringRef Device) const {
-  llvm::append_range(CmdArgs,
-                     getSPIRVCompilationOptions(Triple, Args, JA, HostTC, Device));
+  llvm::append_range(
+      CmdArgs, getSPIRVCompilationOptions(Triple, Args, JA, HostTC, Device));
   llvm::append_range(CmdArgs, getSPIRVLinkArgs(Triple, Args));
 }
 

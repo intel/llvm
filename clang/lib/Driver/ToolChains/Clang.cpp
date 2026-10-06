@@ -11045,9 +11045,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       // owned by compilation. Linker options are emitted by the
       // linker wrapper driver, not copied into each compilation's metadata.
       llvm::append_range(
-          BuildArgs,
-          SYCLTC.getSPIRVCompilationOptions(TC->getTriple(), Args, JA, *HostTC,
-                                           Arch.ArchName));
+          BuildArgs, SYCLTC.getSPIRVCompilationOptions(
+                         TC->getTriple(), Args, JA, *HostTC, Arch.ArchName));
       // Filter -Xsycl-target-backend tokens by arch when this image is
       // bound to a single arch. Archs.size() > 1 happens on the legacy
       // syntax where a single -fsycl-targets=spir64_gen entry names

@@ -154,8 +154,9 @@ public:
   /// backend protocol, including the JIT runtime's frontend-option spellings.
   llvm::opt::ArgStringList
   getSPIRVCompilationOptions(const llvm::Triple &Triple,
-                            const llvm::opt::ArgList &Args, const JobAction &JA,
-                            const ToolChain &HostTC, StringRef Device = "") const;
+                             const llvm::opt::ArgList &Args,
+                             const JobAction &JA, const ToolChain &HostTC,
+                             StringRef Device = "") const;
 
   /// Interpret only linker options. Do not process compiler options or
   /// generate compiler defaults during link orchestration.
