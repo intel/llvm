@@ -2,6 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
+// UNSUPPORTED: windows && run-mode && gpu-intel-gen12
+// UNSUPPORTED-INTENDED: Not supported with the Gen12 Windows driver (hangs).
+
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
