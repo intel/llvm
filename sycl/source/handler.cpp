@@ -896,6 +896,13 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  // Like a dependency, a requirement added after an async alloc, which has
+  // already been enqueued, would have no effect, so it is disallowed.
+  if (getType() == detail::CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot add a requirement after an asynchronous "
+                          "allocation has already been executed!");
+  }
   if (getCommandGraph() &&
       static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
           ->needsWriteBack()) {

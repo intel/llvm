@@ -209,6 +209,34 @@ TEST_F(AsyncAllocTests, HandlerOverloadDependsOnAfterAlloc) {
   }
 }
 
+// A requirement added after the allocation, also by a stream, is rejected like
+// a dependency: async_malloc has already decided whether to request the event
+// of the allocation, which depends on the scheduler being bypassed.
+TEST_F(AsyncAllocTests, HandlerOverloadRequirementAfterAlloc) {
+  queue Q = makeQueue(/*InOrder=*/true);
+  buffer<int, 1> Buf{range<1>{1}};
+
+  try {
+    oneapiext::submit(Q, [&](handler &CGH) {
+      oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+      accessor Acc{Buf, CGH, read_write};
+      FAIL() << "Expected an exception.";
+    });
+  } catch (sycl::exception &E) {
+    EXPECT_EQ(E.code(), sycl::errc::invalid);
+  }
+
+  try {
+    oneapiext::submit(Q, [&](handler &CGH) {
+      oneapiext::async_malloc(CGH, usm::alloc::device, 1024);
+      stream Out{1024, 256, CGH};
+      FAIL() << "Expected an exception.";
+    });
+  } catch (sycl::exception &E) {
+    EXPECT_EQ(E.code(), sycl::errc::invalid);
+  }
+}
+
 // The handler overloads submitted without an event must not request one from
 // the backend either, as nothing would take ownership of it.
 TEST_F(AsyncAllocTests, HandlerOverloadNoEvents) {
