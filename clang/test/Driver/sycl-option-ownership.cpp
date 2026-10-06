@@ -5,14 +5,16 @@
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
-// RUN:   -### %s 2>&1 | FileCheck %s --check-prefixes=JIT,LINK
+// RUN:   -### %s 2>&1 | FileCheck %s --check-prefixes=JIT,LINK \
+// RUN:       --implicit-check-not=unused-command-line-argument
 
 // Compile-only invocations retain the same compiler options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 -c \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
-// RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=JIT
+// RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=JIT \
+// RUN:       --implicit-check-not=unused-command-line-argument
 
 // Mixed source/object links do not regenerate compiler options either.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
@@ -20,21 +22,46 @@
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
 // RUN:   -### %s %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:   | FileCheck %s --check-prefixes=JIT,LINK
+// RUN:   | FileCheck %s --check-prefixes=JIT,LINK \
+// RUN:       --implicit-check-not=unused-command-line-argument
 
 // Object-only policy: compiler-owned flags do not alter input options.
+// As with CUDA/HIP, compiler-only options are accepted silently at link time.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
-// RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 | FileCheck %s --check-prefix=LINK
+// RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=LINK \
+// RUN:       --implicit-check-not=unused-command-line-argument
 
-// Link orchestration must not interpret or validate compiler-only settings.
+// Multiple SPIR targets follow the same silent-acceptance policy.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen,spir64_x86_64 \
+// RUN:   -ftarget-register-alloc-mode=pvc:large \
+// RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=LINK \
+// RUN:       --implicit-check-not=unused-command-line-argument
+
+// -O still controls host LTO and SYCL post-link optimization. Plain -g is
+// accepted by the host linker driver; neither option should be warned about.
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
+// RUN:   -g -O3 -flto=thin -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=HOST_LTO \
+// RUN:       --implicit-check-not=unused-command-line-argument
+// HOST_LTO: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O3"
+// HOST_LTO-SAME: "-plugin-opt=O3"
+// HOST_LTO-SAME: "-plugin-opt=thinlto"
+
+// Link orchestration must not interpret or validate compiler-only settings,
+// or warn about their unused values.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -ftarget-register-alloc-mode=pvc:invalid \
 // RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=LINK \
+// RUN:       --implicit-check-not=unused-command-line-argument \
 // RUN:       --implicit-check-not="error: unsupported argument 'pvc:invalid' to option '-ftarget-register-alloc-mode='"
 
 // Compilation does validate the setting, exactly once. This also keeps the

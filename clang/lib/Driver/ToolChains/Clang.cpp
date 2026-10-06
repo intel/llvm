@@ -12104,11 +12104,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       ArgStringList LinkerArgs;
       const DerivedArgList &ToolChainArgs =
           C.getArgsForToolChain(TC, /*BA=*/{}, Kind);
+      const bool IsSYCLSPIR =
+          Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV();
+      // SYCL SPIR compiler options belong to the input images, not this link
+      // job. Do not claim options this job does not consume.
       DerivedArgList BaseCompilerArgs(ToolChainArgs.getBaseArgs());
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
           LinkerArgs.emplace_back(A->getValue());
-        else if (ShouldForward(CompilerOptions, A, *TC)) {
+        else if (!IsSYCLSPIR && ShouldForward(CompilerOptions, A, *TC)) {
           A->claim();
           BaseCompilerArgs.append(A);
         } else if (ShouldForward(LinkerOptions, A, *TC)) {
@@ -12117,8 +12121,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
 
-      const bool IsSYCLSPIR =
-          Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV();
       if (IsSYCLSPIR) {
         // For SYCL SPIR targets, emit only linker options. Compilation
         // options are already serialized in the input images.
