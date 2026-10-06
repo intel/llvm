@@ -13,6 +13,22 @@
 // be compressed, and 1366 isn't a multiple of the tile width.
 
 // clang-format off
+/*
+  Standalone build:
+    clang++ -fsycl -o ds2rw.exe D3D12_sycl_interop_2D_read_write.cpp -ld3d12 -ldxgi
+
+  Usage: ds2rw.exe [options] [WxH]
+    --type T         Channel type: float, half, unorm8, snorm8, unorm16 or
+                     snorm16 (default: float)
+    --channels N     Number of channels: 1, 2 or 4 (default: 4)
+    --clear          Fill the texture with ClearRenderTargetView (a constant
+                     color) instead of copying a pattern from a buffer
+    --semaphores     Synchronize D3D12 and SYCL on the GPU with a shared fence
+                     instead of waiting on the host
+    --dx12-resource  Import the texture with the win32_nt_dx12_resource handle
+                     type instead of win32_nt_handle
+    WxH              Texture size (default: 32x33)
+*/
 // RUN: %{run} %t.exe --type float --channels 4 32x33
 // RUN: %{run} %t.exe --type unorm8 --channels 4 --clear 32x33
 // RUN: %{run} %t.exe --type float --channels 1 1920x1080

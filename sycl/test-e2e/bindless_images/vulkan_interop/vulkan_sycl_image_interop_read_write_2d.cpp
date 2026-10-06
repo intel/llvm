@@ -14,6 +14,20 @@
 // be compressed, and 1366 isn't a multiple of the tile width.
 
 // clang-format off
+/*
+  Standalone build:
+    clang++ -fsycl -Wno-ignored-attributes -o vs2rw.exe vulkan_sycl_image_interop_read_write_2d.cpp -I%VULKAN_SDK%\Include -L%VULKAN_SDK%\Lib -lvulkan-1
+
+  Usage: vs2rw.exe [options] [WxH]
+    --type T      Channel type: float, half, unorm8, snorm8, unorm16 or snorm16
+                  (default: float)
+    --channels N  Number of channels: 1, 2 or 4 (default: 4)
+    --clear       Fill the image with vkCmdClearColorImage (a constant color)
+                  instead of copying a pattern from a buffer
+    --semaphores  Synchronize Vulkan and SYCL on the GPU with exported binary
+                  semaphores instead of waiting on the host
+    WxH           Image size (default: 32x33)
+*/
 // RUN: %{run} %t.out --type float --channels 4 32x33
 // RUN: %{run} %t.out --type unorm8 --channels 4 --clear 32x33
 // RUN: %{run} %t.out --type float --channels 1 1920x1080
