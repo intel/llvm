@@ -366,17 +366,21 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
                Dev.get_info<info::device::vendor_id>() == 0x8086;
       });
   if (!CompileOptsEnv) {
+    // Frontend options may be repeated (e.g. once from the image metadata and
+    // once from clang-linker-wrapper), so map every occurrence.
     static const char *TargetCompileFast = "-ftarget-compile-fast";
     if (auto Pos = CompileOpts.find(TargetCompileFast);
         Pos != std::string::npos) {
       const char *BackendOption = nullptr;
       if (IsIntelGPU)
         PlatformImpl.getBackendOption(TargetCompileFast, &BackendOption);
+      std::string_view Replacement =
+          (IsIntelGPU && BackendOption) ? BackendOption : "";
       auto OptLen = strlen(TargetCompileFast);
-      if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
-        CompileOpts.replace(Pos, OptLen, BackendOption);
-      else
-        CompileOpts.erase(Pos, OptLen);
+      do {
+        CompileOpts.replace(Pos, OptLen, Replacement);
+        Pos = CompileOpts.find(TargetCompileFast, Pos + Replacement.size());
+      } while (Pos != std::string::npos);
     }
     static const std::string TargetRegisterAllocMode =
         "-ftarget-register-alloc-mode=";
@@ -414,7 +418,11 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       if (auto Pos = CompileOpts.find(Opt); Pos != std::string::npos) {
         const char *BackendOption = nullptr;
         PlatformImpl.getBackendOption(std::string(Opt).c_str(), &BackendOption);
-        CompileOpts.replace(Pos, Opt.length(), BackendOption);
+        std::string_view Replacement = BackendOption ? BackendOption : "";
+        do {
+          CompileOpts.replace(Pos, Opt.length(), Replacement);
+          Pos = CompileOpts.find(Opt, Pos + Replacement.size());
+        } while (Pos != std::string::npos);
       }
     }
   }
