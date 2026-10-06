@@ -311,6 +311,23 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
 
+        # %aot_options expands to the AOT flags for the matched triple of this
+        # test instance. spir64 is included here (not just spir64_gen) because
+        # intel/llvm CI only runs a spir64 configuration for AOT tests, not a
+        # dedicated spir64_gen one; TODO drop spir64 once a spir64_gen CI run
+        # exists.
+        matched_spir_triple = next(
+            (t for t in triples if t in ("spir64", "spir64_gen")), None
+        )
+        if matched_spir_triple is not None:
+            aot_options = (
+                "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
+                + test.config.gpu_aot_target_opts
+            )
+        else:
+            aot_options = ""
+        substitutions.append(("%aot_options", aot_options))
+
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
         if "target-amd" in build_targets:
             hip_arch_opts = (

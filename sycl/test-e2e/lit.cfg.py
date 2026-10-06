@@ -1063,27 +1063,6 @@ config.spir_family_targets = {
     for target in config.sycl_build_targets
     if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
 }
-matched_spir_triple = next(
-    (
-        config.target_to_triple.get(target)
-        for target in config.sycl_build_targets
-        if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
-    ),
-    None,
-)
-
-# %aot_options expands to the AOT flags for the matched build target.
-# spir64 is included here (not just spir64_gen) because intel/llvm CI only runs
-# a spir64 configuration for these AOT tests, not a dedicated spir64_gen one;
-# TODO drop spir64 once a spir64_gen CI run exists.
-if matched_spir_triple in ("spir64", "spir64_gen"):
-    aot_options = (
-        "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
-        + config.gpu_aot_target_opts
-    )
-else:
-    aot_options = ""
-config.substitutions.append(("%aot_options", aot_options))
 
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
