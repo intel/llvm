@@ -166,9 +166,9 @@ public:
 
   /// Append compilation options and any applicable linker options for the old
   /// offload driver, which does not split their ownership. Used by AOT backend
-  /// jobs and the offload wrapper's JIT image metadata. Linker options currently
-  /// apply only to the GEN subarchitecture, so non-GEN JIT targets append only
-  /// compilation options.
+  /// jobs and the offload wrapper's JIT image metadata. Linker options
+  /// currently apply only to the GEN subarchitecture, so non-GEN JIT targets
+  /// append only compilation options.
   void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs,

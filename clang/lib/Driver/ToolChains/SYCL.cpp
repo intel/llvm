@@ -1927,7 +1927,7 @@ llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
 
 llvm::opt::ArgStringList
 SYCLToolChain::getSPIRVLinkOptions(const llvm::Triple &Triple,
-                                 const llvm::opt::ArgList &Args) const {
+                                   const llvm::opt::ArgList &Args) const {
   llvm::opt::ArgStringList CmdArgs;
   if (Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen)
     return CmdArgs;
