@@ -1,17 +1,14 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
-// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
-// so the matching zeEventDestroy calls are reported as a negative leak there.
-// Ignore negative leaks on Windows until the loader is updated.
-// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
-//
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out wait 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
-// RUN: %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
+// RUN: %{l0_leak_check} %{run} %t.out wait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s
 //
 // RUN: %{build} %level_zero_options -DCHECK_INORDER -o %t.inorder.out
-// RUN: %{l0_leak_check} %{run} %t.inorder.out wait 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
-// RUN: %{l0_leak_check} %{run} %t.inorder.out nowait 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
+// RUN: %{l0_leak_check} %{run} %t.inorder.out wait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
+//
+// CHECK-NOT: LEAK
 
 // The test is to check that there are no leaks reported with the embedded
 // UR_L0_LEAKS_DEBUG=1 testing capability. Example of a leak reported is this:
