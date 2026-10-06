@@ -85,7 +85,9 @@ runs:
       USER_LIT_OPTS: ${{ inputs.extra_lit_opts }}
       MAX_TIME: ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }}
     run: |
-      echo "opts=--max-time ${MAX_TIME} --param print_features=True --param test-mode=${TESTING_MODE} --param sycl_devices=${TARGET_DEVICES} ${USER_LIT_OPTS}" >> "$GITHUB_OUTPUT"
+      # --timeout kills an individual hung test (e.g. a GPU driver hang) instead of
+      # letting it block the whole suite until the job's own timeout-minutes fires.
+      echo "opts=--max-time ${MAX_TIME} --timeout 600 --param print_features=True --param test-mode=${TESTING_MODE} --param sycl_devices=${TARGET_DEVICES} ${USER_LIT_OPTS}" >> "$GITHUB_OUTPUT"
 
   - name: Build artifact name
     if: ${{ always() && inputs.job_name != '' }}

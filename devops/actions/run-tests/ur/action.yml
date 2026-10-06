@@ -36,14 +36,20 @@ runs:
     env:
       PY: ${{ steps.python.outputs.exe }}
     run: |
-      "$PY" -c "import defusedxml" 2>/dev/null && exit 0
+      missing=""
+      "$PY" -c "import defusedxml" 2>/dev/null || missing="$missing defusedxml==0.7.1"
+      # psutil is required by lit's --timeout (kills hung test processes); without
+      # it lit aborts the whole run at startup instead of just skipping the option.
+      "$PY" -c "import psutil" 2>/dev/null || missing="$missing psutil>=7.0.0"
+      [ -z "$missing" ] && exit 0
+
       # Install into a workspace-local dir rather than --user: some containers run
       # as a UID that cannot write to $HOME (where --user installs always land).
       deps_dir="$GITHUB_WORKSPACE/.ur-test-deps"
       mkdir -p "$deps_dir"
       # --break-system-packages: nightly images have no venv and broken apt, same as devops/actions/run-tests/benchmark.
-      "$PY" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" defusedxml==0.7.1 \
-        || "$PY" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" defusedxml==0.7.1
+      "$PY" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" $missing \
+        || "$PY" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" $missing
       echo "deps-dir=$deps_dir" >> "$GITHUB_OUTPUT"
 
   - name: Run ${{ inputs.test_type }} tests
