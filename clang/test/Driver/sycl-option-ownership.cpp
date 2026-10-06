@@ -27,8 +27,10 @@
 
 // Object-only policy: compiler-owned flags do not alter input options.
 // As with CUDA/HIP, compiler-only options are accepted silently at link time.
+// BuildActions claims these options even though the linker wrapper drops them.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
+// RUN:   -Werror=unused-command-line-argument \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
 // RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
@@ -38,6 +40,7 @@
 // Multiple SPIR targets follow the same silent-acceptance policy.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen,spir64_x86_64 \
+// RUN:   -Werror=unused-command-line-argument \
 // RUN:   -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=LINK \
@@ -58,6 +61,7 @@
 // or warn about their unused values.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
+// RUN:   -Werror=unused-command-line-argument \
 // RUN:   -ftarget-register-alloc-mode=pvc:invalid \
 // RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=LINK \

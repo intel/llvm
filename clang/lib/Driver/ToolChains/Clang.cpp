@@ -12107,7 +12107,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const bool IsSYCLSPIR =
           Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV();
       // SYCL SPIR compiler options belong to the input images, not this link
-      // job. Do not claim options this job does not consume.
+      // job. Do not claim options this job does not consume. BuildActions
+      // already claims CompileOnly_Group options for object-only links, so
+      // discarding them here preserves silent acceptance at link time.
       DerivedArgList BaseCompilerArgs(ToolChainArgs.getBaseArgs());
       for (Arg *A : ToolChainArgs) {
         if (A->getOption().matches(OPT_Zlinker_input))
@@ -12128,7 +12130,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             static_cast<const toolchains::SYCLToolChain &>(*TC);
         // Explicit backend/linker passthrough is handled separately below.
         for (StringRef Arg :
-             SYCLTC.getSPIRVLinkArgs(SYCLTC.getTriple(), ToolChainArgs))
+             SYCLTC.getSPIRVLinkOptions(SYCLTC.getTriple(), ToolChainArgs))
           CmdArgs.push_back(
               renderSYCLBackendOption(Args, *TC, /*IsLink=*/true, Arg));
       } else {

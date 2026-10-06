@@ -161,13 +161,14 @@ public:
   /// Interpret only linker options. Do not process compiler options or
   /// generate compiler defaults during link orchestration.
   llvm::opt::ArgStringList
-  getSPIRVLinkArgs(const llvm::Triple &Triple,
-                   const llvm::opt::ArgList &Args) const;
+  getSPIRVLinkOptions(const llvm::Triple &Triple,
+                      const llvm::opt::ArgList &Args) const;
 
-  /// Emit both sets. Used by the old offload driver, which does not split
-  /// compilation and linker option ownership: its AOT backend jobs and the
-  /// offload wrapper's JIT image metadata (where the linker option set is
-  /// empty).
+  /// Append compilation options and any applicable linker options for the old
+  /// offload driver, which does not split their ownership. Used by AOT backend
+  /// jobs and the offload wrapper's JIT image metadata. Linker options currently
+  /// apply only to the GEN subarchitecture, so non-GEN JIT targets append only
+  /// compilation options.
   void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs,

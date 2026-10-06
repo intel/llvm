@@ -1926,8 +1926,8 @@ llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
 }
 
 llvm::opt::ArgStringList
-SYCLToolChain::getSPIRVLinkArgs(const llvm::Triple &Triple,
-                                const llvm::opt::ArgList &Args) const {
+SYCLToolChain::getSPIRVLinkOptions(const llvm::Triple &Triple,
+                                 const llvm::opt::ArgList &Args) const {
   llvm::opt::ArgStringList CmdArgs;
   if (Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen)
     return CmdArgs;
@@ -1958,7 +1958,7 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                               StringRef Device) const {
   llvm::append_range(
       CmdArgs, getSPIRVCompilationOptions(Triple, Args, JA, HostTC, Device));
-  llvm::append_range(CmdArgs, getSPIRVLinkArgs(Triple, Args));
+  llvm::append_range(CmdArgs, getSPIRVLinkOptions(Triple, Args));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
