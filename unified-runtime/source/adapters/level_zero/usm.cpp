@@ -1106,7 +1106,7 @@ v1::ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       common_cast(DevicesAndSubDevices));
   for (auto &Desc : Descriptors) {
     umf::pool_unique_handle_t Pool = nullptr;
-    if (IsProxy) {
+    if (IsProxy || isUsmPoolingDisabled(Desc)) {
       Pool = usm::makeProxyPool(MakeProvider(&Desc));
     } else {
       auto &PoolConfig =
@@ -1174,11 +1174,17 @@ v1::ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
   }
 
   for (auto &Desc : Descriptors) {
-    auto &PoolConfig =
-        DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
+    umf::pool_unique_handle_t Pool = nullptr;
+    if (isUsmPoolingDisabled(Desc)) {
+      Pool = usm::makeProxyPool(MakeProvider(&Desc));
+    } else {
+      auto &PoolConfig =
+          DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
+      Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
+    }
 
-    std::unique_ptr<UsmPool> usmPool = std::make_unique<UsmPool>(
-        this, usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig));
+    std::unique_ptr<UsmPool> usmPool =
+        std::make_unique<UsmPool>(this, std::move(Pool));
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {

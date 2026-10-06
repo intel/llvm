@@ -167,7 +167,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
       v2_cast(this), v2_cast(hContext), common_cast(devicesAndSubDevices));
   for (auto &desc : descriptors) {
     std::unique_ptr<UsmPool> usmPool;
-    if (disjointPoolConfigs.has_value()) {
+    if (disjointPoolConfigs.has_value() && !isUsmPoolingDisabled(desc)) {
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
@@ -232,7 +232,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
 
   for (auto &desc : descriptors) {
     std::unique_ptr<UsmPool> usmPool;
-    if (disjointPoolConfigs.has_value()) {
+    if (disjointPoolConfigs.has_value() && !isUsmPoolingDisabled(desc)) {
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
