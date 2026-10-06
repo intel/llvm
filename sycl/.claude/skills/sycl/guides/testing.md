@@ -7,7 +7,7 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
 
 | Claim | Tier |
 |---|---|
-| Kernel results, data movement, backend behaviour, interop, any `__SYCL_DEVICE_ONLY__` branch | **E2E** `sycl/test-e2e/` — only tier that runs device code |
+| Runtime results that need device execution: kernel output, data movement, backend behaviour, interop, a `__SYCL_DEVICE_ONLY__` branch's behaviour (its emitted IR is LIT) | **E2E** `sycl/test-e2e/` — only tier that runs device code |
 | Runtime → backend behaviour: UR calls, flags, wait-lists, caching, lifetime, injected UR errors, `errc`, env/config, threads | **Unit** `sycl/unittests/` — gtest + `UrMock`, no hardware, no kernel results |
 | Compile-time: `static_assert`, traits, diagnostics, device IR, warnings, ABI, feature macros | **LIT** `sycl/test/` — never runs device code |
 
@@ -19,8 +19,9 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
    issue link if any. No license header. Shared rules: `../SKILL.md`.
 3. **Prove it can fail.** Run, flip an expected value (or break the callback / CHECK), confirm
    failure, restore.
-4. **Run** (`<build>` = DPC++ build dir, from repo root): unit `ninja -C <build> check-sycl-unittests`
-   (never run binaries by hand) · LIT `<build>/bin/llvm-lit -v sycl/test/<path>.cpp` ·
+4. **Run** (`<build>` = DPC++ build dir, from repo root): unit `ninja -C <build> check-sycl-unittests`,
+   or one suite `check-sycl-<Target>` (e.g. `check-sycl-QueueTests`); not the raw binary, the target
+   sets the env (fresh `libsycl`, mock OpenCL on `LD_LIBRARY_PATH`, `SYCL_CONFIG_FILE_NAME`) · LIT `<build>/bin/llvm-lit -v sycl/test/<path>.cpp` ·
    E2E `<build>/bin/llvm-lit -v --param sycl_devices="level_zero:gpu" sycl/test-e2e/<path>.cpp`.
 5. **Report**: tier and why; command, result, mutation check fired; required gates.
 
@@ -39,12 +40,14 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
 - Build and run are separate, maybe different machines/OSes: no absolute paths. Compiler may be
   `clang-cl` or `clang++`: flags via substitutions (`%O0`, `%debug_option`, `%fPIC`, `%shared_lib`,
   `%if cl_options %{...%}`), no raw GCC flags. No OS-specific shell in RUN lines; if unavoidable,
-  `%if linux`/`%if windows`, non-binary run-stage steps under `%{run-aux}`.
+  `%if linux`/`%if windows`, non-binary run-stage steps under `%{run-aux}`. Current substitutions
+  and features: `sycl/test-e2e/lit.cfg.py` and `format.py`, not memory.
 - Graph: body in `Graph/Inputs/<name>.cpp` (`graph_common.hpp`); wrappers in `Explicit/` and
   `RecordReplay/` define `GRAPH_E2E_EXPLICIT` / `GRAPH_E2E_RECORD_REPLAY` and include it.
 
 **Unit**
-- `sycl::unittest::UrMock<> Mock;` first, one per test; needed only to override/inspect UR calls.
+- `sycl::unittest::UrMock<> Mock;` first, one per test, before any runtime object that reaches UR:
+  it installs the mock adapter and default platform/device. Callbacks only to override/inspect calls.
 - Mock defaults (`urDeviceGetInfo`, `urDeviceGet`, ...) are `replace` callbacks: your bare `replace`
   discards them. Fixed-size patch → `set_after_callback`; strings/size changes → `replace` and forward
   the rest to `sycl::unittest::MockAdapter::mock_urDeviceGetInfo(pParams)`. Queries are two-phase:
@@ -59,7 +62,8 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
   (`@{{.*}}__spirv_AtomicLoad{{.*}}(`). Full-body checks: `llvm/utils/update_cc_test_checks.py --clang <build>/bin/clang++`.
 - `-Xclang -verify` + `-verify-ignore-unexpected=note,warning`; positive files `// expected-no-diagnostics`;
   header diagnostics `@*:*`. `%fsycl-host-only` has no `-fsycl`: device diagnostics won't fire.
-- `REQUIRES: linux` + `UNSUPPORTED: libcxx` only for libstdc++ layout/mangling tests (`abi/`, `gdb/`).
+- `REQUIRES: linux` + `UNSUPPORTED: libcxx` only when the test depends on libstdc++ layout/mangling
+  (`abi/`, `gdb/`) or a host toolchain (`-fsycl-host-compiler=g++`).
 
 ## Review
 
