@@ -38,8 +38,9 @@ LIT_FILTER_OUT_ADAPTER_SPECIFIC = (
 )
 
 TEST_NOT_SELECTED_MSG = "Test not selected"
-SLOWEST_TESTS_HEADER = "Slowest Tests:"
-TEST_TIMES_HEADERS = ("Tests Times:", "Test Times:")
+# No trailing colon: lit appends a dynamic "(N of M):"/"(N):" suffix to these.
+SLOWEST_TESTS_HEADER = "Slowest Tests"
+TEST_TIMES_HEADERS = ("Tests Times", "Test Times")
 
 FAIL_TIMEOUT_PATTERN = re.compile(r"^(FAIL|TIMEOUT):")
 TEST_CATEGORY_PATTERN = re.compile(r"^([A-Za-z]+(?: [A-Za-z]+)*) Tests \((\d+)\):")
