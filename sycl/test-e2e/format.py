@@ -316,14 +316,24 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # intel/llvm CI only runs a spir64 configuration for AOT tests, not a
         # dedicated spir64_gen one; TODO drop spir64 once a spir64_gen CI run
         # exists.
+        #
+        # CPU vs GPU AOT is picked from test.requires rather than the matched
+        # device/triple: target_to_triple only ever maps target-spir to the
+        # generic "spir64", with no spir64_x86_64 counterpart, and in
+        # build-only mode there is no selected device to query the cpu/gpu
+        # role from. test.requires is test metadata available identically in
+        # both modes.
         matched_spir_triple = next(
             (t for t in triples if t in ("spir64", "spir64_gen")), None
         )
-        if matched_spir_triple is not None:
-            aot_options = (
-                "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
-                + test.config.gpu_aot_target_opts
-            )
+        if matched_spir_triple in ("spir64", "spir64_gen"):
+            if "cpu" in test.requires:
+                aot_options = "-fsycl-targets=spir64_x86_64"
+            else:
+                aot_options = (
+                    "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
+                    + test.config.gpu_aot_target_opts
+                )
         else:
             aot_options = ""
         substitutions.append(("%aot_options", aot_options))
