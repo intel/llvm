@@ -2029,7 +2029,7 @@ ur_device_handle_t_::useImmediateCommandLists() {
 }
 
 bool ur_device_handle_t_::isUsmPoolingDisabled() {
-  return isBMGOrNewer() && Platform->isDriverVersionNewerOrSimilar(1, 18, 0);
+  return isBMGOrNewer() && Platform->isDriverVersionNewerOrSimilar(1, 17, 0);
 }
 
 bool isUsmPoolingDisabled(const usm::pool_descriptor &Desc) {
@@ -2048,7 +2048,7 @@ bool isUsmPoolingDisabled(const usm::pool_descriptor &Desc) {
   if (Disabled) {
     UR_LOG(INFO,
            "USM pooling is disabled on Xe2 or newer devices with L0 driver "
-           "1.18 or newer, desc:{}",
+           "1.17 or newer, desc:{}",
            logger::makeStringFromStreamable(Desc));
   }
   return Disabled;

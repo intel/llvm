@@ -250,7 +250,7 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   }
 
   // USM pooling in the adapter is disabled on Xe2 or newer devices with
-  // L0 driver 1.18 or newer.
+  // L0 driver 1.17 or newer.
   bool isUsmPoolingDisabled();
 
   bool isIntegrated() {
