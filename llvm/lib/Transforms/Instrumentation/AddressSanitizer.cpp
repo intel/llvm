@@ -1903,8 +1903,7 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
 
 // Instument dynamic local memory
 bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
-  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
-                               F.getEntryBlock().getFirstNonPHIIt());
+  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHIIt());
 
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
@@ -1944,8 +1943,7 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
 // "__asan_launch" if it's an extended kernel, and store 0 if not
 void AddressSanitizer::instrumentInitAsanLaunchInfo(
     Function &F, const TargetLibraryInfo *TLI) {
-  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
-                               F.getEntryBlock().getFirstNonPHIIt());
+  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHIIt());
   if (F.arg_size()) {
     auto *LastArg = F.getArg(F.arg_size() - 1);
     if (LastArg->getName() == "__asan_launch") {
@@ -2753,8 +2751,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
 
 void ModuleAddressSanitizer::poisonOneInitializer(Function &GlobalInit) {
   // Set up the arguments to our poison/unpoison functions.
-  IRBuilder<> IRB(&GlobalInit.front(),
-                  GlobalInit.front().getFirstInsertionPt());
+  IRBuilder<> IRB(GlobalInit.front().getFirstInsertionPt());
 
   // Add a call to poison all external globals before the given function starts.
   Value *ModuleNameAddr =
@@ -4057,7 +4054,7 @@ bool AddressSanitizer::maybeInsertAsanInitAtFunctionEntry(Function &F) {
   if (F.getName().contains(" load]")) {
     FunctionCallee AsanInitFunction =
         declareSanitizerInitFunction(*F.getParent(), kAsanInitName, {});
-    IRBuilder<> IRB(&F.front(), F.front().begin());
+    IRBuilder<> IRB(F.front().begin());
     IRB.CreateCall(AsanInitFunction, {});
     return true;
   }

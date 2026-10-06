@@ -1890,7 +1890,7 @@ void SCEVExpander::replaceCongruentIVInc(
     else
       IP = OrigInc->getNextNode()->getIterator();
 
-    IRBuilder<> Builder(IP->getParent(), IP);
+    IRBuilder<> Builder(IP);
     Builder.SetCurrentDebugLocation(IsomorphicInc->getDebugLoc());
     NewInc =
         Builder.CreateTruncOrBitCast(OrigInc, IsomorphicInc->getType(), IVName);
@@ -1992,8 +1992,7 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
     ++NumElim;
     Value *NewIV = OrigPhiRef;
     if (OrigPhiRef->getType() != Phi->getType()) {
-      IRBuilder<> Builder(L->getHeader(),
-                          L->getHeader()->getFirstInsertionPt());
+      IRBuilder<> Builder(L->getHeader()->getFirstInsertionPt());
       Builder.SetCurrentDebugLocation(Phi->getDebugLoc());
       NewIV = Builder.CreateTruncOrBitCast(OrigPhiRef, Phi->getType(), IVName);
     }
