@@ -2,7 +2,7 @@
 ; `nvptx64-nvidia-cuda` triple.
 ; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck --check-prefix=CHECK-OPT %s
 ; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck --check-prefix=CHECK-OPT %s
-; CHECK-OPT: .param .u32 _ZTS14example_kernel_param_0
+; CHECK-OPT: .param .b32 _ZTS14example_kernel_param_0
 
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
