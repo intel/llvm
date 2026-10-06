@@ -9174,14 +9174,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-foffload-include-binary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
+    // TODO: intel/llvm does SYCL -fno-gpu-rdc wrapping inside
+    // clang-linker-wrapper, and upstream does it inside cc1. As such,
+    // intel/llvm must not use -foffload-include-binary as that will wrap the
+    // image, so UseOffloadIncludeBinary must be false. Remove this when
+    // intel/llvm behavior matches upstream.
     bool UseOffloadIncludeBinary =
         (IsCuda || IsHIP) &&
         (!IsRDCMode || Args.hasArg(options::OPT_cuda_emit_nvcc_abi)) &&
         !UsesLLVMOffloading;
-    // The old offloading model, still the default for SYCL, has already
-    // wrapped the device image in clang-offload-wrapper.
-    UseOffloadIncludeBinary |=
-        IsSYCL && !IsRDCMode && D.getUseNewOffloadingDriver();
     if (UseOffloadIncludeBinary) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-foffload-include-binary");

@@ -8229,11 +8229,9 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
       C.isOffloadingHostKind(Action::OFK_HIP) &&
       !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false);
 
-  // SYCL defaults to relocatable device code.
-  bool SYCLNoRDC =
-      C.isOffloadingHostKind(Action::OFK_SYCL) &&
-      !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
-                    /*Default=*/true);
+  // TODO: intel/llvm needs additional work to support the upstream-style no-RDC
+  // driver flow.
+  bool SYCLNoRDC = false;
 
   bool HIPRelocatableObj =
       C.isOffloadingHostKind(Action::OFK_HIP) &&
