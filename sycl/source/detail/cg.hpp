@@ -326,19 +326,17 @@ public:
   ur_usm_advice_flags_t getAdvice() { return MAdvice; }
 };
 
+/// "Barrier" or "barrier with wait list" command group. The events of the
+/// barrier wait list are stored as regular command group dependencies.
 class CGBarrier : public CG {
 public:
-  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 
-  CGBarrier(std::vector<detail::EventImplPtr> EventsWaitWithBarrier,
-            ext::oneapi::experimental::event_mode_enum EventMode,
+  CGBarrier(ext::oneapi::experimental::event_mode_enum EventMode,
             CG::StorageInitHelper CGData, CGType Type,
             detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)),
-        MEventMode(EventMode) {}
+      : CG(Type, std::move(CGData), std::move(loc)), MEventMode(EventMode) {}
 };
 
 class CGProfilingTag : public CG {

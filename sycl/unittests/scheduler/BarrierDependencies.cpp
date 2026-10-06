@@ -18,6 +18,10 @@
 
 #include <sycl/sycl.hpp>
 
+#include <atomic>
+#include <future>
+#include <mutex>
+
 using namespace sycl;
 
 std::vector<ur_event_handle_t> EventsInWaitList;
@@ -45,11 +49,52 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+std::vector<ur_event_handle_t> HostWaitedEvents;
+static ur_result_t redefinedUrEventWait(void *pParams) {
+  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
+  for (size_t i = 0; i < *params.pnumEvents; ++i)
+    HostWaitedEvents.push_back((*params.pphEventWaitList)[i]);
+
+  return UR_RESULT_SUCCESS;
+}
+
+// A host wait on HeldEvent blocks until HeldEventRelease is resolved.
+ur_event_handle_t HeldEvent = nullptr;
+std::shared_future<void> HeldEventRelease;
+static ur_result_t redefinedUrEventWaitHold(void *pParams) {
+  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
+  for (size_t i = 0; i < *params.pnumEvents; ++i)
+    if ((*params.pphEventWaitList)[i] == HeldEvent)
+      HeldEventRelease.wait();
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_queue_handle_t CountedQueue = nullptr;
+std::atomic<int> KernelLaunchesOnCountedQueue{0};
+static ur_result_t redefinedEnqueueKernelLaunch(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
+  if (*params.phQueue == CountedQueue)
+    ++KernelLaunchesOnCountedQueue;
+
+  return UR_RESULT_SUCCESS;
+}
+
 void clearGlobals() {
   EventsInWaitList.clear();
   BarrierEventsInWaitList.clear();
+  HostWaitedEvents.clear();
+  HeldEvent = nullptr;
+  CountedQueue = nullptr;
+  KernelLaunchesOnCountedQueue = 0;
   BarrierEventsWaitVisited = false;
   EventsWaitVisited = false;
+}
+
+static bool contains(const std::vector<ur_event_handle_t> &Handles,
+                     ur_event_handle_t Handle) {
+  return std::find(Handles.begin(), Handles.end(), Handle) != Handles.end();
 }
 
 TEST_F(SchedulerTest, BarrierWithDependsOn) {
@@ -138,8 +183,8 @@ TEST_F(SchedulerTest, BarrierWaitListWithDependsOn) {
   ASSERT_FALSE(EventsWaitVisited);
   ASSERT_TRUE(BarrierEventsWaitVisited);
   ASSERT_EQ(BarrierEventsInWaitList.size(), 2u);
-  EXPECT_EQ(BarrierEventsInWaitList[0], EventA2Impl.getHandle());
-  EXPECT_EQ(BarrierEventsInWaitList[1], EventAImpl.getHandle());
+  EXPECT_TRUE(contains(BarrierEventsInWaitList, EventA2Impl.getHandle()));
+  EXPECT_TRUE(contains(BarrierEventsInWaitList, EventAImpl.getHandle()));
 
   QueueA.wait();
   QueueB.wait();
@@ -160,4 +205,195 @@ TEST_F(SchedulerTest, BarrierWaitListEmptyQueueShortcut) {
 
   auto Info = BarrierEvent.get_info<info::event::command_execution_status>();
   ASSERT_EQ(Info, sycl::info::event_command_status::complete);
+}
+
+// A barrier must not be enqueued before the commands of the events in its wait
+// list, otherwise there is no native event to wait for.
+template <typename SubmitBarrierT>
+static void checkBarrierWaitListWithBlockedEvent(SubmitBarrierT SubmitBarrier) {
+  clearGlobals();
+
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
+
+  queue Q;
+
+  std::mutex Mtx;
+  std::unique_lock<std::mutex> HostTaskLock{Mtx};
+  event HostTaskEvent = Q.submit([&](handler &CGH) {
+    CGH.host_task([&]() { std::lock_guard<std::mutex> Wait{Mtx}; });
+  });
+  event KernelEvent = Q.submit([&](handler &CGH) {
+    CGH.depends_on(HostTaskEvent);
+    CGH.single_task<TestKernel>([] {});
+  });
+  ASSERT_EQ(detail::getSyclObjImpl(KernelEvent)->getHandle(), nullptr);
+
+  event BarrierEvent = SubmitBarrier(Q, KernelEvent);
+
+  // The kernel is blocked by the host task, so the barrier must wait too.
+  EXPECT_FALSE(BarrierEventsWaitVisited);
+
+  HostTaskLock.unlock();
+  BarrierEvent.wait();
+  KernelEvent.wait();
+
+  ASSERT_EQ(BarrierEventsInWaitList.size(), 1u);
+  EXPECT_NE(BarrierEventsInWaitList[0], nullptr);
+  EXPECT_EQ(BarrierEventsInWaitList[0],
+            detail::getSyclObjImpl(KernelEvent)->getHandle());
+}
+
+TEST_F(SchedulerTest, HandlerBarrierWaitListWithBlockedEvent) {
+  checkBarrierWaitListWithBlockedEvent([](queue &Q, event E) {
+    return Q.submit([&](handler &CGH) { CGH.ext_oneapi_barrier({E}); });
+  });
+}
+
+TEST_F(SchedulerTest, QueueBarrierWaitListWithBlockedEvent) {
+  checkBarrierWaitListWithBlockedEvent(
+      [](queue &Q, event E) { return Q.ext_oneapi_submit_barrier({E}); });
+}
+
+// An event from another context must not be passed to the backend barrier of
+// the target queue. It has to be waited for on the host instead.
+class BarrierCrossContextTest : public SchedulerTest {
+protected:
+  void SetUp() override {
+    clearGlobals();
+    mock::getCallbacks().set_after_callback(
+        "urEnqueueEventsWaitWithBarrierExt",
+        &redefinedEnqueueEventsWaitWithBarrierExt);
+    mock::getCallbacks().set_after_callback("urEventWait",
+                                            &redefinedUrEventWait);
+  }
+
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  sycl::device Dev = Plt.get_devices()[0];
+  context Ctx1{Dev};
+  context Ctx2{Dev};
+  queue Q1{Ctx1, Dev};
+  queue Q2{Ctx2, Dev};
+};
+
+// With only cross-context events in the wait list and no other dependencies,
+// nothing is left for the backend barrier, so no barrier is enqueued and the
+// barrier event is completed on the host.
+TEST_F(BarrierCrossContextTest, HandlerBarrierWaitList) {
+  event E1 = Q1.single_task<TestKernel>([] {});
+  ur_event_handle_t E1Handle = detail::getSyclObjImpl(E1)->getHandle();
+  ASSERT_NE(E1Handle, nullptr);
+
+  event BarrierEvent =
+      Q2.submit([&](handler &CGH) { CGH.ext_oneapi_barrier({E1}); });
+  BarrierEvent.wait();
+
+  EXPECT_FALSE(contains(BarrierEventsInWaitList, E1Handle));
+  EXPECT_TRUE(contains(HostWaitedEvents, E1Handle));
+  EXPECT_FALSE(BarrierEventsWaitVisited);
+  EXPECT_EQ(BarrierEvent.get_info<info::event::command_execution_status>(),
+            info::event_command_status::complete);
+}
+
+TEST_F(BarrierCrossContextTest, QueueBarrierWaitList) {
+  event E1 = Q1.single_task<TestKernel>([] {});
+  ur_event_handle_t E1Handle = detail::getSyclObjImpl(E1)->getHandle();
+  ASSERT_NE(E1Handle, nullptr);
+
+  event BarrierEvent = Q2.ext_oneapi_submit_barrier({E1});
+  BarrierEvent.wait();
+
+  EXPECT_FALSE(contains(BarrierEventsInWaitList, E1Handle));
+  EXPECT_TRUE(contains(HostWaitedEvents, E1Handle));
+  EXPECT_FALSE(BarrierEventsWaitVisited);
+  EXPECT_EQ(BarrierEvent.get_info<info::event::command_execution_status>(),
+            info::event_command_status::complete);
+}
+
+// With a cross-context wait list and a same-context explicit dependency, the
+// backend barrier waits only for the explicit dependency.
+TEST_F(BarrierCrossContextTest, CrossContextWaitListWithDependsOn) {
+  event E1 = Q1.single_task<TestKernel>([] {});
+  event E2 = Q2.single_task<TestKernel>([] {});
+  ur_event_handle_t E1Handle = detail::getSyclObjImpl(E1)->getHandle();
+  ur_event_handle_t E2Handle = detail::getSyclObjImpl(E2)->getHandle();
+  ASSERT_NE(E1Handle, nullptr);
+  ASSERT_NE(E2Handle, nullptr);
+
+  event BarrierEvent = Q2.submit([&](handler &CGH) {
+    CGH.depends_on(E2);
+    CGH.ext_oneapi_barrier({E1});
+  });
+  BarrierEvent.wait();
+
+  EXPECT_TRUE(BarrierEventsWaitVisited);
+  ASSERT_EQ(BarrierEventsInWaitList.size(), 1u);
+  EXPECT_EQ(BarrierEventsInWaitList[0], E2Handle);
+  EXPECT_TRUE(contains(HostWaitedEvents, E1Handle));
+}
+
+TEST_F(BarrierCrossContextTest, BarrierWaitListMixedContexts) {
+  event E1 = Q1.single_task<TestKernel>([] {});
+  event E2 = Q2.single_task<TestKernel>([] {});
+  ur_event_handle_t E1Handle = detail::getSyclObjImpl(E1)->getHandle();
+  ur_event_handle_t E2Handle = detail::getSyclObjImpl(E2)->getHandle();
+  ASSERT_NE(E1Handle, nullptr);
+  ASSERT_NE(E2Handle, nullptr);
+
+  event BarrierEvent = Q2.submit([&](handler &CGH) {
+    CGH.ext_oneapi_barrier({E1, E2});
+  });
+  BarrierEvent.wait();
+
+  EXPECT_TRUE(BarrierEventsWaitVisited);
+  ASSERT_EQ(BarrierEventsInWaitList.size(), 1u);
+  EXPECT_EQ(BarrierEventsInWaitList[0], E2Handle);
+  EXPECT_TRUE(contains(HostWaitedEvents, E1Handle));
+}
+
+// A NOP event from another context has nothing to wait for, so no backend
+// barrier is issued and the barrier event completes.
+TEST_F(BarrierCrossContextTest, CrossContextNOPEvent) {
+  event NopEvent = Q1.ext_oneapi_submit_barrier(std::vector<event>{});
+  ASSERT_TRUE(detail::getSyclObjImpl(NopEvent)->isNOP());
+
+  event BarrierEvent =
+      Q2.submit([&](handler &CGH) { CGH.ext_oneapi_barrier({NopEvent}); });
+  BarrierEvent.wait();
+
+  EXPECT_FALSE(BarrierEventsWaitVisited);
+  EXPECT_EQ(BarrierEvent.get_info<info::event::command_execution_status>(),
+            info::event_command_status::complete);
+}
+
+// A barrier submitted without an event to an in-order queue must still order
+// the following commands after the cross-context event.
+TEST_F(BarrierCrossContextTest, InOrderNoEventBarrierBlocksNextKernel) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  queue InOrderQ2{Ctx2, Dev, property::queue::in_order()};
+
+  event E1 = Q1.single_task<TestKernel>([] {});
+  HeldEvent = detail::getSyclObjImpl(E1)->getHandle();
+  ASSERT_NE(HeldEvent, nullptr);
+
+  std::promise<void> Release;
+  HeldEventRelease = Release.get_future().share();
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &redefinedUrEventWaitHold);
+  CountedQueue = detail::getSyclObjImpl(InOrderQ2)->getHandleRef();
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunchWithArgsExp",
+                                          &redefinedEnqueueKernelLaunch);
+
+  syclex::partial_barrier(InOrderQ2, {E1});
+  syclex::single_task<TestKernel>(InOrderQ2, [] {});
+
+  // The host wait on E1 is held, so the kernel must not be launched yet.
+  EXPECT_EQ(KernelLaunchesOnCountedQueue, 0);
+
+  Release.set_value();
+  InOrderQ2.wait();
+  EXPECT_EQ(KernelLaunchesOnCountedQueue, 1);
 }

@@ -470,10 +470,10 @@ public:
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-  EventImplPtr submit_barrier_scheduler_bypass(
-      std::vector<detail::EventImplPtr> &BarrierDepEvents,
-      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
-      bool EventNeeded, const EventImplPtr &EventForReuse);
+  EventImplPtr
+  submit_barrier_scheduler_bypass(std::vector<detail::EventImplPtr> &DepEvents,
+                                  detail::CGType BarrierType, bool EventNeeded,
+                                  const EventImplPtr &EventForReuse);
 
   /// Completes the submission of an asynchronous allocation using the scheduler
   /// bypass fast path. The allocation itself has already been enqueued to the
