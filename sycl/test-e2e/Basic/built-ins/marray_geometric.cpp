@@ -1,5 +1,5 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// XFAIL: spirv-backend && gpu && run-mode
+// XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 // RUN: %{build} %{mathflags} -o %t.out
