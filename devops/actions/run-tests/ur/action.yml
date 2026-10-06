@@ -19,38 +19,9 @@ inputs:
 runs:
   using: "composite"
   steps:
-  # `python3` may not be on PATH on Windows runners; resolve it once for reuse below.
-  - name: Resolve Python interpreter
-    id: python
-    shell: bash
-    run: |
-      if command -v python3 >/dev/null 2>&1; then
-        echo "exe=python3" >> "$GITHUB_OUTPUT"
-      else
-        echo "exe=python" >> "$GITHUB_OUTPUT"
-      fi
-
-  - name: Ensure ur-test Python dependencies
-    id: deps
-    shell: bash
-    env:
-      PY: ${{ steps.python.outputs.exe }}
-    run: |
-      missing=""
-      "$PY" -c "import defusedxml" 2>/dev/null || missing="$missing defusedxml==0.7.1"
-      # psutil is required by lit's --timeout (kills hung test processes); without
-      # it lit aborts the whole run at startup instead of just skipping the option.
-      "$PY" -c "import psutil" 2>/dev/null || missing="$missing psutil>=7.0.0"
-      [ -z "$missing" ] && exit 0
-
-      # Install into a workspace-local dir rather than --user: some containers run
-      # as a UID that cannot write to $HOME (where --user installs always land).
-      deps_dir="$GITHUB_WORKSPACE/.ur-test-deps"
-      mkdir -p "$deps_dir"
-      # --break-system-packages: nightly images have no venv and broken apt, same as devops/actions/run-tests/benchmark.
-      "$PY" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" $missing \
-        || "$PY" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" $missing
-      echo "deps-dir=$deps_dir" >> "$GITHUB_OUTPUT"
+  - name: Set up ur-test
+    id: ur_test
+    uses: ./devops/actions/setup-ur-test
 
   - name: Run ${{ inputs.test_type }} tests
     id: run_tests
@@ -60,8 +31,10 @@ runs:
       BUILD_DIR: ${{ inputs.build_dir }}
       TEST_TYPE: ${{ inputs.test_type }}
       EXTRA_LIT_OPTS: ${{ inputs.extra_lit_opts }}
-      PY: ${{ steps.python.outputs.exe }}
-      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
+      PY: ${{ steps.ur_test.outputs.python }}
+      # lit is spawned by cmake/ninja using the system Python, not the venv above,
+      # so it needs this on PYTHONPATH to see psutil (required by --timeout).
+      PYTHONPATH: ${{ steps.ur_test.outputs['site-packages'] }}
     run: |
       "$PY" devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
 
@@ -70,8 +43,7 @@ runs:
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
-      PY: ${{ steps.python.outputs.exe }}
-      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
+      PY: ${{ steps.ur_test.outputs.python }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping log filtering."
@@ -92,8 +64,7 @@ runs:
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
-      PY: ${{ steps.python.outputs.exe }}
-      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
+      PY: ${{ steps.ur_test.outputs.python }}
     run: |
       if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test execution failed, but no test log is available."
@@ -112,8 +83,7 @@ runs:
       ARTIFACT_NAME: ${{ inputs.artifact_name }}
       TEST_TYPE: ${{ inputs.test_type }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      PY: ${{ steps.python.outputs.exe }}
-      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
+      PY: ${{ steps.ur_test.outputs.python }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping summary."
