@@ -116,7 +116,7 @@ public:
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
   device(const device &rhs);
 
-  device(device &&rhs);
+  device(device &&rhs) noexcept;
 
   device &operator=(const device &rhs) = default;
 
