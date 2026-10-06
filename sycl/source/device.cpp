@@ -45,7 +45,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(const device &rhs) = default;
-device::device(device &&rhs) = default;
+device::device(device &&rhs) noexcept = default;
 
 device::device(OpenCLDeviceIdT DeviceId) {
   detail::adapter_impl &Adapter =
