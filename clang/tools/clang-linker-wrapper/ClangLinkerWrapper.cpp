@@ -2322,7 +2322,7 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   // re-splitting, preserving values with embedded spaces.
   // FIXME: Concatenating compile-opts and link-opts into one flat string
   // here means any "-options ..." wrapper already present in compile-opts
-  // (see SYCLToolChain::AddSPIRVImpliedTargetArgs) will swallow the
+  // (see SYCLToolChain::getSPIRVCompilationOptions) will swallow the
   // appended link-opts into ocloc's -options value in addOclocOptions
   // below. This is a symptom of -Xsycl-target-backend/-Xsycl-target-linker
   // requiring us to parse and re-serialize ocloc's option syntax; consider

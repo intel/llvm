@@ -11041,8 +11041,13 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
       const toolchains::SYCLToolChain &SYCLTC = toolchains::getSYCLToolChain(
           C.getDriver(), *TC, *HostTC, Args, ScratchTC);
-      SYCLTC.AddSPIRVImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA,
-                                       *HostTC, Arch.ArchName);
+      // Interpret the complete target context, but serialize only options
+      // owned by compilation. Linker options are emitted by the
+      // linker wrapper driver, not copied into each compilation's metadata.
+      llvm::append_range(
+          BuildArgs,
+          SYCLTC.getSPIRVCompilationOptions(TC->getTriple(), Args, JA, *HostTC,
+                                           Arch.ArchName));
       // Filter -Xsycl-target-backend tokens by arch when this image is
       // bound to a single arch. Archs.size() > 1 happens on the legacy
       // syntax where a single -fsycl-targets=spir64_gen entry names
@@ -12116,19 +12121,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       const bool IsSYCLSPIR =
           Kind == Action::OFK_SYCL && TC->getTriple().isSPIROrSPIRV();
       if (IsSYCLSPIR) {
-        // For SYCL offloading with SPIR-V targets, add implied backend compiler
-        // arguments depending on the target device and compilation mode.
+        // For SYCL SPIR targets, emit only linker options. Compilation
+        // options are already serialized in the input images.
         const toolchains::SYCLToolChain &SYCLTC =
             static_cast<const toolchains::SYCLToolChain &>(*TC);
-        const ToolChain *HostTC =
-            C.getSingleOffloadToolChain<Action::OFK_Host>();
-        // Implied settings also depend on SYCL-specific flags that are not
-        // device-compiler flags (e.g. fp64 emulation), so inspect the full
-        // target argument list rather than BaseCompilerArgs.
-        // TODO: A one-step compile+link also embeds these settings in the
-        // device image, so the wrapper sees both copies.
-        SYCLTC.AddSPIRVImpliedTargetArgs(SYCLTC.getTriple(), ToolChainArgs,
-                                         CompilerArgs, JA, *HostTC);
+        // Explicit backend/linker passthrough is handled separately below.
+        for (StringRef Arg :
+             SYCLTC.getSPIRVLinkArgs(SYCLTC.getTriple(), ToolChainArgs))
+          CmdArgs.push_back(
+              renderSYCLBackendOption(Args, *TC, /*IsLink=*/true, Arg));
       } else {
         // For non-SPIR-V SYCL targets or other offload kinds (CUDA, OpenMP,
         // HIP), directly convert the BaseCompilerArgs to CompilerArgs without
@@ -12180,14 +12181,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
 
-      // For SYCL SPIR, CompilerArgs holds the implied native backend options,
-      // which use the same mapping as explicit backend options.
       for (StringRef Arg : CompilerArgs)
-        CmdArgs.push_back(
-            IsSYCLSPIR
-                ? renderSYCLBackendOption(Args, *TC, /*IsLink=*/false, Arg)
-                : Args.MakeArgString("--device-compiler=" +
-                                     TC->getTripleString() + "=" + Arg));
+        CmdArgs.push_back(Args.MakeArgString(
+            "--device-compiler=" + TC->getTripleString() + "=" + Arg));
       for (StringRef Arg : LinkerArgs)
         CmdArgs.push_back(Args.MakeArgString(
             "--device-linker=" + TC->getTripleString() + "=" + Arg));
