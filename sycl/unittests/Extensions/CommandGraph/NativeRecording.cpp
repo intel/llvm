@@ -401,3 +401,76 @@ TEST_F(NativeRecordingTest, ContextRecordingActiveEndCaptureUrFailsAfter) {
                 UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS);
   EXPECT_FALSE(Ctx.isNativeRecordingActive());
 }
+
+// With no native recording active in the context, the asynchronous allocation
+// functions must not query the backend for the queue capture state.
+TEST_F(NativeRecordingTest, AsyncAllocNoRecordingSkipsCaptureQuery) {
+  sycl::detail::context_impl &Ctx = *getSyclObjImpl(Queue.get_context());
+  experimental::memory_pool Pool{Queue, sycl::usm::alloc::device};
+  int *DevPtr = sycl::malloc_device<int>(1, Queue);
+  ASSERT_FALSE(Ctx.isNativeRecordingActive());
+
+  experimental::async_malloc(Queue, sycl::usm::alloc::device, sizeof(int));
+  experimental::async_malloc_from_pool(Queue, sizeof(int), Pool);
+  experimental::async_free(Queue, DevPtr);
+  Queue.submit([&](sycl::handler &CGH) {
+    experimental::async_malloc(CGH, sycl::usm::alloc::device, sizeof(int));
+  });
+  Queue.submit([&](sycl::handler &CGH) {
+    experimental::async_malloc_from_pool(CGH, sizeof(int), Pool);
+  });
+  Queue.submit(
+      [&](sycl::handler &CGH) { experimental::async_free(CGH, DevPtr); });
+
+  EXPECT_EQ(traceCount("urQueueIsGraphCaptureEnabledExp"), 0u);
+
+  sycl::free(DevPtr, Queue);
+}
+
+// While a native recording is active in the context, the asynchronous
+// allocation functions must still query the backend and reject the recording
+// queue.
+TEST_F(NativeRecordingTest, AsyncAllocRecordingQueriesAndThrows) {
+  experimental::memory_pool Pool{Queue, sycl::usm::alloc::device};
+  int *DevPtr = sycl::malloc_device<int>(1, Queue);
+  auto Graph = makeGraph();
+  Graph.begin_recording(Queue);
+
+  auto expectInvalid = [&](const char *Name, auto &&Operation) {
+    const size_t QueriesBefore = traceCount("urQueueIsGraphCaptureEnabledExp");
+    try {
+      Operation();
+      ADD_FAILURE() << Name << " did not throw";
+    } catch (const sycl::exception &E) {
+      EXPECT_EQ(E.code(), sycl::errc::invalid) << Name;
+    }
+    EXPECT_GT(traceCount("urQueueIsGraphCaptureEnabledExp"), QueriesBefore)
+        << Name;
+  };
+
+  expectInvalid("async_malloc queue", [&]() {
+    experimental::async_malloc(Queue, sycl::usm::alloc::device, sizeof(int));
+  });
+  expectInvalid("async_malloc_from_pool queue", [&]() {
+    experimental::async_malloc_from_pool(Queue, sizeof(int), Pool);
+  });
+  expectInvalid("async_free queue",
+                [&]() { experimental::async_free(Queue, DevPtr); });
+  expectInvalid("async_malloc handler", [&]() {
+    Queue.submit([&](sycl::handler &CGH) {
+      experimental::async_malloc(CGH, sycl::usm::alloc::device, sizeof(int));
+    });
+  });
+  expectInvalid("async_malloc_from_pool handler", [&]() {
+    Queue.submit([&](sycl::handler &CGH) {
+      experimental::async_malloc_from_pool(CGH, sizeof(int), Pool);
+    });
+  });
+  expectInvalid("async_free handler", [&]() {
+    Queue.submit(
+        [&](sycl::handler &CGH) { experimental::async_free(CGH, DevPtr); });
+  });
+
+  Graph.end_recording(Queue);
+  sycl::free(DevPtr, Queue);
+}
