@@ -31,6 +31,7 @@ runs:
       fi
 
   - name: Ensure ur-test Python dependencies
+    id: deps
     shell: bash
     env:
       PY: ${{ steps.python.outputs.exe }}
@@ -43,7 +44,7 @@ runs:
       # --break-system-packages: nightly images have no venv and broken apt, same as devops/actions/run-tests/benchmark.
       "$PY" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" defusedxml==0.7.1 \
         || "$PY" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" defusedxml==0.7.1
-      echo "PYTHONPATH=$deps_dir:$PYTHONPATH" >> "$GITHUB_ENV"
+      echo "deps-dir=$deps_dir" >> "$GITHUB_OUTPUT"
 
   - name: Run ${{ inputs.test_type }} tests
     id: run_tests
@@ -54,6 +55,7 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
       EXTRA_LIT_OPTS: ${{ inputs.extra_lit_opts }}
       PY: ${{ steps.python.outputs.exe }}
+      PYTHONPATH: ${{ steps.deps.outputs['deps-dir'] }}
     run: |
       "$PY" devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
 
