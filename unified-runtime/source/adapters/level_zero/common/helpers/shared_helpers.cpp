@@ -252,6 +252,10 @@ template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
 template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
   return ZE_STRUCTURE_TYPE_EVENT_DESC;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_event_sync_mode_desc_t>() {
+  return ZE_STRUCTURE_TYPE_EVENT_SYNC_MODE_DESC;
+}
 template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
   return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
 }

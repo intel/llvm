@@ -294,6 +294,7 @@
 		urPrintDeviceGetNativeHandleParams;
 		urPrintDeviceGetParams;
 		urPrintDeviceGetSelectedParams;
+		urPrintDeviceIgcaFeatureFlags;
 		urPrintDeviceInfo;
 		urPrintDeviceInitFlags;
 		urPrintDeviceLocalMemType;
@@ -374,6 +375,8 @@
 		urPrintExpEnqueueNativeCommandProperties;
 		urPrintExpEventDesc;
 		urPrintExpEventFlags;
+		urPrintExpEventSyncModeDesc;
+		urPrintExpEventSyncModeFlags;
 		urPrintExpExternalMemDesc;
 		urPrintExpExternalMemType;
 		urPrintExpExternalSemaphoreDesc;

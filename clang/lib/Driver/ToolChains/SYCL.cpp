@@ -126,11 +126,26 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   }
 
   const SmallString<64> Basename = getLibSpirvBasename(HostTriple);
-  SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
-                          DeviceTriple.getTriple(), Basename);
-  if (D.getVFS().exists(LibclcPath))
-    return Args.MakeArgString(LibclcPath);
+  auto TryTriple = [&](const llvm::Triple &T) -> const char * {
+    SmallString<256> LibclcPath(D.ResourceDir);
+    llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
+                            T.getTriple(), Basename);
+    if (D.getVFS().exists(LibclcPath))
+      return Args.MakeArgString(LibclcPath);
+    return nullptr;
+  };
+
+  if (const char *Path = TryTriple(DeviceTriple))
+    return Path;
+
+  // Resource-dir libspirv libraries are laid out per architecture family,
+  // not per subarch. Fall back to the subarch-stripped triple.
+  if (DeviceTriple.isAMDGCN() &&
+      DeviceTriple.getSubArch() != llvm::Triple::NoSubArch) {
+    llvm::Triple Family(DeviceTriple);
+    Family.setArch(llvm::Triple::amdgpu);
+    return TryTriple(Family);
+  }
 
   return nullptr;
 }
@@ -719,6 +734,7 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (Targets.empty())
     return;
 
+  const Driver &D = C.getDriver();
   const auto &TargetTable = DeviceConfigFile::TargetTable;
   std::map<StringRef, unsigned int> AllDevicesHave;
   std::map<StringRef, bool> AnyDeviceHas;
@@ -731,6 +747,11 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
     auto TargetIt = TargetTable.end();
     const llvm::Triple &TargetTriple = TC->getTriple();
     const StringRef TargetArch{BoundArch};
+
+    SmallString<64> TargetMacro = getSYCLTargetMacro(TargetTriple, TargetArch);
+    if (!TargetMacro.empty())
+      D.addSYCLTargetMacroArg(Args, TargetMacro);
+
     if (!TargetArch.empty()) {
       TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
         using namespace tools::SYCL;
@@ -780,7 +801,6 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
   if (ValidTargets == 0)
     AnyDeviceHasAnyAspect = true;
 
-  const Driver &D = C.getDriver();
   if (AnyDeviceHasAnyAspect) {
     // There exists some target that supports any given aspect.
     constexpr static StringRef MacroAnyDeviceAnyAspect{
@@ -883,6 +903,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
+        return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
@@ -1095,6 +1117,13 @@ StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
   if (!GRFModeFlagMap.contains(GRFMode))
     return "";
   return GRFModeFlagMap[GRFMode];
+}
+
+StringRef SYCL::gen::getEmbeddedDeviceArch(ArrayRef<const char *> Tokens) {
+  for (int I = static_cast<int>(Tokens.size()) - 2; I >= 0; --I)
+    if (StringRef(Tokens[I]) == "-device")
+      return Tokens[I + 1];
+  return {};
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
@@ -1400,6 +1429,22 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
     Macro += "__";
   }
   return Macro;
+}
+
+SmallString<64> SYCL::getSYCLTargetMacro(const llvm::Triple &TT,
+                                         StringRef Device) {
+  if ((TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+      TT.isNVPTX() || TT.isAMDGCN()) {
+    SmallString<64> DeviceMacro = gen::getGenDeviceMacro(Device);
+    if (DeviceMacro.empty())
+      return {};
+    SmallString<64> Macro("-D");
+    Macro += DeviceMacro;
+    return Macro;
+  }
+  if (TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    return SmallString<64>("-D__SYCL_TARGET_INTEL_X86_64__");
+  return {};
 }
 
 void SYCL::x86_64::BackendCompiler::ConstructJob(

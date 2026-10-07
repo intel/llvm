@@ -49,9 +49,9 @@
 #include "clang/Basic/Version.h"
 #include "clang/CodeGen/BackendUtil.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
+#include "clang/CodeGenUtils/CodeGenUtils.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ABI/IRTypeMapper.h"
 #include "llvm/ABI/TargetInfo.h"
@@ -77,6 +77,7 @@
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/AArch64TargetParser.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/Triple.h"
@@ -401,7 +402,9 @@ bool CodeGenModule::shouldUseLLVMABILowering(unsigned CallingConv) const {
   if (T.isBPF())
     return true;
 
-  if (T.getArch() == llvm::Triple::aarch64 && !T.isOSWindows())
+  if (T.getArch() == llvm::Triple::aarch64 ||
+      T.getArch() == llvm::Triple::aarch64_32 ||
+      T.getArch() == llvm::Triple::aarch64_be)
     return true;
 
   if (T.getArch() == llvm::Triple::x86_64 && !T.isOSWindows() && !T.isUEFI() &&
@@ -439,7 +442,9 @@ CodeGenModule::getLLVMABITargetInfo(llvm::abi::TypeBuilder &TB) {
   default:
     llvm_unreachable("LLVMABI lowering requested for an unsupported target");
 
-  case llvm::Triple::aarch64: {
+  case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
+  case llvm::Triple::aarch64_be: {
     StringRef ABI = getTarget().getABI();
     llvm::abi::AArch64ABIKind Kind = llvm::abi::AArch64ABIKind::AAPCS;
     if (ABI == "darwinpcs")
@@ -477,6 +482,8 @@ CodeGenModule::getLLVMABITargetInfo(llvm::abi::TypeBuilder &TB) {
         Compat > LangOptions::ClangABI::Ver20 && !T.isPS();
     CompatInfo.Clang11Compat =
         Compat <= LangOptions::ClangABI::Ver11 || T.isPS();
+    CompatInfo.ClassifyUnnamedBitFields =
+        Compat > LangOptions::ClangABI::Ver23 && !T.isPS();
 
     bool Has64BitPointers = getTarget().getPointerWidth(LangAS::Default) == 64;
 
@@ -1385,7 +1392,11 @@ void CodeGenModule::Release() {
         llvm::ConstantArray::get(ATy, UsedArray), "__clang_gpu_used_external");
     addCompilerUsedGlobal(GV);
   }
-  if (LangOpts.HIP) {
+  // Skip __hip_cuid_ under incremental extensions (clang-repl): a repl session
+  // is one semantic TU, so this per-TU marker is useless in host and device IR.
+  // On the host it also collides, as every module shares one CUID and emits the
+  // same symbol at JIT link.
+  if (LangOpts.HIP && !LangOpts.IncrementalExtensions) {
     // Emit a unique ID so that host and device binaries from the same
     // compilation unit can be associated.
     auto *GV = new llvm::GlobalVariable(
@@ -1564,6 +1575,17 @@ void CodeGenModule::Release() {
   }
 
   llvm::Triple T = Context.getTargetInfo().getTriple();
+
+  // TODO: This should probably be just generally emitted for non-empty ABI
+  // names. LoongArch actively consumes the flag, but it is excluded here.
+  // Other targets have no apparent need for the ABI name, but set a non-empty
+  // value.
+  if (StringRef ABIStr = Target.getABI();
+      !ABIStr.empty() && (T.isARM() || T.isThumb() || T.isRISCV())) {
+    getModule().addModuleFlag(llvm::Module::Error, "target-abi",
+                              llvm::MDString::get(VMContext, ABIStr));
+  }
+
   if (T.isARM() || T.isThumb()) {
     // The minimum width of an enum in bytes
     uint32_t EnumWidth = Context.getLangOpts().ShortEnums ? 1 : 4;
@@ -1571,10 +1593,7 @@ void CodeGenModule::Release() {
   }
 
   if (T.isRISCV()) {
-    StringRef ABIStr = Target.getABI();
     llvm::LLVMContext &Ctx = TheModule.getContext();
-    getModule().addModuleFlag(llvm::Module::Error, "target-abi",
-                              llvm::MDString::get(Ctx, ABIStr));
 
     // Add the canonical ISA string as metadata so the backend can set the ELF
     // attributes correctly. We use AppendUnique so LTO will keep all of the
@@ -2609,14 +2628,17 @@ static void AppendCPUSpecificCPUDispatchMangling(const CodeGenModule &CGM,
     Out << ".resolver";
 }
 
-// Returns true if GD is a function decl with internal linkage and
+// Returns true if GD is a function/var decl with internal linkage and
 // needs a unique suffix after the mangled name.
 static bool isUniqueInternalLinkageDecl(GlobalDecl GD,
                                         CodeGenModule &CGM) {
   const Decl *D = GD.getDecl();
-  return !CGM.getModuleNameHash().empty() && isa<FunctionDecl>(D) &&
-         !D->hasAttr<AsmLabelAttr>() &&
-         (CGM.getFunctionLinkage(GD) == llvm::GlobalValue::InternalLinkage);
+  if (CGM.getModuleNameHash().empty() || D->hasAttr<AsmLabelAttr>())
+    return false;
+  return (isa<FunctionDecl>(D) &&
+          CGM.getFunctionLinkage(GD) == llvm::GlobalValue::InternalLinkage) ||
+         (isa<VarDecl>(D) && CGM.getContext().GetGVALinkageForVariable(
+                                 cast<VarDecl>(D)) == GVA_Internal);
 }
 
 static std::string getMangledNameImpl(CodeGenModule &CGM, GlobalDecl GD,
@@ -3275,26 +3297,6 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
     Fn->setMetadata("kernel_arg_name", llvm::MDNode::get(VMContext, argNames));
 }
 
-/// Determines whether the language options require us to model
-/// unwind exceptions.  We treat -fexceptions as mandating this
-/// except under the fragile ObjC ABI with only ObjC exceptions
-/// enabled.  This means, for example, that C with -fexceptions
-/// enables this.
-static bool hasUnwindExceptions(const LangOptions &LangOpts) {
-  // If exceptions are completely disabled, obviously this is false.
-  if (!LangOpts.Exceptions) return false;
-
-  // If C++ exceptions are enabled, this is true.
-  if (LangOpts.CXXExceptions) return true;
-
-  // If ObjC exceptions are enabled, this depends on the ABI.
-  if (LangOpts.ObjCExceptions) {
-    return LangOpts.ObjCRuntime.hasUnwindExceptions();
-  }
-
-  return true;
-}
-
 static bool requiresMemberFunctionPointerTypeMetadata(CodeGenModule &CGM,
                                                       const CXXMethodDecl *MD) {
   // Check that the type metadata can ever actually be used by a call.
@@ -3354,7 +3356,7 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     B.addAttribute("stack-probe-size",
                    std::to_string(CodeGenOpts.StackProbeSize));
 
-  if (!hasUnwindExceptions(LangOpts))
+  if (!CodeGenUtils::hasUnwindExceptions(LangOpts))
     B.addAttribute(llvm::Attribute::NoUnwind);
 
   if (std::optional<llvm::Attribute::AttrKind> Attr =
@@ -3699,9 +3701,11 @@ bool CodeGenModule::GetCPUAndFeaturesAttributes(GlobalDecl GD,
     llvm::erase_if(Features, [&](const std::string& F) {
        return getTarget().isReadOnlyFeature(F.substr(1));
     });
-    llvm::sort(Features);
-    Attrs.addAttribute("target-features", llvm::join(Features, ","));
-    AddedAttr = true;
+    if (!Features.empty()) {
+      llvm::sort(Features);
+      Attrs.addAttribute("target-features", llvm::join(Features, ","));
+      AddedAttr = true;
+    }
   }
   // Add metadata for AArch64 Function Multi Versioning.
   if (getTarget().getTriple().isAArch64()) {
@@ -4603,7 +4607,7 @@ llvm::Constant *CodeGenModule::EmitAnnotationArgs(const AnnotateAttr *Attr) {
   for (Expr *E : Exprs) {
     ID.Add(cast<clang::ConstantExpr>(E)->getAPValueResult());
   }
-  llvm::Constant *&Lookup = AnnotationArgs[ID.ComputeHash()];
+  llvm::Constant *&Lookup = AnnotationArgs[ID.computeHash()];
   if (Lookup)
     return Lookup;
 
@@ -4686,7 +4690,7 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
 
   // If another SYCL annotation had the same arguments we can reuse the
   // annotation value it created.
-  llvm::Constant *&LookupRef = SYCLAnnotationArgs[ID.ComputeHash()];
+  llvm::Constant *&LookupRef = SYCLAnnotationArgs[ID.computeHash()];
   if (LookupRef)
     return LookupRef;
 
@@ -7027,66 +7031,6 @@ void CodeGenModule::setAspectsEnumDecl(const EnumDecl *ED) {
   AspectsEnumDecl = ED;
 }
 
-/// Adds global Intel FPGA annotations for a given variable declaration.
-/// This function handles both simple global variables and fields within
-/// structs that are annotated with Intel FPGA attributes. For structs,
-/// it recursively visits all fields and base classes to collect annotations.
-/// \param VD The variable declaration to annotate.
-/// \param GV The LLVM GlobalValue corresponding to the variable declaration.
-void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
-                                                 llvm::GlobalValue *GV) {
-  SmallString<256> AnnotStr;
-
-  // Handle annotations for fields within a device_global struct.
-  if (getLangOpts().IntelFPGA && VD->getType()->isRecordType()) {
-    auto RT = VD->getType()->castAs<RecordType>();
-
-    auto Gen = [&AnnotStr, this](const RecordType *Ty, auto &&Gen) -> void {
-      const CXXRecordDecl *RD = cast<CXXRecordDecl>(Ty->getOriginalDecl());
-
-      // Iterate over the fields of the struct.
-      for (const auto *Field : RD->fields()) {
-        if (const auto *FT =
-                Field->getType()
-                    ->getPointeeOrArrayElementType() // Strip pointers/arrays
-                    ->getAs<RecordType>())
-          Gen(FT, Gen);
-      }
-
-      // Iterate over the base classes of the struct.
-      for (const auto &Base : RD->bases()) {
-        QualType BaseTy = Base.getType();
-
-        const auto *BRT = BaseTy->castAs<RecordType>();
-        Gen(BRT, Gen);
-      }
-    };
-    Gen(RT, Gen);
-  }
-
-  if (!AnnotStr.empty()) {
-    // Get the globals for file name, annotation, and the line number.
-    llvm::Constant *AnnoGV = EmitAnnotationString(AnnotStr),
-                   *UnitGV = EmitAnnotationUnit(VD->getLocation()),
-                   *LineNoCst = EmitAnnotationLineNo(VD->getLocation());
-
-    llvm::Constant *ASZeroGV = GV;
-    if (GV->getAddressSpace() !=
-        getDataLayout().getDefaultGlobalsAddressSpace())
-      ASZeroGV = llvm::ConstantExpr::getAddrSpaceCast(
-          GV, llvm::PointerType::get(
-                  GV->getContext(),
-                  getDataLayout().getDefaultGlobalsAddressSpace()));
-
-    // Create the ConstantStruct for the global annotation.
-    llvm::Constant *Fields[5] = {
-        ASZeroGV, llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy),
-        llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy), LineNoCst,
-        llvm::ConstantPointerNull::get(ConstGlobalsPtrTy)};
-    Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
-  }
-}
-
 const ABIInfo &CodeGenModule::getABIInfo() {
   return getTargetCodeGenInfo().getABIInfo();
 }
@@ -7263,10 +7207,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
 
   if (D->hasAttr<AnnotateAttr>())
     AddGlobalAnnotations(D, GV);
-
-  // Emit Intel FPGA attribute annotation for a file-scope static variable.
-  if (getLangOpts().SYCLIsDevice)
-    addGlobalIntelFPGAAnnotation(D, GV);
 
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
@@ -9809,7 +9749,7 @@ CodeGenModule::getOrCreateMSVCGlobalDeleteWrapper(const FunctionDecl *GlobOD) {
     // uses ::delete that alias is replaced by a real forwarding body, leaving
     // the empty otherwise unreferenced, so explicitly mark it used to ensure
     // it is always emitted (matching MSVC).
-    appendToUsed(M, {EmptyFn});
+    addUsedGlobal(EmptyFn);
   }
 
   // The wrapper defaults to a weak alias to the trapping __empty_global_delete

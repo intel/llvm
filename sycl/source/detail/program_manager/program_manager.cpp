@@ -1613,11 +1613,17 @@ void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
     }
 }
 
+static exception getNoKernelException(std::string_view KernelName) {
+  return exception(make_error_code(errc::runtime),
+                   "No kernel named " + std::string(KernelName) + " was found");
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throw getNoKernelException(Info.Name);
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
 }
@@ -1626,7 +1632,8 @@ DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throw getNoKernelException(KernelName);
   return It->second;
 }
 

@@ -213,6 +213,13 @@ ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
   if (MIPCEnabled)
     Desc.flags |= UR_EXP_EVENT_FLAG_IPC_EXP;
 
+  ur_exp_event_sync_mode_desc_t SyncDesc = {};
+  if (MLowPower) {
+    SyncDesc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC;
+    SyncDesc.flags = UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    Desc.pNext = &SyncDesc;
+  }
+
   ur_result_t Result =
       getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
           MContext->getHandleRef(), Device.getHandleRef(), &Desc, &EventHandle);
@@ -438,8 +445,9 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // Tag events report command_submit through the adapter.
-    return get_event_profiling_info<info::event_profiling::command_submit>(
+    // The empty tag command uses its completion timestamp for all three
+    // queries.
+    return get_event_profiling_info<info::event_profiling::command_end>(
         this->getHandle(), this->getAdapter());
   }
 
@@ -475,6 +483,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MIsHostEvent) {
     auto Handle = getHandle();
     if (Handle) {
+      if (isProfilingTagEvent())
+        return get_event_profiling_info<info::event_profiling::command_end>(
+            Handle, this->getAdapter());
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }

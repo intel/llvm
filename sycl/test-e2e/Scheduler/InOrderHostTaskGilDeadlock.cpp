@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out %threads_lib
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: target-native_cpu
@@ -60,7 +60,7 @@ int main() {
   // In-process watchdog: on regression, exit fast with a clear message
   // instead of waiting for lit's global maxIndividualTestTime.
   std::atomic<bool> done{false};
-  std::thread([&] {
+  std::thread Watchdog([&] {
     for (int i = 0; i < 200; ++i) { // ~20s
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       if (done.load(std::memory_order_relaxed))
@@ -70,7 +70,7 @@ int main() {
         stderr,
         "TIMEOUT: in-order host_task + app-mutex deadlock (CMPLRLLVM-77682)\n");
     std::_Exit(2);
-  }).detach();
+  });
 
   sycl::queue q{sycl::property::queue::in_order{}};
   int *p = sycl::malloc_device<int>(2, q);
@@ -82,5 +82,6 @@ int main() {
 
   sycl::free(p, q);
   done.store(true, std::memory_order_relaxed);
+  Watchdog.join();
   return 0;
 }

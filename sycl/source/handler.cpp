@@ -887,6 +887,13 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                           "Accessors to buffers which have write_back enabled "
                           "are not allowed to be used in command graphs.");
   }
+  // Check if the accessor is already associated.
+  if (auto Exists = std::find(impl->CGData.MAccStorage.begin(),
+                              impl->CGData.MAccStorage.end(), AccImpl);
+      Exists != impl->CGData.MAccStorage.end()) {
+    // No need to repeat the association.
+    return;
+  }
   detail::Requirement *Req = AccImpl.get();
   if (Req->MAccessMode != sycl::access_mode::read) {
     auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
@@ -1558,10 +1565,19 @@ void handler::depends_on(const std::vector<event> &Events) {
 }
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  // Async alloc calls the adapter immediately, when the command group function
+  // is executed. Any explicit/implicit dependencies are handled at that point,
+  // including in order queue deps. Adding a dependency afterwards would have no
+  // effect, so it is explicitly disallowed.
+  if (EventImpl && getType() == detail::CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot submit a dependency after an asynchronous "
+                          "allocation has already been executed!");
+  }
+
   registerEventDependency(EventImpl, impl->CGData.MEvents,
                           impl->get_queue_or_null(), impl->get_context(),
-                          impl->get_device(), getCommandGraph().get(),
-                          getType());
+                          impl->get_device(), getCommandGraph().get());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {

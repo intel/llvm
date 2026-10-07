@@ -3623,11 +3623,7 @@ void CodeGenFunction::EmitRISCVMultiVersionResolver(
 
   // If no generic/default, emit an unreachable.
   Builder.SetInsertPoint(CurBlock);
-  llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
-  TrapCall->setDoesNotReturn();
-  TrapCall->setDoesNotThrow();
-  Builder.CreateUnreachable();
-  Builder.ClearInsertionPoint();
+  EmitTrapCallAndMakeUnreachable();
 }
 
 void CodeGenFunction::EmitAArch64MultiVersionResolver(
@@ -3672,11 +3668,7 @@ void CodeGenFunction::EmitAArch64MultiVersionResolver(
 
   // If no default, emit an unreachable.
   Builder.SetInsertPoint(CurBlock);
-  llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
-  TrapCall->setDoesNotReturn();
-  TrapCall->setDoesNotThrow();
-  Builder.CreateUnreachable();
-  Builder.ClearInsertionPoint();
+  EmitTrapCallAndMakeUnreachable();
 }
 
 void CodeGenFunction::EmitX86MultiVersionResolver(
@@ -3712,11 +3704,7 @@ void CodeGenFunction::EmitX86MultiVersionResolver(
 
   // If no generic/default, emit an unreachable.
   Builder.SetInsertPoint(CurBlock);
-  llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
-  TrapCall->setDoesNotReturn();
-  TrapCall->setDoesNotThrow();
-  Builder.CreateUnreachable();
-  Builder.ClearInsertionPoint();
+  EmitTrapCallAndMakeUnreachable();
 }
 
 // Loc - where the diagnostic will point, where in the source code this

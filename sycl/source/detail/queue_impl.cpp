@@ -18,6 +18,7 @@
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 
 #include <cstring>
+#include <shared_mutex>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -595,7 +596,7 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
         if (EventPtr->isHost()) {
           detail::registerEventDependency</*LockQueue*/ false>(
               EventPtr, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-              getCommandGraph().get(), CGType::BarrierWaitlist);
+              getCommandGraph().get());
         }
 
         DepEventImpls.emplace_back(EventPtr);
@@ -663,6 +664,133 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
+EventImplPtr
+queue_impl::makeEnqueuedEvent(ur_event_handle_t UREvent,
+                              std::vector<detail::EventImplPtr> &&DepEvents) {
+  EventImplPtr ResEvent = detail::event_impl::create_device_event(*this);
+  ResEvent->setWorkerQueue(weak_from_this());
+  ResEvent->setPotentiallyNativeRecorded(
+      getContextImpl().isNativeRecordingActive());
+  ResEvent->setStateIncomplete();
+  ResEvent->setSubmissionTime();
+  ResEvent->setHandle(UREvent);
+  ResEvent->setEnqueued();
+
+  // Connect the returned event with the dependent events.
+  if (!isInOrder()) {
+    ResEvent->getPreparedDepsEvents() = std::move(DepEvents);
+    // ResEvent is local for the current thread, no need to lock.
+    ResEvent->cleanDepEventsThroughOneLevelUnlocked();
+  }
+
+  return ResEvent;
+}
+
+EventImplPtr queue_impl::submit_async_alloc_scheduler_bypass(
+    ur_event_handle_t UREvent, std::vector<detail::EventImplPtr> &DepEvents,
+    bool EventNeeded) {
+  // The allocation itself, together with its dependencies, has already been
+  // enqueued to the backend by the caller, because the pointer has to be
+  // returned to the user immediately. Only the event of that enqueue has to be
+  // wrapped into an event_impl here.
+  if (!EventNeeded && isInOrder()) {
+    assert(!UREvent && "An event was requested for a discarded allocation.");
+    return nullptr;
+  }
+  return makeEnqueuedEvent(UREvent, std::move(DepEvents));
+}
+
+EventImplPtr queue_impl::submit_async_free_scheduler_bypass(
+    void *Ptr, std::vector<detail::EventImplPtr> &DepEvents, bool EventNeeded) {
+  std::vector<ur_event_handle_t> RawEvents;
+  if (DepEvents.size() > 0)
+    RawEvents = detail::Command::getUrEvents(DepEvents, this, false);
+
+  const bool DiscardEvent = !EventNeeded && isInOrder();
+
+  ur_event_handle_t UREvent = nullptr;
+  getAdapter().call<sycl::errc::runtime, UrApiKind::urEnqueueUSMFreeExp>(
+      getHandleRef(), nullptr, Ptr, RawEvents.size(), RawEvents.data(),
+      DiscardEvent ? nullptr : &UREvent);
+
+  return DiscardEvent ? nullptr
+                      : makeEnqueuedEvent(UREvent, std::move(DepEvents));
+}
+
+void *
+queue_impl::submit_async_malloc_direct(ur_usm_pool_handle_t Pool, size_t Size,
+                                       const detail::code_location &CodeLoc) {
+  void *Alloc = nullptr;
+
+  auto SubmitAllocFunc = [&](detail::CG::StorageInitHelper &&CGData)
+      -> std::pair<EventImplPtr, bool> {
+    // The asynchronous allocation has to be enqueued right away, because the
+    // pointer must be returned to the caller immediately. Dependencies which
+    // cannot be expressed to the backend directly (host tasks, cross-context
+    // events) are handled by the scheduler through a no-op command group
+    // below, in the same way as in the handler-based path.
+    const bool SchedulerBypass =
+        detail::Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                           getContextImpl());
+    // Nothing would take ownership of the event of the allocation on an
+    // in-order queue, which does not need it for ordering either.
+    const bool DiscardEvent = SchedulerBypass && isInOrder();
+
+    std::vector<ur_event_handle_t> RawEvents;
+    if (CGData.MEvents.size() > 0)
+      RawEvents = detail::Command::getUrEvents(CGData.MEvents, this, false);
+
+    ur_event_handle_t UREvent = nullptr;
+    getAdapter()
+        .call<sycl::errc::runtime, UrApiKind::urEnqueueUSMDeviceAllocExp>(
+            getHandleRef(), Pool, Size, nullptr, RawEvents.size(),
+            RawEvents.data(), &Alloc, DiscardEvent ? nullptr : &UREvent);
+
+    if (!SchedulerBypass) {
+      // The command group is a no-op, it only carries the event of the
+      // allocation which has already been enqueued above.
+      std::unique_ptr<detail::CG> CommandGroup(
+          new detail::CGAsyncAlloc(UREvent, std::move(CGData), CodeLoc));
+      return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                     *this, true),
+              /*SchedulerBypass*/ false};
+    }
+
+    return {submit_async_alloc_scheduler_bypass(UREvent, CGData.MEvents,
+                                                /*EventNeeded*/ false),
+            /*SchedulerBypass*/ true};
+  };
+
+  submit_direct(/*CallerNeedsEvent*/ false, /*DepEvents*/ {}, SubmitAllocFunc,
+                detail::CGType::AsyncAlloc,
+                /*InsertBarrierForInOrderCommand*/ false);
+
+  return Alloc;
+}
+
+void queue_impl::submit_async_free_direct(
+    void *Ptr, const detail::code_location &CodeLoc) {
+  auto SubmitFreeFunc = [&](detail::CG::StorageInitHelper &&CGData)
+      -> std::pair<EventImplPtr, bool> {
+    if (!detail::Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                            getContextImpl())) {
+      std::unique_ptr<detail::CG> CommandGroup(
+          new detail::CGAsyncFree(Ptr, std::move(CGData), CodeLoc));
+      return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                     *this, true),
+              /*SchedulerBypass*/ false};
+    }
+
+    return {submit_async_free_scheduler_bypass(Ptr, CGData.MEvents,
+                                               /*EventNeeded*/ false),
+            /*SchedulerBypass*/ true};
+  };
+
+  submit_direct(/*CallerNeedsEvent*/ false, /*DepEvents*/ {}, SubmitFreeFunc,
+                detail::CGType::AsyncFree,
+                /*InsertBarrierForInOrderCommand*/ false);
+}
+
 bool queue_impl::isNativeRecording() const {
   bool IsGraphCaptureEnabled = false;
   ur_result_t Result =
@@ -672,10 +800,7 @@ bool queue_impl::isNativeRecording() const {
 }
 
 queue_impl::NativeRecordingResult
-queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
-  std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
-  if (LockQueue)
-    Lock.lock();
+queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph) {
   NativeRecordingResult BeginResult;
   BeginResult.Result =
       getAdapter().call_nocheck<UrApiKind::urQueueBeginCaptureIntoGraphExp>(
@@ -685,6 +810,12 @@ queue_impl::beginNativeRecording(ur_exp_graph_handle_t Graph, bool LockQueue) {
     getContextImpl().nativeRecordingBegan();
   }
   return BeginResult;
+}
+
+void queue_impl::beginRecordingGraph(
+    ext::oneapi::experimental::detail::graph_impl &Graph) {
+  std::scoped_lock<std::mutex, std::shared_mutex> Lock{MMutex, Graph.MMutex};
+  Graph.beginRecordingBothLocksHeld(*this);
 }
 
 queue_impl::NativeRecordingResult queue_impl::endNativeRecording() {
@@ -1024,8 +1155,7 @@ detail::EventImplPtr queue_impl::submit_direct(
   if (ExternalEvent) {
     registerEventDependency</*LockQueue*/ false>(
         getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
-        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
-        Type);
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr);
   }
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
@@ -1035,21 +1165,20 @@ detail::EventImplPtr queue_impl::submit_direct(
   if (inOrder && LastEvent) {
     registerEventDependency</*LockQueue*/ false>(
         LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-        hasCommandGraph() ? getCommandGraph().get() : nullptr, Type);
+        hasCommandGraph() ? getCommandGraph().get() : nullptr);
   } else if (inOrder && !MEmpty.load(std::memory_order_acquire) &&
              InsertBarrierForInOrderCommand) {
     // A barrier is injected to ensure ordering with prior commands
     auto ResEvent = insertHelperBarrier();
     registerEventDependency</*LockQueue*/ false>(
         ResEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
-        hasCommandGraph() ? getCommandGraph().get() : nullptr, Type);
+        hasCommandGraph() ? getCommandGraph().get() : nullptr);
   }
 
   for (event e : DepEvents) {
     registerEventDependency</*LockQueue*/ false>(
         getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
-        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr,
-        Type);
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph().get() : nullptr);
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
@@ -1157,6 +1286,8 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
         ResEventImpl->setSubmissionTime();
+        ResEventImpl->setPotentiallyNativeRecorded(
+            getContextImpl().isNativeRecordingActive());
         MemOpFunc(std::forward<MemOpArgTs>(MemOpArgs)...,
                   getUrEvents(ExpandedDepEvents), &UREvent);
         ResEventImpl->setHandle(UREvent);

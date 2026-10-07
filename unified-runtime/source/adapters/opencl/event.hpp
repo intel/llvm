@@ -12,6 +12,7 @@
 #include "common/ur_ref_count.hpp"
 #include "queue.hpp"
 
+#include <optional>
 #include <vector>
 
 namespace ur::opencl {
@@ -21,12 +22,15 @@ struct ur_event_handle_t_ : handle_base {
   native_type CLEvent;
   ur_context_handle_t_ *Context;
   ur_queue_handle_t_ *Queue;
+  std::optional<ur_command_t> CommandTypeOverride;
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
   ur_event_handle_t_(native_type Event, ur_context_handle_t_ *Ctx,
-                     ur_queue_handle_t_ *Queue)
-      : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue) {
+                     ur_queue_handle_t_ *Queue,
+                     std::optional<ur_command_t> CommandType = std::nullopt)
+      : handle_base(), CLEvent(Event), Context(Ctx), Queue(Queue),
+        CommandTypeOverride(CommandType) {
     ur::opencl::urContextRetain(cast(Context));
     if (Queue) {
       ur::opencl::urQueueRetain(cast(Queue));
@@ -63,15 +67,16 @@ inline cl_event *ifUrEvent(ur_event_handle_t *ReturnedEvent, cl_event &Event) {
   return ReturnedEvent ? &Event : nullptr;
 }
 
-inline ur_result_t createUREvent(cl_event Event, ur_context_handle_t Context,
-                                 ur_queue_handle_t Queue,
-                                 ur_event_handle_t *ReturnedEvent) {
+inline ur_result_t
+createUREvent(cl_event Event, ur_context_handle_t Context,
+              ur_queue_handle_t Queue, ur_event_handle_t *ReturnedEvent,
+              std::optional<ur_command_t> CommandType = std::nullopt) {
   assert(Queue);
   auto UrQueue = cast(Queue);
   if (ReturnedEvent) {
     try {
-      auto UREvent =
-          std::make_unique<ur_event_handle_t_>(Event, cast(Context), UrQueue);
+      auto UREvent = std::make_unique<ur_event_handle_t_>(Event, cast(Context),
+                                                          UrQueue, CommandType);
       UR_RETURN_ON_FAILURE(UrQueue->storeLastEvent(Event));
       *ReturnedEvent = cast(UREvent.release());
     } catch (std::bad_alloc &) {
