@@ -69,7 +69,7 @@ using provider_unique_handle_t =
   template <typename T, typename... Args>                                      \
   static inline                                                                \
       typename std::enable_if<HAS_OP_##op<T>::value, umf_result_t>::type       \
-      CALL_OP_##op(T *t, Args &&...args) {                                     \
+          CALL_OP_##op(T *t, Args &&...args) {                                 \
     return t->op(std::forward<Args>(args)...);                                 \
   }                                                                            \
                                                                                \

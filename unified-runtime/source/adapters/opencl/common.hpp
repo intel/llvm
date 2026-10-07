@@ -362,37 +362,37 @@ CONSTFIX char GetKernelSubGroupInfoName[] = "clGetKernelSubGroupInfoKHR";
 #undef CONSTFIX
 
 using clGetDeviceFunctionPointerINTEL_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
-                          const char *FuncName, cl_ulong *ret_ptr);
+cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
+                      const char *FuncName, cl_ulong *ret_ptr);
 
 using clGetDeviceGlobalVariablePointerINTEL_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
-                          const char *globalVariableName,
-                          size_t *globalVariableSizeRet,
-                          void **globalVariablePointerRet);
+cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
+                      const char *globalVariableName,
+                      size_t *globalVariableSizeRet,
+                      void **globalVariablePointerRet);
 
 using clEnqueueWriteGlobalVariableINTEL_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
-                          size_t, size_t, const void *, cl_uint,
-                          const cl_event *, cl_event *);
+cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
+                      size_t, size_t, const void *, cl_uint, const cl_event *,
+                      cl_event *);
 
 using clEnqueueReadGlobalVariableINTEL_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
-                          size_t, size_t, void *, cl_uint, const cl_event *,
-                          cl_event *);
+cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
+                      size_t, size_t, void *, cl_uint, const cl_event *,
+                      cl_event *);
 
 using clEnqueueReadHostPipeINTEL_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
-                          const char *pipe_symbol, cl_bool blocking, void *ptr,
-                          size_t size, cl_uint num_events_in_waitlist,
-                          const cl_event *events_waitlist, cl_event *event);
+cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
+                      const char *pipe_symbol, cl_bool blocking, void *ptr,
+                      size_t size, cl_uint num_events_in_waitlist,
+                      const cl_event *events_waitlist, cl_event *event);
 
 using clEnqueueWriteHostPipeINTEL_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
-                          const char *pipe_symbol, cl_bool blocking,
-                          const void *ptr, size_t size,
-                          cl_uint num_events_in_waitlist,
-                          const cl_event *events_waitlist, cl_event *event);
+cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
+                      const char *pipe_symbol, cl_bool blocking,
+                      const void *ptr, size_t size,
+                      cl_uint num_events_in_waitlist,
+                      const cl_event *events_waitlist, cl_event *event);
 
 using clCreateCommandBufferKHR_fn = CL_API_ENTRY cl_command_buffer_khr(
     CL_API_CALL *)(cl_uint num_queues, const cl_command_queue *queues,
@@ -400,13 +400,13 @@ using clCreateCommandBufferKHR_fn = CL_API_ENTRY cl_command_buffer_khr(
                    cl_int *errcode_ret);
 
 using clRetainCommandBufferKHR_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clReleaseCommandBufferKHR_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clFinalizeCommandBufferKHR_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clCommandNDRangeKernelKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
@@ -466,27 +466,26 @@ using clCommandSVMMemFillKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
 
 using clEnqueueCommandBufferKHR_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
-                          cl_command_buffer_khr command_buffer,
-                          cl_uint num_events_in_wait_list,
-                          const cl_event *event_wait_list, cl_event *event);
+cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
+                      cl_command_buffer_khr command_buffer,
+                      cl_uint num_events_in_wait_list,
+                      const cl_event *event_wait_list, cl_event *event);
 
 using clGetCommandBufferInfoKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_buffer_info_khr param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 using clUpdateMutableCommandsKHR_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer,
-                          cl_uint num_configs,
-                          const cl_command_buffer_update_type_khr *config_types,
-                          const void **configs);
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer, cl_uint num_configs,
+                      const cl_command_buffer_update_type_khr *config_types,
+                      const void **configs);
 
 using clCreateProgramWithILKHR_fn = CL_API_ENTRY
-    cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
+cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
 
 using clGetKernelSubGroupInfoKHR_fn = CL_API_ENTRY
-    cl_int(CL_API_CALL *)(cl_kernel, cl_device_id, cl_kernel_sub_group_info,
-                          size_t, const void *, size_t, void *, size_t *);
+cl_int(CL_API_CALL *)(cl_kernel, cl_device_id, cl_kernel_sub_group_info, size_t,
+                      const void *, size_t, void *, size_t *);
 
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;
