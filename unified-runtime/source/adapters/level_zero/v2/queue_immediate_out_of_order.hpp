@@ -654,19 +654,26 @@ public:
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
-    return commandListManagers.lock()[captureCmdListManagerIdx]
-        .beginGraphCapture();
+    auto lockedManagers = commandListManagers.lock();
+    UR_CALL(lockedManagers[captureCmdListManagerIdx].beginGraphCapture());
+    eventPool->setGraphCapture(true);
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t
   queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
-    return commandListManagers.lock()[captureCmdListManagerIdx]
-        .beginCaptureIntoGraph(hGraph);
+    auto lockedManagers = commandListManagers.lock();
+    UR_CALL(
+        lockedManagers[captureCmdListManagerIdx].beginCaptureIntoGraph(hGraph));
+    eventPool->setGraphCapture(true);
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
-    return commandListManagers.lock()[captureCmdListManagerIdx].endGraphCapture(
-        phGraph);
+    auto lockedManagers = commandListManagers.lock();
+    UR_CALL(lockedManagers[captureCmdListManagerIdx].endGraphCapture(phGraph));
+    eventPool->setGraphCapture(false);
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t enqueueGraphExp(ur_exp_executable_graph_handle_t hGraph,

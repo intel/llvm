@@ -14,10 +14,17 @@
 
 namespace ur::level_zero::v2 {
 
-ur_event_handle_t event_pool::allocate() {
+ur_event_handle_t event_pool::allocate(bool detached) {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<ur_mutex> lock(mutex);
+
+  if (detached || graphCaptureActive) {
+    raii::ze_event_handle_t ownedEvent(provider->allocate().release(),
+                                       /*ownZeHandle=*/true);
+    auto const flags = provider->eventFlags();
+    return new ur_event_handle_t_(hContext, std::move(ownedEvent), flags);
+  }
 
   if (freelist.empty()) {
     events.emplace_back(hContext, provider->allocate(), this);
@@ -36,14 +43,6 @@ ur_event_handle_t event_pool::allocate() {
   return event;
 }
 
-ur_event_handle_t event_pool::allocateDetached() {
-  TRACK_SCOPE_LATENCY("event_pool::allocateDetached");
-  raii::ze_event_handle_t ownedEvent(provider->allocate().release(),
-                                     /*ownZeHandle=*/true);
-  return new ur_event_handle_t_(hContext, std::move(ownedEvent),
-                                provider->eventFlags());
-}
-
 void event_pool::free(ur_event_handle_t event) {
   TRACK_SCOPE_LATENCY("event_pool::free");
 
@@ -55,6 +54,11 @@ void event_pool::free(ur_event_handle_t event) {
   // The event is still in the pool, so we need to increment the refcount
   assert(event->RefCount.getCount() == 0);
   event->RefCount.retain();
+}
+
+void event_pool::setGraphCapture(bool active) {
+  std::unique_lock<ur_mutex> lock(mutex);
+  graphCaptureActive = active;
 }
 
 event_provider *event_pool::getProvider() const { return provider.get(); }
