@@ -83,3 +83,17 @@
 // RUN: %clang -### --no-offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=native_cpu -fno-sycl-rdc -fno-sycl-libspirv --no-offloadlib -c %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NATIVE-CPU-OK %s
 // CHK-NATIVE-CPU-OK-NOT: is not supported with
+
+// --no-sycl-rdc is passed only to the per-TU compile-step clang-linker-wrapper
+// job. At the link step -fno-sycl-rdc is ignored, as in LLORG, and device code
+// is linked across TUs.
+// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-ONE-STEP %s
+// CHK-ONE-STEP: clang-linker-wrapper{{.*}} "--no-sycl-rdc"{{.*}} "--emit-fatbin-only"
+// CHK-ONE-STEP: clang-linker-wrapper
+// CHK-ONE-STEP-NOT: "--no-sycl-rdc"
+// RUN: touch %t.o
+// RUN: %clang -### --offload-new-driver --target=x86_64-unknown-linux-gnu -fsycl -fno-sycl-rdc --no-offloadlib %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LINK-ONLY %s
+// CHK-LINK-ONLY: clang-linker-wrapper
+// CHK-LINK-ONLY-NOT: "--no-sycl-rdc"
