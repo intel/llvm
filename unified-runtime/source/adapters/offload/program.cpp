@@ -27,6 +27,7 @@ namespace {
 // to be linked so they end up as CUBIN.
 #ifdef UR_CUDA_ENABLED
 ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
+                                        ur_device_handle_t hDevice,
                                         const uint8_t *Binary, size_t Length,
                                         ur_program_handle_t hProgram) {
   uint8_t *RealBinary;
@@ -47,8 +48,8 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
   fprintf(stderr, "Performed CUDA bin workaround (size = %lu)\n", RealLength);
 #endif
 
-  auto Res = olCreateProgram(hContext->Device->OffloadDevice, RealBinary,
-                             RealLength, &hProgram->OffloadProgram);
+  auto Res = olCreateProgram(hContext->OffloadContext, hDevice->OffloadDevice,
+                             RealBinary, RealLength, &hProgram->OffloadProgram);
 
   // Program owns the linked module now
   cuLinkDestroy(State);
@@ -56,8 +57,9 @@ ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t hContext,
   return offloadResultToUR(Res);
 }
 #else
-ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t, const uint8_t *,
-                                        size_t, ur_program_handle_t) {
+ur_result_t ProgramCreateCudaWorkaround(ur_context_handle_t, ur_device_handle_t,
+                                        const uint8_t *, size_t,
+                                        ur_program_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 #endif
@@ -92,8 +94,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     }
   }
 
-  ur_program_handle_t Program = new ur_program_handle_t_{};
-  Program->URContext = hContext;
+  auto Program = std::make_unique<ur_program_handle_t_>(hContext);
   Program->Binary = RealBinary;
   Program->BinarySizeInBytes = RealLength;
   Program->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
@@ -131,20 +132,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   olGetPlatformInfo(phDevices[0]->Platform->OffloadPlatform,
                     OL_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend);
   if (Backend == OL_PLATFORM_BACKEND_CUDA) {
-    Res =
-        ProgramCreateCudaWorkaround(hContext, RealBinary, RealLength, Program);
+    Res = ProgramCreateCudaWorkaround(hContext, phDevices[0], RealBinary,
+                                      RealLength, Program.get());
   } else {
-    Res = offloadResultToUR(olCreateProgram(hContext->Device->OffloadDevice,
-                                            RealBinary, RealLength,
-                                            &Program->OffloadProgram));
+    Res = offloadResultToUR(
+        olCreateProgram(hContext->OffloadContext, phDevices[0]->OffloadDevice,
+                        RealBinary, RealLength, &Program->OffloadProgram));
   }
 
   if (Res != UR_RESULT_SUCCESS) {
-    delete Program;
     return Res;
   }
 
-  *phProgram = Program;
+  *phProgram = Program.release();
 
   return UR_RESULT_SUCCESS;
 }
@@ -214,8 +214,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   // Offload programs are already fully linked on creation, just create a new
   // program containing it
   auto *InProgram = *phPrograms;
-  ur_program_handle_t Program = new ur_program_handle_t_{};
-  Program->URContext = hContext;
+  auto *Program = new ur_program_handle_t_(hContext);
   Program->Binary = InProgram->Binary;
   Program->BinarySizeInBytes = InProgram->BinarySizeInBytes;
   Program->GlobalIDMD = InProgram->GlobalIDMD;
@@ -309,8 +308,8 @@ urProgramRelease(ur_program_handle_t hProgram) {
       if (auto Res = olDestroyProgram(hProgram->OffloadProgram)) {
         return offloadResultToUR(Res);
       }
-      delete hProgram;
     }
+    delete hProgram;
   }
 
   return UR_RESULT_SUCCESS;

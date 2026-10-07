@@ -53,7 +53,7 @@ class Reachability;
 /// @brief Pass that convert performs control-flow to data-flow conversion for
 /// a function.
 class ControlFlowConversionPass
-    : public llvm::PassInfoMixin<ControlFlowConversionPass> {
+    : public llvm::OptionalPassInfoMixin<ControlFlowConversionPass> {
 public:
   /// @brief Unique identifier for the pass.
   static void *ID() { return (void *)&PassID; }
