@@ -22,7 +22,34 @@
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
 
+#include <string>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace {
+
+#ifdef _WIN32
+// SYCL/UR carry NT object names as wide strings (LPCWSTR); L0's
+// ze_external_semaphore_win32_ext_desc_t::name is char* interpreted as UTF-8
+// by NEO. Convert at the adapter boundary. Returns empty on an empty or
+// invalid UTF-16 name.
+std::string wideToUtf8(const wchar_t *wideName) {
+  int len = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideName, -1,
+                                nullptr, 0, nullptr, nullptr);
+  if (len <= 1) {
+    return {};
+  }
+  std::string utf8(static_cast<size_t>(len), '\0');
+  if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideName, -1,
+                          utf8.data(), len, nullptr, nullptr) != len) {
+    return {};
+  }
+  utf8.pop_back();
+  return utf8;
+}
+#endif
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
@@ -1309,7 +1336,18 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
           delete externalMemoryData;
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-        importWin32->name = Win32Name->name;
+        // L0's ze_external_memory_import_win32_handle_t::name is const void*
+        // and NEO consumes the wide string (LPCWSTR) as-is. Only the semaphore
+        // path (const char* name) needs the UTF-8 conversion.
+#ifdef _WIN32
+        externalMemoryData->win32NameStorage =
+            static_cast<const wchar_t *>(Win32Name->name);
+        importWin32->name = externalMemoryData->win32NameStorage.c_str();
+#else
+        delete importWin32;
+        delete externalMemoryData;
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
       }
 
       switch (memHandleType) {
@@ -1417,6 +1455,10 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
   ze_external_semaphore_win32_ext_desc_t Win32ExpDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXT_DESC, nullptr, nullptr,
       nullptr};
+#ifdef _WIN32
+  // Backing storage for Win32ExpDesc.name; must outlive the L0 import call.
+  std::string Utf8NameStorage;
+#endif
   void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
   while (pNext != nullptr) {
     const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
@@ -1467,7 +1509,22 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
         if (Win32Name->name == nullptr) {
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-        Win32ExpDesc.name = static_cast<const char *>(Win32Name->name);
+        // OPAQUE_WIN32 by name is a design non-goal: the export HANDLE is a
+        // file mapping wrapping a driver-private sync-object name; callers
+        // must resolve via HANDLE externally.
+        if (semHandleType == UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT) {
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        }
+#ifdef _WIN32
+        Utf8NameStorage =
+            wideToUtf8(static_cast<const wchar_t *>(Win32Name->name));
+        if (Utf8NameStorage.empty()) {
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.name = Utf8NameStorage.c_str();
+#else
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
         Win32ExpDesc.handle = nullptr;
       }
     }
