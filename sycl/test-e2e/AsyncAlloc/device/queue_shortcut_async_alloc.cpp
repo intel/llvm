@@ -1,10 +1,13 @@
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: https://github.com/oneapi-src/level-zero/issues/512
+// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
+// so the matching zeEventDestroy calls are reported as a negative leak there.
+// Ignore negative leaks on Windows until the loader is updated:
+// https://github.com/oneapi-src/level-zero/issues/512
+// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not} %}
 
 // Tests async_malloc, async_malloc_from_pool and async_free when they are
 // called on a queue or on a handler, in both cases without requesting an event.
