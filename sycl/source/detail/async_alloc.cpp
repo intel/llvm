@@ -66,8 +66,11 @@ void checkAsyncMallocKind(sycl::usm::alloc Kind) {
 }
 
 void checkNotNativeRecording(detail::queue_impl &Queue, const char *FuncName) {
-  // Allocations are not supported in graph native recording mode.
-  if (Queue.isNativeRecording())
+  // Allocations are not supported in graph native recording mode. The backend
+  // is only queried if some queue in this context has started native
+  // recording, as this queue cannot be capturing otherwise.
+  if (Queue.getContextImpl().isNativeRecordingActive() &&
+      Queue.isNativeRecording())
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           std::string(FuncName) +
                               " is not supported in native recording mode.");
