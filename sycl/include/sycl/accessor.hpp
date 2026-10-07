@@ -896,6 +896,14 @@ public:
   // -------+---------+-------+----+-----+--------------
 
 public:
+#if __INTEL_PREVIEW_BREAKING_CHANGES
+  // common reference semantics
+  accessor(const accessor &) noexcept = default;
+  accessor &operator=(const accessor &) noexcept = default;
+  accessor(accessor &&) noexcept = default;
+  accessor &operator=(accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   // implicit conversion between const / non-const types for read only accessors
   template <typename DataT_,
             typename = std::enable_if_t<
@@ -1600,7 +1608,17 @@ public:
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {}
 
-  template <typename... NewPropsT>
+  template <
+      typename... NewPropsT
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      ,
+      // Same-type copies are handled by the copy constructor. Excluding them
+      // here also keeps CTAD from a prvalue accessor unambiguous.
+      typename = std::enable_if_t<!std::is_same_v<
+          std::remove_cv_t<PropertyListT>,
+          std::remove_cv_t<ext::oneapi::accessor_property_list<NewPropsT...>>>>
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+      >
   accessor(
       const accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
                      ext::oneapi::accessor_property_list<NewPropsT...>> &Other,
@@ -2432,6 +2450,15 @@ public:
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
 
+public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // common reference semantics
+  local_accessor(const local_accessor &) noexcept = default;
+  local_accessor &operator=(const local_accessor &) noexcept = default;
+  local_accessor(local_accessor &&) noexcept = default;
+  local_accessor &operator=(local_accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   // implicit conversion between non-const read-write accessor to const
   // read-only accessor
 public:
@@ -2596,6 +2623,12 @@ public:
   host_accessor() : AccessorT() {}
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   ~host_accessor() {}
+
+  // common reference semantics
+  host_accessor(const host_accessor &) noexcept = default;
+  host_accessor &operator=(const host_accessor &) noexcept = default;
+  host_accessor(host_accessor &&) noexcept = default;
+  host_accessor &operator=(host_accessor &&) noexcept = default;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // The list of host_accessor constructors with their arguments
