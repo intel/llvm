@@ -21,6 +21,7 @@ from .compute_enums import (
     RUNTIMES,
     SUBMIT_KERNEL_RUNTIMES,
     SYCL_AND_LEVEL_ZERO_RUNTIMES,
+    SYCL_AND_UR_RUNTIMES,
     SYCL_RUNTIMES,
     TORCH_BENCHMARK_RUNTIMES,
     runtime_to_tag_name,
@@ -61,8 +62,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Sep 14, 2026
-        return "32dcb8b6d0e3a4ad138cee7cbf1217ac78ba2fd1"
+        # Sep 15, 2026
+        return "be7b31f7b0d5a06b4fdacb3aa1d7a8694e6f6ea0"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -744,8 +745,6 @@ class ComputeBench(Suite):
             # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
             # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
             # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
-            UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
-            UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
             UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
             UsmBatchMemoryAllocation(
                 self, RUNTIMES.UR, "Device", 128, 16 * 1024, "Both"
@@ -754,6 +753,33 @@ class ComputeBench(Suite):
                 self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
             ),
         ]
+
+        # UsmMemoryAllocation (comparison of sync and async allocations in UR vs SYCL)
+        usm_alloc_params = product(
+            SYCL_AND_UR_RUNTIMES,
+            [256, 256 * 1024],  # size
+            ["Sync", "Async"],  # strategy
+            ["Both", "Allocate"],  # measure mode
+            [0, 1],  # disable L0 USM pool allocator
+        )
+        for (
+            runtime,
+            size,
+            strategy,
+            measure_mode,
+            disable_usm_allocator,
+        ) in usm_alloc_params:
+            benches.append(
+                UsmMemoryAllocation(
+                    self,
+                    runtime,
+                    "Device",
+                    size,
+                    measure_mode,
+                    strategy,
+                    disable_usm_allocator,
+                )
+            )
 
         benches += [
             MemcpyExecute(
@@ -1521,11 +1547,20 @@ class UllsKernelSwitch(ComputeBenchmark):
 
 class UsmMemoryAllocation(ComputeBenchmark):
     def __init__(
-        self, bench, runtime: RUNTIMES, usm_memory_placement, size, measure_mode
+        self,
+        bench,
+        runtime: RUNTIMES,
+        usm_memory_placement,
+        size,
+        measure_mode,
+        strategy,
+        disable_usm_allocator=0,
     ):
         self._usm_memory_placement = usm_memory_placement
         self._size = size
         self._measure_mode = measure_mode
+        self._strategy = strategy
+        self._disable_usm_allocator = disable_usm_allocator
         # iterations per bin_args: --iterations=10000
         self._iterations_regular = 10000
         self._iterations_trace = 10
@@ -1538,18 +1573,23 @@ class UsmMemoryAllocation(ComputeBenchmark):
 
     def name(self):
         return (
-            f"api_overhead_benchmark_{self._runtime.value} UsmMemoryAllocation "
-            f"usmMemoryPlacement:{self._usm_memory_placement} size:{self._size} measureMode:{self._measure_mode}"
+            f"api_overhead_benchmark_{self._runtime.value} UsmMemoryAllocation usmMemoryPlacement:{self._usm_memory_placement} "
+            f"size:{self._size} measureMode:{self._measure_mode} strategy:{self._strategy} "
+            f"disableUsmAllocator:{self._disable_usm_allocator}"
         )
 
     def display_name(self) -> str:
         return (
-            f"{self._runtime.value.upper()} UsmMemoryAllocation, "
-            f"usmMemoryPlacement {self._usm_memory_placement}, size {self._size}, measureMode {self._measure_mode}"
+            f"{self._runtime.value.upper()} UsmMemoryAllocation, usmMemoryPlacement {self._usm_memory_placement}, "
+            f"size {self._size}, measureMode {self._measure_mode}, strategy {self._strategy}, "
+            f"L0 pool allocator {'disabled' if self._disable_usm_allocator else 'enabled'}"
         )
 
     def explicit_group(self):
-        return f"UsmMemoryAllocation"
+        return (
+            f"UsmMemoryAllocation, measureMode {self._measure_mode}, usmMemoryPlacement {self._usm_memory_placement}, "
+            f"size {self._size}, disableUsmAllocator {self._disable_usm_allocator}"
+        )
 
     def description(self) -> str:
         what_is_measured = "Both memory allocation and memory free are timed"
@@ -1559,12 +1599,15 @@ class UsmMemoryAllocation(ComputeBenchmark):
             what_is_measured = "Only memory free is timed"
         return (
             f"Measures memory allocation overhead by allocating {self._size} bytes of "
-            f"usm {self._usm_memory_placement} memory and free'ing it immediately. "
-            f"{what_is_measured}. "
+            f"usm {self._usm_memory_placement} memory and free'ing it immediately, "
+            f"using strategy {self._strategy}. {what_is_measured}."
         )
 
     def get_tags(self):
         return [runtime_to_tag_name(self._runtime), "micro", "latency", "memory"]
+
+    def _extra_env_vars(self) -> dict:
+        return {"UR_L0_DISABLE_USM_ALLOCATOR": str(self._disable_usm_allocator)}
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1573,6 +1616,7 @@ class UsmMemoryAllocation(ComputeBenchmark):
             f"--type={self._usm_memory_placement}",
             f"--size={self._size}",
             f"--measureMode={self._measure_mode}",
+            f"--strategy={self._strategy}",
         ]
 
 
