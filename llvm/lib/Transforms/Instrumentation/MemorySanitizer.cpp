@@ -1464,7 +1464,7 @@ MemorySanitizer::getOrInsertMsanMetadataFunction(Module &M, StringRef Name,
 
 /// Create KMSAN API callbacks.
 void MemorySanitizer::createKernelApi(Module &M, const TargetLibraryInfo &TLI) {
-  IRBuilder<> IRB(*C);
+  IRBuilder<> IRB(M);
 
   // These will be initialized in insertKmsanPrologue().
   RetvalTLS = nullptr;
@@ -1537,7 +1537,7 @@ static Constant *getOrInsertGlobal(Module &M, StringRef Name, Type *Ty) {
 /// Insert declarations for userspace-specific functions and globals.
 void MemorySanitizer::createUserspaceApi(Module &M,
                                          const TargetLibraryInfo &TLI) {
-  IRBuilder<> IRB(*C);
+  IRBuilder<> IRB(M);
 
   // Create the callback.
   // FIXME: this function should have "Cold" calling conv,
@@ -1674,7 +1674,7 @@ void MemorySanitizer::initializeCallbacks(Module &M,
   if (CallbacksInitialized)
     return;
 
-  IRBuilder<> IRB(*C);
+  IRBuilder<> IRB(M);
   // Initialize callbacks that are common for kernel and userspace
   // instrumentation.
   MsanChainOriginFn = M.getOrInsertFunction(
@@ -1840,7 +1840,7 @@ void MemorySanitizer::initializeModule(Module &M) {
   }
 
   C = &(M.getContext());
-  IRBuilder<> IRB(*C);
+  IRBuilder<> IRB(M);
   IntptrTy = IRB.getIntPtrTy(DL);
   OriginTy = IRB.getInt32Ty();
   PtrTy = IRB.getPtrTy();

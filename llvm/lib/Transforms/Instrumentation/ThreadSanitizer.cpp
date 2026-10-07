@@ -766,7 +766,7 @@ void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
     Spirv->initialize();
   }
 
-  IRBuilder<> IRB(Ctx);
+  IRBuilder<> IRB(M);
   AttributeList Attr;
   Attr = Attr.addFnAttribute(Ctx, Attribute::NoUnwind);
   // Initialize the callbacks.

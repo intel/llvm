@@ -35,6 +35,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -2916,6 +2917,7 @@ private:
   InserterTy Inserter;
 
 public:
+  // TODO: Deprecate ctors accepting LLVMContext.
   IRBuilder(LLVMContext &C, FolderTy Folder, InserterTy Inserter)
       : IRBuilderBase(C, this->Folder, this->Inserter), Folder(Folder),
         Inserter(Inserter) {}
@@ -2925,6 +2927,17 @@ public:
 
   explicit IRBuilder(LLVMContext &C)
       : IRBuilderBase(C, this->Folder, this->Inserter) {}
+
+  IRBuilder(Module &M, FolderTy Folder, InserterTy Inserter)
+      : IRBuilderBase(M.getContext(), this->Folder, this->Inserter),
+        Folder(Folder), Inserter(Inserter) {}
+
+  IRBuilder(Module &M, FolderTy Folder)
+      : IRBuilderBase(M.getContext(), this->Folder, this->Inserter),
+        Folder(Folder) {}
+
+  explicit IRBuilder(Module &M)
+      : IRBuilderBase(M.getContext(), this->Folder, this->Inserter) {}
 
   explicit IRBuilder(BasicBlock *TheBB, FolderTy Folder)
       : IRBuilderBase(TheBB->getContext(), this->Folder, this->Inserter),
@@ -2987,6 +3000,11 @@ template <typename FolderTy, typename InserterTy>
 IRBuilder(LLVMContext &, FolderTy, InserterTy)
     -> IRBuilder<FolderTy, InserterTy>;
 IRBuilder(LLVMContext &) -> IRBuilder<>;
+template <typename FolderTy, typename InserterTy>
+IRBuilder(Module &, FolderTy, InserterTy) -> IRBuilder<FolderTy, InserterTy>;
+template <typename FolderTy>
+IRBuilder(Module &, FolderTy) -> IRBuilder<FolderTy>;
+IRBuilder(Module &) -> IRBuilder<>;
 template <typename FolderTy>
 IRBuilder(BasicBlock *, FolderTy) -> IRBuilder<FolderTy>;
 IRBuilder(BasicBlock *) -> IRBuilder<>;
