@@ -117,3 +117,4 @@ jobs:
         with:
           testing_mode: run-only
           target_devices: level_zero:gpu
+          job_name: ${{ github.job }}

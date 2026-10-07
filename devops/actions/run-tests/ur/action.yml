@@ -32,8 +32,8 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
       EXTRA_LIT_OPTS: ${{ inputs.extra_lit_opts }}
       PY: ${{ steps.ur_test.outputs.python }}
-      # lit is spawned by cmake/ninja using the system Python, not the venv above,
-      # so it needs this on PYTHONPATH to see psutil (required by --timeout).
+      # Needed by lit (spawned via cmake/ninja's system Python) to see psutil,
+      # and by ur-test itself under the --target fallback; set on every step below too.
       PYTHONPATH: ${{ steps.ur_test.outputs['site-packages'] }}
     run: |
       "$PY" devops/scripts/ur-test run "$TEST_TYPE" "$BUILD_DIR" "$GITHUB_WORKSPACE"
@@ -44,6 +44,7 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
       PY: ${{ steps.ur_test.outputs.python }}
+      PYTHONPATH: ${{ steps.ur_test.outputs['site-packages'] }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping log filtering."
@@ -65,6 +66,7 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
       PY: ${{ steps.ur_test.outputs.python }}
+      PYTHONPATH: ${{ steps.ur_test.outputs['site-packages'] }}
     run: |
       if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
         echo "::warning::Test execution failed, but no test log is available."
@@ -84,6 +86,7 @@ runs:
       TEST_TYPE: ${{ inputs.test_type }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PY: ${{ steps.ur_test.outputs.python }}
+      PYTHONPATH: ${{ steps.ur_test.outputs['site-packages'] }}
     run: |
       if [ -z "$LOG_FILE" ]; then
         echo "::warning::Test log path not provided by runner; skipping summary."
