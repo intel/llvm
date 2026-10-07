@@ -46,7 +46,7 @@ event_impl::~event_impl() {
           MContext->getHandleRef(), MIPCHandleData);
     }
     auto Handle = this->getHandle();
-    if (Handle)
+    if (Handle && MOwnsHandle)
       getAdapter().call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);

@@ -491,6 +491,13 @@ public:
 
   bool isInOrder() override { return true; }
 
+  bool isGraphCaptureActiveUnlocked() override {
+    bool captureActive = false;
+    currentCmdLists.get_no_lock()->getListManager().queryGraphCaptureActive(
+        &captureActive);
+    return captureActive;
+  }
+
   ur::RefCount RefCount;
 };
 

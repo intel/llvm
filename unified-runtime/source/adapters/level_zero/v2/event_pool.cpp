@@ -14,10 +14,17 @@
 
 namespace ur::level_zero::v2 {
 
-ur_event_handle_t event_pool::allocate() {
+ur_event_handle_t event_pool::allocate(bool detached) {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<ur_mutex> lock(mutex);
+
+  if (detached) {
+    raii::ze_event_handle_t ownedEvent(provider->allocate().release(),
+                                       /*ownZeHandle=*/true);
+    auto const flags = provider->eventFlags();
+    return new ur_event_handle_t_(hContext, std::move(ownedEvent), flags);
+  }
 
   if (freelist.empty()) {
     events.emplace_back(hContext, provider->allocate(), this);
@@ -34,14 +41,6 @@ ur_event_handle_t event_pool::allocate() {
 #endif
 
   return event;
-}
-
-ur_event_handle_t event_pool::allocateDetached() {
-  TRACK_SCOPE_LATENCY("event_pool::allocateDetached");
-  raii::ze_event_handle_t ownedEvent(provider->allocate().release(),
-                                     /*ownZeHandle=*/true);
-  return new ur_event_handle_t_(hContext, std::move(ownedEvent),
-                                provider->eventFlags());
 }
 
 void event_pool::free(ur_event_handle_t event) {

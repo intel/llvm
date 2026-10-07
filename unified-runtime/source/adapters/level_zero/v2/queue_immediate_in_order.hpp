@@ -580,6 +580,12 @@ public:
 
   bool isInOrder() override { return true; }
 
+  bool isGraphCaptureActiveUnlocked() override {
+    bool captureActive = false;
+    commandListManager.get_no_lock()->queryGraphCaptureActive(&captureActive);
+    return captureActive;
+  }
+
   ur::RefCount RefCount;
 };
 

@@ -713,6 +713,13 @@ public:
 
   bool isInOrder() override { return false; }
 
+  bool isGraphCaptureActiveUnlocked() override {
+    bool captureActive = false;
+    (*commandListManagers.get_no_lock())[captureCmdListManagerIdx]
+        .queryGraphCaptureActive(&captureActive);
+    return captureActive;
+  }
+
   ur::RefCount RefCount;
 };
 

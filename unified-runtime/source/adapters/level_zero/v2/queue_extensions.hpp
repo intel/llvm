@@ -22,6 +22,9 @@ struct ur_queue_extensions {
   }
 
   virtual bool isInOrder() = 0;
+
+  // Called while the queue lock is held; must not acquire it again.
+  virtual bool isGraphCaptureActiveUnlocked() = 0;
 };
 
 } // namespace ur::level_zero::v2

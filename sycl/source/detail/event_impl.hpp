@@ -376,6 +376,12 @@ public:
     MPotentiallyNativeRecorded = Value;
   }
 
+  // Returns whether this event releases its UR handle on destruction.
+  bool ownsHandle() const { return MOwnsHandle; }
+
+  // Stops releasing the UR handle on destruction, ownership is held elsewhere.
+  void releaseHandleOwnership() { MOwnsHandle = false; }
+
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
   void setLowPower(bool Value) { MLowPower = Value; }
@@ -505,6 +511,9 @@ protected:
   /// recording was active. Used to preserve in-order dependencies that cross
   /// the native-recording capture boundary.
   bool MPotentiallyNativeRecorded = false;
+
+  // False when the UR handle is owned by a native recorded graph.
+  bool MOwnsHandle = true;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is

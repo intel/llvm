@@ -407,6 +407,9 @@ graph_impl::~graph_impl() {
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDestroyExp>(
               MNativeGraphHandle);
+      for (ur_event_handle_t Event : MNativeRecordedEvents)
+        Adapter.call_nocheck<sycl::detail::UrApiKind::urEventRelease>(Event);
+      MNativeRecordedEvents.clear();
       Adapter.checkUrResult(Result, "Failed to destroy native UR graph");
       MNativeGraphHandle = nullptr;
     }
@@ -713,6 +716,12 @@ sycl::detail::EnqueueHostTaskData *graph_impl::addNativeHostTaskCallback(
   graph_impl::WriteLock Lock(MMutex);
   MNativeHostTaskCallbacks.push_back(std::move(Data));
   return MNativeHostTaskCallbacks.back().get();
+}
+
+void graph_impl::addNativeRecordedEvent(sycl::detail::event_impl &Event) {
+  graph_impl::WriteLock Lock(MMutex);
+  MNativeRecordedEvents.push_back(Event.getHandle());
+  Event.releaseHandleOwnership();
 }
 
 void graph_impl::clearQueues(bool NeedsLock) {

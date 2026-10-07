@@ -41,12 +41,8 @@ public:
   ~event_pool() = default;
 
   // Allocate an event from the pool. Thread safe.
-  ur_event_handle_t allocate();
-
-  // Allocate a detached event that owns its underlying ze_event_handle_t and is
-  // never returned to the pool for recycling, it is destroyed when released.
-  // Used for events that must not be recycled. Thread safe.
-  ur_event_handle_t allocateDetached();
+  // If detached = true, the returned event is not recycled back into the pool.
+  ur_event_handle_t allocate(bool detached = false);
 
   // Free an event back to the pool. Thread safe.
   void free(ur_event_handle_t event);
@@ -72,7 +68,7 @@ createEventIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
     return nullptr;
   }
 
-  (*phEvent) = eventPool->allocate();
+  (*phEvent) = eventPool->allocate(queue->isGraphCaptureActiveUnlocked());
   (*phEvent)->setQueue(queue);
   return *phEvent;
 }
@@ -84,7 +80,7 @@ createEventOrReuseIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
     return nullptr;
 
   if (*phEvent == nullptr)
-    (*phEvent) = eventPool->allocate();
+    (*phEvent) = eventPool->allocate(queue->isGraphCaptureActiveUnlocked());
 
   (*phEvent)->setQueue(queue);
   return (*phEvent);
@@ -95,7 +91,7 @@ createEventOrReuseIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
 static inline ur_event_handle_t createEvent(event_pool *eventPool,
                                             ur_event_handle_t *phEvent,
                                             ur_queue_t_ *queue) {
-  auto hEvent = eventPool->allocate();
+  auto hEvent = eventPool->allocate(queue->isGraphCaptureActiveUnlocked());
   hEvent->setQueue(queue);
 
   if (phEvent) {

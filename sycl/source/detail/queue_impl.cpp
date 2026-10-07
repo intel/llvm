@@ -355,7 +355,10 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     // Check if we are still in no last event mode. There could
     // have been a concurrent submit.
     if (MNoLastEventMode.load(std::memory_order_relaxed)) {
-      return finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      detail::EventImplPtr EventImpl =
+          finalizeHandlerInOrderNoEventsUnlocked(Handler);
+      passEventToNativeGraph(EventImpl.get());
+      return EventImpl;
     }
   }
 
@@ -377,6 +380,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       }
     }
   }
+
+  passEventToNativeGraph(EventImpl.get());
 
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
@@ -684,6 +689,21 @@ queue_impl::makeEnqueuedEvent(ur_event_handle_t UREvent,
   }
 
   return ResEvent;
+}
+
+void queue_impl::passEventToNativeGraph(event_impl *Event) {
+  if (!Event || !Event->getHandle() || !Event->ownsHandle() ||
+      !Event->isPotentiallyNativeRecorded() || !isNativeRecording())
+    return;
+
+  ur_exp_graph_handle_t UrGraphHandle = nullptr;
+  if (getAdapter().call_nocheck<UrApiKind::urQueueGetGraphExp>(
+          MQueue, &UrGraphHandle) != UR_RESULT_SUCCESS)
+    return;
+
+  // Captures not started through a SYCL graph keep the default ownership.
+  if (auto GraphImpl = getContextImpl().getNativeGraph(UrGraphHandle))
+    GraphImpl->addNativeRecordedEvent(*Event);
 }
 
 EventImplPtr queue_impl::submit_async_alloc_scheduler_bypass(
@@ -1205,6 +1225,7 @@ detail::EventImplPtr queue_impl::submit_direct(
   MEmpty.store(false, std::memory_order_release);
 
   auto [EventImpl, SchedulerBypass] = SubmitCommandFunc(std::move(CGData));
+  passEventToNativeGraph(EventImpl.get());
 
   // Synchronize with the "no last event mode", used by the handler-based
   // kernel submit path
@@ -1292,6 +1313,7 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
                   getUrEvents(ExpandedDepEvents), &UREvent);
         ResEventImpl->setHandle(UREvent);
         ResEventImpl->setEnqueued();
+        passEventToNativeGraph(ResEventImpl.get());
         // connect returned event with dependent events
         if (!isInOrder()) {
           std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
