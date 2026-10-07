@@ -4,7 +4,7 @@
 
 // DG2 accesses imported textures as if they were uncompressed.
 // XFAIL: windows && run-mode && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+// XFAIL-TRACKER: GSD-13691
 
 // RUN: %{build} -o %t.exe %link-directx
 
