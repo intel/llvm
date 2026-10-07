@@ -393,6 +393,10 @@ ze_structure_type_ext_t
 getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
 }
+template <>
+ze_structure_type_ext_t getZexStructureType<ze_queue_priority_desc_t>() {
+  return ZE_STRUCTURE_TYPE_QUEUE_PRIORITY_DESC;
+}
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local int32_t ErrorMessageCode = 0;

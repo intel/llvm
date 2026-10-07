@@ -16,6 +16,21 @@
 
 namespace ur::level_zero::v2 {
 
+static ur_result_t getQueuePriorityLevels(ur_device_handle_t hDevice,
+                                          int32_t &Highest, int32_t &Lowest) {
+  auto &Ext = hDevice->Platform->ZeQueuePriorityExt;
+  if (!Ext.Supported)
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+  // The function is loaded directly from the driver, so it expects a driver
+  // handle rather than a loader handle.
+  ze_device_handle_t ZeDevice = nullptr;
+  ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DEVICE, hDevice->ZeDevice,
+                                        reinterpret_cast<void **>(&ZeDevice)));
+  ZE2UR_CALL(Ext.zeDeviceGetPriorityLevels, (ZeDevice, &Lowest, &Highest));
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
                             ::ur_device_info_t propName, size_t propSize,
                             void *propValue, size_t *propSizeRet) {
@@ -81,6 +96,17 @@ ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
 #else
     return ReturnValue(false);
 #endif
+  }
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(
+        hDevice->Platform->ZeQueuePriorityExt.Supported));
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    int32_t Highest = 0, Lowest = 0;
+    UR_CALL(getQueuePriorityLevels(hDevice, Highest, Lowest));
+    return ReturnValue(propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP
+                           ? Highest
+                           : Lowest);
   }
   default:
     return ur::level_zero::urDeviceGetInfo(hDeviceOpque, propName, propSize,

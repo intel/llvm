@@ -27,15 +27,17 @@ static uint32_t getZeOrdinal(ur_device_handle_t hDevice) {
 }
 
 static std::optional<int32_t> getZeIndex(const ur_queue_properties_t *pProps) {
-  if (pProps && pProps->pNext) {
-    const ur_base_properties_t *extendedDesc =
-        reinterpret_cast<const ur_base_properties_t *>(pProps->pNext);
-    if (extendedDesc->stype == UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES) {
-      const ur_queue_index_properties_t *indexProperties =
-          reinterpret_cast<const ur_queue_index_properties_t *>(extendedDesc);
-      return indexProperties->computeIndex;
-    }
-  }
+  if (auto indexProperties =
+          find_stype_node<ur_queue_index_properties_t>(pProps))
+    return indexProperties->computeIndex;
+  return std::nullopt;
+}
+
+static std::optional<int32_t>
+getPriorityLevel(const ur_queue_properties_t *pProps) {
+  if (auto priorityProperties =
+          find_stype_node<ur_exp_queue_priority_properties_t>(pProps))
+    return priorityProperties->priority;
   return std::nullopt;
 }
 
@@ -100,24 +102,32 @@ ur_result_t urQueueCreate(::ur_context_handle_t hContextOpque,
   }
 
   auto zeIndex = v2::getZeIndex(pProperties);
+  auto priorityLevel = v2::getPriorityLevel(pProperties);
+
+  if (priorityLevel) {
+    if (flags & (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH))
+      return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+    if (!hDevice->Platform->ZeQueuePriorityExt.Supported)
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
   if (isBatched) {
     // out of order not supported
     *phQueue = ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
         hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
-        zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);
+        zeIndex, priorityLevel, v2::eventFlagsFromQueueFlags(flags), flags);
   } else {
     if (isOutOfOrder) {
       *phQueue =
           ur_queue_handle_t_::create<v2::ur_queue_immediate_out_of_order_t>(
               hContext, hDevice, v2::getZeOrdinal(hDevice),
-              v2::getZePriority(flags), zeIndex,
+              v2::getZePriority(flags), zeIndex, priorityLevel,
               v2::eventFlagsFromQueueFlags(flags), flags);
     } else {
       // immediate
       *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
           hContext, hDevice, v2::getZeOrdinal(hDevice),
-          v2::getZePriority(flags), zeIndex,
+          v2::getZePriority(flags), zeIndex, priorityLevel,
           v2::eventFlagsFromQueueFlags(flags), flags);
     }
   }

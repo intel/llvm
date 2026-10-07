@@ -58,7 +58,8 @@ namespace ur::level_zero::v2 {
 bool immediate_command_list_descriptor_t::operator==(
     const immediate_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && IsInOrder == rhs.IsInOrder &&
-         Mode == rhs.Mode && Priority == rhs.Priority && Index == rhs.Index;
+         Mode == rhs.Mode && Priority == rhs.Priority && Index == rhs.Index &&
+         PriorityLevel == rhs.PriorityLevel;
 }
 
 bool regular_command_list_descriptor_t::operator==(
@@ -73,7 +74,8 @@ inline size_t command_list_descriptor_hash_t::operator()(
           std::get_if<immediate_command_list_descriptor_t>(&desc)) {
     return combine_hashes(0, ImmCmdDesc->ZeDevice, ImmCmdDesc->Ordinal,
                           ImmCmdDesc->IsInOrder, ImmCmdDesc->Mode,
-                          ImmCmdDesc->Priority, ImmCmdDesc->Index);
+                          ImmCmdDesc->Priority, ImmCmdDesc->Index,
+                          ImmCmdDesc->PriorityLevel);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     return combine_hashes(0, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder,
@@ -139,10 +141,24 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.pNext = &offloadDesc;
     }
 
+    ZexStruct<ze_queue_priority_desc_t> priorityDesc;
+    if (ImmCmdDesc->PriorityLevel.has_value()) {
+      // The driver reads both the priority and the deprecated copy offload
+      // descriptors from the head of the pNext chain, so they can't be
+      // chained together. Omitting the offload descriptor disables the hint.
+      if (QueueDesc.pNext && requestedCopyOffload) {
+        UR_LOG(INFO, "Copy offload is not supported together with a queue "
+                     "priority level by the driver.");
+      }
+      priorityDesc.priority = ImmCmdDesc->PriorityLevel.value();
+      QueueDesc.pNext = &priorityDesc;
+    }
+
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "
-           "device: {}, inOrder: {}",
-           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
+           "device: {}, inOrder: {}, priorityLevel: {}",
+           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder,
+           ImmCmdDesc->PriorityLevel.value_or(0));
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
@@ -198,7 +214,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
     ze_device_handle_t ZeDevice, command_list_desc_t ListDesc,
     ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
-    std::optional<uint32_t> Index) {
+    std::optional<uint32_t> Index, std::optional<int32_t> PriorityLevel) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getImmediateCommandList");
 
   immediate_command_list_descriptor_t Desc;
@@ -209,6 +225,7 @@ raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
   Desc.Mode = Mode;
   Desc.Priority = Priority;
   Desc.Index = Index;
+  Desc.PriorityLevel = PriorityLevel;
 
   auto [CommandList, _] = getCommandList(Desc).release();
   return raii::command_list_unique_handle(

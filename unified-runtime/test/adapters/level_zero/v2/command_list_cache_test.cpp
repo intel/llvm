@@ -11,6 +11,7 @@
 
 #include "level_zero/common.hpp"
 #include "level_zero/common/device.hpp"
+#include "level_zero/common/platform.hpp"
 
 #include "uur/fixtures.h"
 #include "uur/raii.h"
@@ -93,6 +94,45 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
     zeCommandListDestroy(regCmdList.release());
     zeCommandListDestroy(immCmdList.release());
   }
+}
+
+TEST_P(CommandListCacheTest, ImmediateCommandListsAreCachedPerPriorityLevel) {
+  if (!common_cast(device)->Platform->ZeQueuePriorityExt.Supported) {
+    GTEST_SKIP() << "Queue priority levels are not supported.";
+  }
+
+  v2::supported_extensions_descriptor_t supportedExtensions(false, false,
+                                                            false);
+  v2::command_list_cache_t cache(v2::v2_cast(context)->getZeHandle(),
+                                 supportedExtensions);
+  auto zeDevice = common_cast(device)->ZeDevice;
+
+  v2::command_list_desc_t desc;
+  desc.IsInOrder = true;
+  desc.Ordinal = 0;
+  desc.CopyOffloadEnable = true;
+  ze_command_queue_mode_t Mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  ze_command_queue_priority_t Priority = ZE_COMMAND_QUEUE_PRIORITY_NORMAL;
+
+  const std::vector<std::optional<int32_t>> Levels = {std::nullopt, -1, 0, 1};
+  std::map<std::optional<int32_t>, ze_command_list_handle_t> CmdLists;
+  for (auto Level : Levels) {
+    auto CmdList = cache.getImmediateCommandList(zeDevice, desc, Mode, Priority,
+                                                 std::nullopt, Level);
+    ASSERT_NE(CmdList, nullptr);
+    CmdLists[Level] = CmdList.get();
+    // Returned to the cache on destruction.
+  }
+  ASSERT_EQ(cache.getNumImmediateCommandLists(), Levels.size());
+
+  // Each level must get back its own command list.
+  std::vector<v2::raii::command_list_unique_handle> Owners;
+  for (auto Level : Levels) {
+    Owners.emplace_back(cache.getImmediateCommandList(
+        zeDevice, desc, Mode, Priority, std::nullopt, Level));
+    ASSERT_EQ(Owners.back().get(), CmdLists[Level]);
+  }
+  ASSERT_EQ(cache.getNumImmediateCommandLists(), 0);
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
