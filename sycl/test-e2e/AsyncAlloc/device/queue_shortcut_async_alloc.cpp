@@ -1,3 +1,6 @@
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/oneapi-src/level-zero/issues/512
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
