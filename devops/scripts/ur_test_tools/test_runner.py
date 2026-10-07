@@ -104,7 +104,13 @@ class TestRunner:
         if config.lit_jobs is not None:
             lit_opts_parts += ["-j", str(config.lit_jobs)]
 
-        lit_opts_parts += ["--xunit-xml-output", str(self.context.xml_output_path)]
+        # Use forward slashes: LIT_OPTS is re-split with shlex (POSIX mode) on
+        # the lit side, which eats backslashes as escapes and mangles Windows
+        # paths (e.g. "D:\...\e2e_results.xml" -> "D:...e2e_resultsxml").
+        lit_opts_parts += [
+            "--xunit-xml-output",
+            self.context.xml_output_path.as_posix(),
+        ]
 
         if config.extra_lit_opts:
             lit_opts_parts.append(config.extra_lit_opts)
