@@ -23,18 +23,20 @@
 ; CHECK-LLVM-NEXT: shl
 ; CHECK-LLVM-NEXT: lshr
 
-; In the llc roundtrip, get_fence is used (without const qualifier) and select replaces zext
+; In the llc roundtrip, the SPIR-V backend lowers get_fence to OpGenericPtrMemSemantics, so the
+; reverse translation re-mangles it with a const pointee type deduced by the backend (uint here),
+; and select replaces zext
 ; CHECK-LLC-LABEL: define spir_func i32 @isFenceValid(
 ; CHECK-LLC: icmp ult i32 %fence, 4
 ; CHECK-LLC-NEXT: select i1 %{{.*}}, i32 1, i32 0
 ;
 ; CHECK-LLC-LABEL: define spir_func i32 @f4(
-; CHECK-LLC: call spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)
+; CHECK-LLC: call spir_func i32 @_Z9get_fencePU3AS4Kj(ptr addrspace(4)
 ; CHECK-LLC: select i1 %{{.*}}, i32 1, i32 0
 ; CHECK-LLC: xor i32 %{{.*}}, 1
 ;
 ; CHECK-LLC-LABEL: define spir_kernel void @testKernel(
-; CHECK-LLC: call spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)
+; CHECK-LLC: call spir_func i32 @_Z9get_fencePU3AS4Kj(ptr addrspace(4)
 ; CHECK-LLC: select i1 %{{.*}}, i32 1, i32 0
 ; CHECK-LLC: store i32 %{{.*}}, ptr addrspace(1) %{{.*}}, align 4
 
