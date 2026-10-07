@@ -2,34 +2,35 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: GSD-12837
+// REQUIRES-INTEL-DRIVER: lin: 40130
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
-// RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
 
 // clang-format off
 /*
-  DirectX 12 / SYCL Buffer + Fence (Timeline) Interop Test - resource_win32_name
+  DirectX 12 / SYCL Interop Test - resource_win32_name (semaphore only)
 
-  clang++.exe -fsycl -o dsbwnn.exe D3D12_sycl_buffer_win32_name_native.cpp -ld3d12 -ldxgi -ld3dcompiler
+  clang++.exe -fsycl -o dwns.exe D3D12_win32_named_semaphore.cpp -ld3d12 -ldxgi -ld3dcompiler
 
-  Tests native resource_win32_name support in SYCL. The NT object name
-  is passed through SYCL -> UR -> L0, which opens the named object on
-  the caller's behalf via ze_external_memory_import_win32_handle_t::name.
+  Exercises SYCL's resource_win32_name path for a D3D12 timeline fence.
+  Buffers are imported via resource_win32_handle (unnamed shared HANDLEs)
+  so this test isolates the named-semaphore-import path from the
+  named-memory-import path (which is currently blocked on NEO — see the
+  companion memory test).
 
-  FLAGS: --no-sem        Don't use semaphores for SYCL/D3D12 synchronization
-         --iterations N  Number of iterations to run (default: 10)
-         --size M        Number of uint32_t elements in the buffer (default: 1024)
+  The NT object name for the fence is passed through
+  SYCL -> UR -> L0, which opens the named object on the caller's behalf.
 */
 // clang-format on
 
 #include "d3d12_setup.hpp"
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
@@ -37,87 +38,54 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-struct D3D12NamedBuffer {
-  Microsoft::WRL::ComPtr<ID3D12Resource> resource;
+struct D3D12NamedFence {
+  ComPtr<ID3D12Fence> fence;
   std::wstring name;
   // Must keep at least one handle open for the name to persist.
-  HANDLE keepAliveHandle;
+  HANDLE keepAliveHandle = nullptr;
 };
 
-struct D3D12NamedFence {
-  Microsoft::WRL::ComPtr<ID3D12Fence> fence;
-  std::wstring name;
-  HANDLE keepAliveHandle;
-};
-
-D3D12NamedBuffer createNamedExportableBuffer(D3D12Context &ctx, size_t size,
-                                             const wchar_t *name) {
-  D3D12NamedBuffer result;
-  result.name = name;
-
-  D3D12_HEAP_PROPERTIES heapProps = {};
-  heapProps.Type = D3D12_HEAP_TYPE_DEFAULT;
-
-  D3D12_RESOURCE_DESC desc = {};
-  desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-  desc.Width = size;
-  desc.Height = 1;
-  desc.DepthOrArraySize = 1;
-  desc.MipLevels = 1;
-  desc.SampleDesc.Count = 1;
-  desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-  desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-  HRESULT hr = ctx.device->CreateCommittedResource(
-      &heapProps, D3D12_HEAP_FLAG_SHARED, &desc, D3D12_RESOURCE_STATE_COMMON,
-      nullptr, IID_PPV_ARGS(&result.resource));
-  if (FAILED(hr)) {
-    throw std::runtime_error("Failed to create named buffer");
+// wcout on Windows depends on console code page + CRT mode and fails silently
+// on codepoints the console can't render, corrupting subsequent stream state.
+// Print via narrow stdout instead: ASCII as-is, non-ASCII as \uXXXX escapes.
+static void printWideName(const wchar_t *name) {
+  for (const wchar_t *p = name; *p; ++p) {
+    if (*p >= 0x20 && *p < 0x7F) {
+      std::cout << static_cast<char>(*p);
+    } else {
+      char buf[8];
+      std::snprintf(buf, sizeof(buf), "\\u%04X",
+                    static_cast<unsigned>(*p) & 0xFFFFu);
+      std::cout << buf;
+    }
   }
-
-  hr = ctx.device->CreateSharedHandle(result.resource.Get(), nullptr,
-                                      GENERIC_ALL, name,
-                                      &result.keepAliveHandle);
-  if (FAILED(hr)) {
-    throw std::runtime_error("Failed to create named shared handle");
-  }
-
-  std::wcout << L"[D3D12] Created named buffer: " << name << std::endl;
-
-  return result;
 }
 
-D3D12NamedFence createNamedExportableFence(D3D12Context &ctx,
-                                           const wchar_t *name) {
+static D3D12NamedFence createNamedExportableFence(D3D12Context &ctx,
+                                                  const wchar_t *name) {
   D3D12NamedFence result;
   result.name = name;
 
-  HRESULT hr = ctx.device->CreateFence(0, D3D12_FENCE_FLAG_SHARED,
-                                       IID_PPV_ARGS(&result.fence));
-  if (FAILED(hr)) {
-    throw std::runtime_error("Failed to create fence");
-  }
+  ThrowIfFailed(ctx.device->CreateFence(0, D3D12_FENCE_FLAG_SHARED,
+                                        IID_PPV_ARGS(&result.fence)),
+                "Failed to create shared fence");
+  ThrowIfFailed(ctx.device->CreateSharedHandle(result.fence.Get(), nullptr,
+                                               GENERIC_ALL, name,
+                                               &result.keepAliveHandle),
+                "Failed to export named fence handle");
 
-  hr = ctx.device->CreateSharedHandle(result.fence.Get(), nullptr, GENERIC_ALL,
-                                      name, &result.keepAliveHandle);
-  if (FAILED(hr)) {
-    throw std::runtime_error("Failed to create named shared fence handle");
-  }
-
-  std::wcout << L"[D3D12] Created named fence: " << name << std::endl;
-
+  std::cout << "[D3D12] Created named fence: ";
+  printWideName(name);
+  std::cout << std::endl;
   return result;
 }
 
 int main(int argc, char **argv) {
-  bool useSemaphores = true;
   int iterations = 10;
   size_t numElements = 1024;
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if (arg == "--no-sem")
-      useSemaphores = false;
     if (arg == "--iterations" && i + 1 < argc)
       iterations = std::stoi(argv[++i]);
     if (arg == "--size" && i + 1 < argc)
@@ -126,24 +94,27 @@ int main(int argc, char **argv) {
 
   size_t bufferSize = numElements * sizeof(uint32_t);
 
-  std::cout << "Running SYCL D3D12 resource_win32_name Native Test\n";
+  std::cout << "Running SYCL D3D12 resource_win32_name Semaphore Test\n";
   std::cout << "Elements: " << numElements << " | Iterations: " << iterations
-            << " | Semaphores: " << (useSemaphores ? "ON" : "OFF") << "\n";
+            << "\n";
 
   D3D12Context d3dCtx = createD3D12Context();
 
-  D3D12NamedBuffer inBuf = createNamedExportableBuffer(
-      d3dCtx, bufferSize, L"Global\\SYCLTestInputBuffer3");
-  D3D12NamedBuffer outBuf = createNamedExportableBuffer(
-      d3dCtx, bufferSize, L"Global\\SYCLTestOutputBuffer3");
+  // Buffers via HANDLE (unnamed) — memory path is not exercised here.
+  D3D12BufferResources inBuf = createExportableBuffer(d3dCtx, bufferSize);
+  D3D12BufferResources outBuf = createExportableBuffer(d3dCtx, bufferSize);
 
   D3D12BufferResources inStaging = createUploadBuffer(d3dCtx, bufferSize);
   D3D12BufferResources outStaging = createReadbackBuffer(d3dCtx, bufferSize);
 
-  D3D12NamedFence extFence;
-  if (useSemaphores) {
-    extFence = createNamedExportableFence(d3dCtx, L"Global\\SYCLTestFence3");
-  }
+  // Fence via NAME — this is what the test exercises.
+  D3D12NamedFence extFence =
+      createNamedExportableFence(d3dCtx, L"Global\\SYCLTestNamedFence");
+  // Non-ASCII name (Chiqué气)  verifies UTF-16 codepoints round-trip through
+  // import But rather than "Chiqué气" directly, we use escapes so MSVC
+  // source-charset handling can't reinterpret.
+  D3D12NamedFence utf16Fence = createNamedExportableFence(
+      d3dCtx, L"Global\\SYCLTestChiqu\u00E9\u6C14Fence");
 
   d3dCtx.cmdAlloc->Reset();
   d3dCtx.cmdList->Reset(d3dCtx.cmdAlloc.Get(), nullptr);
@@ -154,7 +125,6 @@ int main(int argc, char **argv) {
   initialBarriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
   initialBarriers[0].Transition.Subresource =
       D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-
   initialBarriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   initialBarriers[1].Transition.pResource = outBuf.resource.Get();
   initialBarriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
@@ -167,49 +137,57 @@ int main(int argc, char **argv) {
   executeAndWait(d3dCtx);
 
   try {
-    sycl::queue q;
+    // Semaphore ops require an in-order queue with immediate CLs.
+    sycl::property_list qProps{
+        sycl::property::queue::in_order{},
+        sycl::ext::intel::property::queue::immediate_command_list{}};
+    sycl::queue q{qProps};
     auto device = q.get_device();
     auto context = q.get_context();
 
     std::cout << "[SYCL] Device: "
               << device.get_info<sycl::info::device::name>() << std::endl;
 
-    std::cout << "[SYCL] Importing input buffer by name (native support)"
-              << std::endl;
-    syclexp::external_mem_descriptor<syclexp::resource_win32_name> inDesc{
-        {(const void *)inBuf.name.c_str()},
-        syclexp::external_mem_handle_type::win32_nt_handle,
+    // Memory: HANDLE path (well-tested; not the subject of this test).
+    syclexp::external_mem_descriptor<syclexp::resource_win32_handle> inDesc{
+        inBuf.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
         bufferSize};
     syclexp::external_mem inExtMem =
         syclexp::import_external_memory(inDesc, device, context);
 
-    std::cout << "[SYCL] Importing output buffer by name (native support)"
-              << std::endl;
-    syclexp::external_mem_descriptor<syclexp::resource_win32_name> outDesc{
-        {(const void *)outBuf.name.c_str()},
-        syclexp::external_mem_handle_type::win32_nt_handle,
+    syclexp::external_mem_descriptor<syclexp::resource_win32_handle> outDesc{
+        outBuf.sharedHandle, syclexp::external_mem_handle_type::win32_nt_handle,
         bufferSize};
     syclexp::external_mem outExtMem =
         syclexp::import_external_memory(outDesc, device, context);
 
-    syclexp::external_semaphore syclSem{};
-    if (useSemaphores) {
-      std::cout << "[SYCL] Importing fence by name (native support)"
-                << std::endl;
-      auto semDesc =
-          syclexp::external_semaphore_descriptor<syclexp::resource_win32_name>{
-              {(const void *)extFence.name.c_str()},
-              syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
-      syclSem = syclexp::import_external_semaphore(semDesc, device, context);
-    }
+    // Semaphore: NAME path — the axis under test.
+    std::cout << "[SYCL] Importing fence by name (native support)\n";
+    auto semDesc =
+        syclexp::external_semaphore_descriptor<syclexp::resource_win32_name>{
+            {(const void *)extFence.name.c_str()},
+            syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
+    syclexp::external_semaphore syclSem =
+        syclexp::import_external_semaphore(semDesc, device, context);
+
+    // Import success on a non-ASCII name proves encoding fidelity; no need
+    // to signal/wait — the main loop below covers semaphore mechanics.
+    std::cout << "[SYCL] Importing UTF-16 non-ASCII named fence\n";
+    auto utf16SemDesc =
+        syclexp::external_semaphore_descriptor<syclexp::resource_win32_name>{
+            {(const void *)utf16Fence.name.c_str()},
+            syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
+    syclexp::external_semaphore utf16SyclSem =
+        syclexp::import_external_semaphore(utf16SemDesc, device, context);
+    syclexp::release_external_semaphore(utf16SyclSem, device, context);
+    std::cout << "[SYCL] UTF-16 named fence round-trip OK\n";
 
     uint32_t *inPtr = static_cast<uint32_t *>(
         syclexp::map_external_linear_memory(inExtMem, 0, bufferSize, q));
     uint32_t *outPtr = static_cast<uint32_t *>(
         syclexp::map_external_linear_memory(outExtMem, 0, bufferSize, q));
 
-    std::cout << "[Test] Starting " << iterations << " iteration test..."
-              << std::endl;
+    std::cout << "[Test] Starting " << iterations << " iteration test...\n";
 
     for (int i = 1; i <= iterations; ++i) {
       uint64_t d3dSignalVal = (uint64_t)(2 * i - 1);
@@ -224,10 +202,8 @@ int main(int argc, char **argv) {
 
       d3dCtx.cmdAlloc->Reset();
       d3dCtx.cmdList->Reset(d3dCtx.cmdAlloc.Get(), nullptr);
-
       d3dCtx.cmdList->CopyBufferRegion(inBuf.resource.Get(), 0,
                                        inStaging.resource.Get(), 0, bufferSize);
-
       D3D12_RESOURCE_BARRIER barrier = {};
       barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
       barrier.Transition.pResource = inBuf.resource.Get();
@@ -235,27 +211,21 @@ int main(int argc, char **argv) {
       barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
       barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
       d3dCtx.cmdList->ResourceBarrier(1, &barrier);
-
       d3dCtx.cmdList->Close();
       ID3D12CommandList *ppCommandLists[] = {d3dCtx.cmdList.Get()};
       d3dCtx.cmdQueue->ExecuteCommandLists(1, ppCommandLists);
 
-      if (useSemaphores) {
-        d3dCtx.cmdQueue->Signal(extFence.fence.Get(), d3dSignalVal);
-      }
+      d3dCtx.cmdQueue->Signal(extFence.fence.Get(), d3dSignalVal);
 
       d3dCtx.fenceValue++;
       d3dCtx.cmdQueue->Signal(d3dCtx.fence.Get(), d3dCtx.fenceValue);
       d3dCtx.fence->SetEventOnCompletion(d3dCtx.fenceValue, d3dCtx.fenceEvent);
       WaitForSingleObject(d3dCtx.fenceEvent, INFINITE);
+      std::cout << "  [" << i << "] D3D12 upload done" << std::flush;
 
-      std::cout << "  [" << i << "] D3D12 upload done" << std::endl;
-
-      if (useSemaphores) {
-        std::cout << ", SYCL sem-wait(" << d3dSignalVal << ")..." << std::endl;
-        q.ext_oneapi_wait_external_semaphore(syclSem, d3dSignalVal);
-        std::cout << "ok" << std::endl;
-      }
+      std::cout << ", SYCL sem-wait(" << d3dSignalVal << ")..." << std::flush;
+      q.ext_oneapi_wait_external_semaphore(syclSem, d3dSignalVal);
+      std::cout << "ok" << std::flush;
 
       q.submit([&](sycl::handler &h) {
         h.parallel_for(sycl::range<1>(numElements), [=](sycl::item<1> item) {
@@ -264,41 +234,33 @@ int main(int argc, char **argv) {
         });
       });
 
-      if (useSemaphores) {
-        std::cout << ", SYCL sem-signal(" << syclSignalVal << ")" << std::endl;
-        q.ext_oneapi_signal_external_semaphore(syclSem, syclSignalVal);
-        std::cout << "ok" << std::endl;
-      }
+      std::cout << ", SYCL sem-signal(" << syclSignalVal << ")..."
+                << std::flush;
+      q.ext_oneapi_signal_external_semaphore(syclSem, syclSignalVal);
+      std::cout << "ok" << std::flush;
       q.wait();
-      std::cout << ", SYCL done" << std::endl;
+      std::cout << ", SYCL done" << std::flush;
 
-      if (useSemaphores) {
-        d3dCtx.cmdQueue->Wait(extFence.fence.Get(), syclSignalVal);
-      }
+      d3dCtx.cmdQueue->Wait(extFence.fence.Get(), syclSignalVal);
 
       d3dCtx.cmdAlloc->Reset();
       d3dCtx.cmdList->Reset(d3dCtx.cmdAlloc.Get(), nullptr);
-
       barrier.Transition.pResource = outBuf.resource.Get();
       barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
       barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
       d3dCtx.cmdList->ResourceBarrier(1, &barrier);
-
       d3dCtx.cmdList->CopyBufferRegion(outStaging.resource.Get(), 0,
                                        outBuf.resource.Get(), 0, bufferSize);
-
       barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
       barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
       d3dCtx.cmdList->ResourceBarrier(1, &barrier);
-
       d3dCtx.cmdList->Close();
       d3dCtx.cmdQueue->ExecuteCommandLists(1, ppCommandLists);
 
-      std::cout << ", d3d-fence..." << std::endl;
+      std::cout << ", d3d-fence..." << std::flush;
       d3dCtx.fenceValue++;
       d3dCtx.cmdQueue->Signal(d3dCtx.fence.Get(), d3dCtx.fenceValue);
       d3dCtx.fence->SetEventOnCompletion(d3dCtx.fenceValue, d3dCtx.fenceEvent);
-
       if (WaitForSingleObject(d3dCtx.fenceEvent, 5000) == WAIT_TIMEOUT) {
         std::cerr << "\nTIMEOUT on host wait!\n";
         return 1;
@@ -317,7 +279,6 @@ int main(int argc, char **argv) {
         }
       }
       outStaging.resource->Unmap(0, nullptr);
-
       if (errors > 0) {
         std::cerr << "\nFAILURE at iteration " << i << ": " << errors
                   << " mismatches" << std::endl;
@@ -344,8 +305,7 @@ int main(int argc, char **argv) {
 
     syclexp::unmap_external_linear_memory(inPtr, q);
     syclexp::unmap_external_linear_memory(outPtr, q);
-    if (useSemaphores)
-      syclexp::release_external_semaphore(syclSem, device, context);
+    syclexp::release_external_semaphore(syclSem, device, context);
     syclexp::release_external_memory(inExtMem, device, context);
     syclexp::release_external_memory(outExtMem, device, context);
 
@@ -354,10 +314,14 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  CloseHandle(inBuf.keepAliveHandle);
-  CloseHandle(outBuf.keepAliveHandle);
-  if (useSemaphores)
+  if (inBuf.sharedHandle)
+    CloseHandle(inBuf.sharedHandle);
+  if (outBuf.sharedHandle)
+    CloseHandle(outBuf.sharedHandle);
+  if (extFence.keepAliveHandle)
     CloseHandle(extFence.keepAliveHandle);
+  if (utf16Fence.keepAliveHandle)
+    CloseHandle(utf16Fence.keepAliveHandle);
   cleanupBuffer(inStaging);
   cleanupBuffer(outStaging);
   if (d3dCtx.fenceEvent)
