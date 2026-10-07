@@ -540,6 +540,26 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
   return sycl::bit_cast<T>(ResultInt);
 }
 
+// Half compare-exchange is performed on the integer representation, so it does
+// not require any floating-point atomic support.
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, half>, T>
+AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
+                      memory_scope Scope, memory_order Success,
+                      memory_order Failure, T Desired, T Expected) {
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
+  auto SPIRVSuccess = getMemorySemanticsMask(Success);
+  auto SPIRVFailure = getMemorySemanticsMask(Failure);
+  auto SPIRVScope = getScope(Scope);
+  auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
+  I DesiredInt = sycl::bit_cast<I>(Desired);
+  I ExpectedInt = sycl::bit_cast<I>(Expected);
+  I ResultInt = __spirv_AtomicCompareExchange(
+      PtrInt, SPIRVScope, SPIRVSuccess, SPIRVFailure, DesiredInt, ExpectedInt);
+  return sycl::bit_cast<T>(ResultInt);
+}
+
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>

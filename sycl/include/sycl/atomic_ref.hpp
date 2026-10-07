@@ -124,6 +124,15 @@ template <> struct bit_equal<double> {
   }
 };
 
+template <typename T>
+struct bit_equal<T, typename std::enable_if_t<std::is_same_v<T, half>>> {
+  bool operator()(const T &lhs, const T &rhs) {
+    auto LhsInt = sycl::bit_cast<uint16_t>(lhs);
+    auto RhsInt = sycl::bit_cast<uint16_t>(rhs);
+    return LhsInt == RhsInt;
+  }
+};
+
 // Functionality for any atomic of type T, reused by partial specializations
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
@@ -606,11 +615,49 @@ atomic_ref_impl<
                               std::is_same_v<T, bfloat16>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
+  using base_type = atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder,
+                                    DefaultScope, AddressSpace>;
+
 public:
   using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                         AddressSpace>::atomic_ref_impl;
   using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                         AddressSpace>::atomic_ref_impl::operator=;
+
+  // Native half atomic add is not supported by all devices with 16-bit
+  // atomics (e.g. some only support atomic load/store and min/max), so for
+  // half emulate add/sub via a load + compare-exchange loop, which only
+  // requires 16-bit atomic compare-exchange.
+  T fetch_add(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    if constexpr (std::is_same_v<T, sycl::half>) {
+      auto load_order = detail::getLoadOrder(order);
+      T expected = this->load(load_order, scope);
+      T desired;
+      do {
+        desired = expected + operand;
+      } while (!this->compare_exchange_weak(expected, desired, order, scope));
+      return expected;
+    } else {
+      return base_type::fetch_add(operand, order, scope);
+    }
+  }
+
+  T operator+=(T operand) const noexcept {
+    return fetch_add(operand) + operand;
+  }
+
+  T fetch_sub(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    if constexpr (std::is_same_v<T, sycl::half>)
+      return fetch_add(-operand, order, scope);
+    else
+      return base_type::fetch_sub(operand, order, scope);
+  }
+
+  T operator-=(T operand) const noexcept {
+    return fetch_sub(operand) - operand;
+  }
 };
 
 // Partial specialization for 16-bit integral types needed for optional
