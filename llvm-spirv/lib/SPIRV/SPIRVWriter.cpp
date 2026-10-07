@@ -2863,15 +2863,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
     AtomicRMWInst::BinOp Op = ARMW->getOperation();
-    // uinc_wrap/udec_wrap have no opcode. On AMD targets SPIRVRegularizeLLVM
-    // rewrites them into a helper call so they never reach here; other targets
-    // reach here and are diagnosed as unsupported.
+    // Supported iff there is an opcode, except for fsub, which is lowered
+    // below. On AMD targets SPIRVRegularizeLLVM rewrites uinc_wrap/udec_wrap
+    // into a helper call so they never reach here.
     bool SupportedAtomicInst =
-        AtomicRMWInst::isFPOperation(Op)
-            ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FSub ||
-               Op == AtomicRMWInst::FMin || Op == AtomicRMWInst::FMax)
-            : (Op != AtomicRMWInst::Nand && Op != AtomicRMWInst::UIncWrap &&
-               Op != AtomicRMWInst::UDecWrap);
+        Op == AtomicRMWInst::FSub || LLVMSPIRVAtomicRmwOpCodeMap::find(Op);
     if (!BM->getErrorLog().checkError(
             SupportedAtomicInst, SPIRVEC_InvalidInstruction, V,
             "Atomic " + AtomicRMWInst::getOperationName(Op).str() +
