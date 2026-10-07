@@ -422,8 +422,9 @@ graph.
 
 === Interaction with sycl_ext_oneapi_graph [[reusable-events-graph-interaction]]
 
-Reusable event operations submitted to a queue in the `queue_state::recording`
-state are captured in its modifiable `command_graph`.
+Calls to `enqueue_wait_event`, `enqueue_wait_events`, and `enqueue_signal_event`
+on a queue in the `queue_state::recording` state are captured in its modifiable
+`command_graph`.
 
 Without `graph_external{true}`, recorded reusable event signals and waits
 constitute dependency edges within the graph and are subject to the limitations
