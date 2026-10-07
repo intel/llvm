@@ -114,7 +114,8 @@ int main(int argc, char **argv) {
   executeAndWait(d3dCtx);
 
   try {
-    // Semaphore ops require an in-order queue with immediate CLs.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps{
         sycl::property::queue::in_order{},
         sycl::ext::intel::property::queue::immediate_command_list{}};
