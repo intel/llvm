@@ -176,6 +176,10 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
+static cl::opt<bool> SPIRVValidate(
+    "spirv-validate", cl::init(false),
+    cl::desc("Validate SPIR-V with SPIRV-Tools before reverse translation"));
+
 static cl::opt<bool> SPIRVEmitFunctionPtrAddrSpace(
     "spirv-emit-function-ptr-addr-space", cl::init(false),
     cl::desc("Emit and consume CodeSectionINTEL for function pointers"));
@@ -931,6 +935,15 @@ int main(int Ac, char **Av) {
   Opts.setFPContractMode(FPCMode);
 
   Opts.setErrorHandlingKind(ErrorHandling);
+
+  if (SPIRVValidate) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-validate option ignored as it only affects "
+                "translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setSPIRVValidationEnabled(true);
+    }
+  }
 
   if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
     if (!IsReverse) {

@@ -25,6 +25,9 @@ config.excludes = ['CMakeLists.txt']
 if config.libspirv_dis:
     config.available_features.add('libspirv_dis')
 
+if config.libspirv_val:
+    config.available_features.add('libspirv_val')
+
 if not config.spirv_skip_debug_info_tests:
     # Direct object generation.
     config.available_features.add('object-emission')
