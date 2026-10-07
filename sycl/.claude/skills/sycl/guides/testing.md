@@ -22,7 +22,9 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
 4. **Run** (`<build>` = DPC++ build dir, from repo root): unit `ninja -C <build> check-sycl-unittests`,
    or one suite `check-sycl-<Target>` (e.g. `check-sycl-QueueTests`); not the raw binary, the target
    sets the env (fresh `libsycl`, mock OpenCL on `LD_LIBRARY_PATH`, `SYCL_CONFIG_FILE_NAME`) · LIT `<build>/bin/llvm-lit -v sycl/test/<path>.cpp` ·
-   E2E `<build>/bin/llvm-lit -v --param sycl_devices="level_zero:gpu" sycl/test-e2e/<path>.cpp`.
+   E2E `<build>/bin/llvm-lit -v --param sycl_devices="<backend>:<device>" sycl/test-e2e/<path>.cpp`,
+   e.g. `level_zero:gpu`, `opencl:cpu`; `;`-separate several. Pick from `<build>/bin/sycl-ls` on the
+   machine that runs the test, don't assume one. Format details: `sycl/test-e2e/README.md`.
 5. **Report**: tier and why; command, result, mutation check fired; required gates.
 
 ## Traps
