@@ -1,4 +1,4 @@
-//===---runtime_query_hip_gfx90a.cpp - DPC++ joint_matrix------------------===//
+//===---runtime_query_hip_gfx942.cpp - DPC++ joint_matrix-----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: target-amd
-// REQUIRES: arch-amd_gpu_gfx90a
-// RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a %s -o %t.out
+// REQUIRES: arch-amd_gpu_gfx942
+// RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx942 %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -40,13 +40,9 @@ int main() {
        matrix_type::fp32, matrix_type::fp32},
       {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
        matrix_type::fp32, matrix_type::fp32},
-      {0, 0, 0, 32, 32, 2, matrix_type::fp32, matrix_type::fp32,
-       matrix_type::fp32, matrix_type::fp32},
-      {0, 0, 0, 16, 16, 4, matrix_type::fp32, matrix_type::fp32,
-       matrix_type::fp32, matrix_type::fp32},
-      {0, 0, 0, 32, 32, 8, matrix_type::sint8, matrix_type::sint8,
+      {0, 0, 0, 32, 32, 16, matrix_type::sint8, matrix_type::sint8,
        matrix_type::sint32, matrix_type::sint32},
-      {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+      {0, 0, 0, 16, 16, 32, matrix_type::sint8, matrix_type::sint8,
        matrix_type::sint32, matrix_type::sint32},
       {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
        matrix_type::fp32, matrix_type::fp32},
@@ -66,7 +62,7 @@ int main() {
 
   for (auto &comb : actual_combinations) {
     assert(find_combination(comb, expected_combinations) &&
-           "Some values in matrix runtime query for gfx90a are not expected.");
+           "Some values in matrix runtime query for gfx942 are not expected.");
   }
   return 0;
 }
