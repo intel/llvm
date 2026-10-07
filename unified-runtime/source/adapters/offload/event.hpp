@@ -18,9 +18,10 @@ struct ur_event_handle_t_ : RefCounted {
   ol_event_handle_t OffloadEvent;
   ur_command_t Type;
   ur_queue_handle_t UrQueue;
+  ur_context_handle_t UrContext;
 
-  ur_event_handle_t_(ur_command_t Type, ur_queue_handle_t Queue)
-      : Type(Type), UrQueue(Queue) {}
+  ur_event_handle_t_(ur_command_t Type, ur_queue_handle_t Queue);
+  ~ur_event_handle_t_();
 
   static ur_event_handle_t createEmptyEvent(ur_command_t Type,
                                             ur_queue_handle_t Queue) {
