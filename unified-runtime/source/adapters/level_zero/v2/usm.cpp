@@ -285,6 +285,24 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
+  // The UMF Level Zero provider always passes the relaxed allocation limits
+  // descriptor to zeMemAllocHost, which makes some drivers accept absurd
+  // sizes (e.g. SIZE_MAX). Reject host allocations larger than
+  // maxMemAllocSize unless relaxed allocation limits are enabled, the same
+  // way the V1 adapter does (it calls zeMemAllocHost without that descriptor).
+  if (type == UR_USM_TYPE_HOST) {
+    bool relaxedLimits = false;
+    uint64_t maxAllocSize = 0;
+    for (auto *device : hContext->getDevices()) {
+      relaxedLimits |= device->useRelaxedAllocationLimits();
+      maxAllocSize = std::max<uint64_t>(
+          maxAllocSize, device->ZeDeviceProperties->maxMemAllocSize);
+    }
+    if (!relaxedLimits && maxAllocSize > 0 && size > maxAllocSize) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+  }
+
   auto deviceFlags = getDeviceFlags(pUSMDesc);
 
   auto pool = getPool(usm::pool_descriptor{
