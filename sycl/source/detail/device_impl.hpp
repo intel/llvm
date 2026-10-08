@@ -1655,8 +1655,8 @@ public:
           .value_or(0);
     }
     CASE(ext_oneapi_atomic16) {
-      // Likely L0 doesn't check it properly. Need to double-check.
-      return has_extension("cl_ext_float_atomics");
+      return get_info_impl_nocheck<UR_DEVICE_INFO_ATOMIC16_SUPPORT>().value_or(
+          0);
     }
     CASE(ext_oneapi_virtual_functions) {
       // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem

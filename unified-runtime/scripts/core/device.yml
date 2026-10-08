@@ -491,6 +491,8 @@ etors:
       desc: "[uint32_t][optional-query] return the Intel GPU IGCA (Intel Graphics Compute Architecture) target"
     - name: IGCA_FEATURE_SET
       desc: "[$x_device_igca_feature_flags_t][optional-query] return the IGCA feature sets the Intel GPU implements"
+    - name: ATOMIC16_SUPPORT
+      desc: "[$x_bool_t][optional-query] return true if the device supports 16-bit atomic operations."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

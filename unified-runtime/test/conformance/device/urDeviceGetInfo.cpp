@@ -1994,6 +1994,23 @@ TEST_P(urDeviceGetInfoTest, SuccessVirtualMemorySupported) {
   ASSERT_TRUE(casted_value == false || casted_value == true);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessAtomic16Supported) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_ATOMIC16_SUPPORT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  ur_bool_t property_value = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+
+  bool casted_value = static_cast<bool>(property_value);
+  ASSERT_TRUE(casted_value == false || casted_value == true);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessESIMDSupported) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_ESIMD_SUPPORT;
