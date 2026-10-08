@@ -3,12 +3,6 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan && level_zero
 //
-// UNSUPPORTED: linux && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23242
-//
-// XFAIL: windows && run-mode && !gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23249
-//
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 

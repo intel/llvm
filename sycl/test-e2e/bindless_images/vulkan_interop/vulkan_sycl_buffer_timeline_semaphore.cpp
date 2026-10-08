@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan
 
-// Hung on Linux; fix tracked by GSD-12371, landed in driver 38362.
-// REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
 // RUN: %{run} %t.out
