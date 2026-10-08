@@ -74,5 +74,9 @@ int main() {
   for (size_t i = 0; i < N; i++) {
     assert(OutData[i] == HostDataB[i] + (HostDataA[i] * HostDataC[i]));
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
   return 0;
 }
