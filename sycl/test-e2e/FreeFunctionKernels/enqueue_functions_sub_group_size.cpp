@@ -6,8 +6,9 @@
 // UNSUPPORTED: native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22772
 
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// Build and run once per sub-group size the device reports as supported.
+// RUN: %if sg-16 %{ %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out %}
+// RUN: %if sg-32 %{ %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out %}
 
 // This test checks that a compile-time kernel property attached to a free
 // function kernel (here sub_group_size) is honored when the kernel is launched
@@ -24,7 +25,6 @@
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
-#include <algorithm>
 #include <iostream>
 
 namespace syclext = sycl::ext::oneapi;
@@ -72,12 +72,7 @@ int main() {
   sycl::queue q;
   int Ret = 0;
 
-  // Only exercise sub-group size when the device actually supports for it.
-  auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
-  if (std::find(SGSizes.begin(), SGSizes.end(), 32) != SGSizes.end())
-    Ret |= test<32>(q);
-  if (std::find(SGSizes.begin(), SGSizes.end(), 16) != SGSizes.end())
-    Ret |= test<16>(q);
+  Ret |= test<SG_SIZE>(q);
 
   return Ret;
 }

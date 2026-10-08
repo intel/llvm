@@ -1,7 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: sg-16 || sg-32
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// Build and run once per sub-group size the device reports as supported.
+// RUN: %if sg-16 %{ %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out %}
+// RUN: %if sg-32 %{ %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out %}
 
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Device incompatible error
@@ -9,7 +10,6 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
-#include <algorithm>
 #include <iostream>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
@@ -201,12 +201,7 @@ int main() {
   ret |= test_has_desc<range_has_before, float>(q, ctxt);
   ret |= test_has_desc<range_has_after, float>(q, ctxt);
 
-  // Only exercise sub-group size when the device actually supports for it.
-  auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
-  if (std::find(SGSizes.begin(), SGSizes.end(), 32) != SGSizes.end())
-    ret |= test_sg_properties<32>(q, ctxt);
-  if (std::find(SGSizes.begin(), SGSizes.end(), 16) != SGSizes.end())
-    ret |= test_sg_properties<16>(q, ctxt);
+  ret |= test_sg_properties<SG_SIZE>(q, ctxt);
 
   return ret;
 }
