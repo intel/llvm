@@ -878,9 +878,19 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     device Dev = createSyclObjFromImpl<device>(*BuildDev);
     std::vector<device_image_plain> Imgs;
     Imgs.reserve(DeviceImagesToLink.size() + 1);
-    Imgs.push_back(getDeviceImageFromBinaryImage(&Img, Context, Dev));
+    // JIT images must be compiled to object state before linkDeviceImages.
+    auto AddImg = [&](const RTDeviceBinaryImage *BinImg) {
+      device_image_plain DevImg =
+          getDeviceImageFromBinaryImage(BinImg, Context, Dev);
+      if (!needsDynamicLink(BinImg, ContextImpl.getBackend()))
+        DevImg =
+            compile(DevImgPlainWithDeps{DevImg}, {*BuildDev}, property_list{})
+                .getMain();
+      Imgs.push_back(std::move(DevImg));
+    };
+    AddImg(&Img);
     for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
-      Imgs.push_back(getDeviceImageFromBinaryImage(BinImg, Context, Dev));
+      AddImg(BinImg);
 
     std::vector<device_image_plain> LinkedResults =
         linkDeviceImages(std::move(Imgs), {*BuildDev}, property_list{});

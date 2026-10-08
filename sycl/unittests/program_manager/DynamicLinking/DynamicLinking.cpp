@@ -297,9 +297,22 @@ TEST(DynamicLinking, AheadOfTimeOpenCL) {
 // a JIT (SPIR-V) main image whose dependency is a native AOT image must
 // still route that dependency through urProgramDynamicLinkExp instead of
 // feeding it to urProgramLinkExp together with the main image.
+//
+// The static-link group is passed to urProgramLinkExp, which takes
+// object-state programs, so the JIT main image must be compiled first while
+// the native AOT dependency (built from binary) must not be.
+static unsigned NumOfUrProgramCompileCalls = 0;
+static ur_result_t countingUrProgramCompileExp(void *) {
+  ++NumOfUrProgramCompileCalls;
+  return UR_RESULT_SUCCESS;
+}
+
 TEST(DynamicLinking, MixedAOTDependency) {
   sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
+  mock::getCallbacks().set_replace_callback("urProgramCompileExp",
+                                            countingUrProgramCompileExp);
+  NumOfUrProgramCompileCalls = 0;
 
   sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
@@ -309,6 +322,8 @@ TEST(DynamicLinking, MixedAOTDependency) {
   Q.single_task<DynamicLinkingTest::MixedAOTDepKernel>([=]() {});
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 1u);
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 1u);
+  // Only the SPIR-V main image is compiled to object state.
+  ASSERT_EQ(NumOfUrProgramCompileCalls, 1u);
   // The main (SPIR-V) image is statically linked on its own...
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   // ...while the native AOT dependency is routed through dynamic link.
