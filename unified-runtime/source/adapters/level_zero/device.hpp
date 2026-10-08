@@ -233,6 +233,11 @@ struct ur_device_handle_t_ : ur_object {
             ZeDeviceIpVersionExt->ipVersion >= 0x05004000);
   }
 
+  bool isCRI() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            (ZeDeviceIpVersionExt->ipVersion & 0xffffc000) == 0x08c2c000);
+  }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }
@@ -267,6 +272,8 @@ struct ur_device_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeDevicePitchedAllocInfo> ZeDevicePitchedAllocProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<ZeStruct<ze_float_atomic_ext_properties_t>>
+      ZeDeviceFloatAtomicExtProperties;
   ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
                     std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
