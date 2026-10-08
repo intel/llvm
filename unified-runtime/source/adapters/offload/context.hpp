@@ -24,14 +24,10 @@ struct alloc_info_t {
 struct ur_context_handle_t_ : RefCounted {
   ur_context_handle_t_(ur_device_handle_t hDevice,
                        ol_context_handle_t OffloadContext)
-      : Device{hDevice}, OffloadContext(OffloadContext) {
+      : Device{hDevice}, OffloadContext{OffloadContext} {
     urDeviceRetain(Device);
   }
-  ~ur_context_handle_t_() {
-    if (OffloadContext)
-      olDestroyContext(OffloadContext);
-    urDeviceRelease(Device);
-  }
+  ~ur_context_handle_t_() { urDeviceRelease(Device); }
 
   ur_device_handle_t Device;
   ol_context_handle_t OffloadContext;

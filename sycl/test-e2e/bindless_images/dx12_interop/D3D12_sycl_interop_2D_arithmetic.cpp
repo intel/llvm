@@ -2,6 +2,10 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// DG2 accesses imported textures as if they were uncompressed.
+// XFAIL: windows && run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-13691
+
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8
 
@@ -82,21 +86,18 @@
 // RUN: %{run} %t.exe --type int8 --channels 4 --sampled 32x33
 
 // Semaphore coverage tests
-// On Windows, we require driver 38303 or later to avoid semaphore issues, which the CI does not yet have. 
-// Rather than mark the WHOLE test as requiring 38303, which would mean no testing nowhere,
-// we are limiting it with R U N - I F 
 
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 1 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 4 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --sampled --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --sampled --semaphores 32x33
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 32x33
+// RUN: %{run} %t.exe --type float --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type half --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type int32 --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint32 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint16 --channels 1 --semaphores 32x33
+// RUN: %{run} %t.exe --type uint8 --channels 4 --semaphores 32x33
+// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 32x33
+// RUN: %{run} %t.exe --type float --channels 4 --sampled --semaphores 32x33
+// RUN: %{run} %t.exe --type half --channels 2 --sampled --semaphores 32x33
+// RUN: %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 32x33
 
 // clang-format on
 #include <iostream>
@@ -234,7 +235,13 @@ bool uploadCustomData(D3D12Context &ctx, D3D12ImageResources &imgRes,
   src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
   src.PlacedFootprint = footprint;
 
+  // Textures without ALLOW_SIMULTANEOUS_ACCESS don't decay to COMMON after
+  // being written, so transition back explicitly before sharing with SYCL.
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COMMON,
+                     D3D12_RESOURCE_STATE_COPY_DEST);
   ctx.cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                     D3D12_RESOURCE_STATE_COMMON);
   ThrowIfFailed(ctx.cmdList->Close());
 
   executeAndWait(ctx);
@@ -350,8 +357,7 @@ inline D3D12ImageResources createExportableImageWrite(D3D12Context &ctx,
   texDesc.Format = format;
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS |
-                  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
   ThrowIfFailed(ctx.device->CreateCommittedResource(

@@ -149,6 +149,26 @@ public:
   addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                         llvm::opt::ArgStringList &CC1Args, BoundArch BA,
                         Action::OffloadKind DeviceOffloadKind) const override;
+  /// Interpret compiler-owned options using the full target context. These
+  /// arguments are serialized with device images. They retain the existing
+  /// backend protocol, including the JIT runtime's frontend-option spellings.
+  llvm::opt::ArgStringList
+  getSPIRVCompilationOptions(const llvm::Triple &Triple,
+                             const llvm::opt::ArgList &Args,
+                             const JobAction &JA, const ToolChain &HostTC,
+                             StringRef Device = "") const;
+
+  /// Interpret only linker options. Do not process compiler options or
+  /// generate compiler defaults during link orchestration.
+  llvm::opt::ArgStringList
+  getSPIRVLinkOptions(const llvm::Triple &Triple,
+                      const llvm::opt::ArgList &Args) const;
+
+  /// Append compilation options and any applicable linker options for the old
+  /// offload driver, which does not split their ownership. Used by AOT backend
+  /// jobs and the offload wrapper's JIT image metadata. Linker options
+  /// currently apply only to the GEN subarchitecture, so non-GEN JIT targets
+  /// append only compilation options.
   void AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs,

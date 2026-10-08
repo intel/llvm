@@ -78,6 +78,9 @@ struct ur_ze_external_memory_data {
   void *importExtensionDesc;
   enum ur_ze_external_memory_desc_type type;
   size_t size;
+  // Owns the Win32 NT name referenced by importExtensionDesc. L0 reads it at
+  // map time (zeImageCreate/zeMemAllocDevice), after the import call returns.
+  std::wstring win32NameStorage;
 };
 
 struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
@@ -237,6 +240,11 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
             ZeDeviceIpVersionExt->ipVersion >= 0x05004000);
   }
 
+  bool isCRI() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            (ZeDeviceIpVersionExt->ipVersion & 0xffffc000) == 0x08c2c000);
+  }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }
@@ -271,6 +279,8 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeDevicePitchedAllocInfo> ZeDevicePitchedAllocProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<ZeStruct<ze_float_atomic_ext_properties_t>>
+      ZeDeviceFloatAtomicExtProperties;
   ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
                     std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
