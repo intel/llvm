@@ -4320,6 +4320,7 @@
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIAEAVhandler@23@@Z
+?reduGetMaxNumWorkGroupsForRange@detail@_V1@sycl@@YA_KAEAVhandler@23@_K11@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KAEAVhandler@23@_K@Z
 ?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAVhandler@23@_K@Z
 ?registerDynamicParameter@handler@_V1@sycl@@AEAAXPEAVdynamic_parameter_impl@detail@experimental@oneapi@ext@23@H@Z

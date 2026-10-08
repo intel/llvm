@@ -11,6 +11,9 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/reduction.hpp>
 
+#include <algorithm>
+#include <limits>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -59,6 +62,56 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh) {
   if (Dev.is_gpu() && Dev.get_info<sycl::info::device::host_unified_memory>())
     NumThreads *= 8;
   return NumThreads;
+}
+
+__SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
+                                                     size_t NWorkItems,
+                                                     size_t WGSize,
+                                                     size_t ElemSize) {
+  size_t NumWorkGroups = reduGetMaxNumConcurrentWorkGroups(cgh);
+  const device_impl &Dev = getSyclObjImpl(cgh)->get_device();
+  // The heuristic below was tuned on Intel GPUs only.
+  constexpr uint32_t IntelVendorId = 0x8086;
+  if (!Dev.is_gpu() || WGSize == 0 ||
+      Dev.get_info<sycl::info::device::vendor_id>() != IntelVendorId)
+    return NumWorkGroups;
+
+  // Each work-group processes one contiguous chunk of the range. The number
+  // of work-groups above does not depend on the range size, so big ranges are
+  // processed by a few long-running work-groups with large chunks, which
+  // results in low memory bandwidth for memory-bound reductions. Use enough
+  // work-groups for each work-item to process about BytesPerWorkItem bytes of
+  // data instead, so that the chunk size no longer grows with the range. The
+  // amount of data is estimated from the size of the reduction element, which
+  // matches the size of the data read per work-item for common reductions
+  // (sum, dot product, min/max, etc.). Never use fewer work-groups than above,
+  // so that small and compute-heavy reductions get the same parallelism as
+  // before.
+  // BytesPerWorkItem is a tuning parameter chosen empirically on several Intel
+  // GPUs, it is not derived from a hardware property. It may be adjusted for
+  // particular devices if needed.
+  constexpr size_t BytesPerWorkItem = 128;
+  size_t ElemsPerWorkItem =
+      (std::max)(size_t{1}, BytesPerWorkItem / (std::max)(size_t{1}, ElemSize));
+  size_t NumWorkGroupsForRange = NWorkItems / WGSize / ElemsPerWorkItem;
+  if (NumWorkGroupsForRange <= NumWorkGroups)
+    return NumWorkGroups;
+
+  // Kernels are compiled with -fsycl-id-queries-range=int by default, and such
+  // kernels can't be launched with a global range that doesn't fit in int, so
+  // keep the global range within INT_MAX. Also respect the device limit on the
+  // number of work-groups if it is reported.
+  size_t MaxNumWorkGroups =
+      static_cast<size_t>((std::numeric_limits<int>::max)()) / WGSize;
+  size_t DevMaxNumWorkGroups[3] = {};
+  if (Dev.getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+          Dev.getHandleRef(), UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+          sizeof(DevMaxNumWorkGroups), DevMaxNumWorkGroups,
+          nullptr) == UR_RESULT_SUCCESS &&
+      DevMaxNumWorkGroups[0] != 0)
+    MaxNumWorkGroups = (std::min)(MaxNumWorkGroups, DevMaxNumWorkGroups[0]);
+  return (std::max)(NumWorkGroups,
+                    (std::min)(NumWorkGroupsForRange, MaxNumWorkGroups));
 }
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
