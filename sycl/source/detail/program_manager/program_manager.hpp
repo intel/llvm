@@ -361,7 +361,7 @@ public:
 
   // Links a mix of static-linkable and dynamic-link-only images (see
   // needsDynamicLink) via link() and dynamicLink() respectively. Shared
-  // by the explicit kernel_bundle link path and the implicit build path.
+  // by kernel_bundle::link() and getBuiltURProgram(..., KernelName, ...).
   std::vector<device_image_plain>
   linkDeviceImages(std::vector<device_image_plain> Imgs, devices_range Devs,
                    const property_list &PropList);
@@ -498,9 +498,9 @@ protected:
       m_MergedImages;
 
   /// Keeps dynamic-link peer programs (see needsDynamicLink) alive for
-  /// implicitly-built programs, since urProgramDynamicLinkExp links
-  /// modules in place rather than merging. Only the UR program handles are
-  /// kept (not the owning device_image_plain), so this holds no reference
+  /// programs built on demand by kernel name, since urProgramDynamicLinkExp
+  /// links modules in place rather than merging. Only the UR program handles
+  /// are kept (not the owning device_image_plain), so this holds no reference
   /// to the context and is safe to release at any time, including after
   /// the originating context has been torn down.
   /// Guarded by MNativeProgramsMutex.

@@ -2961,11 +2961,12 @@ ProgramManager::linkDeviceImages(std::vector<device_image_plain> Imgs,
   // (under fast-link only) would misclassify as JIT.
   //
   // The predicate is ProgramManager::needsDynamicLink, shared by both
-  // callers of linkDeviceImages (the explicit kernel_bundle::link() path
-  // and getBuiltURProgram's implicit path) so they cannot drift. Targets
-  // currently classified as native AOT are spir64_x86_64 (OpenCL CPU) and
-  // spir64_gen (Intel GPU); NVPTX64/AMDGCN SYCLBINs emit PTX/HIP IR rather
-  // than native object images, so they take the static-link branch below.
+  // callers of linkDeviceImages (kernel_bundle::link() and the
+  // getBuiltURProgram overload that builds by kernel name) so they cannot
+  // drift. Targets currently classified as native AOT are spir64_x86_64
+  // (OpenCL CPU) and spir64_gen (Intel GPU); NVPTX64/AMDGCN SYCLBINs emit
+  // PTX/HIP IR rather than native object images, so they take the
+  // static-link branch below.
   auto NeedsDynamicLink = [](const device_image_plain &Img) {
     device_image_impl &Impl = *getSyclObjImpl(Img);
     return ProgramManager::needsDynamicLink(Impl.get_bin_image_ref(),

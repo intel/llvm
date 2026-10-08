@@ -1,5 +1,5 @@
-// Test a kernel launch (implicit build path) whose JIT (SPIR-V) device image
-// depends on an image that is only available as native AOT.
+// Test a kernel submitted without a kernel bundle, whose JIT (SPIR-V)
+// device image depends on an image that is only available as native AOT.
 
 // REQUIRES: ocloc, gpu, level_zero
 

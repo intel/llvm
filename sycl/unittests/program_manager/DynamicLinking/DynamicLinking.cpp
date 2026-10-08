@@ -293,7 +293,7 @@ TEST(DynamicLinking, AheadOfTimeOpenCL) {
       {AOT_CASE_PRG_NATIVE, AOT_CASE_PRG_DEP_NATIVE}));
 }
 
-// Regression test for the implicit kernel-launch path (getBuiltURProgram):
+// Regression test for a kernel submitted without a kernel bundle:
 // a JIT (SPIR-V) main image whose dependency is a native AOT image must
 // still route that dependency through urProgramDynamicLinkExp instead of
 // feeding it to urProgramLinkExp together with the main image.
