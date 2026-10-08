@@ -659,13 +659,15 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(::ur_usm_pool_handle_t hPoolOpque,
     value = hPool->getTotalReservedSize();
     break;
   case UR_USM_POOL_INFO_USED_CURRENT_EXP:
-    value = hPool->getTotalUsedSize();
+    if (auto Ret = hPool->getTotalUsedSize(value))
+      return Ret;
     break;
   case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
     value = hPool->getPeakReservedSize();
     break;
   case UR_USM_POOL_INFO_USED_HIGH_EXP:
-    value = hPool->getPeakUsedSize();
+    if (auto Ret = hPool->getPeakUsedSize(value))
+      return Ret;
     break;
   default:
     // Unknown enumerator
@@ -1076,8 +1078,9 @@ MakeProvider(ProviderParams *Params = nullptr) {
   return nullptr;
 }
 
-UsmPool::UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool)
-    : UrPool(UrPool), UmfPool(std::move(UmfPool)),
+UsmPool::UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool,
+                 bool IsProxy)
+    : UrPool(UrPool), UmfPool(std::move(UmfPool)), IsProxy(IsProxy),
       AsyncPool(
           [](::ur_event_handle_t Event) {
             return urEventReleaseInternal(v1_cast(Event));
@@ -1106,7 +1109,8 @@ v1::ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       common_cast(DevicesAndSubDevices));
   for (auto &Desc : Descriptors) {
     umf::pool_unique_handle_t Pool = nullptr;
-    if (IsProxy || isUsmPoolingDisabled(Desc)) {
+    bool UseProxy = IsProxy || isUsmPoolingDisabled(Desc);
+    if (UseProxy) {
       Pool = usm::makeProxyPool(MakeProvider(&Desc));
     } else {
       auto &PoolConfig =
@@ -1115,7 +1119,7 @@ v1::ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
 
     std::unique_ptr<UsmPool> usmPool =
-        std::make_unique<UsmPool>(this, std::move(Pool));
+        std::make_unique<UsmPool>(this, std::move(Pool), UseProxy);
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {
@@ -1175,7 +1179,8 @@ v1::ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   for (auto &Desc : Descriptors) {
     umf::pool_unique_handle_t Pool = nullptr;
-    if (isUsmPoolingDisabled(Desc)) {
+    bool UseProxy = isUsmPoolingDisabled(Desc);
+    if (UseProxy) {
       Pool = usm::makeProxyPool(MakeProvider(&Desc));
     } else {
       auto &PoolConfig =
@@ -1184,7 +1189,7 @@ v1::ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
 
     std::unique_ptr<UsmPool> usmPool =
-        std::make_unique<UsmPool>(this, std::move(Pool));
+        std::make_unique<UsmPool>(this, std::move(Pool), UseProxy);
     auto Ret = umf::umf2urResult(
         umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
     if (Ret) {
@@ -1408,12 +1413,42 @@ size_t v1::ur_usm_pool_handle_t_::getPeakReservedSize() {
   return Ret == UMF_RESULT_SUCCESS ? MaxPeakSize : 0;
 }
 
-size_t v1::ur_usm_pool_handle_t_::getTotalUsedSize() {
-  return AllocStats.getCurrent();
+ur_result_t v1::ur_usm_pool_handle_t_::getProxyUsedSize(bool Peak,
+                                                        size_t &Size) {
+  umf_result_t Ret = UMF_RESULT_SUCCESS;
+  PoolManager.forEachPool([&](UsmPool *Pool) {
+    if (!Pool->IsProxy)
+      return true;
+    umf_memory_provider_handle_t Provider = nullptr;
+    Ret = umfPoolGetMemoryProvider(Pool->UmfPool.get(), &Provider);
+    if (Ret != UMF_RESULT_SUCCESS)
+      return false;
+    size_t ProviderSize = 0;
+    Ret = umfCtlGet(Peak ? "umf.provider.by_handle.{}.stats.peak_memory"
+                         : "umf.provider.by_handle.{}.stats.allocated_memory",
+                    &ProviderSize, sizeof(ProviderSize), Provider);
+    if (Ret != UMF_RESULT_SUCCESS)
+      return false;
+    // Proxy pools do not cache allocations, so provider statistics track
+    // current and peak usage even though malloc_usable_size is unsupported.
+    Size += ProviderSize;
+    return true;
+  });
+  if (Ret != UMF_RESULT_SUCCESS) {
+    UR_LOG(ERR, "Failed to query proxy pool memory usage: {}", Ret);
+    return umf::umf2urResult(Ret);
+  }
+  return UR_RESULT_SUCCESS;
 }
 
-size_t v1::ur_usm_pool_handle_t_::getPeakUsedSize() {
-  return AllocStats.getPeak();
+ur_result_t v1::ur_usm_pool_handle_t_::getTotalUsedSize(size_t &UsedSize) {
+  UsedSize = AllocStats.getCurrent();
+  return getProxyUsedSize(false, UsedSize);
+}
+
+ur_result_t v1::ur_usm_pool_handle_t_::getPeakUsedSize(size_t &PeakSize) {
+  PeakSize = AllocStats.getPeak();
+  return getProxyUsedSize(true, PeakSize);
 }
 
 bool v1::ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {

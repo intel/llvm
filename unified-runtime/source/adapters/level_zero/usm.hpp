@@ -22,10 +22,12 @@ namespace ur::level_zero::v1 {
 extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
 
 struct UsmPool {
-  UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool);
+  UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool,
+          bool IsProxy);
   // Parent pool.
   ur_usm_pool_handle_t UrPool;
   umf::pool_unique_handle_t UmfPool;
+  bool IsProxy;
   // 'AsyncPool' needs to be declared after 'UmfPool' so its destructor is
   // invoked first.
   EnqueuedPool AsyncPool;
@@ -80,14 +82,15 @@ struct ur_usm_pool_handle_t_ : ur_object_t {
   void cleanupPoolsForQueue(ur_queue_handle_t Queue);
   size_t getTotalReservedSize();
   size_t getPeakReservedSize();
-  size_t getTotalUsedSize();
-  size_t getPeakUsedSize();
+  ur_result_t getTotalUsedSize(size_t &UsedSize);
+  ur_result_t getPeakUsedSize(size_t &PeakSize);
   UsmPool *getPool(const usm::pool_descriptor &Desc);
 
   ur_context_handle_t Context;
   ur::RefCount RefCount;
 
 private:
+  ur_result_t getProxyUsedSize(bool Peak, size_t &Size);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
   AllocationStats AllocStats;
 };
