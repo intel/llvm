@@ -153,12 +153,14 @@ TEST(AOTBinaryTarget, NeedsDynamicLinkAOTNoImports) {
       &AOT.image(), backend::ext_oneapi_level_zero));
 }
 
-TEST(AOTBinaryTarget, NeedsDynamicLinkAOTOpenCL) {
-  // The OpenCL adapter has no dynamic link support.
+TEST(AOTBinaryTarget, NeedsDynamicLinkAOTUnsupportedBackend) {
+  // Only Level Zero supports dynamic linking; other backends must keep using
+  // the regular program link.
   ImageHolder AOT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
                   SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{"Dep"}};
-  EXPECT_FALSE(
-      detail::ProgramManager::needsDynamicLink(&AOT.image(), backend::opencl));
+  for (backend Be :
+       {backend::opencl, backend::ext_oneapi_cuda, backend::ext_oneapi_hip})
+    EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(&AOT.image(), Be));
 }
 
 TEST(AOTBinaryTarget, NeedsDynamicLinkAOTWithImports) {

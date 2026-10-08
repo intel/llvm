@@ -2181,10 +2181,10 @@ bool ProgramManager::isAOTBinaryTarget(const char *DeviceTargetSpec) {
 
 bool ProgramManager::needsDynamicLink(const RTDeviceBinaryImage *BinImage,
                                       backend Backend) {
-  // The OpenCL adapter supports neither urProgramBuildExp nor
-  // urProgramDynamicLinkExp; native AOT images are linked with the regular
-  // program link there.
-  if (!BinImage || Backend == backend::opencl)
+  // Only Level Zero implements urProgramBuildExp/urProgramDynamicLinkExp.
+  // Other backends (OpenCL, CUDA, HIP) link native AOT images with the
+  // regular program link.
+  if (!BinImage || Backend != backend::ext_oneapi_level_zero)
     return false;
   return isAOTBinaryTarget(BinImage->getRawData().DeviceTargetSpec);
 }
@@ -2953,9 +2953,9 @@ std::vector<device_image_plain>
 ProgramManager::linkDeviceImages(std::vector<device_image_plain> Imgs,
                                  devices_range Devs,
                                  const property_list &PropList) {
-  // Native AOT images cannot participate in urProgramLinkExp (which expects
-  // SPIR-V via ZE_MODULE_FORMAT_IL_SPIRV) and must be routed through
-  // urProgramDynamicLinkExp instead. Partition by intrinsic image format
+  // Native AOT images cannot participate in urProgramLinkExp (which only
+  // links IL inputs) and must be routed through urProgramDynamicLinkExp
+  // instead. Partition by intrinsic image format
   // rather than by bundle_state: an AOT object SYCLBIN with unresolved
   // imports arrives in bundle_state::object, which a state-based partition
   // (under fast-link only) would misclassify as JIT.
@@ -2964,9 +2964,9 @@ ProgramManager::linkDeviceImages(std::vector<device_image_plain> Imgs,
   // callers of linkDeviceImages (kernel_bundle::link() and the
   // getBuiltURProgram overload that builds by kernel name) so they cannot
   // drift. Targets currently classified as native AOT are spir64_x86_64
-  // (OpenCL CPU) and spir64_gen (Intel GPU); NVPTX64/AMDGCN SYCLBINs emit
-  // PTX/HIP IR rather than native object images, so they take the
-  // static-link branch below.
+  // (OpenCL CPU) and spir64_gen (Intel GPU), and only backends supporting
+  // dynamic linking are affected (see needsDynamicLink). All other images
+  // take the static-link branch below.
   auto NeedsDynamicLink = [](const device_image_plain &Img) {
     device_image_impl &Impl = *getSyclObjImpl(Img);
     return ProgramManager::needsDynamicLink(Impl.get_bin_image_ref(),
@@ -3005,13 +3005,12 @@ ProgramManager::linkDeviceImages(std::vector<device_image_plain> Imgs,
                  /*AllowUnresolvedSymbols=*/!DynLinkImgs.empty());
 
   if (!DynLinkImgs.empty()) {
-    // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
-    // ZE_MODULE_FORMAT for the whole descriptor, so it cannot mix the
-    // static-link result with these inputs in one call. Build each
+    // urProgramLinkExp takes a single input format per call, so it cannot
+    // mix the static-link result with these inputs. Build each
     // program independently with ALLOW_UNRESOLVED_SYMBOLS (keeping its
     // imported references intact), then resolve the cross-module
-    // references via dynamicLink(), which is the L0 API designed for
-    // linking already-built modules of arbitrary formats.
+    // references via dynamicLink(), which links already-built modules of
+    // arbitrary formats.
     //
     // Routing the build through ProgramManager::build (rather than
     // calling urProgramCreateWithBinary + urProgramBuildExp inline)

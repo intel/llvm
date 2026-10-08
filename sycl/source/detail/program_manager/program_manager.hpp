@@ -416,8 +416,8 @@ public:
 
   // True when BinImage cannot go through urProgramLinkExp and must
   // instead be routed through urProgramDynamicLinkExp. Currently covers
-  // native AOT binaries (see isAOTBinaryTarget) on backends other than
-  // OpenCL, whose adapter has no dynamic link support.
+  // native AOT binaries (see isAOTBinaryTarget) on backends that support
+  // dynamic linking (currently only Level Zero).
   static bool needsDynamicLink(const RTDeviceBinaryImage *BinImage,
                                backend Backend);
 
