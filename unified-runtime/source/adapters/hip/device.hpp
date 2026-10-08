@@ -13,6 +13,8 @@
 
 #include <ur/ur.hpp>
 
+#include <algorithm>
+
 /// UR device mapping to a hipDevice_t.
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
@@ -28,7 +30,11 @@ private:
 
   int MaxWorkGroupSize{0};
   size_t MaxBlockDim[3];
+  // Opt-in per-block shared memory ceiling reported as local_mem_size.
   int MaxCapacityLocalMem{0};
+  // Non-opt-in per-block shared memory. Dynamic local memory above this
+  // requires hipFuncAttributeMaxDynamicSharedMemorySize.
+  int MaxDefaultLocalMem{0};
   int MaxChosenLocalMem{0};
   int ManagedMemSupport{0};
   int ConcurrentManagedAccess{0};
@@ -54,9 +60,31 @@ public:
         &MaxDim, hipDeviceAttributeMaxBlockDimZ, HIPDevice));
     MaxBlockDim[2] = size_t(MaxDim);
 
+    int MaxSharedMemPerBlock = 0;
     UR_CHECK_ERROR(hipDeviceGetAttribute(
-        &MaxCapacityLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+        &MaxSharedMemPerBlock, hipDeviceAttributeMaxSharedMemoryPerBlock,
         HIPDevice));
+    // Default dynamic shared-memory limit. Kernels that need more must opt in
+    // via hipFuncAttributeMaxDynamicSharedMemorySize, up to the opt-in ceiling.
+    MaxDefaultLocalMem = MaxSharedMemPerBlock;
+
+    int MaxSharedMemOptin = 0;
+    hipError_t OptinStatus = hipDeviceGetAttribute(
+        &MaxSharedMemOptin, hipDeviceAttributeSharedMemPerBlockOptin,
+        HIPDevice);
+    if (OptinStatus != hipSuccess) {
+      // ROCm 5.7 rejects this attribute on AMD (hipErrorInvalidValue). Clear
+      // the sticky error so later hipDeviceGetAttribute calls are not poisoned.
+      (void)hipGetLastError();
+      MaxSharedMemOptin = 0;
+    }
+    // ROCm 6.2 accepts the query on gfx90a but returns 0. CDNA parts that do
+    // report an opt-in value (ROCm 6.4+) report the same 64KiB LDS size as
+    // the non-opt-in limit, not a larger pool. Keep the larger of the two so
+    // a missing or zero opt-in cannot hide memory the device already exposes.
+    if (MaxSharedMemOptin <= 0)
+      MaxSharedMemOptin = MaxSharedMemPerBlock;
+    MaxCapacityLocalMem = std::max(MaxSharedMemPerBlock, MaxSharedMemOptin);
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &ManagedMemSupport, hipDeviceAttributeManagedMemory, HIPDevice));
     UR_CHECK_ERROR(hipDeviceGetAttribute(
@@ -113,6 +141,8 @@ public:
   const size_t *getMaxBlockDim() const noexcept { return MaxBlockDim; };
 
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
+
+  int getMaxDefaultLocalMem() const noexcept { return MaxDefaultLocalMem; };
 
   int getMaxChosenLocalMem() const noexcept { return MaxChosenLocalMem; };
 
