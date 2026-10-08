@@ -956,7 +956,8 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
 
   size_t size = 0;
   umfRet = umfPoolMallocUsableSize(hPool, pMem, &size);
-  if (umfRet != UMF_RESULT_SUCCESS) {
+  if (umfRet != UMF_RESULT_SUCCESS &&
+      umfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
     UR_LOG(ERR, "enqueueUSMFreeExp: failed to retrieve usable malloc size");
     return UR_RESULT_ERROR_UNKNOWN;
   }
