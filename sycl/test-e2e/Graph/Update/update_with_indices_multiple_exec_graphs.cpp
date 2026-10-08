@@ -67,5 +67,8 @@ int main() {
     assert(HostDataA[i] == i * 3);
     assert(HostDataB[i] == i);
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
   return 0;
 }

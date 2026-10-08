@@ -103,6 +103,8 @@ int main() {
   free(PtrA, Queue);
   free(PtrB, Queue);
   free(PtrC, Queue);
+  free(PtrBHost, Queue);
+  free(PtrCHost, Queue);
 
   for (size_t i = 0; i < Size; i++) {
     assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));

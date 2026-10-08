@@ -54,6 +54,8 @@ int main() {
   } catch (sycl::exception &e) {
     // TODO The subgraph update feature is not implemented yet. For now this
     // is the expected behaviour.
+    free(DataDevice, Queue);
+    free(DataDeviceUpdate, Queue);
     return 0;
   }
   assert(!GotException);
@@ -69,5 +71,7 @@ int main() {
     assert(check_value(i, 4, DataHostUpdate[i], "DataHostUpdate"));
   }
 
+  free(DataDevice, Queue);
+  free(DataDeviceUpdate, Queue);
   return 0;
 }

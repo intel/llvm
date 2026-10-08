@@ -143,5 +143,8 @@ int main() {
     assert(check_value(i, ReferenceC[i] / 2 + 2, DataC[i], "DataC"));
   }
 
+  free(PtrA, Q1);
+  free(PtrB, Q1);
+  free(PtrC, Q1);
   return 0;
 }

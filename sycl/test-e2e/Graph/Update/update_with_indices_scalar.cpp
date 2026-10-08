@@ -55,5 +55,7 @@ int main() {
   for (size_t i = 0; i < N; i++) {
     assert(HostData[i] == 99);
   }
+
+  free(DeviceData, Queue);
   return 0;
 }
