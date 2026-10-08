@@ -288,7 +288,7 @@ bool Scheduler::waitForEvent(event_impl &Event, bool *Success) {
   std::vector<Command *> ToCleanUp;
   GraphProcessor::waitForEvent(Event, Lock, ToCleanUp,
                                /*LockTheLock=*/false, Success);
-  cleanupCommands(ToCleanUp, false);
+  cleanupCommands(ToCleanUp, /*ScanAuxiliaryResources*/ false);
   return MAuxiliaryResourcesGeneration.load(std::memory_order_relaxed) !=
          Generation;
 }
@@ -457,7 +457,7 @@ void Scheduler::releaseResourcesAfterWait(event_impl &Event,
                                           bool ScanAuxiliaryResources) {
   const uint64_t Generation =
       MAuxiliaryResourcesGeneration.load(std::memory_order_relaxed);
-  cleanupCommands({}, false);
+  cleanupCommands({}, /*ScanAuxiliaryResources*/ false);
   cleanupAuxiliaryResourcesForEvent(Event);
   if (ScanAuxiliaryResources || MAuxiliaryResourcesGeneration.load(
                                     std::memory_order_relaxed) != Generation)
