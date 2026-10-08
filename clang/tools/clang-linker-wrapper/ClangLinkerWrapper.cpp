@@ -1137,17 +1137,13 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
 static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   const std::string Arch(Args.getLastArgValue(OPT_arch_EQ));
-  // In the case we have a fat object input with multiple device images of
-  // differing triples, and we are not doing -fsycl-link (so multiple linked
-  // device images are allowed), the host object defined a single registerlib
-  // symbol, so we need to make sure to only define the function once, not once
-  // per device image from that fat object. We need to keep track of the triple
-  // through, because in the -fsycl-link case, we may not use one of those
-  // device images if it doesn't match the -fsycl-link triple.
-  static StringSet TotalDefinedFuncs;
-  for (auto Name : SYCLRegisterLibFuncMap[std::make_pair(Triple.str(), Arch)]) {
-    if (TotalDefinedFuncs.find(Name) != TotalDefinedFuncs.end())
-      continue;
+  // We need to keep track of the triple and arch because we may not use all
+  // device images passed to the tool and we don't want to force unused objects
+  // to be linked in.
+  auto It = SYCLRegisterLibFuncMap.find(std::make_pair(Triple.str(), Arch));
+  if (It == SYCLRegisterLibFuncMap.end())
+    return;
+  for (std::string Name : It->second) {
     llvm::FunctionType *FTy = llvm::FunctionType::get(
         llvm::Type::getVoidTy(M.getContext()), /*isVarArg=*/false);
     auto *Fn = llvm::Function::Create(FTy, llvm::GlobalValue::WeakAnyLinkage,
@@ -1156,7 +1152,11 @@ static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
         llvm::BasicBlock::Create(M.getContext(), "entry", Fn);
     llvm::IRBuilder<> Builder(Entry);
     Builder.CreateRetVoid();
-    TotalDefinedFuncs.insert(Name);
+    if (M.getTargetTriple().supportsCOMDAT()) {
+      llvm::Comdat *C = M.getOrInsertComdat(Name);
+      C->setSelectionKind(llvm::Comdat::Any);
+      Fn->setComdat(C);
+    }
   }
 }
 

@@ -1291,7 +1291,10 @@ void CodeGenModule::Release() {
         // A static initializer may launch a kernel, so the device binary has to
         // be registered before any of them run, hence a priority.
         AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
-    } else if (LangOpts.OffloadingNewDriver) {
+    } else if (LangOpts.OffloadingNewDriver &&
+               !CodeGenOpts.OffloadObjects.empty()) {
+      // Only add registration functions if there has been a device compiler (so
+      // OffloadBinaryToEmbedFile or OffloadObjects is not empty).
       AddGlobalCtor(createSYCLRegisterLibFunc());
     }
   }
