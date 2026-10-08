@@ -3059,6 +3059,15 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
+      } else if (!NeedsWrapping) {
+        // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the
+        // host compilation links it in via -foffload-include-binary.
+        Expected<StringRef> OutputFile =
+            sycl::wrapSYCLBinariesFromFile(Modules, LinkerArgs,
+                                           /*IsEmbeddedIR=*/false);
+        if (!OutputFile)
+          return OutputFile.takeError();
+        AppendImageToWrapperOutput(*OutputFile);
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         Expected<StringRef> OutputFile =
@@ -3674,6 +3683,14 @@ int main(int Argc, char **Argv) {
       // Run the host linking job with the rendered arguments.
       if (!EmitFatbinOnly) {
         if (Error Err = runLinker(*FilesOrErr, Args))
+          reportError(std::move(Err));
+      } else if (!FilesOrErr->empty()) {
+        // Other offload kinds write the fat binary directly; the SYCL wrapper
+        // module still has to be copied to the requested output.
+        if (FilesOrErr->size() != 1)
+          reportError(createStringError(
+              "Expect single output from the SYCL device linker."));
+        if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
           reportError(std::move(Err));
       }
     }
