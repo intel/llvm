@@ -95,6 +95,7 @@ void testFreeFunctionKernel(sycl::queue &q, sycl::context &ctx,
   } catch (sycl::exception &e) {
     assert(maxWGs == 0);
   }
+  q.wait();
   sycl::free(data, ctx);
 }
 
@@ -146,6 +147,7 @@ void testLambdaKernel(sycl::queue &q, sycl::context &ctx, sycl::device &dev,
     assert(maxWGs == 0);
   }
   q.wait();
+  sycl::free(data, ctx);
 }
 
 int main() {
