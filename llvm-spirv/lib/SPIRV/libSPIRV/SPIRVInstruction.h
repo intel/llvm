@@ -999,6 +999,9 @@ public:
   SPIRVValue *getCondition() const { return getValue(ConditionId); }
   SPIRVLabel *getTrueLabel() const { return get<SPIRVLabel>(TrueLabelId); }
   SPIRVLabel *getFalseLabel() const { return get<SPIRVLabel>(FalseLabelId); }
+  const std::vector<SPIRVWord> &getBranchWeights() const {
+    return BranchWeights;
+  }
 
 protected:
   void setWordCount(SPIRVWord TheWordCount) override {

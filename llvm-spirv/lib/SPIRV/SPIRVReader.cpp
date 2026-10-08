@@ -76,6 +76,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
 #include "llvm/IR/PassInstrumentation.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/Casting.h"
@@ -2031,6 +2032,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         transValue(BR->getCondition(), F, BB),
         cast<BasicBlock>(transValue(BR->getTrueLabel(), F, BB)),
         cast<BasicBlock>(transValue(BR->getFalseLabel(), F, BB)), BB);
+    const std::vector<SPIRVWord> &Weights = BR->getBranchWeights();
+    if (Weights.size() == 2)
+      setBranchWeights(*BC, {Weights[0], Weights[1]}, /*IsExpected=*/false);
     // Loop metadata will be translated in the end of function translation.
     return mapValue(BV, BC);
   }
