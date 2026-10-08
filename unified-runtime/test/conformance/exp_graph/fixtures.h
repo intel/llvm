@@ -91,8 +91,14 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
 
   void TearDown() override {
     if (deviceMem) {
-      ASSERT_SUCCESS(urUSMFree(context, deviceMem));
+      // Reset the data while deviceMem is still a valid allocation. Freeing
+      // first and then enqueuing a fill on the freed pointer is a
+      // use-after-free: it could appear to work when USM pooling keeps freed
+      // memory mapped for reuse, but is not actually valid and fails (or
+      // crashes) once pooling is disabled, e.g. on Xe2+ devices with L0
+      // driver 1.17+ where a UMF proxy pool (no pooling) is used instead.
       resetData();
+      ASSERT_SUCCESS(urUSMFree(context, deviceMem));
     }
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphExpTest::TearDown());
