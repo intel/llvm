@@ -130,7 +130,8 @@ TEST(AOTBinaryTarget, GetBinImageStateAOTWithImports) {
 }
 
 TEST(AOTBinaryTarget, NeedsDynamicLinkNull) {
-  EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(nullptr));
+  EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(
+      nullptr, backend::ext_oneapi_level_zero));
 }
 
 TEST(AOTBinaryTarget, NeedsDynamicLinkNonAOT) {
@@ -138,7 +139,8 @@ TEST(AOTBinaryTarget, NeedsDynamicLinkNonAOT) {
   // through the ordinary urProgramLinkExp path instead.
   ImageHolder JIT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64,
                   SYCL_DEVICE_BINARY_TYPE_SPIRV, /*ImportedSymbols=*/{"Dep"}};
-  EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(&JIT.image()));
+  EXPECT_FALSE(detail::ProgramManager::needsDynamicLink(
+      &JIT.image(), backend::ext_oneapi_level_zero));
 }
 
 TEST(AOTBinaryTarget, NeedsDynamicLinkAOTNoImports) {
@@ -147,7 +149,16 @@ TEST(AOTBinaryTarget, NeedsDynamicLinkAOTNoImports) {
   // SYCLBINAOTLink.AOTOnlyLinkSkipsJITLink).
   ImageHolder AOT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
                   SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{}};
-  EXPECT_TRUE(detail::ProgramManager::needsDynamicLink(&AOT.image()));
+  EXPECT_TRUE(detail::ProgramManager::needsDynamicLink(
+      &AOT.image(), backend::ext_oneapi_level_zero));
+}
+
+TEST(AOTBinaryTarget, NeedsDynamicLinkAOTOpenCL) {
+  // The OpenCL adapter has no dynamic link support.
+  ImageHolder AOT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{"Dep"}};
+  EXPECT_FALSE(
+      detail::ProgramManager::needsDynamicLink(&AOT.image(), backend::opencl));
 }
 
 TEST(AOTBinaryTarget, NeedsDynamicLinkAOTWithImports) {
@@ -155,5 +166,6 @@ TEST(AOTBinaryTarget, NeedsDynamicLinkAOTWithImports) {
   // urProgramLinkExp and must be routed through dynamicLink() instead.
   ImageHolder AOT{__SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
                   SYCL_DEVICE_BINARY_TYPE_NATIVE, /*ImportedSymbols=*/{"Dep"}};
-  EXPECT_TRUE(detail::ProgramManager::needsDynamicLink(&AOT.image()));
+  EXPECT_TRUE(detail::ProgramManager::needsDynamicLink(
+      &AOT.image(), backend::ext_oneapi_level_zero));
 }

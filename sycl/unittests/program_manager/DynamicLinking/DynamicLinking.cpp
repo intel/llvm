@@ -252,7 +252,7 @@ TEST(DynamicLinking, MutualDependency) {
 }
 
 TEST(DynamicLinking, AheadOfTime) {
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
 
   sycl::platform Plt = sycl::platform();
@@ -274,12 +274,31 @@ TEST(DynamicLinking, AheadOfTime) {
   ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel, AOT_CASE_PRG_NATIVE);
 }
 
+// The OpenCL adapter supports neither urProgramBuildExp nor
+// urProgramDynamicLinkExp, so native AOT images must keep using the regular
+// program link there.
+TEST(DynamicLinking, AheadOfTimeOpenCL) {
+  sycl::unittest::UrMock<sycl::backend::opencl> Mock;
+  setupRuntimeLinkingMock();
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramDynamicLinkCalls, 0u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {AOT_CASE_PRG_NATIVE, AOT_CASE_PRG_DEP_NATIVE}));
+}
+
 // Regression test for the implicit kernel-launch path (getBuiltURProgram):
 // a JIT (SPIR-V) main image whose dependency is a native AOT image must
 // still route that dependency through urProgramDynamicLinkExp instead of
 // feeding it to urProgramLinkExp together with the main image.
 TEST(DynamicLinking, MixedAOTDependency) {
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
 
   sycl::platform Plt = sycl::platform();
@@ -574,7 +593,7 @@ getObjectImage(sycl::queue &Q, const sycl::kernel_id &KernelID) {
 // participates in the program-cache key, so an unresolved-symbols build and a
 // normal build of the same image do not collide.
 TEST(DynamicLinking, AOTObjectBuildAllowUnresolvedSymbols) {
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
 
   sycl::platform Plt = sycl::platform();
@@ -620,7 +639,7 @@ static ur_result_t redefined_urProgramBuildExpUnsupported(void *) {
 }
 
 TEST(DynamicLinking, AOTObjectBuildNoBuildExp) {
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
   mock::getCallbacks().set_replace_callback(
       "urProgramBuildExp", redefined_urProgramBuildExpUnsupported);
@@ -650,7 +669,7 @@ TEST(DynamicLinking, AOTObjectBuildNoBuildExp) {
 // images must not be force-routed through dynamicLink()/
 // AllowUnresolvedSymbols just because its format is native AOT.
 TEST(DynamicLinking, StandaloneAOTNoDeps) {
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
   mock::getCallbacks().set_replace_callback(
       "urProgramBuildExp", redefined_urProgramBuildExpUnsupported);
@@ -679,7 +698,7 @@ static ur_result_t redefined_urProgramLinkExpUnsupported(void *) {
 }
 
 TEST(DynamicLinking, AOTObjectBuildNoLinkExp) {
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   setupRuntimeLinkingMock();
   mock::getCallbacks().set_replace_callback(
       "urProgramLinkExp", redefined_urProgramLinkExpUnsupported);

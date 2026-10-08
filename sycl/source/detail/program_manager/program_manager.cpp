@@ -705,7 +705,8 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       // it is a native AOT dependency that will be routed through
       // dynamicLink() (see needsDynamicLink), which does not require
       // matching formats.
-      if (Img->getFormat() != Format && !needsDynamicLink(Img))
+      if (Img->getFormat() != Format &&
+          !needsDynamicLink(Img, Dev.getBackend()))
         continue;
 
       DeviceImagesToLink.insert(Img);
@@ -867,10 +868,10 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   // urProgramLinkExp and must be routed through dynamicLink() instead, but
   // only if there is actually a dependency to link against.
   // Cheap check; only build device_image_plain below when needed.
-  bool AnyNeedsDynamicLink =
-      !DeviceImagesToLink.empty() && needsDynamicLink(&Img);
+  bool AnyNeedsDynamicLink = !DeviceImagesToLink.empty() &&
+                             needsDynamicLink(&Img, ContextImpl.getBackend());
   for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
-    AnyNeedsDynamicLink |= needsDynamicLink(BinImg);
+    AnyNeedsDynamicLink |= needsDynamicLink(BinImg, ContextImpl.getBackend());
 
   if (AnyNeedsDynamicLink) {
     context Context = createSyclObjFromImpl<context>(ContextImpl);
@@ -888,7 +889,7 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     // returned program (dynamic link is in-place, not a merge). Find
     // Img's result by pointer identity, or front() if statically linked.
     device_image_plain *MainResult;
-    if (needsDynamicLink(&Img)) {
+    if (needsDynamicLink(&Img, ContextImpl.getBackend())) {
       auto MainIt = std::find_if(
           LinkedResults.begin(), LinkedResults.end(),
           [&Img](const device_image_plain &Result) {
@@ -2168,8 +2169,12 @@ bool ProgramManager::isAOTBinaryTarget(const char *DeviceTargetSpec) {
          strcmp(DeviceTargetSpec, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0;
 }
 
-bool ProgramManager::needsDynamicLink(const RTDeviceBinaryImage *BinImage) {
-  if (!BinImage)
+bool ProgramManager::needsDynamicLink(const RTDeviceBinaryImage *BinImage,
+                                      backend Backend) {
+  // The OpenCL adapter supports neither urProgramBuildExp nor
+  // urProgramDynamicLinkExp; native AOT images are linked with the regular
+  // program link there.
+  if (!BinImage || Backend == backend::opencl)
     return false;
   return isAOTBinaryTarget(BinImage->getRawData().DeviceTargetSpec);
 }
@@ -2952,8 +2957,9 @@ ProgramManager::linkDeviceImages(std::vector<device_image_plain> Imgs,
   // spir64_gen (Intel GPU); NVPTX64/AMDGCN SYCLBINs emit PTX/HIP IR rather
   // than native object images, so they take the static-link branch below.
   auto NeedsDynamicLink = [](const device_image_plain &Img) {
-    return ProgramManager::needsDynamicLink(
-        getSyclObjImpl(Img)->get_bin_image_ref());
+    device_image_impl &Impl = *getSyclObjImpl(Img);
+    return ProgramManager::needsDynamicLink(Impl.get_bin_image_ref(),
+                                            Impl.get_context().get_backend());
   };
   // Manually partition (stable) instead of std::stable_partition, whose
   // libstdc++ implementation can fall back to the deprecated
