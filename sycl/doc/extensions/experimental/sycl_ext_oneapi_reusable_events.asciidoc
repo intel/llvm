@@ -336,6 +336,13 @@ It is legal to reassociate the event _E_ to a new command via
 `enqueue_signal_event` even before command _C_ completes.
 Doing so does _not_ change the dependency for command _C_.
 
+The `event::get_wait_list` function returns event objects.
+If an event _E_ is a dependency of a command _C_, and _E_ is reassociated with
+a new command after _C_ is submitted, `event::get_wait_list` called on the
+event returned by the submission of _C_ may still include _E_.
+If it does, _E_ represents the command it is associated with at the time of the
+call, not the command that _C_ waits for.
+
 If another host thread is blocked waiting for event _E_ to complete via
 `event::wait` or `event::wait_and_throw` when event _E_ is reassociated with a
 new command via `enqueue_signal_event`, the behavior of the `event::wait` or
