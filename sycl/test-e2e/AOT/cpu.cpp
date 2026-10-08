@@ -6,7 +6,7 @@
 //
 //===---------------------------------------------------------------------===//
 
-// REQUIRES: opencl-aot, cpu, opencl-cpu-rt
+// REQUIRES: opencl-aot, cpu, opencl-cpu-rt, spir-family
 
 // CPU AOT targets host isa, so we compile on the run system instead.
 // RUN: %{run-aux} %clangxx -fsycl %aot_options %S/Inputs/aot.cpp -o %t.out
