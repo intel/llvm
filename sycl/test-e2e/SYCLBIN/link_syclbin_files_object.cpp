@@ -9,7 +9,7 @@
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %S/Inputs/exporting_function.cpp -o %t.export.syclbin
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %S/Inputs/importing_kernel.cpp -o %t.import.syclbin
-// RUN: %clangxx -fsycl-link %t.export.syclbin %t.import.syclbin -o %t.syclbin
+// RUN: %clangxx -fsycl-link -Wno-unused-command-line-argument %t.export.syclbin %t.import.syclbin -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.syclbin
 
