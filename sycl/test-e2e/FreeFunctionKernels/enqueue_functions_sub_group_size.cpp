@@ -1,7 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: sg-16 || sg-32
-// UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: Device incompatible error
 
 // UNSUPPORTED: native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22772

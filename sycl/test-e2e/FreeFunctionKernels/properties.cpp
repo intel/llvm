@@ -4,9 +4,6 @@
 // RUN: %if sg-16 %{ %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out %}
 // RUN: %if sg-32 %{ %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out %}
 
-// UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: Device incompatible error
-
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
