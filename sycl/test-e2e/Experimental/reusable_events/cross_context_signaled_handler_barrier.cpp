@@ -4,11 +4,11 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out
 
-// Known defect: review-10-02 #6 (handler barrier wait lists neither schedule a
-// pending reusable signal nor bridge contexts: getUrEventsBlocking adds a null
-// or foreign-context handle to the backend wait list).
+// Known defect BUG-6 (review-10-02 #6): handler barrier wait lists neither
+// schedule a pending reusable signal nor bridge contexts: getUrEventsBlocking
+// adds a null or foreign-context handle to the backend wait list.
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #6
+// XFAIL-TRACKER: BUG-6 (review-10-02 #6)
 
 // tests-10-02 E08 (handler barrier): A cross-context handler barrier on a
 // deferred signal follows the captured signal.

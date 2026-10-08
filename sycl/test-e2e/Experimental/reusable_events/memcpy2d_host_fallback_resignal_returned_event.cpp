@@ -3,7 +3,8 @@
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #5 (host task events cannot be re-signaled)
+// XFAIL-TRACKER: BUG-17 (review-10-02 #5: host task events cannot be
+// re-signaled)
 
 // tests-10-02 E11: 2D copy/fill host fallback with pitches and captured
 // signals - re-signal of the event returned by the fallback.

@@ -2,8 +2,8 @@
 // REQUIRES: aspect-usm_host_allocations
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #5 (enqueue_wait_event and enqueue_wait_events
-// still reject every event of a handler::host_task)
+// XFAIL-TRACKER: BUG-5 (review-10-02 #5: enqueue_wait_event and
+// enqueue_wait_events still reject every event of a handler::host_task)
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out

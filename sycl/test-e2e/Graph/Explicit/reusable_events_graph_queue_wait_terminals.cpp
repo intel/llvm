@@ -4,8 +4,8 @@
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #4 (queue waits ignore graph terminal partitions
-// attached via MPostCompleteEvents)
+// XFAIL-TRACKER: BUG-1 (review-10-02 #4: queue waits ignore graph terminal
+// partitions attached via MPostCompleteEvents)
 
 // tests-10-02 E18 (known defect): queue waits and waits on an original
 // consumer of a graph execution include every terminal partition of the

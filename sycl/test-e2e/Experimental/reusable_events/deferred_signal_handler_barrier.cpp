@@ -2,9 +2,9 @@
 // REQUIRES: aspect-usm_device_allocations, aspect-usm_host_allocations
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #6 (handler barrier wait lists do not schedule
-// a pending reusable signal: a deferred signal is passed on as a null or stale
-// backend handle)
+// XFAIL-TRACKER: BUG-6 (review-10-02 #6: handler barrier wait lists do not
+// schedule a pending reusable signal: a deferred signal is passed on as a null
+// or stale backend handle)
 
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out

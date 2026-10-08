@@ -4,8 +4,8 @@
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #3 (auxiliary resources follow the mutable
-// event identity)
+// XFAIL-TRACKER: BUG-2 (review-10-02 #3: auxiliary resources follow the
+// mutable event identity)
 
 // tests-10-02 E13: Reduction and buffer destruction retain original resources
 // - reduction temporaries.

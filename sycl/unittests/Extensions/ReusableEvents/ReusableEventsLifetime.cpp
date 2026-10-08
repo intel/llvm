@@ -556,8 +556,9 @@ TEST_P(ReusableEventsLifetimeSupportTest,
 }
 
 // tests-10-02 U23.
-// Known defect: review-10-02 #8 (a signal depending on the previous signal of
-// the same event owns the event through its captured dependency, a cycle).
+// Known defect BUG-8 (review-10-02 #8): a signal depending on the previous
+// signal of the same event owns the event through its captured dependency, a
+// cycle.
 TEST_P(ReusableEventsLifetimeSupportTest,
        DISABLED_RepeatedDeferredSignalsAreReleased) {
   signalRepeatedlyAndRelease(2, /*Consume=*/false, Ctx);
@@ -834,8 +835,8 @@ TEST_F(ReusableEventsLifetimeTest, SignalWaitersWakeForTheirOwnSignal) {
 // capture it in dependencies, query its status and read its wait list through
 // copies of their own. Every captured dependency is a whole signal: the
 // backend only ever sees handles the mock created, never a null one.
-// Known defect: review-10-01 #2 (MBinding is replaced without
-// synchronization). At 8337da70 the test crashes within a few repetitions
+// Known defect BUG-4 (review-10-01 #2): MBinding is replaced without
+// synchronization. At 8337da70 the test crashes within a few repetitions
 // without ThreadSanitizer: SIGSEGV in registerEventDependency, under
 // handler::depends_on on the capturing thread.
 void signalWhileOthersRead(sycl::queue &SignalQueue, sycl::queue &Consumers,
@@ -895,8 +896,8 @@ TEST_F(ReusableEventsLifetimeTest, DISABLED_CaptureDuringReassociation) {
 // Investigation (tests-10-02 U41): two simultaneous signal callers. The
 // extension does not say whether they are serialized; only safety is checked.
 // Pins behaviour at 8337da70; oracle not agreed. Disabled with the above, as
-// the callers race on MBinding the same way (review-10-01 #2); at 8337da70 it
-// crashes in most runs, not all.
+// the callers race on MBinding the same way (BUG-4, review-10-01 #2); at
+// 8337da70 it crashes in most runs, not all.
 TEST_F(ReusableEventsLifetimeTest, DISABLED_SimultaneousSignalCallers) {
   sycl::queue SignalQueue = inOrderQueue();
   sycl::queue Consumers = inOrderQueue();
@@ -909,9 +910,9 @@ TEST_F(ReusableEventsLifetimeTest, DISABLED_SimultaneousSignalCallers) {
 // the host task partition (an attachment). The event is then signaled on
 // another queue: the new signal does not wait for that attachment, and a
 // consumer of the graph's signal still does.
-// Known defect: review-10-01 #4 (the attachments are per event, not per
-// signal, so they are waited for by every later signal) and review-10-02 #4
-// (waits for a captured signal ignore its attachments).
+// Known defects BUG-3 (review-10-01 #4): the attachments are per event, not
+// per signal, so they are waited for by every later signal; and BUG-1
+// (review-10-02 #4): waits for a captured signal ignore its attachments.
 TEST_F(ReusableEventsLifetimeTest,
        DISABLED_CompletionAttachmentsBelongToTheirSignal) {
   sycl::queue GraphQueue{Ctx, Dev};

@@ -4,8 +4,8 @@
 // RUN: env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #7 (ext_oneapi_get_last_event returns the
-// wrong signal)
+// XFAIL-TRACKER: BUG-7 (review-10-02 #7: ext_oneapi_get_last_event returns
+// the wrong signal)
 
 // tests-10-02 E15: Last-event and queue-empty APIs report the original queue's
 // work - last event of a re-signaled kernel.

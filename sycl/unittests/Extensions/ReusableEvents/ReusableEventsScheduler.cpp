@@ -720,8 +720,8 @@ protected:
 //===----------------------------------------------------------------------===//
 
 // tests-10-02 U15, steps 1-2.
-// Known defect: review-10-02 #6 (getUrEventsBlocking takes the handle of a
-// signal a deferred BLOCKING enqueue left in the scheduler, i.e. null).
+// Known defect BUG-6 (review-10-02 #6): getUrEventsBlocking takes the handle
+// of a signal a deferred BLOCKING enqueue left in the scheduler, i.e. null.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_HandlerBarrierWaitsForDeferredSignal) {
   checkBarrierWaitsForDeferredSignal(BarrierApi::Handler);
@@ -743,8 +743,8 @@ TEST_F(ReusableEventsSchedulerTest, QueueBarrierWaitsForPublishedSignal) {
 }
 
 // tests-10-02 U15, step 4.
-// Known defect: review-10-02 #6 (the handler barrier wait list passes the
-// handle of another context to the queue instead of bridging it).
+// Known defect BUG-6 (review-10-02 #6): the handler barrier wait list passes
+// the handle of another context to the queue instead of bridging it.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_HandlerBarrierBridgesForeignSignal) {
   checkBarrierBridgesForeignSignal(BarrierApi::Handler);
@@ -1188,8 +1188,8 @@ TEST_F(ReusableEventsSchedulerTest, QueueWaitCoversTheOriginalStreamFlush) {
 
 // tests-10-02 U20, step 2: waiting for the new signal does not wait for the
 // stream flush of the old one.
-// Known defect: review-10-01 #4 (the flush is attached to the event, not to
-// the signal of the kernel, so every later signal waits for it).
+// Known defect BUG-3 (review-10-01 #4): the flush is attached to the event,
+// not to the signal of the kernel, so every later signal waits for it.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_NewSignalDoesNotWaitForTheOldStreamFlush) {
   sycl::queue Q{Ctx, Dev};
@@ -1429,16 +1429,16 @@ void checkResourcesLiveUntilTheOriginalCompletes(const sycl::context &Ctx,
 }
 
 // tests-10-02 U21, steps 1-5.
-// Known defect: review-10-02 #3 (auxiliary resources are keyed by the event,
-// so the cleanup follows its latest signal).
+// Known defect BUG-2 (review-10-02 #3): auxiliary resources are keyed by the
+// event, so the cleanup follows its latest signal.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_AuxiliaryResourcesLiveUntilTheOriginalCompletes) {
   checkResourcesLiveUntilTheOriginalCompletes(Ctx, Dev, /*Transfer*/ false);
 }
 
 // tests-10-02 U21, step 5, takeAuxiliaryResources.
-// Known defect: review-10-02 #3 (auxiliary resources are keyed by the event,
-// so the cleanup follows its latest signal).
+// Known defect BUG-2 (review-10-02 #3): auxiliary resources are keyed by the
+// event, so the cleanup follows its latest signal.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_TransferredAuxiliaryResourcesLiveUntilTheOriginalCompletes) {
   checkResourcesLiveUntilTheOriginalCompletes(Ctx, Dev, /*Transfer*/ true);
@@ -1451,8 +1451,8 @@ TEST_F(ReusableEventsSchedulerTest,
 // tests-10-02 U22, steps 1-3: a kernel writing a buffer remains an incomplete
 // leaf of the buffer's record after its event moved on to a completed signal,
 // and the buffer's destruction waits for it.
-// Known defect: review-10-01 #3 (checkLeavesCompletion asks the command's
-// event, which reports its latest signal).
+// Known defect BUG-9 (review-10-01 #3): checkLeavesCompletion asks the
+// command's event, which reports its latest signal.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_ReSignaledKernelRemainsAnIncompleteLeaf) {
   int Data[4] = {1, 2, 3, 4};
@@ -1692,8 +1692,8 @@ TEST_F(ReusableEventsSchedulerTest, FailedEventsWaitWakesWaiters) {
 }
 
 // tests-10-02 U29, the barrier fails after the native event was created.
-// Known defect: review-10-01 #4 (the created handle stays published without
-// completion: waiters block on it and it leaks).
+// Known defect BUG-10 (review-10-01 #4): the created handle stays published
+// without completion: waiters block on it and it leaks.
 TEST_F(ReusableEventsSchedulerTest,
        DISABLED_FailedBarrierWakesWaitersAndReleasesTheCreatedEvent) {
   checkFailedSignal(FailurePoint::Barrier);

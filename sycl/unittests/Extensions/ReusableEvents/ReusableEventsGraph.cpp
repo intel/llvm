@@ -550,8 +550,8 @@ TEST_F(ReusableEventsGraphTest, ReturnedEventWaitCoversIndependentTerminal) {
 
 // tests-10-02 U32. A queue wait must cover the independent host-task terminal;
 // urQueueFinish alone does not.
-// Known defect: review-10-02 #4 (queue waits use the captured binding, whose
-// wait ignores the graph's other terminal partitions).
+// Known defect BUG-1 (review-10-02 #4): queue waits use the captured binding,
+// whose wait ignores the graph's other terminal partitions.
 TEST_F(ReusableEventsGraphTest, DISABLED_QueueWaitCoversIndependentTerminal) {
   sycl::queue Q = inOrderQueue();
   auto Gate = std::make_shared<HostTaskGate>();
@@ -570,8 +570,8 @@ TEST_F(ReusableEventsGraphTest, DISABLED_QueueWaitCoversIndependentTerminal) {
 // consumer captured it, before any wait on it. The consumer and the queue wait
 // still cover the old execution's independent terminal, and finish once it
 // completes.
-// Known defect: review-10-02 #4 (the completion attachments of a graph
-// execution are not preserved in the binding the consumer and queue capture).
+// Known defect BUG-1 (review-10-02 #4): the completion attachments of a graph
+// execution are not preserved in the binding the consumer and queue capture.
 TEST_F(ReusableEventsGraphTest,
        DISABLED_ResignaledGraphEventKeepsCompletionAttachments) {
   std::atomic<bool> ConsumerRan{false};

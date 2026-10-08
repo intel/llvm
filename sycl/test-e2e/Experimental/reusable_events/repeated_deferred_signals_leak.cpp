@@ -5,8 +5,8 @@
 // RUN: %{l0_leak_check} env SYCL_QUEUE_THREAD_POOL_SIZE=8 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK
 
 // XFAIL: *
-// XFAIL-TRACKER: review-10-02 #8 (ownership cycle with repeated deferred
-// signals)
+// XFAIL-TRACKER: BUG-8 (review-10-02 #8: ownership cycle with repeated
+// deferred signals)
 
 // tests-10-02 E23: Bounded lifetime stress with repeated deferred signals -
 // release of the runtime objects.

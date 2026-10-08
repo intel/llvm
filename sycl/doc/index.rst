@@ -60,6 +60,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/SYCLBINDesign
    design/PropertySets
    design/SYCL-RTC
+   design/ReusableEvents
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
    design/Fuzzing

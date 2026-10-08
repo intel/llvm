@@ -255,8 +255,8 @@ TEST_F(ReusableEventsQueueTest, MixedWaitVectorWaitsForEveryInput) {
 
 // tests-10-02 U08. The same with an ordinary host-task event in the vector:
 // the barrier waits for the host task too.
-// Known defect: review-10-02 #5 (the public waits reject every host event,
-// host-task events included).
+// Known defect BUG-5 (review-10-02 #5): the public waits reject every host
+// event, host-task events included.
 TEST_F(ReusableEventsQueueTest, DISABLED_MixedWaitVectorWithHostTaskEvent) {
   sycl::context Ctx2{Dev};
   sycl::queue SQ = inOrderQueue();
@@ -366,8 +366,8 @@ TEST_F(ReusableEventsQueueTest, EmptyWaitVectorIsNoOp) {
 
 // tests-10-02 U09. Both public waits for a host task held at a gate are
 // accepted, and the device work submitted after them waits for the host task.
-// Known defect: review-10-02 #5 (the public waits reject every host event,
-// host-task events included).
+// Known defect BUG-5 (review-10-02 #5): the public waits reject every host
+// event, host-task events included.
 TEST_F(ReusableEventsQueueTest, DISABLED_HostTaskEventWaitsAreAccepted) {
   sycl::queue HQ = inOrderQueue();
   sycl::queue Q1 = inOrderQueue();
@@ -392,8 +392,8 @@ TEST_F(ReusableEventsQueueTest, DISABLED_HostTaskEventWaitsAreAccepted) {
 }
 
 // tests-10-02 U09. The same with a host task which is complete already.
-// Known defect: review-10-02 #5 (the public waits reject every host event,
-// host-task events included).
+// Known defect BUG-5 (review-10-02 #5): the public waits reject every host
+// event, host-task events included.
 TEST_F(ReusableEventsQueueTest, DISABLED_CompletedHostTaskEventWaitIsAccepted) {
   sycl::queue HQ = inOrderQueue();
   sycl::queue Q1 = inOrderQueue();
@@ -411,8 +411,8 @@ TEST_F(ReusableEventsQueueTest, DISABLED_CompletedHostTaskEventWaitIsAccepted) {
 }
 
 // tests-10-02 U09. The same with a host task held in another context.
-// Known defect: review-10-02 #5 (the public waits reject every host event,
-// host-task events included).
+// Known defect BUG-5 (review-10-02 #5): the public waits reject every host
+// event, host-task events included.
 TEST_F(ReusableEventsQueueTest,
        DISABLED_OtherContextHostTaskEventWaitIsAccepted) {
   sycl::context Ctx2{Dev};
@@ -540,8 +540,8 @@ ur_event_handle_t resignalHeldLastKernel(sycl::queue &Q1, sycl::queue &Q2,
 
 // tests-10-02 U13. The last event of Q1 is its last command, the kernel, not
 // the later signal of the kernel's event on Q2.
-// Known defect: review-10-02 #7 (getLastEvent hands out the event of the last
-// command, which represents its latest signal, not the captured one).
+// Known defect BUG-7 (review-10-02 #7): getLastEvent hands out the event of
+// the last command, which represents its latest signal, not the captured one.
 TEST_F(ReusableEventsQueueTest, DISABLED_LastEventTracksQueueAfterResignal) {
   sycl::queue HQ = inOrderQueue();
   sycl::queue Q1 = inOrderQueue();
