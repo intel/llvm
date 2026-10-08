@@ -558,6 +558,24 @@ public:
     FullLinkTimeOptimizationLastEPCallbacks.push_back(C);
   }
 
+  /// Register a callback for ThinLTO default optimizer pipeline extension point
+  ///
+  /// This extension point allows adding optimizations at the start of the
+  /// thin LTO pipeline.
+  void registerThinLinkTimeOptimizationEarlyEPCallback(
+      const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
+    ThinLinkTimeOptimizationEarlyEPCallbacks.push_back(C);
+  }
+
+  /// Register a callback for ThinLTO default optimizer pipeline extension point
+  ///
+  /// This extension point allows adding optimizations at the end of the thin
+  /// LTO pipeline.
+  void registerThinLinkTimeOptimizationLastEPCallback(
+      const std::function<void(ModulePassManager &, OptimizationLevel)> &C) {
+    ThinLinkTimeOptimizationLastEPCallbacks.push_back(C);
+  }
+
   /// Register a callback for parsing an AliasAnalysis Name to populate
   /// the given AAManager \p AA
   void registerParseAACallback(
@@ -684,6 +702,12 @@ public:
                                                  OptimizationLevel Level);
   LLVM_ABI void
   invokeFullLinkTimeOptimizationLastEPCallbacks(ModulePassManager &MPM,
+                                                OptimizationLevel Level);
+  LLVM_ABI void
+  invokeThinLinkTimeOptimizationEarlyEPCallbacks(ModulePassManager &MPM,
+                                                 OptimizationLevel Level);
+  LLVM_ABI void
+  invokeThinLinkTimeOptimizationLastEPCallbacks(ModulePassManager &MPM,
                                                 OptimizationLevel Level);
   LLVM_ABI void invokePipelineStartEPCallbacks(ModulePassManager &MPM,
                                                OptimizationLevel Level);
@@ -820,6 +844,10 @@ private:
       FullLinkTimeOptimizationEarlyEPCallbacks;
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
       FullLinkTimeOptimizationLastEPCallbacks;
+  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
+      ThinLinkTimeOptimizationEarlyEPCallbacks;
+  SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
+      ThinLinkTimeOptimizationLastEPCallbacks;
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel)>, 2>
       PipelineStartEPCallbacks;
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel,

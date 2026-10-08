@@ -17,12 +17,16 @@
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Frontend/Offloading/SYCLBackendOptions.h"
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -153,6 +157,9 @@ static bool UseSYCLPostLinkTool;
 static bool OutputSYCLBIN = false;
 
 static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
+
+/// Whether the device code being linked comes from SYCLBIN input files.
+static bool LinkingSYCLBINFiles = false;
 
 static SmallString<128> OffloadImageDumpDir;
 
@@ -553,6 +560,18 @@ namespace amdgcn {
 // NOTE: copied from HIPUtility.cpp.
 static std::string normalizeForBundler(const llvm::Triple &T,
                                        bool HasTargetID) {
+  // FIXME: Short-term hack, mirrors HIPUtility.cpp. The HIP runtime (CLR)
+  // hardcodes the legacy "amdgcn-amd-amdhsa" spelling when parsing the target
+  // IDs embedded in the fatbin bundle. The new amdgpu subarch triples (e.g.
+  // "amdgpu9.00-amd-amdhsa"), and the plain canonical "amdgpu" arch name, do
+  // not match, producing hipErrorInvalidImage at load time. Force the legacy
+  // "amdgcn-amd-amdhsa" spelling in the bundle entry until CLR stops
+  // hardcoding this.
+  if (HasTargetID && T.isAMDGCN())
+    return ("amdgcn-" + T.getVendorName() + "-" + T.getOSName() + "-" +
+            T.getEnvironmentName())
+        .str();
+
   return HasTargetID ? (T.getArchName() + "-" + T.getVendorName() + "-" +
                         T.getOSName() + "-" + T.getEnvironmentName())
                            .str()
@@ -1029,11 +1048,9 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// any of them.
 /// \p BackendOptions is a string containing backend compilation options
 /// extracted from the device image (e.g. "-options -cl-opt-disable").
-/// \p AOTDeviceArgs are additional options supplied on the clang-linker-
-/// wrapper command line via --device-compiler=/--device-linker=; each is
-/// already an individual token and is appended to \p CmdArgs verbatim,
-/// without being merged into \p BackendOptions and re-split, so that tokens
-/// containing embedded spaces are preserved intact.
+/// \p AOTDeviceArgs are mapped tool options supplied via --device-linker=;
+/// each is an individual token appended to \p CmdArgs verbatim, preserving
+/// embedded spaces.
 // FIXME: This literal-substring split on "-options " is inherently fragile
 // (e.g. link-opts appended after a compile-opts "-options ..." blob get
 // silently absorbed into the -options value). The root issue is that
@@ -1145,9 +1162,7 @@ runAOTCompileIntelGPU(StringRef InputFile, const ArgList &Args,
 /// code.
 /// \p BackendOptions is a string containing backend compilation options
 /// extracted from the device image. For example, "-options -cl-opt-disable".
-/// \p AOTDeviceArgs are additional individual option tokens supplied on the
-/// clang-linker-wrapper command line via --device-compiler=/
-/// --device-linker=.
+/// \p AOTDeviceArgs are mapped tool options supplied via --device-linker=.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args,
                                          StringRef BackendOptions,
@@ -1407,6 +1422,225 @@ Error mergeSYCLBIN(ArrayRef<StringRef> Files, const ArgList &Args) {
   return Error::success();
 }
 
+/// A target to link the device code from SYCLBIN input files for, as given by
+/// --syclbin-link-target=<triple>[=<arch>].
+struct SYCLBINLinkTarget {
+  llvm::Triple TheTriple;
+  StringRef Arch;
+};
+
+/// Parses the --syclbin-link-target=<triple>[=<arch>] options in \p Args. The
+/// value is split at the first '=', since an architecture name cannot contain
+/// one.
+static Expected<SmallVector<SYCLBINLinkTarget>>
+getSYCLBINLinkTargets(const ArgList &Args) {
+  SmallVector<SYCLBINLinkTarget> Targets;
+  for (const opt::Arg *A : Args.filtered(OPT_syclbin_link_target_EQ)) {
+    auto [TripleStr, Arch] = StringRef(A->getValue()).split('=');
+    if (TripleStr.empty())
+      return createStringError("invalid SYCLBIN link target '%s', expected "
+                               "'<triple>[=<arch>]'",
+                               A->getValue());
+    Targets.push_back({llvm::Triple(TripleStr), Arch});
+  }
+  return Targets;
+}
+
+/// Returns the property \p PropName of the property set \p SetName in
+/// \p Registry, or nullptr if there is no such property.
+static const llvm::util::PropertyValue *
+getSYCLBINProperty(const llvm::util::PropertySetRegistry &Registry,
+                   StringRef SetName, StringRef PropName) {
+  auto SetIt = Registry.getPropSets().find(SetName);
+  if (SetIt == Registry.end())
+    return nullptr;
+  auto PropIt = SetIt->second.find(PropName);
+  if (PropIt == SetIt->second.end())
+    return nullptr;
+  return &PropIt->second;
+}
+
+/// The symbols that the SYCLBIN files being linked import from and export to
+/// other device images, as recorded in the "SYCL/imported symbols" and
+/// "SYCL/exported symbols" property sets of their abstract modules.
+struct SYCLBINSymbols {
+  StringSet<> Imported;
+  StringSet<> Exported;
+};
+
+/// Adds the names of the properties in the property set \p SetName of
+/// \p Registry to \p Names.
+static void
+addSYCLBINPropertyNames(const llvm::util::PropertySetRegistry &Registry,
+                        StringRef SetName, StringSet<> &Names) {
+  auto SetIt = Registry.getPropSets().find(SetName);
+  if (SetIt == Registry.end())
+    return;
+  for (const auto &Prop : SetIt->second)
+    Names.insert(Prop.first);
+}
+
+/// Replaces the SYCLBIN files in \p Binaries, extracted from the input file
+/// \p FileName, with the IR modules they contain, so that they can be linked
+/// like any other device input. Each IR module is linked for each of the
+/// \p Targets with the same architecture as the target the IR module was
+/// compiled for, and \p CoveredTargets records the targets that received
+/// device code. If \p Targets is empty, the IR modules are linked for the
+/// target they were compiled for. The symbols imported and exported by the
+/// SYCLBIN files are added to \p Symbols.
+static Error unpackSYCLBINFiles(StringRef FileName,
+                                ArrayRef<SYCLBINLinkTarget> Targets,
+                                BitVector &CoveredTargets,
+                                SYCLBINSymbols &Symbols,
+                                SmallVectorImpl<OffloadFile> &Binaries) {
+  if (llvm::none_of(Binaries, [](const OffloadFile &Binary) {
+        return Binary.getBinary()->getImageKind() == IMG_SYCLBIN;
+      }))
+    return Error::success();
+
+  LinkingSYCLBINFiles = true;
+  if (!OutputSYCLBIN || SYCLBINState != SYCLBIN::BundleState::Executable)
+    return createStringError("SYCLBIN file '%s' can only be linked into a "
+                             "SYCLBIN file in executable state",
+                             FileName.str().c_str());
+
+  auto AddDeviceInput = [&](const llvm::Triple &TheTriple, StringRef Arch,
+                            ImageKind Kind, StringRef Image) -> Error {
+    OffloadingImage TheImage{};
+    TheImage.TheImageKind = Kind;
+    TheImage.TheOffloadKind = OFK_SYCL;
+    TheImage.StringData["triple"] = TheTriple.str();
+    TheImage.StringData["arch"] = Arch;
+    TheImage.Image =
+        MemoryBuffer::getMemBuffer(Image, /*BufferName=*/"",
+                                   /*RequiresNullTerminator=*/false);
+    std::unique_ptr<MemoryBuffer> Buffer = MemoryBuffer::getMemBufferCopy(
+        OffloadBinary::write(TheImage), FileName);
+    auto BinariesOrErr = OffloadBinary::create(*Buffer);
+    if (!BinariesOrErr)
+      return BinariesOrErr.takeError();
+    assert(BinariesOrErr->size() == 1 && "Expected a single offload binary");
+    Binaries.emplace_back(std::move(BinariesOrErr->front()), std::move(Buffer));
+    return Error::success();
+  };
+
+  SmallVector<OffloadFile> SYCLBINFiles;
+  for (OffloadFile &Binary : Binaries)
+    if (Binary.getBinary()->getImageKind() == IMG_SYCLBIN)
+      SYCLBINFiles.emplace_back(std::move(Binary));
+  llvm::erase_if(Binaries,
+                 [](const OffloadFile &Binary) { return !Binary.getBinary(); });
+
+  for (const OffloadFile &File : SYCLBINFiles) {
+    auto SYCLBINOrErr =
+        SYCLBIN::read(MemoryBufferRef(File.getBinary()->getImage(), FileName));
+    if (!SYCLBINOrErr)
+      return createFileError(FileName, SYCLBINOrErr.takeError());
+    const SYCLBIN &TheSYCLBIN = **SYCLBINOrErr;
+
+    const llvm::util::PropertyValue *State = getSYCLBINProperty(
+        *TheSYCLBIN.GlobalMetadata,
+        llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA, "state");
+    if (!State || State->getType() != llvm::util::PropertyValue::UINT32)
+      return createStringError("SYCLBIN file '%s' does not specify its state",
+                               FileName.str().c_str());
+    if (State->asUint32() ==
+        static_cast<uint32_t>(SYCLBIN::BundleState::Executable))
+      return createStringError("SYCLBIN file '%s' is in executable state; "
+                               "only SYCLBIN files in input or object state "
+                               "can be linked",
+                               FileName.str().c_str());
+
+    for (const SYCLBIN::AbstractModule &AM : TheSYCLBIN.AbstractModules) {
+      if (!AM.NativeDeviceCodeImages.empty())
+        return createStringError(
+            "SYCLBIN file '%s' contains native device code images, which "
+            "cannot be linked",
+            FileName.str().c_str());
+
+      addSYCLBINPropertyNames(
+          *AM.Metadata, llvm::util::PropertySetRegistry::SYCL_IMPORTED_SYMBOLS,
+          Symbols.Imported);
+      addSYCLBINPropertyNames(
+          *AM.Metadata, llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS,
+          Symbols.Exported);
+
+      for (const SYCLBIN::IRModule &IRM : AM.IRModules) {
+        const llvm::util::PropertyValue *TargetProp = getSYCLBINProperty(
+            *IRM.Metadata,
+            llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
+            "target");
+        if (!TargetProp ||
+            TargetProp->getType() != llvm::util::PropertyValue::BYTE_ARRAY)
+          return createStringError(
+              "SYCLBIN file '%s' contains an IR module without a target",
+              FileName.str().c_str());
+        llvm::Triple IRMTriple(
+            StringRef(reinterpret_cast<const char *>(TargetProp->asByteArray()),
+                      TargetProp->getByteArraySize()));
+
+        ImageKind Kind;
+        switch (identify_magic(IRM.RawIRBytes)) {
+        case file_magic::spirv_object:
+          Kind = IMG_SPIRV;
+          break;
+        case file_magic::bitcode:
+          Kind = IMG_Bitcode;
+          break;
+        default:
+          return createStringError(
+              "SYCLBIN file '%s' contains an IR module of unknown type",
+              FileName.str().c_str());
+        }
+
+        if (Targets.empty()) {
+          if (Error Err =
+                  AddDeviceInput(IRMTriple, /*Arch=*/"", Kind, IRM.RawIRBytes))
+            return Err;
+          continue;
+        }
+        for (const auto &[I, Target] : llvm::enumerate(Targets)) {
+          if (Target.TheTriple.getArch() != IRMTriple.getArch())
+            continue;
+          if (Error Err = AddDeviceInput(Target.TheTriple, Target.Arch, Kind,
+                                         IRM.RawIRBytes))
+            return Err;
+          CoveredTargets.set(I);
+        }
+      }
+    }
+  }
+  return Error::success();
+}
+
+/// Linking SYCLBIN files results in a SYCLBIN file in executable state, which
+/// cannot be linked with other device code at runtime. Diagnose any symbol,
+/// such as a SYCL_EXTERNAL function, that is imported by one of the SYCLBIN
+/// files being linked but exported by none of them. This mirrors how the SYCL
+/// runtime resolves imports when linking SYCLBIN files with sycl::link.
+static Error checkForUndefinedSYCLBINSymbols(const SYCLBINSymbols &Symbols) {
+  SmallVector<StringRef> UndefinedSymbols;
+  for (const auto &Imported : Symbols.Imported) {
+    StringRef Name = Imported.getKey();
+    if (!Symbols.Exported.contains(Name))
+      UndefinedSymbols.push_back(Name);
+  }
+  if (UndefinedSymbols.empty())
+    return Error::success();
+
+  // StringSet iteration order is unspecified, so sort for stable output.
+  llvm::sort(UndefinedSymbols);
+  std::string Msg;
+  raw_string_ostream OS(Msg);
+  OS << "undefined SYCL_EXTERNAL function"
+     << (UndefinedSymbols.size() > 1 ? "s " : " ");
+  llvm::interleaveComma(UndefinedSymbols, OS, [&](StringRef Name) {
+    OS << "'" << llvm::demangle(Name) << "'";
+  });
+  OS << " in the SYCLBIN files being linked";
+  return createStringError(Msg);
+}
+
 // Run wrapping library and clang
 static Expected<StringRef>
 runWrapperAndCompile(ArrayRef<module_split::SplitModule> SplitModules,
@@ -1535,7 +1769,14 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   // Collect bitcode libraries from --bitcode-library option
   for (StringRef Library : Args.getAllArgValues(OPT_bitcode_library_EQ)) {
     auto [LibraryTriple, LibraryPath] = Library.split('=');
-    if (llvm::Triple(LibraryTriple) != Triple)
+    // Match on arch/vendor/OS only: the device triple embedded in the
+    // compiled offload image may carry AMDGPU subarch information (e.g.
+    // amdgpu9.00-amd-amdhsa) that the driver-provided --bitcode-library
+    // triple (e.g. amdgcn-amd-amdhsa) does not.
+    llvm::Triple LibTriple(LibraryTriple);
+    if (LibTriple.getArch() != Triple.getArch() ||
+        LibTriple.getVendor() != Triple.getVendor() ||
+        LibTriple.getOS() != Triple.getOS())
       continue;
 
     if (!llvm::sys::fs::exists(LibraryPath))
@@ -2074,13 +2315,11 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
 
   // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
-  // so combine both here regardless of whether an option arrived via
-  // --device-compiler= or --device-linker=. CompileLinkOptions holds only
-  // the options extracted from the image for AOT triples (a flat, already
-  // space-joined string); options supplied on the CLI for this invocation
-  // live separately in AOTDeviceArgs, as individual tokens, and are appended
-  // later (in runAOTCompileIntelGPU/CPU) without being folded into this
-  // string, so that values with embedded spaces survive intact.
+  // so combine both here for image-embedded options. CLI options for AOT
+  // are accepted only with the matching tool-specific mapping prefix.
+  // CompileLinkOptions holds image-embedded options as flat strings; mapped
+  // CLI options live separately in AOTDeviceArgs and are appended without
+  // re-splitting, preserving values with embedded spaces.
   // FIXME: Concatenating compile-opts and link-opts into one flat string
   // here means any "-options ..." wrapper already present in compile-opts
   // (see SYCLToolChain::AddSPIRVImpliedTargetArgs) will swallow the
@@ -2094,7 +2333,7 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   // in linkAndWrapDeviceFiles() above, which decides whether CLI-supplied
   // options for this triple go into AOTDeviceArgs (token vector) or get
   // folded into CompileLinkOptions (flat string). Nothing enforces
-  // agreement between the two; see the TODO there for the suggested fix.
+  // agreement between the two.
   if (Triple.isSPIRAOT()) {
     AOTOptions = CompileLinkOptions.first;
     if (!CompileLinkOptions.second.empty()) {
@@ -2558,7 +2797,7 @@ bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
 /// Returns a new ArgList containing arguments used for the device linking
 /// phase.
 DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
-                             const InputArgList &Args) {
+                             const InputArgList &Args, OffloadKind ImageKind) {
   DerivedArgList DAL(Args);
   for (Arg *A : Args)
     DAL.append(A);
@@ -2580,29 +2819,39 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   if (llvm::all_of(Input, ContainsBitcode))
     DAL.AddFlagArg(nullptr, Tbl.getOption(OPT_whole_program));
 
-  // This function filters the SYCL device compiler, linker, sycl-post-link,
-  // llvm-spirv and spirv-to-ir-wrapper options by target triple and offload
-  // kind. The options accept values in the form [<kind>:][<triple>=]<value>.
-  // An example of passing such an option to clang-linker-wrapper is:
-  // --device-compiler=sycl:spir64_gen-unknown-unknown=opt_val.
+  // Filter by kind, triple, and optional /<arch> qualifier on the key.
+  // Format: [<kind>:][<triple>[/<arch>]=]<value>. Entries without /<arch>
+  // apply to every arch of the matching triple.
   const StringRef TripleStr = DAL.getLastArgValue(OPT_triple_EQ);
+  const StringRef ArchStr = DAL.getLastArgValue(OPT_arch_EQ);
   auto ProcessDeviceArgs = [&](llvm::opt::OptSpecifier DeviceArgsOptionID,
                                llvm::opt::OptSpecifier ForwardedOptionID) {
     for (StringRef DeviceArgValue : Args.getAllArgValues(DeviceArgsOptionID)) {
       size_t ColonPos = DeviceArgValue.find(':');
       if (ColonPos != StringRef::npos) {
-        StringRef Kind = DeviceArgValue.take_front(ColonPos);
-        if (getOffloadKind(Kind) != OFK_SYCL)
-          continue;
-        DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+        OffloadKind Kind = getOffloadKind(DeviceArgValue.take_front(ColonPos));
+        // Only a recognized kind is a selector. Colons in option values
+        // (including values after a target triple) are not selectors.
+        if (Kind != OFK_None) {
+          if (Kind != ImageKind)
+            continue;
+          DeviceArgValue = DeviceArgValue.drop_front(ColonPos + 1);
+        }
       }
       size_t EqPos = DeviceArgValue.find('=');
       if (EqPos != StringRef::npos) {
-        StringRef ArgTargetTripleStr = DeviceArgValue.take_front(EqPos);
+        StringRef Key = DeviceArgValue.take_front(EqPos);
+        auto [ArgTargetTripleStr, ArgArchStr] = Key.split('/');
         llvm::Triple ArgTargetTriple(ArgTargetTripleStr);
         // If this isn't a recognized triple then it's an `arg=value` option.
+        // Short architecture selectors are supported for SYCL images only;
+        // do not extend this driver-specific spelling to other offload kinds.
         if (ArgTargetTriple.getArch() != Triple::ArchType::UnknownArch) {
-          if (ArgTargetTripleStr != TripleStr)
+          if (llvm::Triple::normalize(ArgTargetTripleStr) !=
+                  llvm::Triple::normalize(TripleStr) &&
+              !(ImageKind == OFK_SYCL && ArgTargetTripleStr == T.getArchName()))
+            continue;
+          if (!ArgArchStr.empty() && ArgArchStr != ArchStr)
             continue;
           DeviceArgValue = DeviceArgValue.drop_front(EqPos + 1);
         }
@@ -2723,16 +2972,16 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         Tbl.parseArgs(Argc, Argv, OPT_INVALID, Saver, [](StringRef Err) {
           reportError(createStringError(Err));
         });
-    auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
     bool HasSYCLOffloadKind = false;
-    bool HasNonSYCLOffloadKinds = false;
+    OffloadKind FirstNonSYCLKind = OFK_None;
     uint16_t ActiveOffloadKindMask = 0u;
     for (const auto &File : Input) {
-      ActiveOffloadKindMask |= File.getBinary()->getOffloadKind();
-      if (File.getBinary()->getOffloadKind() == OFK_SYCL)
+      OffloadKind Kind = File.getBinary()->getOffloadKind();
+      ActiveOffloadKindMask |= Kind;
+      if (Kind == OFK_SYCL)
         HasSYCLOffloadKind = true;
-      else
-        HasNonSYCLOffloadKinds = true;
+      else if (FirstNonSYCLKind == OFK_None)
+        FirstNonSYCLKind = Kind;
     }
 
     auto AppendImageToWrapperOutput = [&WrappedOutput,
@@ -2741,7 +2990,10 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       WrappedOutput.push_back(ImagePath);
     };
 
+    // A target group may contain several offload kinds, so kind-scoped
+    // options are selected separately for the SYCL and non-SYCL links.
     if (HasSYCLOffloadKind) {
+      auto LinkerArgs = getLinkerArgs(Input, BaseArgs, OFK_SYCL);
       Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
           extractSYCLCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
@@ -2750,59 +3002,37 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       std::pair<std::string, std::string> &CompileLinkOptions =
           *CompileLinkOptionsOrErr;
 
-      // Append device compiler and linker options passed via
-      // --device-compiler= and --device-linker= to clang-linker-wrapper.
-      // Each occurrence of --device-compiler=/--device-linker= that matched
-      // this triple/kind was forwarded as its own compiler-arg=/linker-arg=
-      // by getLinkerArgs().
-      //
-      // JIT targets: the SYCL runtime consumes these as flat strings, so
-      // join them (after the options already extracted from the image) into
-      // CompileLinkOptions.
-      //
-      // AOT targets (ocloc/opencl-aot): keep the CLI-supplied tokens as a
-      // separate list (AOTDeviceArgs) rather than folding them into
-      // CompileLinkOptions, so that a token containing an embedded space
-      // isn't re-split downstream. They are appended to the AOT tool's argv
-      // as individual entries, alongside the image-embedded options (which
-      // remain a flat, space-tokenized string, unrelated to this list).
+      // AOT and SPIR JIT tools do not accept clang compiler/linker flags, so
+      // forward only options carrying the tool-specific prefix and discard
+      // the rest (e.g. -flto). Other targets use clang as the device backend
+      // and take all options. AOT options are kept as individual argv tokens;
+      // the others are joined into the compile/link option strings.
+      // TODO: The isSPIRAOT() check must stay in sync with the equivalent
+      // check in runSYCLOffloadingPipeline().
       const llvm::Triple TargetTriple(
           LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      const bool IsAOT = TargetTriple.isSPIRAOT();
       std::vector<std::string> AOTDeviceArgs;
-      // TODO: This isSPIRAOT() check must stay in sync with the equivalent
-      // check in runSYCLOffloadingPipeline() below, which decides whether to
-      // fold CompileLinkOptions into AOTOptions for the same triple. Nothing
-      // enforces agreement between the two; consider unifying the option
-      // representation (e.g. making CompileLinkOptions itself a token
-      // vector) so both AOT option origins share one code path instead of
-      // two independently-maintained branches.
-      if (TargetTriple.isSPIRAOT()) {
-        for (std::string &DeviceCompilerArg :
-             LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ))
-          if (!DeviceCompilerArg.empty())
-            AOTDeviceArgs.push_back(std::move(DeviceCompilerArg));
-        for (std::string &DeviceLinkerArg :
-             LinkerArgs.getAllArgValues(OPT_linker_arg_EQ))
-          if (!DeviceLinkerArg.empty())
-            AOTDeviceArgs.push_back(std::move(DeviceLinkerArg));
-      } else {
-        for (const std::string &DeviceCompilerArg :
-             LinkerArgs.getAllArgValues(OPT_compiler_arg_EQ)) {
-          if (DeviceCompilerArg.empty())
+      auto AddDeviceOptions = [&](opt::OptSpecifier OptID, bool IsLink,
+                                  std::string &Joined) {
+        StringRef Prefix =
+            llvm::offloading::getSYCLBackendOptionPrefix(TargetTriple, IsLink);
+        for (StringRef Value : LinkerArgs.getAllArgValues(OptID)) {
+          if (!Value.consume_front(Prefix) || Value.empty())
             continue;
-          if (!CompileLinkOptions.first.empty())
-            CompileLinkOptions.first += " ";
-          CompileLinkOptions.first += DeviceCompilerArg;
-        }
-        for (const std::string &DeviceLinkerArg :
-             LinkerArgs.getAllArgValues(OPT_linker_arg_EQ)) {
-          if (DeviceLinkerArg.empty())
+          if (IsAOT) {
+            AOTDeviceArgs.push_back(Value.str());
             continue;
-          if (!CompileLinkOptions.second.empty())
-            CompileLinkOptions.second += " ";
-          CompileLinkOptions.second += DeviceLinkerArg;
+          }
+          if (!Joined.empty())
+            Joined += " ";
+          Joined += Value;
         }
-      }
+      };
+      AddDeviceOptions(OPT_compiler_arg_EQ, /*IsLink=*/false,
+                       CompileLinkOptions.first);
+      AddDeviceOptions(OPT_linker_arg_EQ, /*IsLink=*/true,
+                       CompileLinkOptions.second);
 
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
@@ -2829,6 +3059,15 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
+      } else if (!NeedsWrapping) {
+        // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the
+        // host compilation links it in via -foffload-include-binary.
+        Expected<StringRef> OutputFile =
+            sycl::wrapSYCLBinariesFromFile(Modules, LinkerArgs,
+                                           /*IsEmbeddedIR=*/false);
+        if (!OutputFile)
+          return OutputFile.takeError();
+        AppendImageToWrapperOutput(*OutputFile);
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         Expected<StringRef> OutputFile =
@@ -2844,7 +3083,11 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         AppendImageToWrapperOutput(*OutputFile);
       }
     }
-    if (HasNonSYCLOffloadKinds) {
+    if (FirstNonSYCLKind != OFK_None) {
+      // Non-SYCL kinds sharing a triple/arch are linked by one Clang
+      // invocation, so only the first kind's scoped options are selected.
+      // TODO: link and wrap each kind separately.
+      auto LinkerArgs = getLinkerArgs(Input, BaseArgs, FirstNonSYCLKind);
       // Write any remaining device inputs to an output file.
       SmallVector<StringRef> InputFiles;
       for (const OffloadFile &File : Input) {
@@ -3097,6 +3340,15 @@ getDeviceInput(const ArgList &Args) {
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
 
+  // The targets to link the device code from SYCLBIN input files for.
+  auto SYCLBINLinkTargetsOrErr = sycl::getSYCLBINLinkTargets(Args);
+  if (!SYCLBINLinkTargetsOrErr)
+    return SYCLBINLinkTargetsOrErr.takeError();
+  SmallVector<sycl::SYCLBINLinkTarget> &SYCLBINLinkTargets =
+      *SYCLBINLinkTargetsOrErr;
+  BitVector CoveredSYCLBINLinkTargets(SYCLBINLinkTargets.size());
+  sycl::SYCLBINSymbols Symbols;
+
   // Try to extract device code from the linker input files.
   bool WholeArchive = Args.hasArg(OPT_wholearchive_flag);
   SmallVector<OffloadFile> ObjectFilesToExtract;
@@ -3138,12 +3390,20 @@ getDeviceInput(const ArgList &Args) {
       continue;
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
-    if (Error Err = extractOffloadBinaries(Buffer, Binaries))
-      return std::move(Err);
+    if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
+      // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
+      // which is not in OffloadBinary format. Consume the parse error and
+      // fall through to the SYCL bundled objects extraction path.
+      consumeError(std::move(Err));
+    }
     if (Binaries.size() == OldSize) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
         return std::move(Err);
     }
+    if (Error Err = sycl::unpackSYCLBINFiles(*Filename, SYCLBINLinkTargets,
+                                             CoveredSYCLBINLinkTargets, Symbols,
+                                             Binaries))
+      return std::move(Err);
 
     for (auto &Binary : Binaries) {
       if (Verbose && SaveTemps)
@@ -3156,6 +3416,17 @@ getDeviceInput(const ArgList &Args) {
       else
         ObjectFilesToExtract.emplace_back(std::move(Binary));
     }
+  }
+
+  if (LinkingSYCLBINFiles) {
+    for (const auto &[I, Target] : llvm::enumerate(SYCLBINLinkTargets))
+      if (!CoveredSYCLBINLinkTargets.test(I))
+        return createStringError(
+            "none of the SYCLBIN files being linked contain device code "
+            "that can be linked for target '%s'",
+            Target.TheTriple.str().c_str());
+    if (Error Err = sycl::checkForUndefinedSYCLBINSymbols(Symbols))
+      return std::move(Err);
   }
 
   // Handle the most specific target-ids first so a generic input merges last.
@@ -3412,6 +3683,14 @@ int main(int Argc, char **Argv) {
       // Run the host linking job with the rendered arguments.
       if (!EmitFatbinOnly) {
         if (Error Err = runLinker(*FilesOrErr, Args))
+          reportError(std::move(Err));
+      } else if (!FilesOrErr->empty()) {
+        // Other offload kinds write the fat binary directly; the SYCL wrapper
+        // module still has to be copied to the requested output.
+        if (FilesOrErr->size() != 1)
+          reportError(createStringError(
+              "Expect single output from the SYCL device linker."));
+        if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
           reportError(std::move(Err));
       }
     }

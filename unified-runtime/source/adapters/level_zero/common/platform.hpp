@@ -36,6 +36,10 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
 
+  // Adapter owning this platform. Set once when the platform is created and
+  // valid for the platform's whole lifetime, since the adapter owns it.
+  ur_adapter_handle_t_ *Adapter = nullptr;
+
   // Cache of the ZesDevices mapped to the ZeDevices for use in zes apis calls
   // based on a ze device handle.
   std::unordered_map<ze_device_handle_t, ur_zes_device_handle_data_t>
@@ -43,7 +47,10 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
 
   // Given a multi driver scenario, the driver handle must be translated to the
   // internal driver handle to allow calls to driver experimental apis.
-  ze_driver_handle_t ZeDriverHandleExpTranslated;
+  // Populated by initialize() via zelLoaderTranslateHandle(); default-
+  // initialized to nullptr so it is never read uninitialized if a use ever
+  // races ahead of, or occurs despite a failure in, that initialization.
+  ze_driver_handle_t ZeDriverHandleExpTranslated = nullptr;
 
   // Helper wrapper for working with Driver Version String extension in Level
   // Zero.
@@ -75,6 +82,13 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   bool ZeExternalMemoryMappingExtensionSupported{false};
   bool ZeLUIDSupported{false};
   bool ZeEventSyncModeSupported{false};
+
+  // Counter-based events (ze_event_counter_based_desc_t /
+  // zeEventCounterBasedCreate) are part of the core Level Zero API since spec
+  // version 1.15. On older drivers only the deprecated
+  // ZEX_counter_based_event extension (zexCounterBasedEventCreate2) is
+  // available, so callers must fall back to it when this is false.
+  bool ZeCounterBasedEventsCoreApiSupported{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;

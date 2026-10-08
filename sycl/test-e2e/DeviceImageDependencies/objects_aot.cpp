@@ -5,6 +5,9 @@
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23302
+
 // DEFINE: %{aot_options} = -fsycl -fsycl-targets=spir64_gen -DUSE_AOT
 // DEFINE: %{aot_backend_options} = -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts
 

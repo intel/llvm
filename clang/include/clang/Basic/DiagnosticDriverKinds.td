@@ -106,6 +106,10 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_sycl_no_rdc_multiple_targets : Error<
+  "'%0' is not supported with multiple SYCL offloading targets">;
+
+
 // SYCL Windows-specific diagnostics
 def err_drv_sycl_requires_dynamic_crt : Error<
   "SYCL requires dynamic C++ runtime (/MD or /MDd); "
@@ -463,6 +467,11 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
   "compatible with offloading; e.g., '-fopenmp=libomp' or '-fopenmp=libiomp5'">;
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
+def err_drv_syclbin_link_mixed_inputs : Error<
+  "SYCLBIN file '%0' cannot be linked with non-SYCLBIN input '%1' when using "
+  "'-fsycl-link'">;
+def err_drv_syclbin_link_requires_opt : Error<
+  "linking SYCLBIN files with '-fsycl-link' requires '%0'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
@@ -483,6 +492,8 @@ def warn_drv_sycl_target_missing : Warning<
   InGroup<SyclTarget>;
 def err_drv_no_rdc_sycl_target_missing : Error<
   "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
+def err_drv_sycl_no_rdc_unsupported : Error<
+  "'%0' is not supported with '%1' when using the new offloading model">;
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-non-user-code option can be used only in conjunction with %0">;
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
@@ -754,6 +765,12 @@ def remark_printing_module_graph : Remark<
 def err_module_defined_outside_of_module_source : Error<
   "module '%0' is defined in file '%1', but module declarations are only "
   "allowed in C++ module inputs; use the '.cppm' extension or '-x c++module'">;
+def err_drv_depscan_log_path_empty : Error<
+  "'-fdepscan-log-path=' requires a non-empty file path">;
+def err_drv_depscan_log_path_inconsistent : Error<
+  "'-fdepscan-log-path' set inconsistently within a dependency scan: "
+  "%select{no log path|log path '%1'}0 conflicts with "
+  "%select{no log path|log path '%3'}2 requested earlier">;
 
 def warn_drv_delayed_template_parsing_after_cxx20 : Warning<
   "-fdelayed-template-parsing is deprecated after C++20">,

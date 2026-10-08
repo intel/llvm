@@ -16,10 +16,12 @@
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
 #include <umf/pools/pool_proxy.h>
+#include <umf/providers/provider_fixed_memory.h>
 #include <unified-runtime/ur_api.h>
 
 #include "logger/ur_logger.hpp"
 
+#include <algorithm>
 #include <array>
 #include <functional>
 #include <memory>
@@ -205,6 +207,18 @@ auto memoryProviderMakeUnique(Args &&...args) {
   UMF_ASSIGN_OP_OPT(ops, T, ext_close_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_ctl, UMF_RESULT_ERROR_INVALID_CTL_PATH);
 
+  // The runtime UMF may be older than the one we compiled against and would
+  // reject a newer ops version. There is no API to query it, so read it from a
+  // built-in provider and advertise the lower version: an older runtime then
+  // accepts the struct and ignores the newer optional ops.
+  const auto runtimeVersion = umfFixedMemoryProviderOps()->version;
+  if (UMF_MAJOR_VERSION(ops.version) != UMF_MAJOR_VERSION(runtimeVersion)) {
+    return std::pair<umf_result_t, provider_unique_handle_t>{
+        UMF_RESULT_ERROR_NOT_SUPPORTED,
+        provider_unique_handle_t(nullptr, &umfMemoryProviderDestroy)};
+  }
+  ops.version = std::min(ops.version, runtimeVersion);
+
   umf_memory_provider_handle_t hProvider = nullptr;
   auto ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);
   return std::pair<umf_result_t, provider_unique_handle_t>{
@@ -218,6 +232,16 @@ template <typename T, typename... Args>
 auto poolMakeUnique(provider_unique_handle_t provider, Args &&...args) {
   auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
   auto ops = detail::poolMakeUniqueOps<T, decltype(argsTuple)>();
+
+  // See memoryProviderMakeUnique(): advertise the lower of the compile-time and
+  // runtime ops versions, read here from a built-in pool.
+  const auto runtimeVersion = umfProxyPoolOps()->version;
+  if (UMF_MAJOR_VERSION(ops.version) != UMF_MAJOR_VERSION(runtimeVersion)) {
+    return std::pair<umf_result_t, pool_unique_handle_t>{
+        UMF_RESULT_ERROR_NOT_SUPPORTED,
+        pool_unique_handle_t(nullptr, umfPoolDestroy)};
+  }
+  ops.version = std::min(ops.version, runtimeVersion);
 
   umf_memory_pool_handle_t hPool = nullptr;
 

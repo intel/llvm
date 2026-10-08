@@ -321,15 +321,19 @@ ur_result_t updateCommandBufferUnlocked(
     auto Command =
         static_cast<kernel_command_handle *>(common_cast(CommandDesc.hCommand));
 
-    auto &KernelMutex =
-        reinterpret_cast<handle_head_t *>(Command->kernel)->Mutex;
-    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(Command->Mutex,
-                                                             KernelMutex);
-
+    // Command->kernel must only be read while Command->Mutex is held, so the
+    // kernel mutex has to be selected after acquiring the command lock. Lock
+    // the kernel which will be active once this update is applied, as that is
+    // the one queried by the helpers below.
+    std::scoped_lock<ur_shared_mutex> CommandGuard(Command->Mutex);
     ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
+    ur_kernel_handle_t ActiveKernel = NewKernel ? NewKernel : Command->kernel;
+    std::scoped_lock<ur_shared_mutex> KernelGuard(
+        reinterpret_cast<handle_head_t *>(ActiveKernel)->Mutex);
+
     if (NewKernel && Command->kernel != NewKernel) {
-      updateKernelHandle(NewKernel, GetZeKernel, Device, Platform,
-                         ZeCommandList, Command);
+      UR_CALL(updateKernelHandle(NewKernel, GetZeKernel, Device, Platform,
+                                 ZeCommandList, Command));
     }
 
     updateKernelSizes(CommandDesc, Command, &NextDesc,
