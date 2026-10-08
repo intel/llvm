@@ -90,14 +90,35 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &builtin_info = MAM.getResult<compiler::utils::BuiltinInfoAnalysis>(M);
 
   VectorizationContext Ctx(M, *target_info, builtin_info);
-  // FIXME(sandboxing): Need to pass VFS into PassMachinery::PB.
-  auto BypassSandbox = sys::sandbox::scopedDisable();
-  VeczPassMachinery Mach(M.getContext(), target_info->getTargetMachine(), Ctx,
-                         /*verifyEach*/ false,
-                         DebugVeczPipeline
-                             ? compiler::utils::DebugLogging::Normal
-                             : compiler::utils::DebugLogging::None);
-  Mach.initializeStart();
+  VeczPassMachinery Mach = [&] {
+    // FIXME(sandboxing): PassMachinery needs to give its PassBuilder field PB a
+    // VFS, so PB defaults to vfs::getRealFileSystem() instead to populate its
+    // FS field, which is an IO sandbox violation:
+    //
+    //  VeczPassMachinery Mach(...)
+    //  `- PassMachinery(...)          (Base class ctor)
+    //     `- PassBuilder PB()         (PassMachinery.PB is default-constructed)
+    //        `- PB.FS = vfs::getRealFileSystem() <-- IO sandbox violation
+    //
+    auto BypassSandbox = sys::sandbox::scopedDisable();
+    return VeczPassMachinery(M.getContext(), target_info->getTargetMachine(),
+                             Ctx, /*verifyEach*/ false,
+                             DebugVeczPipeline
+                                 ? compiler::utils::DebugLogging::Normal
+                                 : compiler::utils::DebugLogging::None);
+  }();
+  {
+    // FIXME(sandboxing): Mach.initializeStart() reconstructs its PassBuilder PB
+    // field, which needs a VFS or PB defaults to vfs::getRealFileSystem(),
+    // which is an IO sandbox violation:
+    //
+    //  Mach.initializeStart()
+    //  `- Mach.PB = PassBuilder(...)
+    //     `- PB.FS = vfs::getRealFileSystem() <-- IO sandbox violation
+    //
+    auto BypassSandbox = sys::sandbox::scopedDisable();
+    Mach.initializeStart();
+  }
   Mach.getMAM().registerPass([&device_info] {
     return compiler::utils::DeviceInfoAnalysis(device_info);
   });
