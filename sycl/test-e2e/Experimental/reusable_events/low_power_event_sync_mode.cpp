@@ -4,7 +4,7 @@
 // RUN: %{run} %t.out
 
 // Test make_event with event_mode{event_mode_enum::low_power}. The hint is only
-// honored by the Level Zero V2 adapter other backends must silently ignore it,
+// honored by the Level Zero V2 adapter, other backends must silently ignore it,
 // so the test runs everywhere.
 
 #include <sycl/detail/core.hpp>
