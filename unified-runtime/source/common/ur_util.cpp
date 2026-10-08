@@ -29,6 +29,21 @@ int ur_duplicate_fd(int pid, int fd_in) {
 
 #include <sys/syscall.h>
 #include <unistd.h>
+
+// Older system headers (e.g. glibc 2.28 on RHEL/Rocky 8) do not define the
+// pidfd syscall numbers, even though the running kernel may support them.
+// Since Linux 5.1 new syscalls have the same number on almost all
+// architectures (except alpha, ia64, mips and x32), including x86_64 and
+// aarch64.
+#ifdef __linux__
+#ifndef __NR_pidfd_open
+#define __NR_pidfd_open 434
+#endif // __NR_pidfd_open
+#ifndef __NR_pidfd_getfd
+#define __NR_pidfd_getfd 438
+#endif // __NR_pidfd_getfd
+#endif // __linux__
+
 int ur_getpid(void) { return static_cast<int>(getpid()); }
 
 int ur_close_fd(int fd) { return close(fd); }

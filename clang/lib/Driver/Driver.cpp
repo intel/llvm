@@ -1541,6 +1541,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (std::distance(TCRange.first, TCRange.second) > 1)
         Diag(clang::diag::err_drv_sycl_no_rdc_multiple_targets)
             << RDCArg->getAsString(C.getInputArgs());
+      // Native CPU and -fsycl-embed-ir produce host objects in addition to the
+      // wrapper module, which the compile-step embedding cannot carry.
+      for (auto TI = TCRange.first; TI != TCRange.second; ++TI) {
+        const llvm::Triple &T = TI->second->getTriple();
+        if (T.isNativeCPU())
+          Diag(clang::diag::err_drv_sycl_no_rdc_unsupported)
+              << RDCArg->getAsString(C.getInputArgs())
+              << "-fsycl-targets=native_cpu";
+        else if ((T.isNVPTX() || T.isAMDGCN()) &&
+                 C.getInputArgs().hasArg(options::OPT_fsycl_embed_ir))
+          Diag(clang::diag::err_drv_sycl_no_rdc_unsupported)
+              << RDCArg->getAsString(C.getInputArgs()) << "-fsycl-embed-ir";
+      }
     }
   }
 
