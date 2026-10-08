@@ -758,7 +758,9 @@ public:
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~accessor() {}
+  ~accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #else
@@ -826,7 +828,9 @@ public:
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~accessor() {}
+  ~accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <typename, int, access_mode> friend class host_accessor;
@@ -2443,7 +2447,9 @@ public:
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~local_accessor() {}
+  ~local_accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #else
@@ -2622,7 +2628,9 @@ protected:
 public:
   host_accessor() : AccessorT() {}
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~host_accessor() {}
+  ~host_accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
 
   // common reference semantics
   host_accessor(const host_accessor &) noexcept = default;
