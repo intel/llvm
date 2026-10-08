@@ -31,6 +31,7 @@
 #include <sycl/handler.hpp>                         // for handler
 #include <sycl/id.hpp>                              // for getDeline...
 #include <sycl/kernel.hpp>                          // for auto_name
+#include <sycl/khr/properties.hpp>                  // for khr properties
 #include <sycl/known_identity.hpp>                  // for IsKnownId...
 #include <sycl/marray.hpp>                          // for marray
 #include <sycl/memory_enums.hpp>                    // for memory_order
@@ -2795,6 +2796,54 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
 }
 } // namespace detail
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr {
+namespace property {
+namespace tag {
+struct reduction; // tag type, never defined
+} // namespace tag
+
+namespace key {
+struct initialize_to_identity : detail::runtime_property_key {};
+} // namespace key
+
+struct initialize_to_identity
+    : detail::runtime_property<key::initialize_to_identity> {
+  constexpr initialize_to_identity(bool v = true) : value{v} {}
+  bool value;
+};
+} // namespace property
+
+template <>
+struct is_property_key_for<property::key::initialize_to_identity,
+                           property::tag::reduction> : std::true_type {};
+} // namespace khr
+
+namespace detail {
+template <typename PropertyOrList>
+inline property_list khrReductionToPropertyList(const PropertyOrList &Props) {
+  if constexpr (khr::is_property_v<PropertyOrList>) {
+    return khrReductionToPropertyList(khr::properties{Props});
+  } else {
+    PropertyListBuilder Builder;
+    if constexpr (PropertyOrList::template has_property<
+                      khr::property::key::initialize_to_identity>())
+      if (Props
+              .template get_property<
+                  khr::property::key::initialize_to_identity>()
+              .value)
+        Builder.template add<property::reduction::initialize_to_identity>();
+    return Builder.finalize();
+  }
+}
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForReduction =
+    khr::is_property_for_v<PropertyOrList, khr::property::tag::reduction> ||
+    khr::is_property_list_for_v<PropertyOrList, khr::property::tag::reduction>;
+} // namespace detail
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
 /// The reduction algorithm may be less efficient if the specified binary
@@ -2881,5 +2930,70 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+// sycl_khr_properties reduction overloads. Each mirrors the property_list
+// overload above, accepting a khr property or property list translated to an
+// old-style property_list.
+template <
+    typename T, typename AllocatorT, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
+               BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Var, CGH, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(T *Var, BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Var, Combiner, detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, typename AllocatorT, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
+               BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Var, CGH, Identity, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
+               PropertyOrList props) {
+  return reduction(Var, Identity, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, size_t Extent, typename BinaryOperation,
+    typename = std::enable_if_t<Extent != dynamic_extent>,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
+               PropertyOrList props) {
+  return reduction(Span, Combiner, detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, size_t Extent, typename BinaryOperation,
+    typename = std::enable_if_t<Extent != dynamic_extent>,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(span<T, Extent> Span, const T &Identity,
+               BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Span, Identity, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 } // namespace _V1
 } // namespace sycl
