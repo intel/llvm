@@ -327,7 +327,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             requires_cpu = any(r in test.requires for r in ("cpu", "any-device-is-cpu"))
             requires_gpu = any(r in test.requires for r in ("gpu", "any-device-is-gpu"))
             if requires_cpu and requires_gpu:
-                if any("%aot_options" in d.command for d in script):
+                if any("%aot_options" in getattr(d, "command", "") for d in script):
                     return lit.Test.Result(
                         lit.Test.UNRESOLVED,
                         "Test requires both cpu and gpu and uses %aot_options, "
