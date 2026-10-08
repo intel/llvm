@@ -30,6 +30,14 @@ runs:
         base_py=python
       fi
 
+      # Already satisfied (e.g. a caller-provisioned venv already on PATH)?
+      # Avoid provisioning a redundant nested environment.
+      if "$base_py" -c "import defusedxml, psutil" >/dev/null 2>&1; then
+        echo "python=$base_py" >> "$GITHUB_OUTPUT"
+        echo "site-packages=" >> "$GITHUB_OUTPUT"
+        exit 0
+      fi
+
       venv_dir="${RUNNER_TEMP:-$GITHUB_WORKSPACE}/ur-test-venv"
       rm -rf "$venv_dir"
       if "$base_py" -m venv "$venv_dir" >/dev/null 2>&1; then
