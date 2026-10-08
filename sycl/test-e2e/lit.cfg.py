@@ -1093,6 +1093,12 @@ config.sycl_dev_features = {}
 
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
+# Minimum L0 driver version starting from which the Level Zero adapter
+# disables USM pooling on Xe2 or newer Intel GPUs. Must be kept in sync with
+# UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR/MINOR defined in
+# unified-runtime/source/adapters/level_zero/common/usm_pooling_disabled.hpp.
+L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR = 1
+L0_USM_POOLING_DISABLED_MIN_DRIVER_MINOR = 17
 for full_name, sycl_device in zip(
     config.sycl_devices, remove_level_zero_suffix(config.sycl_devices)
 ):
@@ -1110,14 +1116,35 @@ for full_name, sycl_device in zip(
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
+    # Per-device flags used to detect whether the Level Zero adapter disables
+    # USM pooling (see isUsmPoolingDisabled() in the UR L0 adapter).
+    usm_pooling_disabled = []
     sycl_ls_sp = get_sycl_ls_verbose(sycl_device, env)
     offload_assigned_backend = ""
     for line in sycl_ls_sp.stdout.splitlines():
         if re.match(r" *Vendor *: Intel\(R\) Corporation", line):
             is_intel_driver = True
+        if re.match(r" *Version *:", line) and sycl_device.startswith("level_zero"):
+            # Device IP version of Intel GPUs, e.g. "20.1.0" for BMG.
+            ip_ver = re.match(r" *Version *: *([0-9]+)\.([0-9]+)\.([0-9]+)", line)
+            if ip_ver:
+                usm_pooling_disabled.append(
+                    is_intel_driver and tuple(map(int, ip_ver.groups())) >= (20, 1, 0)
+                )
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
+            if usm_pooling_disabled and sycl_device.startswith("level_zero"):
+                l0_ver = re.match(r"([0-9]+)\.([0-9]+)\.", driver_str)
+                usm_pooling_disabled[-1] = bool(
+                    usm_pooling_disabled[-1]
+                    and l0_ver
+                    and tuple(map(int, l0_ver.groups()))
+                    >= (
+                        L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR,
+                        L0_USM_POOLING_DISABLED_MIN_DRIVER_MINOR,
+                    )
+                )
             if sycl_device.endswith("cpu"):
                 intel_driver_ver["cpu"] = driver_str
             else:
@@ -1242,6 +1269,14 @@ for full_name, sycl_device in zip(
     features.update(architecture_feature)
     features.update(device_family)
     features.update(device_name_features)
+
+    # The Level Zero adapter disables USM pooling on Xe2 or newer Intel GPUs
+    # (IP version >= 20.1.0) with L0 driver
+    # L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR.MINOR or newer, so tests
+    # checking pooling behavior cannot pass there.
+    if usm_pooling_disabled and all(usm_pooling_disabled):
+        features.add("level_zero_usm_pooling_disabled")
+        lit_config.note("USM pooling is disabled for {}".format(sycl_device))
 
     be, dev = sycl_device.split(":")
     if dev.isdigit():
