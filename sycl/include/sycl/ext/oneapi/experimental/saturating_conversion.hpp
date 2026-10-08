@@ -75,7 +75,8 @@ inline uint8_t float_to_uint8_rn(float x) {
 // so the result can be reinterpreted and fed directly to dp4a.
 inline int32_t float4_to_int8x4_rn(vec<float, 4> v) {
   uint32_t r = static_cast<uint8_t>(float_to_int8_rn(v.s0()));
-  r |= static_cast<uint32_t>(static_cast<uint8_t>(float_to_int8_rn(v.s1()))) << 8;
+  r |= static_cast<uint32_t>(static_cast<uint8_t>(float_to_int8_rn(v.s1())))
+       << 8;
   r |= static_cast<uint32_t>(static_cast<uint8_t>(float_to_int8_rn(v.s2())))
        << 16;
   r |= static_cast<uint32_t>(static_cast<uint8_t>(float_to_int8_rn(v.s3())))

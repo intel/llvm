@@ -43,11 +43,13 @@ int main() {
   std::cout << "Running on "
             << Q.get_device().get_info<sycl::info::device::name>() << "\n";
 
-  const float Inputs[] = {0.0f,    -0.0f,  0.5f,    1.5f,   2.5f,   -0.5f,
-                          -1.5f,   -2.5f,  0.49f,   0.51f,  126.5f, 127.4f,
-                          127.5f,  127.6f, 128.0f,  200.0f, 300.0f, -128.4f,
-                          -128.5f, -128.6f, -300.0f, 254.5f, 255.5f,
-                          std::numeric_limits<float>::quiet_NaN()};
+  const float Inputs[] = {
+      0.0f,    -0.0f,   0.5f,    1.5f,
+      2.5f,    -0.5f,   -1.5f,   -2.5f,
+      0.49f,   0.51f,   126.5f,  127.4f,
+      127.5f,  127.6f,  128.0f,  200.0f,
+      300.0f,  -128.4f, -128.5f, -128.6f,
+      -300.0f, 254.5f,  255.5f,  std::numeric_limits<float>::quiet_NaN()};
   constexpr int N = std::size(Inputs);
 
   float *in = malloc_shared<float>(N, Q);
@@ -63,8 +65,8 @@ int main() {
        outU[i] = float_to_uint8_rn(in[i]);
      }
      for (int i = 0; i < N / 4; ++i)
-       packed[i] = float4_to_int8x4_rn(
-           vec<float, 4>(in[4 * i], in[4 * i + 1], in[4 * i + 2], in[4 * i + 3]));
+       packed[i] = float4_to_int8x4_rn(vec<float, 4>(
+           in[4 * i], in[4 * i + 1], in[4 * i + 2], in[4 * i + 3]));
    }).wait();
 
   int errors = 0;
