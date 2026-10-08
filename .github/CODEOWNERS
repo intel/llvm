@@ -231,5 +231,5 @@ devops/compat_ci_exclude.sycl-rel-** @gmlueck @xtian-github
 sycl/test/abi/*sycl-rel*.dump @KornevNikita
 
 # AI agent skills and instructions
-sycl/.claude/ @intel/dpcpp-ai-skills-reviewers
-.agents/ @intel/dpcpp-ai-skills-reviewers
+/sycl/.claude/ @intel/dpcpp-ai-skills-reviewers
+/.agents/skills/sycl @intel/dpcpp-ai-skills-reviewers

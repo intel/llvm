@@ -34,8 +34,9 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
 - `XFAIL:` → next line `// XFAIL-TRACKER: <GitHub issue URL | PROJ-123>`. `UNSUPPORTED:` (incl.
   `true`) → `// UNSUPPORTED-TRACKER: <id>` or `// UNSUPPORTED-INTENDED: <reason>`. Flaky ⇒ UNSUPPORTED.
 - `%{build}` sets `-fsycl-targets` and `-Werror`; `%{run}` runs per device via
-  `ONEAPI_DEVICE_SELECTOR`: `sycl::queue Q;`, never a hard-coded selector. Prefer `REQUIRES: aspect-<x>`
-  or runtime `has(aspect::x)` over `REQUIRES: gpu`. Compile gates: `target-*`; runtime XFAIL: `run-mode`.
+  `ONEAPI_DEVICE_SELECTOR`: `sycl::queue Q;`, never a hard-coded selector. `REQUIRES: gpu` only when
+  the test is about the GPU device type itself; a capability is `REQUIRES: aspect-<x>` or runtime
+  `has(aspect::x)`. Compile gates: `target-*`; runtime XFAIL: `run-mode`.
 - Unique `%t<name>.out` per build line; float tolerance (`ulp_utils.hpp`, `DeviceLib/math_utils.hpp`);
   `wait()` before reading USM; `assert`/nonzero return, not `exit(1)`.
 - Leak check: `%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK`.
@@ -70,5 +71,6 @@ headers show the mechanics; this guide covers tier choice, process and traps onl
 ## Review
 
 Flag: wrong tier; vacuous (cannot fail, no mutation evidence); redundant with a sibling; any trap
-above; noise (license header, verbose or missing comments, `cl::sycl::`, unused includes, absolute
-paths, Intel-internal links, unrequested JIRA ids, unformatted). Else approve with tier justification.
+above; Intel-internal links or JIRA ids outside `*-TRACKER` lines (never acceptable upstream); noise
+(license header, verbose or missing comments, `cl::sycl::`, unused includes, absolute paths,
+unformatted). Else approve with tier justification.
