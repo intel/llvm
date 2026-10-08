@@ -568,3 +568,111 @@ TEST(SYCLBINSerialize, KernelArgMaskRoundTrip) {
     EXPECT_EQ(roundTrip(M), M);
   }
 }
+
+// OffloadBinary v3 appends a uint64_t InflatedSize field to the header. The
+// SYCLBIN reader must accept uncompressed v3 binaries (what the offloading
+// tools now emit) and reject compressed ones and unknown future versions.
+namespace {
+// Builds a minimal SYCLBIN and re-wraps its payload in a 40-byte OffloadBinary
+// v3-style header with the given version and InflatedSize.
+std::vector<char> makeV3WrappedSYCLBIN(uint32_t Version,
+                                       uint64_t InflatedSize) {
+  sycl::detail::SYCLBIN::SYCLBINDesc Desc;
+  sycl::detail::PropertySetRegistry GlobalProps;
+  GlobalProps.add(sycl::detail::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA,
+                  "state",
+                  static_cast<uint32_t>(sycl::bundle_state::executable));
+  std::ostringstream GMOS;
+  GlobalProps.write(GMOS);
+  Desc.GlobalMetadata = GMOS.str();
+
+  std::vector<char> V2Bytes = sycl::detail::SYCLBIN::write(Desc);
+  std::optional<std::string_view> Payload = stripOffloadWrapper(V2Bytes);
+  if (!Payload)
+    return {};
+
+  struct OffloadBinaryHeaderV3 {
+    uint8_t Magic[4];
+    uint32_t Version;
+    uint64_t Size;
+    uint64_t EntriesOffset;
+    uint64_t EntriesCount;
+    uint64_t InflatedSize;
+  };
+  struct OffloadBinaryEntry {
+    uint16_t ImageKind;
+    uint16_t OffloadKind;
+    uint32_t Flags;
+    uint64_t StringOffset;
+    uint64_t NumStrings;
+    uint64_t ImageOffset;
+    uint64_t ImageSize;
+  };
+  static_assert(sizeof(OffloadBinaryHeaderV3) == 40);
+
+  OffloadBinaryHeaderV3 H{};
+  H.Magic[0] = 0x10;
+  H.Magic[1] = 0xFF;
+  H.Magic[2] = 0x10;
+  H.Magic[3] = 0xAD;
+  H.Version = Version;
+  H.EntriesOffset = sizeof(H);
+  H.EntriesCount = 1;
+  H.InflatedSize = InflatedSize;
+  OffloadBinaryEntry E{};
+  E.ImageKind = /*IMG_SYCLBIN*/ 7;
+  E.OffloadKind = /*OFK_SYCL*/ 8;
+  E.ImageOffset = sizeof(H) + sizeof(E);
+  E.ImageSize = Payload->size();
+  H.Size = E.ImageOffset + E.ImageSize;
+
+  std::vector<char> Out(H.Size);
+  std::memcpy(Out.data(), &H, sizeof(H));
+  std::memcpy(Out.data() + sizeof(H), &E, sizeof(E));
+  std::memcpy(Out.data() + E.ImageOffset, Payload->data(), Payload->size());
+  return Out;
+}
+
+void expectInvalidOffloadBinary(const std::vector<char> &Bytes,
+                                const std::string &ExpectedMsg) {
+  try {
+    sycl::detail::SYCLBIN Parsed{Bytes.data(), Bytes.size()};
+    FAIL() << "Expected sycl::exception: " << ExpectedMsg;
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::make_error_code(sycl::errc::invalid));
+    EXPECT_EQ(std::string{Ex.what()}, ExpectedMsg);
+  }
+}
+} // namespace
+
+TEST(SYCLBINSerialize, OffloadBinaryV3Accepted) {
+  std::vector<char> Bytes = makeV3WrappedSYCLBIN(/*Version=*/3,
+                                                 /*InflatedSize=*/0);
+  ASSERT_FALSE(Bytes.empty());
+
+  sycl::detail::SYCLBIN Parsed{Bytes.data(), Bytes.size()};
+  EXPECT_EQ(Parsed.Version, 1u);
+  EXPECT_EQ(Parsed.AbstractModules.size(), 0u);
+  ASSERT_NE(Parsed.GlobalMetadata, nullptr);
+  auto It = Parsed.GlobalMetadata->getPropSets().find(
+      sycl::detail::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA);
+  ASSERT_NE(It, Parsed.GlobalMetadata->getPropSets().end());
+  EXPECT_EQ(It->second.find("state")->second.asUint32(),
+            static_cast<uint32_t>(sycl::bundle_state::executable));
+}
+
+TEST(SYCLBINSerialize, OffloadBinaryV3CompressedRejected) {
+  std::vector<char> Bytes = makeV3WrappedSYCLBIN(/*Version=*/3,
+                                                 /*InflatedSize=*/4096);
+  ASSERT_FALSE(Bytes.empty());
+  expectInvalidOffloadBinary(Bytes,
+                             "Compressed Offload Binary is not supported.");
+}
+
+TEST(SYCLBINSerialize, OffloadBinaryUnknownVersionRejected) {
+  std::vector<char> Bytes = makeV3WrappedSYCLBIN(/*Version=*/4,
+                                                 /*InflatedSize=*/0);
+  ASSERT_FALSE(Bytes.empty());
+  expectInvalidOffloadBinary(Bytes,
+                             "Unsupported Offload Binary version number.");
+}

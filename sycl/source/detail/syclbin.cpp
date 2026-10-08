@@ -39,6 +39,14 @@ struct OffloadBinaryHeaderType {
   uint64_t EntriesOffset; // V2: Renamed from EntryOffset
   uint64_t EntriesCount;  // V2: Renamed from EntrySize, now stores count
 };
+// V3 appends InflatedSize to the header. It is kept out of
+// OffloadBinaryHeaderType so the 32-byte v1/v2 layout (and the v2 header
+// emitted by SYCLBIN::write) stays unchanged.
+struct OffloadBinaryHeaderV3Type : OffloadBinaryHeaderType {
+  uint64_t InflatedSize; // V3: Original size of the binary if compressed.
+};
+static_assert(sizeof(OffloadBinaryHeaderType) == 32);
+static_assert(sizeof(OffloadBinaryHeaderV3Type) == 40);
 struct OffloadBinaryEntryType {
   uint16_t ImageKind;
   uint16_t OffloadKind;
@@ -102,10 +110,24 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Incorrect Offload Binary magic number.");
 
-  // Support both v1 and v2 formats
-  if (Header->Version == 0 || Header->Version > 2)
+  // Support v1, v2 and v3 formats.
+  if (Header->Version == 0 || Header->Version > 3)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unsupported Offload Binary version number.");
+
+  // V3: a non-zero InflatedSize means everything after the header is
+  // compressed, which this reader cannot decompress. Uncompressed v3 binaries
+  // have the same entry layout as v2, located via EntriesOffset.
+  if (Header->Version >= 3) {
+    if (sizeof(OffloadBinaryHeaderV3Type) > Size)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Invalid Offload Binary size.");
+    const OffloadBinaryHeaderV3Type *HeaderV3 =
+        reinterpret_cast<const OffloadBinaryHeaderV3Type *>(Data);
+    if (HeaderV3->InflatedSize != 0)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Compressed Offload Binary is not supported.");
+  }
 
   // V1: EntriesCount was EntrySize and stored sizeof(Entry)
   // V2: EntriesCount stores the number of entries
