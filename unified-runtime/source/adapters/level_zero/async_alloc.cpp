@@ -256,9 +256,14 @@ ur_result_t urEnqueueUSMFreeExp(
     return USMFreeHelper(Queue->Context, Mem);
   }
 
+  // Proxy pools (USM pooling disabled) do not support malloc_usable_size.
+  // Such allocations are inserted with size 0, so they are never reused and
+  // are freed only once the queue is synchronized. They must not be freed
+  // here, because commands enqueued before this free may still use them.
   size_t Size = 0;
   UmfRet = umfPoolMallocUsableSize(UmfPool, Mem, &Size);
-  if (UmfRet != UMF_RESULT_SUCCESS) {
+  if (UmfRet != UMF_RESULT_SUCCESS &&
+      UmfRet != UMF_RESULT_ERROR_NOT_SUPPORTED) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
