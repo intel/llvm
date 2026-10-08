@@ -167,14 +167,16 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
       v2_cast(this), v2_cast(hContext), common_cast(devicesAndSubDevices));
   for (auto &desc : descriptors) {
     std::unique_ptr<UsmPool> usmPool;
-    if (disjointPoolConfigs.has_value() && !isUsmPoolingDisabled(desc)) {
+    bool isProxy =
+        !disjointPoolConfigs.has_value() || isUsmPoolingDisabled(desc);
+    if (!isProxy) {
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
-      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool), isProxy);
     } else {
       auto pool = usm::makeProxyPool(makeProvider(desc));
-      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool), isProxy);
     }
     UMF_CALL_THROWS(
         umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
@@ -232,14 +234,16 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
 
   for (auto &desc : descriptors) {
     std::unique_ptr<UsmPool> usmPool;
-    if (disjointPoolConfigs.has_value() && !isUsmPoolingDisabled(desc)) {
+    bool isProxy =
+        !disjointPoolConfigs.has_value() || isUsmPoolingDisabled(desc);
+    if (!isProxy) {
       auto &poolConfig =
           disjointPoolConfigs.value().Configs[descToDisjoinPoolMemType(desc)];
       auto pool = usm::makeDisjointPool(makeProvider(desc), poolConfig);
-      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool), isProxy);
     } else {
       auto pool = usm::makeProxyPool(makeProvider(desc));
-      usmPool = std::make_unique<UsmPool>(this, std::move(pool));
+      usmPool = std::make_unique<UsmPool>(this, std::move(pool), isProxy);
     }
     UMF_CALL_THROWS(
         umfPoolSetTag(usmPool->umfPool.get(), usmPool.get(), nullptr));
@@ -437,11 +441,42 @@ size_t ur_usm_pool_handle_t_::getPeakReservedSize() {
   return umfRet == UMF_RESULT_SUCCESS ? maxPeakSize : 0;
 }
 
-size_t ur_usm_pool_handle_t_::getTotalUsedSize() {
-  return allocStats.getCurrent();
+ur_result_t ur_usm_pool_handle_t_::getProxyUsedSize(bool peak, size_t &size) {
+  umf_result_t ret = UMF_RESULT_SUCCESS;
+  poolManager.forEachPool([&](UsmPool *pool) {
+    if (!pool->isProxy)
+      return true;
+    umf_memory_provider_handle_t provider = nullptr;
+    ret = umfPoolGetMemoryProvider(pool->umfPool.get(), &provider);
+    if (ret != UMF_RESULT_SUCCESS)
+      return false;
+    size_t providerSize = 0;
+    ret = umfCtlGet(peak ? "umf.provider.by_handle.{}.stats.peak_memory"
+                         : "umf.provider.by_handle.{}.stats.allocated_memory",
+                    &providerSize, sizeof(providerSize), provider);
+    if (ret != UMF_RESULT_SUCCESS)
+      return false;
+    // Proxy pools do not cache allocations, so provider statistics track
+    // current and peak usage even though malloc_usable_size is unsupported.
+    size += providerSize;
+    return true;
+  });
+  if (ret != UMF_RESULT_SUCCESS) {
+    UR_LOG(ERR, "Failed to query proxy pool memory usage: {}", ret);
+    return umf::umf2urResult(ret);
+  }
+  return UR_RESULT_SUCCESS;
 }
 
-size_t ur_usm_pool_handle_t_::getPeakUsedSize() { return allocStats.getPeak(); }
+ur_result_t ur_usm_pool_handle_t_::getTotalUsedSize(size_t &usedSize) {
+  usedSize = allocStats.getCurrent();
+  return getProxyUsedSize(false, usedSize);
+}
+
+ur_result_t ur_usm_pool_handle_t_::getPeakUsedSize(size_t &peakSize) {
+  peakSize = allocStats.getPeak();
+  return getProxyUsedSize(true, peakSize);
+}
 
 void ur_usm_pool_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
                                                  ur_device_handle_t peerDevice,
@@ -607,13 +642,15 @@ ur_result_t urUSMPoolGetInfoExp(::ur_usm_pool_handle_t hPoolOpque,
     value = hPool->getTotalReservedSize();
     break;
   case UR_USM_POOL_INFO_USED_CURRENT_EXP:
-    value = hPool->getTotalUsedSize();
+    if (auto ret = hPool->getTotalUsedSize(value))
+      return ret;
     break;
   case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
     value = hPool->getPeakReservedSize();
     break;
   case UR_USM_POOL_INFO_USED_HIGH_EXP:
-    value = hPool->getPeakUsedSize();
+    if (auto ret = hPool->getPeakUsedSize(value))
+      return ret;
     break;
   default:
     // Unknown enumerator
