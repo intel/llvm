@@ -114,8 +114,10 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
   std::unique_ptr<llvm::MemoryBuffer> Buffer = std::move(BufferOrErr.get());
   // A wrapper module in bitcode form already carries the registration
   // descriptor the SYCL runtime expects. It is linked into the host module by
-  // loadLinkModules, so there is nothing to embed here.
-  if (llvm::isBitcode(
+  // loadLinkModules, so there is nothing to embed here. In SYCL CUDA
+  // compatibility mode the file is the CUDA fat binary, which CUDA registers.
+  if (getLangOpts().CUDA ||
+      llvm::isBitcode(
           reinterpret_cast<const unsigned char *>(Buffer->getBufferStart()),
           reinterpret_cast<const unsigned char *>(Buffer->getBufferEnd())))
     return nullptr;

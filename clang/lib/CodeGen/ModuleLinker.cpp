@@ -51,7 +51,7 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
   // clang-linker-wrapper --emit-fatbin-only into the host module so the SYCL
   // runtime finds the device image at program startup. A raw device binary is
   // embedded by CodeGenModule::embedSYCLDeviceBinary instead.
-  if (CI.getLangOpts().SYCLIsHost && !CI.getLangOpts().CUDA &&
+  if (CI.getLangOpts().SYCLIsHost &&
       !CI.getCodeGenOpts().OffloadBinaryToEmbedFile.empty()) {
     auto BCBuf = CI.getFileManager().getBufferForFile(
         CI.getCodeGenOpts().OffloadBinaryToEmbedFile);
