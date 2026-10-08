@@ -258,7 +258,15 @@ ur_result_t urEnqueueUSMFreeExp(
 
   size_t Size = 0;
   UmfRet = umfPoolMallocUsableSize(UmfPool, Mem, &Size);
-  if (UmfRet != UMF_RESULT_SUCCESS) {
+  if (UmfRet == UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    // Proxy pools (used when USM pooling is disabled) do not track allocation
+    // sizes. Query the size from the driver so that the allocation can still
+    // be deferred to the async pool: freeing it synchronously here could
+    // release memory still used by previously enqueued work, and a size of 0
+    // would make the allocation never reusable.
+    ZE2UR_CALL(zeMemGetAddressRange,
+               (Queue->Context->ZeContext, Mem, nullptr, &Size));
+  } else if (UmfRet != UMF_RESULT_SUCCESS) {
     return USMFreeHelper(Queue->Context, Mem);
   }
 
