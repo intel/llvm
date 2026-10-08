@@ -57,6 +57,7 @@ target_link_libraries(ipc-test PRIVATE ur_umf)
 
 add_conformance_devices_test(mem_buffer_map urEnqueueMemBufferMapHostPtr.cpp)
 add_conformance_devices_test(device_select_binary urDeviceSelectBinary.cpp)
+add_conformance_devices_test(cross_queue_wait urEnqueueCrossQueueWaitFinish.cpp)
 
 add_l0_loader_devices_test(mem_buffer_create_with_native_handle urMemBufferCreateWithNativeHandleShared.cpp)
 
