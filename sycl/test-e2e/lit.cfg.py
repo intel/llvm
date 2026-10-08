@@ -1123,8 +1123,7 @@ for full_name, sycl_device in zip(
             ip_ver = re.match(r" *Version *: *([0-9]+)\.([0-9]+)\.([0-9]+)", line)
             if ip_ver:
                 usm_pooling_disabled.append(
-                    is_intel_driver
-                    and tuple(map(int, ip_ver.groups())) >= (20, 1, 0)
+                    is_intel_driver and tuple(map(int, ip_ver.groups())) >= (20, 1, 0)
                 )
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
