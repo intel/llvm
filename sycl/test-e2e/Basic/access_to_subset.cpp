@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23413
+
 //==---------- access_to_subset.cpp --- access to subset of buffer test ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
