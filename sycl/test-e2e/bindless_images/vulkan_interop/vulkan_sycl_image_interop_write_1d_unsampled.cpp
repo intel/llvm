@@ -3,13 +3,12 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-73525
-
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
 // Sporadic failures observed on Linux across all Intel platforms.
+// Fixed in NEO build 39809 (GSD-13245, CMPLRLLVM-77475); drop once Linux CI
+// driver >= 39809.
 // UNSUPPORTED: linux && level_zero
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
 
