@@ -1,0 +1,231 @@
+= sycl_ext_oneapi_saturating_conversion
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2026 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 11 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+Converting a floating-point value to a narrow integer type is a common
+operation in INT8 quantization pipelines (for example, quantizing activations
+before an INT8 dot-product / `dp4a` accumulation).  Such pipelines require a
+specific conversion behavior that is not directly expressible with the core
+SYCL `vec::convert` interface:
+
+* the value must be rounded to the nearest integer using round-to-nearest-even,
+  and
+* the result must be _saturated_ (clamped) to the range of the destination
+  integer type rather than wrapping or producing an undefined result when the
+  input is out of range.
+
+The core `vec::convert` supports selecting a rounding mode but does not provide
+saturation, so applications must otherwise clamp manually, which is verbose and
+does not map to the single hardware instruction that some targets provide (for
+example NVPTX `cvt.rni.sat.s8.f32`).
+
+This extension adds a small set of free functions that perform a
+round-to-nearest-even, saturating conversion from `float` to an 8-bit integer,
+including packed 4-wide variants that produce the byte layout consumed by the
+link:../supported/sycl_ext_oneapi_dot_accumulate.asciidoc[
+sycl_ext_oneapi_dot_accumulate] `dot_acc` helpers.
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+
+// Quantize a float to int8 (round-to-nearest-even, saturating).
+int8_t q = float_to_int8_rn(x);
+
+// Quantize four floats and pack them into a 32-bit word laid out for dp4a.
+sycl::vec<float, 4> v = ...;
+int32_t packed = float4_to_int8x4_rn(v);
+----
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_SATURATING_CONVERSION` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Common conversion semantics
+
+All functions in this extension convert a `float` argument to an integer using
+the following semantics:
+
+1. The value is rounded to the nearest integer using the round-to-nearest-even
+   rounding mode.
+2. The rounded value is saturated (clamped) to the closed range of the
+   destination integer type: `[-128, 127]` for `int8_t` and `[0, 255]` for
+   `uint8_t`.
+3. If the input is NaN, the result is `0`.
+
+These semantics are identical on all devices and on the host, so a program
+produces the same numerical results regardless of where it runs.
+
+The functions are available in both host and device code.  They are defined in
+the header `<sycl/ext/oneapi/experimental/saturating_conversion.hpp>` and are
+members of the `sycl::ext::oneapi::experimental` namespace.
+
+=== Scalar conversions
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+int8_t  float_to_int8_rn(float x);
+uint8_t float_to_uint8_rn(float x);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+--
+[frame=none, grid=none, cols="40,60"]
+|===
+a|
+[source]
+----
+int8_t float_to_int8_rn(float x);
+----
+a|
+_Returns:_ The value `x` converted to `int8_t` using the
+<<common-conversion-semantics, common conversion semantics>> (saturating to
+`[-128, 127]`).
+
+a|
+[source]
+----
+uint8_t float_to_uint8_rn(float x);
+----
+a|
+_Returns:_ The value `x` converted to `uint8_t` using the
+<<common-conversion-semantics, common conversion semantics>> (saturating to
+`[0, 255]`).
+|===
+--
+
+=== Packed conversions
+
+The packed functions convert each element of a four-element vector and pack the
+four resulting bytes into a single 32-bit word.  Element _i_ of the input
+occupies byte _i_ of the result (that is, element `0` occupies the least
+significant byte).  This is the same byte layout consumed by the
+`sycl_ext_oneapi_dot_accumulate` `dot_acc` overloads, so the result can be
+passed directly to a dot-product accumulation.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+int32_t  float4_to_int8x4_rn(sycl::vec<float, 4> v);
+uint32_t float4_to_uint8x4_rn(sycl::vec<float, 4> v);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+--
+[frame=none, grid=none, cols="40,60"]
+|===
+a|
+[source]
+----
+int32_t float4_to_int8x4_rn(sycl::vec<float, 4> v);
+----
+a|
+_Returns:_ A 32-bit word whose byte _i_ contains `float_to_int8_rn(v[i])`, with
+element `0` in the least significant byte.
+
+a|
+[source]
+----
+uint32_t float4_to_uint8x4_rn(sycl::vec<float, 4> v);
+----
+a|
+_Returns:_ A 32-bit word whose byte _i_ contains `float_to_uint8_rn(v[i])`,
+with element `0` in the least significant byte.
+|===
+--
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+On NVPTX targets the scalar conversions lower to a single hardware instruction,
+`cvt.rni.sat.s8.f32` and `cvt.rni.sat.u8.f32` respectively, which already
+implements round-to-nearest-even, saturation and the NaN-to-zero behavior.
+
+On targets that do not provide such an instruction (for example AMDGCN, the
+host, and SPIR-V devices) the conversion is implemented as a portable sequence
+of round (`rint`), clamp (`min`/`max` against the destination bounds) and
+convert, with an explicit NaN check to produce `0`.  On AMDGCN this selects to
+`v_rndne_f32`, `v_max_f32`/`v_min_f32` and `v_cvt_i32_f32`.
+
+
+== Issues
+
+None.
