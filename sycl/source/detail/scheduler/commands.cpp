@@ -242,6 +242,38 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<captured_dependency> &Deps,
+                     queue_impl *CommandQueue, bool IsHostTaskCommand) {
+  const bool CanRemoveRedundantEvent =
+      CommandQueue && CommandQueue->isInOrder() && !IsHostTaskCommand &&
+      !CommandQueue->getContextImpl().isNativeRecordingActive();
+
+  std::vector<ur_event_handle_t> RetUrEvents;
+  for (const captured_dependency &Dep : Deps) {
+    const event_binding &Binding = *Dep.Binding;
+    ur_event_handle_t Handle = Binding.getHandle();
+    if (Handle == nullptr)
+      continue;
+
+    // Same redundancy rule as the events_range overload above, applied to the
+    // queue the captured signal was submitted to.
+    if (CanRemoveRedundantEvent &&
+        Binding.MWorkerQueue.lock().get() == CommandQueue &&
+        !Binding.MPotentiallyNativeRecorded)
+      continue;
+
+    RetUrEvents.push_back(Handle);
+  }
+
+  return RetUrEvents;
+}
+
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<captured_dependency> &Deps) const {
+  return getUrEvents(Deps, MWorkerQueue.get(), isHostTask());
+}
+
 namespace {
 
 struct EnqueueNativeCommandData {
@@ -262,12 +294,13 @@ class DispatchHostTask {
   std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
-    std::map<adapter_impl *, std::vector<EventImplPtr>>
+    std::map<adapter_impl *, std::vector<captured_dependency>>
         RequiredEventsPerAdapter;
 
-    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
-      adapter_impl &Adapter = Event->getAdapter();
-      RequiredEventsPerAdapter[&Adapter].push_back(Event);
+    for (const captured_dependency &Dep : MThisCmd->MPreparedDepsEvents) {
+      adapter_impl *Adapter = Dep.Binding->MAdapter;
+      assert(Adapter && "device dependency without an adapter");
+      RequiredEventsPerAdapter[Adapter].push_back(Dep);
     }
 
     // wait for dependency device events
@@ -298,8 +331,8 @@ class DispatchHostTask {
 
     // Wait for dependency host events.
     // Host events can't throw exceptions so don't try to catch it.
-    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
-      Event->waitInternal();
+    for (const captured_dependency &Dep : MThisCmd->MPreparedHostDepsEvents) {
+      Dep.Binding->wait();
     }
 
     return true;
@@ -422,16 +455,16 @@ public:
 };
 
 void Command::waitForPreparedHostEvents() const {
-  for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
-    HostEvent->waitInternal();
+  for (const captured_dependency &Dep : MPreparedHostDepsEvents)
+    Dep.Binding->wait();
 }
 
 void Command::waitForEvents(queue_impl *Queue,
-                            std::vector<EventImplPtr> &EventImpls,
+                            std::vector<captured_dependency> &EventImpls,
                             ur_event_handle_t &Event) {
 #ifndef NDEBUG
-  for (const EventImplPtr &Event : EventImpls)
-    assert(!Event->isHost() &&
+  for (const captured_dependency &Dep : EventImpls)
+    assert(!Dep.Event->isHost() &&
            "Only non-host events are expected to be waited for here");
 #endif
   if (!EventImpls.empty()) {
@@ -449,12 +482,13 @@ void Command::waitForEvents(queue_impl *Queue,
       // three events (E1, E2, E3). Now, if urEventWait is called for all
       // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
       // these events refer to different contexts.
-      std::map<context_impl *, std::vector<EventImplPtr>>
+      std::map<context_impl *, std::vector<captured_dependency>>
           RequiredEventsPerContext;
 
-      for (const EventImplPtr &Event : EventImpls) {
-        context_impl &Context = Event->getContextImpl();
-        RequiredEventsPerContext[&Context].push_back(Event);
+      // The context is a property of the event, not of the signal.
+      for (const captured_dependency &Dep : EventImpls) {
+        context_impl &Context = Dep.Event->getContextImpl();
+        RequiredEventsPerContext[&Context].push_back(Dep);
       }
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
@@ -477,8 +511,8 @@ void Command::waitForEvents(queue_impl *Queue,
 }
 
 /// It is safe to bind MPreparedDepsEvents and MPreparedHostDepsEvents
-/// references to event_impl class members because Command
-/// should not outlive the event connected to it.
+/// references to event_binding members because the Command owns a reference
+/// to the binding (MBinding).
 Command::Command(
     CommandType Type, queue_impl *Queue,
     ur_exp_command_buffer_handle_t CommandBuffer,
@@ -486,20 +520,21 @@ Command::Command(
     : MQueue(Queue ? Queue->shared_from_this() : nullptr),
       MEvent(Queue ? detail::event_impl::create_device_event(*Queue)
                    : detail::event_impl::create_incomplete_host_event()),
-      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MBinding(MEvent->getBinding()),
+      MPreparedDepsEvents(MBinding->MPreparedDepsEvents),
+      MPreparedHostDepsEvents(MBinding->MPreparedHostDepsEvents), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
+  MBinding->setWorkerQueue(MWorkerQueue);
   if (Queue)
-    MEvent->setSubmittedQueue(Queue);
-  MEvent->setCommand(this);
+    MBinding->setSubmittedQueue(Queue);
+  MBinding->MCommand = this;
   if (MQueue) {
     context_impl &Context = MQueue->getContextImpl();
     MEvent->setContextImpl(Context);
-    MEvent->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
+    MBinding->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
   }
-  MEvent->setStateIncomplete();
+  MBinding->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -516,16 +551,16 @@ Command::Command(
     ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(Queue ? Queue->shared_from_this() : nullptr),
-      MEvent(std::move(Event)),
-      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MEvent(std::move(Event)), MBinding(MEvent->getBinding()),
+      MPreparedDepsEvents(MBinding->MPreparedDepsEvents),
+      MPreparedHostDepsEvents(MBinding->MPreparedHostDepsEvents), MType(Type),
       MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
   MWorkerQueue = MQueue;
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
-  MEvent->setCommand(this);
+  MBinding->MCommand = this;
   if (MQueue)
-    MEvent->setPotentiallyNativeRecorded(
+    MBinding->setPotentiallyNativeRecorded(
         MQueue->getContextImpl().isNativeRecordingActive());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -726,28 +761,33 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
+Command *Command::processDepEvent(captured_dependency DepEvent,
+                                  const DepDesc &Dep,
                                   std::vector<Command *> &ToCleanUp) {
+  // The dependency arrives captured: the signal the event represented when the
+  // dependency was registered. This command may be enqueued much later, and
+  // the event may represent another signal by then. See captured_dependency.
+  assert(DepEvent.Binding && "dependency without a captured signal");
+  event_impl &Event = *DepEvent.Event;
 
   // 1. Non-host events can be ignored if they are not fully initialized.
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool UrEventExpected =
-      (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
-  if (auto *DepCmd = DepEvent->getCommand())
+  bool UrEventExpected = (!Event.isHost() && !Event.isDefaultConstructed());
+  if (Command *DepCmd = DepEvent.Binding->MCommand)
     UrEventExpected &= DepCmd->producesUrEvent();
 
   if (!UrEventExpected) {
-    // call to waitInternal() is in waitForPreparedHostEvents() as it's called
-    // from enqueue process functions
-    MPreparedHostDepsEvents.push_back(DepEvent);
+    // The wait is in waitForPreparedHostEvents() as it's called from enqueue
+    // process functions
+    MPreparedHostDepsEvents.push_back(std::move(DepEvent));
     return nullptr;
   }
 
   Command *ConnectionCmd = nullptr;
 
-  context_impl &DepEventContext = DepEvent->getContextImpl();
+  context_impl &DepEventContext = DepEvent.Event->getContextImpl();
   context_impl *WorkerContext = getWorkerContext();
   // If contexts don't match we'll connect them using host task
   if (&DepEventContext != WorkerContext && WorkerContext) {
@@ -778,8 +818,12 @@ Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
 
   if (NewDep.MDepCommand) {
+    // The dependency is on what the command produces, whatever its event may
+    // represent later.
     ConnectionCmd =
-        processDepEvent(NewDep.MDepCommand->getEvent(), NewDep, ToCleanUp);
+        processDepEvent(captured_dependency{NewDep.MDepCommand->getBinding(),
+                                            NewDep.MDepCommand->getEvent()},
+                        NewDep, ToCleanUp);
   }
   // ConnectionCmd insertion builds the following dependency structure:
   // this -> emptyCmd (for ConnectionCmd) -> ConnectionCmd -> NewDep
@@ -810,7 +854,20 @@ Command *Command::addDep(EventImplPtr Event,
   emitEdgeEventForEventDependence(Cmd, UrEventAddr);
 #endif
 
-  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
+  return processDepEvent(capture_dependency(Event),
+                         DepDesc{nullptr, nullptr, nullptr}, ToCleanUp);
+}
+
+Command *Command::addDep(captured_dependency Dep,
+                         std::vector<Command *> &ToCleanUp) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // We need this for just the instrumentation, so guarding it will prevent
+  // unused variable warnings when instrumentation is turned off
+  ur_event_handle_t UrEventAddr = Dep.Binding->getHandle();
+  emitEdgeEventForEventDependence(Dep.Binding->MCommand, UrEventAddr);
+#endif
+
+  return processDepEvent(std::move(Dep), DepDesc{nullptr, nullptr, nullptr},
                          ToCleanUp);
 }
 
@@ -900,8 +957,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // Otherwise if enqueueImp fails the deferred waiter could sleep forever.
   auto WakeWaitersOnFailure = [this] {
     if (!MEvent->isDiscarded() &&
-        (MEvent->isHost() || MEvent->getHandle() == nullptr))
-      MEvent->setComplete();
+        (MEvent->isHost() || MBinding->getHandle() == nullptr))
+      MBinding->setComplete();
   };
   ur_result_t Res;
   try {
@@ -916,10 +973,10 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
     WakeWaitersOnFailure();
   } else {
-    MEvent->setEnqueued();
+    MBinding->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
-        (MEvent->isHost() || MEvent->getHandle() == nullptr))
-      MEvent->setComplete();
+        (MEvent->isHost() || MBinding->getHandle() == nullptr))
+      MBinding->setComplete();
 
     // Consider the command is successfully enqueued if return code is
     // UR_RESULT_SUCCESS
@@ -1088,7 +1145,7 @@ void AllocaCommand::emitInstrumentationData() {
 
 ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
 
   ur_event_handle_t UREvent = nullptr;
 
@@ -1098,7 +1155,7 @@ ur_result_t AllocaCommand::enqueueImp() {
     if (!MQueue) {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
-      MEvent->setHandle(UREvent);
+      MBinding->setHandle(UREvent);
 
       return UR_RESULT_SUCCESS;
     }
@@ -1113,7 +1170,7 @@ ur_result_t AllocaCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1189,7 +1246,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 ur_result_t AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
 
   if (auto Result = callMemOpHelperRet(
@@ -1200,7 +1257,7 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
@@ -1259,7 +1316,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 ur_result_t ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1315,7 +1372,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     UnmapEventImpl->setHandle(UREvent);
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
-    EventImpls.push_back(std::move(UnmapEventImpl));
+    EventImpls.push_back(capture_dependency(UnmapEventImpl));
   }
   ur_event_handle_t UREvent = nullptr;
   if (SkipRelease)
@@ -1328,7 +1385,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
         Result != UR_RESULT_SUCCESS)
       return Result;
   }
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1385,7 +1442,7 @@ void MapMemObject::emitInstrumentationData() {
 
 ur_result_t MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
@@ -1398,7 +1455,7 @@ ur_result_t MapMemObject::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1469,7 +1526,7 @@ bool UnMapMemObject::producesUrEvent() const {
 
 ur_result_t UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
@@ -1481,7 +1538,7 @@ ur_result_t UnMapMemObject::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1517,11 +1574,11 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
+  MBinding->setWorkerQueue(MWorkerQueue);
   // When MQueue is non-null the base Command constructor already set this from
   // MQueue's context.
   if (!MQueue && MWorkerQueue)
-    MEvent->setPotentiallyNativeRecorded(
+    MBinding->setPotentiallyNativeRecorded(
         MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
@@ -1585,7 +1642,7 @@ bool MemCpyCommand::producesUrEvent() const {
 
 ur_result_t MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
 
   ur_event_handle_t UREvent = nullptr;
 
@@ -1602,7 +1659,7 @@ ur_result_t MemCpyCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1650,10 +1707,10 @@ void ExecCGCommand::clearAuxiliaryResources() {
 
 ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
   assert(MSrcAllocaCmd->getMemAllocation() && "Expected valid source pointer");
@@ -1699,11 +1756,11 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
   }
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
+  MBinding->setWorkerQueue(MWorkerQueue);
   // When MQueue is non-null the base Command constructor already set this from
   // MQueue's context.
   if (!MQueue && MWorkerQueue)
-    MEvent->setPotentiallyNativeRecorded(
+    MBinding->setPotentiallyNativeRecorded(
         MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
@@ -1746,7 +1803,7 @@ context_impl *MemCpyCommandHost::getWorkerContext() const {
 ur_result_t MemCpyCommandHost::enqueueImp() {
   queue_impl *Queue = MWorkerQueue.get();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
@@ -1775,7 +1832,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1787,7 +1844,7 @@ ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   ur_event_handle_t UREvent = nullptr;
   waitForEvents(MQueue.get(), MPreparedDepsEvents, UREvent);
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1969,10 +2026,24 @@ static std::string_view cgTypeToString(detail::CGType Type) {
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    EventImplPtr EventForReuse)
+    : Command(CommandType::RUN_CG, Queue,
+              EventForReuse ? EventForReuse : makeEvent(*CommandGroup, Queue),
               CommandBuffer, Dependencies),
-      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded),
+      MSignalsReusableEvent(EventForReuse != nullptr),
+      MCommandGroup(std::move(CommandGroup)) {
+  if (MSignalsReusableEvent) {
+    // What makeEvent does for a new event, on the binding this command
+    // produces. The event's current binding is that binding: the caller
+    // prepared the event for signaling right before.
+    assert(MEvent->getBinding() == MBinding);
+    MBinding->setWorkerQueue(MQueue);
+    MBinding->setSubmittedQueue(Queue);
+    MBinding->setStateIncomplete();
+    MEvent->markAsProfilingTagEvent();
+  }
   emitInstrumentationDataProxy();
 }
 
@@ -2459,7 +2530,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     queue_impl &Queue, std::vector<ArgDesc> &Args,
     device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
     NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
-    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
+    detail::event_binding *OutBinding, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
@@ -2606,9 +2677,11 @@ static ur_result_t SetKernelParamsAndLaunch(
           (property_list.flags || property_list.pNext) ? &property_list
                                                        : nullptr,
           RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-          OutEventImpl ? &UREvent : nullptr);
-  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
-    OutEventImpl->setHandle(UREvent);
+          OutBinding ? &UREvent : nullptr);
+  if (Error == UR_RESULT_SUCCESS && OutBinding) {
+    // Into the signal this launch produces, not into whatever its event may
+    // represent by now.
+    OutBinding->setHandle(UREvent);
   }
 
   return Error;
@@ -2868,7 +2941,8 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, DeviceKernelInfo &DeviceKernelInfo,
-    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
+    std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_binding *OutBinding,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
@@ -2991,7 +3065,7 @@ void enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
-        OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
+        OutBinding, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
         BinImage, DeviceKernelInfo, KernelFuncPtr);
   }
@@ -3023,7 +3097,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   flushCrossQueueDeps(EventImpls);
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
@@ -3046,8 +3120,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         MQueue->get_context(), MQueue->getDeviceImpl(), MCommandBuffer,
         *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
         getMemAllocationFunc);
-    MEvent->setSyncPoint(OutSyncPoint);
-    MEvent->setCommandBufferCommand(OutCommand);
+    MBinding->setSyncPoint(OutSyncPoint);
+    MBinding->setCommandBufferCommand(OutCommand);
     return result;
   }
   case CGType::CopyUSM: {
@@ -3059,7 +3133,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
@@ -3082,7 +3156,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToPtr: {
@@ -3102,7 +3176,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyPtrToAcc: {
@@ -3122,7 +3196,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
@@ -3140,7 +3214,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
@@ -3153,7 +3227,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
@@ -3166,7 +3240,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
@@ -3179,7 +3253,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {
@@ -3268,7 +3342,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
       assert(Res == UR_RESULT_SUCCESS);
     }
 
-    MEvent->setSyncPoint(OutSyncPoint);
+    MBinding->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
   }
 
@@ -3289,20 +3363,19 @@ ur_result_t ExecCGCommand::enqueueImp() {
 ur_result_t ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CGType::CodeplayHostTask)
     waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = !MEventNeeded ? nullptr : &UREvent;
-  detail::event_impl *EventImpl = !MEventNeeded ? nullptr : MEvent.get();
 
   auto SetEventHandleOrDiscard = [&]() {
     if (!MEventNeeded) {
       assert(MEvent->isDiscarded());
     } else {
       assert(!MEvent->isDiscarded());
-      MEvent->setHandle(*Event);
+      MBinding->setHandle(*Event);
     }
   };
 
@@ -3328,7 +3401,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3347,7 +3420,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
@@ -3368,7 +3441,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
@@ -3385,7 +3458,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(UREvent);
+    MBinding->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Kernel: {
@@ -3409,7 +3482,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(*MQueue, ExecKernel->MNDRDesc, ExecKernel->MArgs,
                      ExecKernel->getKernelBundle().get(), SyclKernel.get(),
-                     ExecKernel->MDeviceKernelInfo, RawEvents, EventImpl,
+                     ExecKernel->MDeviceKernelInfo, RawEvents,
+                     MEventNeeded ? MBinding.get() : nullptr,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
                      ExecKernel->MKernelUsesClusterLaunch,
@@ -3689,6 +3763,20 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ext::oneapi::experimental::event_mode_enum::low_power)
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
+    if (MSignalsReusableEvent) {
+      // The barrier signals a reusable event. Its backend event is created
+      // now, into this command's binding, so that it does not exist before
+      // the command is in the backend (event_impl::prepareForSignal released
+      // the one of the previous signal). Without reusable-event support UR
+      // creates one. IPC events are never signaled through the scheduler.
+      assert(!MBinding->getHandle() &&
+             "deferred signal with a backend event before enqueue");
+      assert(!MEvent->hasSharedBackendEvent() &&
+             "IPC event signaled through the scheduler");
+      if (MQueue->getContextImpl().supportsReusableEvents())
+        UREvent = MEvent->createDeviceUrEvent(MQueue->getDeviceImpl());
+    }
+
     adapter_impl &Adapter = MQueue->getAdapter();
     // User can specify explicit dependencies via depends_on call that we should
     // honor here. It is very important for cross queue dependencies. We wait
@@ -3714,7 +3802,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
+    std::vector<detail::captured_dependency> Events =
+        Barrier->MEventsWaitWithBarrier;
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
     std::vector<ur_event_handle_t> UrEvents =
@@ -3976,7 +4065,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Result != UR_RESULT_SUCCESS)
       return Result;
 
-    MEvent->setHandle(Event);
+    MBinding->setHandle(Event);
     return UR_RESULT_SUCCESS;
   }
   }
@@ -4010,10 +4099,10 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<captured_dependency> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue.get(), EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  MBinding->setHandle(UREvent);
 
   auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
     if (Dep.MDepRequirement == Req) {

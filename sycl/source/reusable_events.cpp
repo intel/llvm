@@ -58,18 +58,21 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   return RetEvent;
 }
 
-static void CheckEventAndThrow(detail::event_impl &EventImpl,
-                               detail::context_impl &ContextImpl) {
+static void CheckEventForWait(detail::event_impl &EventImpl) {
   if (EventImpl.isHost()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Host events cannot be enqueued for waiting.");
   }
+  // An event from another context is fine: the dependency then goes through
+  // the scheduler, which bridges the contexts.
+}
 
-  // Current limitation:
-  // The queue and an event need to be in the same context. The reason
-  // is, that cross-context dependencies use host tasks, and the wait
-  // command might be queued in the runtime. This flow is currently
-  // not supported by the Reusable Events APIs.
+static void CheckEventForSignal(detail::event_impl &EventImpl,
+                                detail::context_impl &ContextImpl) {
+  CheckEventForWait(EventImpl);
+
+  // The backend event of a signal lives in the queue's context, so the event
+  // has to belong to it.
   if (&EventImpl.getContextImpl() != &ContextImpl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "Event context must match the queue context.");
@@ -82,7 +85,7 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
+  detail::CheckEventForWait(EventImpl);
 
   QueueImpl.submit_barrier_direct_without_event(
       sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
@@ -94,8 +97,7 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
 
   for (const sycl::event &evt : evts) {
-    detail::CheckEventAndThrow(*sycl::detail::getSyclObjImpl(evt),
-                               QueueImpl.getContextImpl());
+    detail::CheckEventForWait(*sycl::detail::getSyclObjImpl(evt));
   }
 
   QueueImpl.submit_barrier_direct_without_event(
@@ -118,7 +120,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "on a queue which is recording a graph.");
   }
 
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
+  detail::CheckEventForSignal(EventImpl, QueueImpl.getContextImpl());
 
   // An IPC event cannot be signaled on a profiling-enabled queue.
   if (EventImpl.isIPCEnabled() && QueueImpl.MIsProfilingEnabled) {

@@ -52,11 +52,10 @@ private:
 };
 
 static std::vector<ur_event_handle_t>
-getUrEvents(const std::vector<sycl::event> &DepEvents) {
+getUrEvents(const std::vector<captured_dependency> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (const sycl::event &Event : DepEvents) {
-    event_impl &EventImpl = *detail::getSyclObjImpl(Event);
-    auto Handle = EventImpl.getHandle();
+  for (const captured_dependency &Dep : DepEvents) {
+    ur_event_handle_t Handle = Dep.Binding->getHandle();
     if (Handle != nullptr)
       RetUrEvents.push_back(Handle);
   }
@@ -89,28 +88,30 @@ prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   return EventImpl;
 }
 
-const std::vector<event> &
+std::vector<captured_dependency>
 queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
-                                    std::vector<event> &MutableVec,
                                     std::unique_lock<std::mutex> &QueueLock) {
+  std::vector<captured_dependency> Result;
+  Result.reserve(DepEvents.size() + 2);
+  for (const event &Event : DepEvents)
+    Result.push_back(capture_dependency(detail::getSyclObjImpl(Event)));
+
   if (!isInOrder())
-    return DepEvents;
+    return Result;
 
   QueueLock.lock();
-  EventImplPtr ExtraEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                             : MExtGraphDeps.LastEventPtr;
   std::optional<event> ExternalEvent = popExternalEvent();
-
-  if (!ExternalEvent && !ExtraEvent)
-    return DepEvents;
-
-  MutableVec = DepEvents;
   if (ExternalEvent)
-    MutableVec.push_back(*ExternalEvent);
-  if (ExtraEvent)
-    MutableVec.push_back(
-        detail::createSyclObjFromImpl<event>(std::move(ExtraEvent)));
-  return MutableVec;
+    Result.push_back(
+        capture_dependency(detail::getSyclObjImpl(*ExternalEvent)));
+  // The last event is added as the signal it was when it was recorded, so that
+  // the dependency is on the work of this queue even if the event has been
+  // enqueued for signaling again since.
+  const captured_dependency &LastEvent =
+      MGraph.expired() ? MDefaultGraphDeps.LastEvent : MExtGraphDeps.LastEvent;
+  if (LastEvent)
+    Result.push_back(LastEvent);
+  return Result;
 }
 
 EventImplPtr queue_impl::memset(void *Ptr, int Value, size_t Count,
@@ -278,11 +279,11 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MEmpty)
     return std::nullopt;
-  auto &LastEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                     : MExtGraphDeps.LastEventPtr;
+  auto &LastEvent =
+      MGraph.expired() ? MDefaultGraphDeps.LastEvent : MExtGraphDeps.LastEvent;
   // If the event comes from a graph, we must return it.
   if (LastEvent)
-    return detail::createSyclObjFromImpl<event>(LastEvent);
+    return detail::createSyclObjFromImpl<event>(LastEvent.Event);
   // We insert a marker to represent an event at end.
   return detail::createSyclObjFromImpl<event>(insertMarkerEvent());
 }
@@ -290,22 +291,21 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
 void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
   if (!EventImpl)
     return;
-  Command *Cmd = EventImpl->getCommand();
-  if (Cmd != nullptr && EventImpl->getHandle() == nullptr) {
-    std::weak_ptr<event_impl> EventWeakPtr{EventImpl};
+  // The signal is tracked, not the event: the event may be enqueued for
+  // signaling again while the command is still pending.
+  const std::shared_ptr<event_binding> &Binding = EventImpl->getBinding();
+  if (Binding->MCommand != nullptr && Binding->getHandle() == nullptr) {
     std::lock_guard<std::mutex> Lock{MMutex};
-    MEventsWeak.push_back(std::move(EventWeakPtr));
+    MEventsWeak.emplace_back(Binding);
   }
 }
 
 void queue_impl::addEventUnlocked(const detail::EventImplPtr &EventImpl) {
   if (!EventImpl)
     return;
-  Command *Cmd = EventImpl->getCommand();
-  if (Cmd != nullptr && EventImpl->getHandle() == nullptr) {
-    std::weak_ptr<event_impl> EventWeakPtr{EventImpl};
-    MEventsWeak.push_back(std::move(EventWeakPtr));
-  }
+  const std::shared_ptr<event_binding> &Binding = EventImpl->getBinding();
+  if (Binding->MCommand != nullptr && Binding->getHandle() == nullptr)
+    MEventsWeak.emplace_back(Binding);
 }
 
 detail::EventImplPtr
@@ -401,7 +401,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 
 EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
-    KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+    KernelData &KData, std::vector<detail::captured_dependency> &DepEvents,
     bool EventNeeded, detail::kernel_impl *KernelImplPtr,
     detail::kernel_bundle_impl *KernelBundleImpPtr,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
@@ -440,13 +440,13 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
       BinImage = detail::retrieveKernelBinary(*this, KData.getKernelName());
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(*this, KData.getNDRDesc(), KData.getArgs(),
-                     KernelBundleImpPtr, KernelImplPtr,
-                     *KData.getDeviceKernelInfoPtr(), RawEvents,
-                     ResultEvent.get(), nullptr, KData.getKernelCacheConfig(),
-                     KData.isCooperative(), KData.usesClusterLaunch(),
-                     KData.getKernelWorkGroupMemorySize(), BinImage,
-                     KData.getKernelFuncPtr());
+    enqueueImpKernel(
+        *this, KData.getNDRDesc(), KData.getArgs(), KernelBundleImpPtr,
+        KernelImplPtr, *KData.getDeviceKernelInfoPtr(), RawEvents,
+        ResultEvent ? ResultEvent->getBinding().get() : nullptr, nullptr,
+        KData.getKernelCacheConfig(), KData.isCooperative(),
+        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
+        BinImage, KData.getKernelFuncPtr());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiEnabled) {
       // Emit signal only when event is created
@@ -474,7 +474,9 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     ResultEvent->setEnqueued();
     // connect returned event with dependent events
     if (!isInOrder()) {
-      ResultEvent->getPreparedDepsEvents() = DepEvents;
+      // The dependencies are in the backend already; the list is kept for
+      // event::get_wait_list and dependency cleanup.
+      ResultEvent->getPreparedDepsEvents() = uncaptured(DepEvents);
       // ResultEvent is local for current thread, no need to lock.
       ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
     }
@@ -485,15 +487,19 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 
 EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
     std::vector<detail::EventImplPtr> &BarrierDepEvents,
-    std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
-    bool EventNeeded, const EventImplPtr &EventForReuse) {
+    std::vector<detail::captured_dependency> &DepEvents,
+    detail::CGType BarrierType, bool EventNeeded,
+    const EventImplPtr &EventForReuse) {
 
   // EventForReuse can only be set for BarrierType equal to CGType::Barrier
   // (enqueue_signal_event function)
   assert(!EventForReuse || (EventForReuse && BarrierType == CGType::Barrier));
 
-  ur_event_handle_t UREvent =
-      EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
+  ur_event_handle_t UREvent = nullptr;
+  if (EventForReuse) {
+    EventForReuse->prepareForSignal(*this, /*Deferred*/ false);
+    UREvent = EventForReuse->ensureSignalHandle(getDeviceImpl());
+  }
   std::vector<ur_event_handle_t> RawBarrierDepEvents;
   std::vector<ur_event_handle_t> RawDepEvents;
 
@@ -567,13 +573,14 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // connect returned event with dependent events
   if (!DiscardEvent && !isInOrder()) {
 
+    // The dependencies are in the backend already; the list is kept for
+    // event::get_wait_list and dependency cleanup.
+    std::vector<captured_dependency> Deps = uncaptured(DepEvents);
     if (BarrierType == CGType::BarrierWaitlist) {
-      DepEvents.insert(DepEvents.end(), BarrierDepEvents.begin(),
-                       BarrierDepEvents.end());
+      for (const EventImplPtr &Event : BarrierDepEvents)
+        Deps.push_back(uncaptured_dependency(Event));
     }
-
-    // DepEvents is not used anymore, so can move.
-    ResEvent->getPreparedDepsEvents() = std::move(DepEvents);
+    ResEvent->getPreparedDepsEvents() = std::move(Deps);
     // ResultEvent is local for current thread, no need to lock.
     ResEvent->cleanDepEventsThroughOneLevelUnlocked();
   }
@@ -620,28 +627,27 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               /*SchedulerBypass*/ true};
     }
 
-    if (EventForReuse || !CallerNeedsEvent) {
-      // Current limitation: reusable events require scheduler bypass so that
-      // the barrier can be submitted directly to the backend with the reusable
-      // event's handle as the output event. Scheduler bypass is not possible
-      // when dependencies include host tasks or cross-context dependencies.
-      //
-      // This limitation applies to both: enqueue_signal_event and
-      // enqueue_wait_event(s).
-      //
-      // The !CallerNeedsEvent condition is used to detect the
-      // enqueue_wait_event(s) function calls.
+    // Limitation: the backend event of an IPC event, exported or imported, is
+    // shared with another process, so a signal of it cannot be held back from
+    // the backend, and a dependency on it cannot keep a signal of its own.
+    // Signals and waits of IPC events therefore need the scheduler bypass. The
+    // !CallerNeedsEvent condition detects enqueue_wait_event(s).
+    auto IsIPCEvent = [](const EventImplPtr &Event) {
+      return Event->hasSharedBackendEvent();
+    };
+    if ((EventForReuse && IsIPCEvent(EventForReuse)) ||
+        (!CallerNeedsEvent &&
+         std::any_of(DepEventImpls.begin(), DepEventImpls.end(), IsIPCEvent)))
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
-          "An event cannot be enqueued for signaling or waiting "
-          "behind a command which is not enqueued in the backend.");
-    }
+          "An IPC event cannot be enqueued for signaling or waiting behind a "
+          "command which is not enqueued in the backend.");
 
     std::unique_ptr<detail::CG> CommandGroup;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
-      CGData.MEvents.insert(std::end(CGData.MEvents), std::begin(DepEventImpls),
-                            std::end(DepEventImpls));
+      for (const EventImplPtr &Event : DepEventImpls)
+        CGData.MEvents.push_back(capture_dependency(Event));
       CommandGroup.reset(
           new detail::CG(detail::CGType::Barrier, std::move(CGData), CodeLoc));
 
@@ -650,13 +656,27 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
               false};
     }
 
-    CommandGroup.reset(
-        new detail::CGBarrier(std::move(DepEventImpls),
-                              ext::oneapi::experimental::event_mode_enum::none,
-                              std::move(CGData), BarrierType, CodeLoc));
+    // The wait list becomes ordinary command group dependencies, captured now:
+    // the scheduler then enqueues their producers first, waits for host tasks
+    // on the host and bridges other contexts, and the barrier is issued with
+    // these dependencies as its wait list. The host events are registered
+    // above already.
+    for (const EventImplPtr &Event : DepEventImpls)
+      if (!Event->isHost())
+        CGData.MEvents.push_back(capture_dependency(Event));
 
-    return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
-                                                   *this, true),
+    // A signal moves the event on to the binding this barrier command will
+    // produce; the backend event is created when the command is enqueued.
+    if (EventForReuse)
+      EventForReuse->prepareForSignal(*this, /*Deferred*/ true);
+
+    CommandGroup.reset(new detail::CGBarrier(
+        {}, ext::oneapi::experimental::event_mode_enum::none, std::move(CGData),
+        BarrierType, CodeLoc));
+
+    return {detail::Scheduler::getInstance().addCG(
+                std::move(CommandGroup), *this, /*EventNeeded*/ true,
+                /*CommandBuffer*/ nullptr, /*Dependencies*/ {}, EventForReuse),
             /*SchedulerBypass*/ false};
   };
 
@@ -664,9 +684,9 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
                        /*InsertBarrierForInOrderCommand*/ false);
 }
 
-EventImplPtr
-queue_impl::makeEnqueuedEvent(ur_event_handle_t UREvent,
-                              std::vector<detail::EventImplPtr> &&DepEvents) {
+EventImplPtr queue_impl::makeEnqueuedEvent(
+    ur_event_handle_t UREvent,
+    std::vector<detail::captured_dependency> &&DepEvents) {
   EventImplPtr ResEvent = detail::event_impl::create_device_event(*this);
   ResEvent->setWorkerQueue(weak_from_this());
   ResEvent->setPotentiallyNativeRecorded(
@@ -678,7 +698,9 @@ queue_impl::makeEnqueuedEvent(ur_event_handle_t UREvent,
 
   // Connect the returned event with the dependent events.
   if (!isInOrder()) {
-    ResEvent->getPreparedDepsEvents() = std::move(DepEvents);
+    // The dependencies are in the backend already; the list is kept for
+    // event::get_wait_list and dependency cleanup.
+    ResEvent->getPreparedDepsEvents() = uncaptured(std::move(DepEvents));
     // ResEvent is local for the current thread, no need to lock.
     ResEvent->cleanDepEventsThroughOneLevelUnlocked();
   }
@@ -687,8 +709,8 @@ queue_impl::makeEnqueuedEvent(ur_event_handle_t UREvent,
 }
 
 EventImplPtr queue_impl::submit_async_alloc_scheduler_bypass(
-    ur_event_handle_t UREvent, std::vector<detail::EventImplPtr> &DepEvents,
-    bool EventNeeded) {
+    ur_event_handle_t UREvent,
+    std::vector<detail::captured_dependency> &DepEvents, bool EventNeeded) {
   // The allocation itself, together with its dependencies, has already been
   // enqueued to the backend by the caller, because the pointer has to be
   // returned to the user immediately. Only the event of that enqueue has to be
@@ -701,7 +723,8 @@ EventImplPtr queue_impl::submit_async_alloc_scheduler_bypass(
 }
 
 EventImplPtr queue_impl::submit_async_free_scheduler_bypass(
-    void *Ptr, std::vector<detail::EventImplPtr> &DepEvents, bool EventNeeded) {
+    void *Ptr, std::vector<detail::captured_dependency> &DepEvents,
+    bool EventNeeded) {
   std::vector<ur_event_handle_t> RawEvents;
   if (DepEvents.size() > 0)
     RawEvents = detail::Command::getUrEvents(DepEvents, this, false);
@@ -1160,8 +1183,9 @@ detail::EventImplPtr queue_impl::submit_direct(
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
 
-  // Sync with the last event for in order queue
-  EventImplPtr &LastEvent = Deps.LastEventPtr;
+  // Sync with the last event for in order queue, as the signal it was when it
+  // was recorded.
+  captured_dependency &LastEvent = Deps.LastEvent;
   if (inOrder && LastEvent) {
     registerEventDependency</*LockQueue*/ false>(
         LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
@@ -1191,12 +1215,12 @@ detail::EventImplPtr queue_impl::submit_direct(
         });
 
     if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
-      for (const EventImplPtr &Event : Deps.UnenqueuedCmdEvents) {
-        CGData.MEvents.push_back(Event);
+      for (const captured_dependency &Dep : Deps.UnenqueuedCmdEvents) {
+        CGData.MEvents.push_back(Dep);
       }
     }
 
-    if (Deps.LastBarrier && !Deps.LastBarrier->isEnqueued()) {
+    if (Deps.LastBarrier && !Deps.LastBarrier.Binding->MIsEnqueued) {
       CGData.MEvents.push_back(Deps.LastBarrier);
     }
   }
@@ -1215,17 +1239,20 @@ detail::EventImplPtr queue_impl::submit_direct(
   // but for the scheduler-based flow, it needs to be done here, as the
   // scheduler handles host task submissions.
   if (inOrder) {
-    LastEvent = SchedulerBypass ? nullptr : EventImpl;
+    LastEvent = (SchedulerBypass || !EventImpl) ? captured_dependency{}
+                                                : capture_dependency(EventImpl);
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue.
   // The event must also be stored for future wait calls.
   if (!inOrder) {
     if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = EventImpl;
+      // A signal of a reusable event returns no event of its own.
+      Deps.LastBarrier =
+          EventImpl ? capture_dependency(EventImpl) : captured_dependency{};
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(EventImpl);
+      Deps.UnenqueuedCmdEvents.push_back(capture_dependency(EventImpl));
     }
     addEventUnlocked(EventImpl);
   }
@@ -1261,9 +1288,8 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
   {
     std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
 
-    std::vector<event> MutableDepEvents;
-    const std::vector<event> &ExpandedDepEvents =
-        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
+    const std::vector<captured_dependency> ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, Lock);
 
     MEmpty = false;
 
@@ -1294,12 +1320,9 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
         ResEventImpl->setEnqueued();
         // connect returned event with dependent events
         if (!isInOrder()) {
-          std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
-              ResEventImpl->getPreparedDepsEvents();
-          ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
-          for (const event &DepEvent : ExpandedDepEvents)
-            ExpandedDepEventImplPtrs.push_back(
-                detail::getSyclObjImpl(DepEvent));
+          // The dependencies are in the backend already; the list is kept for
+          // event::get_wait_list and dependency cleanup.
+          ResEventImpl->getPreparedDepsEvents() = uncaptured(ExpandedDepEvents);
 
           // ResEventImpl is local for current thread, no need to lock.
           ResEventImpl->cleanDepEventsThroughOneLevelUnlocked();
@@ -1307,9 +1330,9 @@ queue_impl::submitMemOpHelper(const std::vector<event> &DepEvents,
       }
 
       if (isInOrder() && !isNoEventsMode) {
-        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                                : MExtGraphDeps.LastEventPtr;
-        EventToStoreIn = ResEventImpl;
+        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEvent
+                                                : MExtGraphDeps.LastEvent;
+        EventToStoreIn = capture_dependency(ResEventImpl);
       }
 
       return ResEventImpl;
@@ -1432,13 +1455,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 
   if (isInOrder() && !MNoLastEventMode.load(std::memory_order_relaxed)) {
     // if MLastEvent is not null, we need to wait for it
-    EventImplPtr LastEvent;
+    captured_dependency LastEvent;
     {
       std::lock_guard<std::mutex> Lock(MMutex);
-      LastEvent = MDefaultGraphDeps.LastEventPtr;
+      LastEvent = MDefaultGraphDeps.LastEvent;
     }
     if (LastEvent) {
-      LastEvent->wait();
+      waitForDependency(LastEvent);
     }
   } else if (!isInOrder()) {
     waitForRuntimeLevelCmdsAndClear();
@@ -1546,23 +1569,16 @@ bool queue_impl::queue_empty() const {
 
     std::lock_guard<std::mutex> Lock(MMutex);
 
-    if (MDefaultGraphDeps.LastEventPtr &&
-        !MDefaultGraphDeps.LastEventPtr->isDiscarded())
-      return MDefaultGraphDeps.LastEventPtr
-                 ->get_info<info::event::command_execution_status>() ==
-             info::event_command_status::complete;
+    const captured_dependency &LastEvent = MDefaultGraphDeps.LastEvent;
+    if (LastEvent && LastEvent.Binding->MState != HES_Discarded)
+      return LastEvent.Binding->isCompleted();
   } else {
-    // Check events that haven't been submitted to the backend (host
+    // Check the signals that haven't been submitted to the backend (host
     // tasks and blocked commands).
     std::lock_guard<std::mutex> Lock(MMutex);
-    for (auto EventImplWeakPtrIt = MEventsWeak.begin();
-         EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtrIt->lock())
-        if (nullptr == EventImplSharedPtr->getHandle() &&
-            EventImplSharedPtr
-                    ->get_info<info::event::command_execution_status>() !=
-                info::event_command_status::complete)
+    for (const std::weak_ptr<event_binding> &WeakBinding : MEventsWeak)
+      if (std::shared_ptr<event_binding> Binding = WeakBinding.lock())
+        if (nullptr == Binding->getHandle() && !Binding->isCompleted())
           return false;
   }
 
@@ -1600,19 +1616,20 @@ void queue_impl::doUnenqueuedCommandCleanup(
     const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
         &Graph) {
   auto tryToCleanup = [](DependencyTrackingItems &Deps) {
-    if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
-      Deps.LastBarrier = nullptr;
+    if (Deps.LastBarrier && Deps.LastBarrier.Binding->MIsEnqueued) {
+      Deps.LastBarrier = {};
       Deps.UnenqueuedCmdEvents.clear();
     } else {
       if (Deps.UnenqueuedCmdEvents.empty())
         return;
       Deps.UnenqueuedCmdEvents.erase(
-          std::remove_if(
-              Deps.UnenqueuedCmdEvents.begin(), Deps.UnenqueuedCmdEvents.end(),
-              [](const EventImplPtr &CommandEvent) {
-                return (CommandEvent->isHost() ? CommandEvent->isCompleted()
-                                               : CommandEvent->isEnqueued());
-              }),
+          std::remove_if(Deps.UnenqueuedCmdEvents.begin(),
+                         Deps.UnenqueuedCmdEvents.end(),
+                         [](const captured_dependency &Dep) {
+                           return Dep.Event->isHost()
+                                      ? Dep.Binding->isCompleted()
+                                      : Dep.Binding->MIsEnqueued.load();
+                         }),
           Deps.UnenqueuedCmdEvents.end());
     }
   };
@@ -1667,15 +1684,15 @@ void queue_impl::waitForRuntimeLevelCmdsAndClear() {
   if (isInOrder() && !MNoLastEventMode.load(std::memory_order_relaxed)) {
     // if MLastEvent is not null and has no associated handle, we need to wait
     // for it. We do not clear it however.
-    EventImplPtr LastEvent;
+    captured_dependency LastEvent;
     {
       std::lock_guard<std::mutex> Lock(MMutex);
-      LastEvent = MDefaultGraphDeps.LastEventPtr;
+      LastEvent = MDefaultGraphDeps.LastEvent;
     }
-    if (LastEvent && nullptr == LastEvent->getHandle())
-      LastEvent->wait();
+    if (LastEvent && nullptr == LastEvent.Binding->getHandle())
+      waitForDependency(LastEvent);
   } else if (!isInOrder()) {
-    std::vector<std::weak_ptr<event_impl>> WeakEvents;
+    std::vector<std::weak_ptr<event_binding>> WeakEvents;
     {
       std::lock_guard<std::mutex> Lock(MMutex);
       WeakEvents.swap(MEventsWeak);
@@ -1690,14 +1707,13 @@ void queue_impl::waitForRuntimeLevelCmdsAndClear() {
     // Wait for unenqueued or host task events, starting
     // from the latest submitted task in order to minimize total amount of
     // calls, then handle the rest with urQueueFinish.
-    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
-         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtrIt->lock()) {
+    for (auto WeakBindingIt = WeakEvents.rbegin();
+         WeakBindingIt != WeakEvents.rend(); ++WeakBindingIt) {
+      if (std::shared_ptr<event_binding> Binding = WeakBindingIt->lock()) {
         // A nullptr UR event indicates that urQueueFinish will not cover it,
-        // either because it's a host task event or an unenqueued one.
-        if (nullptr == EventImplSharedPtr->getHandle()) {
-          EventImplSharedPtr->wait();
+        // either because it's a host task or an unenqueued command.
+        if (nullptr == Binding->getHandle()) {
+          Scheduler::getInstance().waitForEvent(*Binding);
         }
       }
     }

@@ -57,6 +57,8 @@ public:
     MockQueueImpl &get_queue() { return *MQueue; }
     std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
         MExecGraph;
+    // The queue's own recorded dependencies are added here directly.
+    sycl::detail::CG::StorageInitHelper CGData;
   };
   std::shared_ptr<handler_impl> impl;
   std::shared_ptr<detail::kernel_impl> MKernel;
@@ -89,18 +91,25 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
 
   // Check that tasks submitted to an in-order queue implicitly depend_on the
   // previous task, this is needed to properly sync blocking & blocked tasks.
+  // The first task has no predecessor, so a helper barrier is inserted and
+  // registered through depends_on.
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
     Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
         MockCGH);
+    EXPECT_TRUE(MockCGH.impl->CGData.MEvents.empty());
   }
+  // The second task depends on the first one's event, as the signal it was
+  // when it was recorded; that dependency goes straight into the command
+  // group.
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
-        .Times(1);
+        .Times(0);
     Queue->finalizeHandlerInOrderHostTaskUnlocked<LimitedHandlerSimulation>(
         MockCGH);
+    EXPECT_EQ(MockCGH.impl->CGData.MEvents.size(), 1u);
   }
 }
