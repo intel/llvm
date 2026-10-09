@@ -875,3 +875,131 @@ sycl_ext::async_free(Queue, Ptr);
 
 Graph.end_recording(Queue);
 ```
+
+### Graph External Events
+
+The `graph_external` property from the
+[graph extension](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc#graph-external-property)
+allows recorded reusable event waits and signals to synchronize with work
+outside the graph. The following examples use native recording and the event
+operations defined by
+[sycl_ext_oneapi_reusable_events](../extensions/experimental/sycl_ext_oneapi_reusable_events.asciidoc).
+
+#### Graph External Synchronization
+
+This example uses recorded waits and signals to synchronize regions of graph
+execution with work outside the graph.
+
+```c++
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t N = 1024;
+
+int main() {
+  sycl::device dev;
+  sycl::context ctxt = dev.get_platform().khr_get_default_context();
+  sycl::queue q_graph{ctxt, dev, sycl::property::queue::in_order{}};
+  sycl::queue q_eager{ctxt, dev, sycl::property::queue::in_order{}};
+
+  sycl::event eager_event = syclex::make_event(ctxt);
+  sycl::event graph_event = syclex::make_event(ctxt);
+
+  syclex::command_graph graph{
+      ctxt, dev, {syclex::property::graph::enable_native_recording{}}};
+  graph.begin_recording(q_graph);
+
+  // Wait for a signal which is produced outside of the graph.
+  syclex::enqueue_wait_event(q_graph, eager_event,
+                            syclex::properties{syclex::graph_external{}});
+
+  syclex::parallel_for(q_graph, sycl::range{N},
+                      [=](sycl::item<> it) { /* ... */ });
+
+  // Signal an event which is observed outside of the graph.
+  syclex::enqueue_signal_event(q_graph, graph_event,
+                              syclex::properties{syclex::graph_external{}});
+
+  syclex::parallel_for(q_graph, sycl::range{N},
+                      [=](sycl::item<> it) { /* ... */ });
+
+  graph.end_recording();
+  auto exec = graph.finalize();
+
+  for (int i = 0; i < 2; ++i) {
+    syclex::parallel_for(q_eager, sycl::range{N},
+                        [=](sycl::item<> it) { /* ... */ });
+    syclex::enqueue_signal_event(q_eager, eager_event);
+
+    sycl::event graph_submission = q_graph.ext_oneapi_graph(exec);
+
+    // The external signal will complete before the rest of the graph.
+    graph_event.wait();
+  }
+  q_graph.wait();
+}
+```
+
+#### Timing a Region of a Graph
+
+This example records profiling-enabled signals around a region of the graph
+and reads their timestamps after each graph execution completes.
+
+```c++
+#include <iostream>
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t N = 1024;
+
+int main() {
+  sycl::device dev;
+  sycl::context ctxt = dev.get_platform().khr_get_default_context();
+  sycl::queue q{ctxt, dev, sycl::property::queue::in_order{}};
+
+  if (!dev.has(sycl::aspect::ext_oneapi_per_event_profiling)) {
+    std::cout << "Cannot time a graph region without per-event profiling "
+                 "support\n";
+    return 0;
+  }
+
+  sycl::event start = syclex::make_event(ctxt, syclex::enable_profiling{true});
+  sycl::event end = syclex::make_event(ctxt, syclex::enable_profiling{true});
+
+  syclex::command_graph graph{
+      ctxt, dev, {syclex::property::graph::enable_native_recording{}}};
+  graph.begin_recording(q);
+
+  syclex::parallel_for(q, sycl::range{N},
+                      [=](sycl::item<> it) { /* untimed */ });
+
+  // Start of the timed region.
+  syclex::enqueue_signal_event(q, start,
+                              syclex::properties{syclex::graph_external{}});
+
+  syclex::parallel_for(q, sycl::range{N}, [=](sycl::item<> it) { /* timed */ });
+  syclex::parallel_for(q, sycl::range{N}, [=](sycl::item<> it) { /* timed */ });
+
+  // End of the timed region.
+  syclex::enqueue_signal_event(q, end,
+                              syclex::properties{syclex::graph_external{}});
+
+  syclex::parallel_for(q, sycl::range{N},
+                      [=](sycl::item<> it) { /* untimed */ });
+
+  graph.end_recording();
+  auto exec = graph.finalize();
+
+  for (int i = 0; i < 3; ++i) {
+    sycl::event graph_submission = q.ext_oneapi_graph(exec);
+    graph_submission.wait();
+
+    // Either the command_start or command_end timestamps may be used
+    uint64_t elapsed =
+        end.get_profiling_info<sycl::info::event_profiling::command_start>() -
+        start.get_profiling_info<sycl::info::event_profiling::command_start>();
+    std::cout << "Timed region of submission " << i << ": " << elapsed
+              << " (nanoseconds)\n";
+  }
+}
+```
