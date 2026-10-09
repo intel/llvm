@@ -121,12 +121,15 @@ public:
 
   bool operator!=(const h_item &rhs) const { return !((*this) == rhs); }
 #else
-  friend bool operator==(const h_item &rhs) const {
-    return (rhs.localItem == localItem) && (rhs.globalItem == globalItem) &&
-           (rhs.logicalLocalItem == logicalLocalItem);
+  friend bool operator==(const h_item &lhs, const h_item &rhs) {
+    return (rhs.localItem == lhs.localItem) &&
+           (rhs.globalItem == lhs.globalItem) &&
+           (rhs.logicalLocalItem == lhs.logicalLocalItem);
   }
 
-  friend bool operator!=(const h_item &rhs) const { return !((*this) == rhs); }
+  friend bool operator!=(const h_item &lhs, const h_item &rhs) {
+    return !(lhs == rhs);
+  }
 #endif
 
 protected:
