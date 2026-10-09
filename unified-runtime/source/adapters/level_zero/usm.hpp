@@ -177,6 +177,7 @@ private:
   size_t MinPageSize = 0;
   bool MinPageSizeCached = false;
   AllocationStats AllocStats;
+  bool BlockingFree = false;
 
 public:
   umf_result_t initialize(ur_context_handle_t Ctx,
