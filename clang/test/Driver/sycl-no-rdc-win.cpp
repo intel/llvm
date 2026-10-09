@@ -7,8 +7,8 @@
 
 // RUN: touch %t1.cpp
 // RUN: touch %t2.cpp
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code /clang:--sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir}  %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir}  %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
 
 // CHECK: 2: input, "{{.*}}1.cpp", c++, (device-sycl)
 // CHECK: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
@@ -36,8 +36,8 @@
 // CHECK: 39: clang-offload-wrapper, {38}, object, (device-sycl)
 // CHECK: 40: offload, "device-sycl (spir64-unknown-unknown)" {39}, object
 // CHECK: 41: linker, {8, 17, 33, 40}, image, (host-sycl)
-// RUN: %clang -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen --sysroot=%S/Inputs/SYCL %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen /clang:--sysroot=%S/Inputs/SYCL %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen -ccc-install-dir %S/Inputs/SYCL/bin %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen -ccc-install-dir %S/Inputs/SYCL/bin %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
 // CHECK-EARLY: llvm-link{{.*}}
 // CHECK-EARLY-NOT: -only-needed
 // CHECK-EARLY: llvm-link{{.*}}-only-needed
