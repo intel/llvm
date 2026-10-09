@@ -134,7 +134,7 @@ static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
 static void handleVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
-      Cmd->getEvent()->setCommand(nullptr);
+      Cmd->getBinding()->MCommand = nullptr;
       delete Cmd;
     } else
       Cmd->MMarks.MVisited = false;
@@ -926,12 +926,14 @@ Command *Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     std::vector<Command *> &ToEnqueue, bool EventNeeded,
     ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    EventImplPtr EventForReuse) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
-  std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
+  std::vector<detail::captured_dependency> &Events = CommandGroup->getEvents();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(
-      std::move(CommandGroup), Queue, EventNeeded, CommandBuffer, Dependencies);
+      std::move(CommandGroup), Queue, EventNeeded, CommandBuffer, Dependencies,
+      std::move(EventForReuse));
 
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),
@@ -1028,8 +1030,8 @@ Command *Scheduler::GraphBuilder::addCG(
   }
 
   // Register all the events as dependencies
-  for (const detail::EventImplPtr &e : Events) {
-    if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
+  for (const detail::captured_dependency &Dep : Events) {
+    if (Command *ConnCmd = NewCmd->addDep(Dep, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
 
@@ -1189,7 +1191,7 @@ void Scheduler::GraphBuilder::cleanupCommand(
     DepCmd->MUsers.erase(Cmd);
   }
 
-  Cmd->getEvent()->setCommand(nullptr);
+  Cmd->getBinding()->MCommand = nullptr;
   delete Cmd;
 }
 
@@ -1216,9 +1218,9 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 // requirement.
 // Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
 Command *Scheduler::GraphBuilder::connectDepEvent(
-    Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
+    Command *const Cmd, const captured_dependency &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
-  assert(Cmd->getWorkerContext() != &DepEvent->getContextImpl());
+  assert(Cmd->getWorkerContext() != &DepEvent.Event->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
@@ -1246,7 +1248,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     // Dismiss the result here as it's not a connection now,
     // 'cause ConnectCmd is host one
     (void)ConnectCmd->addDep(Dep, ToCleanUp);
-    assert(DepEvent->getCommand() == Dep.MDepCommand);
+    assert(DepEvent.Binding->MCommand == Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
     {
       DepDesc DepOnConnect = Dep;
@@ -1259,12 +1261,14 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   } else {
     // It is required condition in another a path and addUser will be set in
     // addDep
-    if (Command *DepCmd = DepEvent->getCommand())
+    if (Command *DepCmd = DepEvent.Binding->MCommand)
       DepCmd->addUser(ConnectCmd);
 
     std::ignore = ConnectCmd->addDep(DepEvent, ToCleanUp);
 
-    std::ignore = Cmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
+    std::ignore = Cmd->addDep(
+        captured_dependency{ConnectCmd->getBinding(), ConnectCmd->getEvent()},
+        ToCleanUp);
 
     ConnectCmd->addUser(Cmd);
   }
@@ -1276,7 +1280,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
     std::vector<Requirement *> Requirements,
-    std::vector<detail::EventImplPtr> &Events,
+    std::vector<detail::captured_dependency> &Events,
     std::vector<Command *> &ToEnqueue) {
   auto NewCmd =
       std::make_unique<UpdateCommandBufferCommand>(Queue, Graph, Nodes);
@@ -1340,11 +1344,11 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
-    if (e->getCommand() && e->getCommand() == NewCmd.get()) {
+  for (const detail::captured_dependency &Dep : Events) {
+    if (Dep.Binding->MCommand == NewCmd.get()) {
       continue;
     }
-    if (Command *ConnCmd = NewCmd->addDep(std::move(e), ToCleanUp))
+    if (Command *ConnCmd = NewCmd->addDep(Dep, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
 

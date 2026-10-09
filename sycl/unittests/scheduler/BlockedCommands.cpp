@@ -177,7 +177,7 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
 
   std::shared_ptr<sycl::detail::event_impl> DepEvent =
       sycl::detail::event_impl::create_device_event(QueueImpl);
-  DepEvent->setCommand(&B);
+  DepEvent->getBinding()->MCommand = &B;
 
   std::vector<detail::Command *> ToCleanUp;
   (void)A.addDep(DepEvent, ToCleanUp);

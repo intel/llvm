@@ -121,7 +121,6 @@ sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 class EventImplProxyT : public sycl::detail::event_impl {
 public:
   using sycl::detail::event_impl::MPostCompleteEvents;
-  using sycl::detail::event_impl::MState;
   using sycl::detail::event_impl::MWeakPostCompleteEvents;
 };
 

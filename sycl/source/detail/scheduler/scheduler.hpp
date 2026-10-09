@@ -381,10 +381,13 @@ public:
   /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion. It can
   /// be a discarded event.
+  /// \param EventForReuse if set, the event the new command signals instead of
+  /// a new one (enqueue_signal_event); see ExecCGCommand.
   EventImplPtr addCG(
       std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {},
+      EventImplPtr EventForReuse = nullptr);
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -406,6 +409,10 @@ public:
   ///        it's pointing to is then set according to the outcome.
 
   void waitForEvent(event_impl &Event, bool *Success = nullptr);
+
+  /// Waits for a signal: enqueues the command producing it, if there is one
+  /// still pending, and waits for its completion.
+  void waitForEvent(event_binding &Binding);
 
   /// Removes buffer from the graph.
   ///
@@ -465,7 +472,8 @@ public:
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
-  void enqueueCommandForCG(event_impl &Event,
+  /// Enqueues the command producing \p Binding, and the auxiliary commands.
+  void enqueueCommandForCG(event_binding &Binding,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
 
@@ -480,10 +488,18 @@ public:
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
       ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
       std::vector<Requirement *> Requirements,
-      std::vector<detail::EventImplPtr> &Events);
+      std::vector<detail::captured_dependency> &Events);
 
   static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
                                               context_impl &Context);
+
+  /// The same for captured dependencies: what belongs to the signal (backend
+  /// event, command) is read from the captured binding.
+  static bool isSafeForSchedulerBypass(const captured_dependency &Dep,
+                                       context_impl &Context);
+  static bool
+  areEventsSafeForSchedulerBypass(const std::vector<captured_dependency> &Deps,
+                                  context_impl &Context);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///
@@ -532,9 +548,9 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void enqueueUnblockedCommands(events_range ToEnqueue,
-                                       ReadLockT &GraphReadLock,
-                                       std::vector<Command *> &ToCleanUp);
+  static void enqueueUnblockedCommands(
+      const std::vector<std::shared_ptr<event_binding>> &ToEnqueue,
+      ReadLockT &GraphReadLock, std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
@@ -570,7 +586,8 @@ protected:
                    std::vector<Command *> &ToEnqueue, bool EventNeeded,
                    ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
                    const std::vector<ur_exp_command_buffer_sync_point_t>
-                       &Dependencies = {});
+                       &Dependencies = {},
+                   EventImplPtr EventForReuse = nullptr);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
@@ -636,7 +653,8 @@ protected:
     /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
-    Command *connectDepEvent(Command *const Cmd, const EventImplPtr &DepEvent,
+    Command *connectDepEvent(Command *const Cmd,
+                             const captured_dependency &DepEvent,
                              const DepDesc &Dep,
                              std::vector<Command *> &ToCleanUp);
 
@@ -652,7 +670,7 @@ protected:
         ext::oneapi::experimental::detail::exec_graph_impl *Graph,
         ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
         std::vector<Requirement *> Requirements,
-        std::vector<detail::EventImplPtr> &Events,
+        std::vector<detail::captured_dependency> &Events,
         std::vector<Command *> &ToEnqueue);
 
     std::vector<SYCLMemObjI *> MMemObjs;
@@ -828,6 +846,12 @@ protected:
     static void waitForEvent(event_impl &Event, ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true, bool *Success = nullptr);
+
+    /// Enqueues the command producing \p Binding, if any, and waits for the
+    /// signal. Same locking contract as above.
+    static void waitForEvent(event_binding &Binding, ReadLockT &GraphReadLock,
+                             std::vector<Command *> &ToCleanUp,
+                             bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///

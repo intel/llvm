@@ -86,7 +86,7 @@ protected:
     std::vector<event> Events;
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event, nullptr);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
     }
 
@@ -98,17 +98,18 @@ protected:
     Events.push_back(BlockedHostTask);
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event, nullptr);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-                &BlockedHostTaskImpl);
+      EXPECT_EQ(
+          QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].Event.get(),
+          &BlockedHostTaskImpl);
     }
 
     sycl::event BarrierEvent = AddTask(TestCGType::BARRIER);
     event_impl &BarrierEventImpl = *getSyclObjImpl(BarrierEvent);
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event.get(),
                 &BarrierEventImpl);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
     }
@@ -118,11 +119,12 @@ protected:
     event_impl &KernelEventImpl = *getSyclObjImpl(KernelEvent);
     {
       std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
+      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event.get(),
                 &BarrierEventImpl);
       EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
-      EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-                &KernelEventImpl);
+      EXPECT_EQ(
+          QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].Event.get(),
+          &KernelEventImpl);
     }
     Events.push_back(KernelEvent);
     return Events;
@@ -342,7 +344,7 @@ TEST_F(BarrierHandlingWithHostTask,
   detail::GlobalHandler::instance().drainThreadPool();
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event, nullptr);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
   }
 }
@@ -364,17 +366,18 @@ TEST_F(BarrierHandlingWithHostTask,
   // Queue mutex was locked and host task was not able to do cleanup.
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event.get(),
               &*detail::getSyclObjImpl(SubmittedCmdEvents[1]));
     ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-              &*detail::getSyclObjImpl(SubmittedCmdEvents[2]));
+    EXPECT_EQ(
+        QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].Event.get(),
+        &*detail::getSyclObjImpl(SubmittedCmdEvents[2]));
   }
   // Wait or new submission will do cleanup. Checks wait.
   QueueDevImpl->wait();
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event, nullptr);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
   }
 }
@@ -396,17 +399,18 @@ TEST_F(BarrierHandlingWithHostTask,
   // Queue mutex was locked and host task was not able to do cleanup.
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.get(),
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event.get(),
               &*detail::getSyclObjImpl(SubmittedCmdEvents[1]));
     ASSERT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 1u);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].get(),
-              &*detail::getSyclObjImpl(SubmittedCmdEvents[2]));
+    EXPECT_EQ(
+        QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents[0].Event.get(),
+        &*detail::getSyclObjImpl(SubmittedCmdEvents[2]));
   }
   // Wait or new submission will do cleanup. Checks new submission.
   std::ignore = AddTask(TestCGType::KERNEL_TASK);
   {
     std::lock_guard<std::mutex> Guard(QueueDevImpl->MMutex);
-    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier, nullptr);
+    EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.LastBarrier.Event, nullptr);
     EXPECT_EQ(QueueDevImpl->MDefaultGraphDeps.UnenqueuedCmdEvents.size(), 0u);
   }
 }

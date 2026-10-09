@@ -77,7 +77,9 @@ public:
       sycl::detail::queue_impl *Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
       ur_event_handle_t &Event) {
-    Command::waitForEvents(Queue, RawEvents, Event);
+    std::vector<sycl::detail::captured_dependency> Deps =
+        sycl::detail::capture_dependencies(RawEvents);
+    Command::waitForEvents(Queue, Deps, Event);
   }
 
   std::shared_ptr<sycl::detail::event_impl> getEvent() { return MEvent; }
@@ -250,7 +252,7 @@ public:
   std::vector<sycl::detail::Requirement *> &getRequirements() {
     return impl->CGData.MRequirements;
   }
-  std::vector<sycl::detail::EventImplPtr> &getEvents() {
+  std::vector<sycl::detail::captured_dependency> &getEvents() {
     return impl->CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() {

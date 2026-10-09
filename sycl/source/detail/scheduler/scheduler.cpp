@@ -105,7 +105,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    EventImplPtr EventForReuse) {
   EventImplPtr NewEvent = nullptr;
   const CGType Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
@@ -129,9 +130,9 @@ EventImplPtr Scheduler::addCG(
       break;
     }
     default:
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), &Queue,
-                                   AuxiliaryCmds, EventNeeded, CommandBuffer,
-                                   std::move(Dependencies));
+      NewCmd = MGraphBuilder.addCG(
+          std::move(CommandGroup), &Queue, AuxiliaryCmds, EventNeeded,
+          CommandBuffer, std::move(Dependencies), std::move(EventForReuse));
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
@@ -145,7 +146,7 @@ EventImplPtr Scheduler::addCG(
     }
   }
 
-  enqueueCommandForCG(*NewEvent, AuxiliaryCmds);
+  enqueueCommandForCG(*NewEvent->getBinding(), AuxiliaryCmds);
 
   if (!AuxiliaryResources.empty())
     registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
@@ -153,21 +154,21 @@ EventImplPtr Scheduler::addCG(
   return NewEvent;
 }
 
-void Scheduler::enqueueCommandForCG(event_impl &Event,
+void Scheduler::enqueueCommandForCG(event_binding &Binding,
                                     std::vector<Command *> &AuxiliaryCmds,
                                     BlockingT Blocking) {
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
 
-    Command *NewCmd = Event.getCommand();
+    Command *NewCmd = Binding.MCommand;
 
     EnqueueResultT Res;
     bool Enqueued;
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        Event.setCommand(nullptr);
+        Binding.MCommand = nullptr;
         delete NewCmd;
       }
       cleanupCommands(ToCleanUp);
@@ -286,6 +287,14 @@ void Scheduler::waitForEvent(event_impl &Event, bool *Success) {
   std::vector<Command *> ToCleanUp;
   GraphProcessor::waitForEvent(Event, Lock, ToCleanUp,
                                /*LockTheLock=*/false, Success);
+  cleanupCommands(ToCleanUp);
+}
+
+void Scheduler::waitForEvent(event_binding &Binding) {
+  ReadLockT Lock = acquireReadLock();
+  std::vector<Command *> ToCleanUp;
+  GraphProcessor::waitForEvent(Binding, Lock, ToCleanUp,
+                               /*LockTheLock=*/false);
   cleanupCommands(ToCleanUp);
 }
 
@@ -414,11 +423,11 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
-                                         ReadLockT &GraphReadLock,
-                                         std::vector<Command *> &ToCleanUp) {
-  for (event_impl &Event : ToEnqueue) {
-    Command *Cmd = Event.getCommand();
+void Scheduler::enqueueUnblockedCommands(
+    const std::vector<std::shared_ptr<event_binding>> &ToEnqueue,
+    ReadLockT &GraphReadLock, std::vector<Command *> &ToCleanUp) {
+  for (const std::shared_ptr<event_binding> &Binding : ToEnqueue) {
+    Command *Cmd = Binding->MCommand;
     if (!Cmd)
       continue;
     EnqueueResultT Res;
@@ -509,8 +518,8 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
     }
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
-      // update self-event status
-      CmdEvent->setComplete();
+      // update the status of the signal this command produces
+      Cmd->getBinding()->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
@@ -646,7 +655,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
     ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
     std::vector<Requirement *> Requirements,
-    std::vector<detail::EventImplPtr> &Events) {
+    std::vector<detail::captured_dependency> &Events) {
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;
 
@@ -685,6 +694,33 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
 
   cleanupCommands(ToCleanUp);
   return NewCmdEvent;
+}
+
+bool Scheduler::isSafeForSchedulerBypass(const captured_dependency &Dep,
+                                         context_impl &Context) {
+  event_impl &Event = *Dep.Event;
+  const event_binding &Binding = *Dep.Binding;
+  // Same rules as the events_range overload below; the signal is the captured
+  // one. A NOP signal has neither a command nor a backend event.
+  if (Event.isDefaultConstructed() ||
+      (!Binding.MCommand && !Binding.getHandle()))
+    return true;
+
+  if (Event.isHost())
+    return Binding.isCompleted();
+
+  if (&Event.getContextImpl() != &Context)
+    return false;
+
+  return Binding.getHandle() != nullptr;
+}
+
+bool Scheduler::areEventsSafeForSchedulerBypass(
+    const std::vector<captured_dependency> &Deps, context_impl &Context) {
+  return std::all_of(Deps.begin(), Deps.end(),
+                     [&Context](const captured_dependency &Dep) {
+                       return isSafeForSchedulerBypass(Dep, Context);
+                     });
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,

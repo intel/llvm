@@ -43,6 +43,29 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     GraphReadLock.lock();
 }
 
+void Scheduler::GraphProcessor::waitForEvent(event_binding &Binding,
+                                             ReadLockT &GraphReadLock,
+                                             std::vector<Command *> &ToCleanUp,
+                                             bool LockTheLock) {
+  // The command is nullptr if the signal has none, or it has been cleaned up
+  // after being enqueued; the signal is then waited for as it is.
+  if (Command *Cmd = Binding.MCommand) {
+    EnqueueResultT Res;
+    bool Enqueued =
+        enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd, BLOCKING);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw exception(make_error_code(errc::runtime),
+                      "Enqueue process failed.");
+    assert(Cmd->getBinding().get() == &Binding);
+  }
+
+  GraphReadLock.unlock();
+  Binding.wait();
+
+  if (LockTheLock)
+    GraphReadLock.lock();
+}
+
 bool Scheduler::GraphProcessor::handleBlockingCmd(
     Command *Cmd, EnqueueResultT &EnqueueResult, Command *RootCommand,
     [[maybe_unused]] BlockingT Blocking) {
@@ -54,8 +77,7 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(
     if (Cmd->isBlocking()) {
       // Defer even Blocking=true callers; waitForEvent unlocks the graph and
       // parks on the root's event, avoiding the CMPLRLLVM-77682 deadlock.
-      const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-      Cmd->addBlockedUserUnique(RootCmdEvent);
+      Cmd->addBlockedUserUnique(RootCommand->getBinding());
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
 
       // Blocked command will be enqueued asynchronously from submission so we
@@ -84,8 +106,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
-  for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
-    if (Command *DepCmd = Event->getCommand())
+  for (const captured_dependency &Dep : Cmd->getPreparedDepsEvents()) {
+    if (Command *DepCmd = Dep.Binding->MCommand)
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;
@@ -93,8 +115,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
-  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
-    if (Command *DepCmd = Event->getCommand())
+  for (const captured_dependency &Dep : Cmd->getPreparedHostDepsEvents()) {
+    if (Command *DepCmd = Dep.Binding->MCommand)
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;

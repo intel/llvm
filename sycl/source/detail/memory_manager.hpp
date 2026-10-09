@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/event_binding.hpp>
 #include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
@@ -40,22 +41,24 @@ public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
   static void release(context_impl *TargetContext, SYCLMemObjI *MemObj,
-                      void *MemAllocation, events_range DepEvents,
+                      void *MemAllocation,
+                      const std::vector<captured_dependency> &DepEvents,
                       ur_event_handle_t &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
   static void *allocate(context_impl *TargetContext, SYCLMemObjI *MemObj,
                         bool InitFromUserData, void *HostPtr,
-                        events_range DepEvents, ur_event_handle_t &OutEvent);
+                        const std::vector<captured_dependency> &DepEvents,
+                        ur_event_handle_t &OutEvent);
 
   // The following method creates OpenCL sub buffer for specified
   // offset, range, and memory object.
-  static void *allocateMemSubBuffer(context_impl *TargetContext,
-                                    void *ParentMemObj, size_t ElemSize,
-                                    size_t Offset, range<3> Range,
-                                    events_range DepEvents,
-                                    ur_event_handle_t &OutEvent);
+  static void *
+  allocateMemSubBuffer(context_impl *TargetContext, void *ParentMemObj,
+                       size_t ElemSize, size_t Offset, range<3> Range,
+                       const std::vector<captured_dependency> &DepEvents,
+                       ur_event_handle_t &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
