@@ -84,9 +84,9 @@ __SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
   // data instead, so that the chunk size no longer grows with the range. The
   // amount of data is estimated from the size of the reduction element, which
   // matches the size of the data read per work-item for common reductions
-  // (sum, dot product, min/max, etc.). Never use fewer work-groups than above,
-  // so that small and compute-heavy reductions get the same parallelism as
-  // before.
+  // (sum, dot product, min/max, etc.). Never use fewer work-groups than above
+  // (unless required by the limits below), so that small and compute-heavy
+  // reductions get the same parallelism as before.
   // BytesPerWorkItem is a tuning parameter chosen empirically on several Intel
   // GPUs, it is not derived from a hardware property. It may be adjusted for
   // particular devices if needed.
@@ -94,13 +94,13 @@ __SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
   size_t ElemsPerWorkItem =
       (std::max)(size_t{1}, BytesPerWorkItem / (std::max)(size_t{1}, ElemSize));
   size_t NumWorkGroupsForRange = NWorkItems / WGSize / ElemsPerWorkItem;
-  if (NumWorkGroupsForRange <= NumWorkGroups)
-    return NumWorkGroups;
+  NumWorkGroups = (std::max)(NumWorkGroups, NumWorkGroupsForRange);
 
   // Kernels are compiled with -fsycl-id-queries-range=int by default, and such
   // kernels can't be launched with a global range that doesn't fit in int, so
   // keep the global range within INT_MAX. Also respect the device limit on the
-  // number of work-groups if it is reported.
+  // number of work-groups if it is reported. These are hard limits, so they
+  // are applied last.
   size_t MaxNumWorkGroups =
       static_cast<size_t>((std::numeric_limits<int>::max)()) / WGSize;
   size_t DevMaxNumWorkGroups[3] = {};
@@ -110,8 +110,7 @@ __SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
           nullptr) == UR_RESULT_SUCCESS &&
       DevMaxNumWorkGroups[0] != 0)
     MaxNumWorkGroups = (std::min)(MaxNumWorkGroups, DevMaxNumWorkGroups[0]);
-  return (std::max)(NumWorkGroups,
-                    (std::min)(NumWorkGroupsForRange, MaxNumWorkGroups));
+  return (std::min)(NumWorkGroups, MaxNumWorkGroups);
 }
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(handler &cgh,
