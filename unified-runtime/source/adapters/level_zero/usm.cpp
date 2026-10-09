@@ -729,7 +729,18 @@ ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
   ur_result_t Res = UR_RESULT_SUCCESS;
   if (checkL0LoaderTeardown()) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+    // A blocking free waits until the device no longer uses the memory. This
+    // is required when USM pooling is disabled, because then every free
+    // releases the memory to the driver right away.
+    ze_result_t ZeResult;
+    if (Context->getPlatform()->ZeMemFreeBlockingSupported) {
+      ZeStruct<ze_memory_free_ext_desc_t> FreeDesc;
+      FreeDesc.freePolicy = ZE_DRIVER_MEMORY_FREE_POLICY_EXT_FLAG_BLOCKING_FREE;
+      ZeResult =
+          ZE_CALL_NOCHECK(zeMemFreeExt, (Context->ZeContext, &FreeDesc, Ptr));
+    } else {
+      ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+    }
     // Handle When the driver is already released
     if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
       Res = UR_RESULT_SUCCESS;

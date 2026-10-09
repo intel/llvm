@@ -265,6 +265,15 @@ template <> ze_structure_type_t getZeStructureType<ze_physical_mem_desc_t>() {
 template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
   return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
 }
+template <>
+ze_structure_type_t
+getZeStructureType<ze_driver_memory_free_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DRIVER_MEMORY_FREE_EXT_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_memory_free_ext_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MEMORY_FREE_EXT_DESC;
+}
 template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES_1_2;
 }

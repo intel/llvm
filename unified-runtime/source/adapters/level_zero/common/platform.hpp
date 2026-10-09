@@ -81,6 +81,8 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   bool ZeBindlessImagesExtensionSupported{false};
   bool ZeExternalMemoryMappingExtensionSupported{false};
   bool ZeLUIDSupported{false};
+  // Whether zeMemFreeExt supports the blocking free policy.
+  bool ZeMemFreeBlockingSupported{false};
   bool ZeEventSyncModeSupported{false};
 
   // Counter-based events (ze_event_counter_based_desc_t /

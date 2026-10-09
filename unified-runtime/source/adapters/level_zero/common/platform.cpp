@@ -325,7 +325,21 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeDriverVersionString.setZeDriverVersionString(this);
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+  ZeStruct<ze_driver_memory_free_ext_properties_t> ZeMemFreeProperties;
+  const auto MemFreePoliciesExtension =
+      zeDriverExtensionMap.find(ZE_MEMORY_FREE_POLICIES_EXT_NAME);
+  const bool ZeMemFreePoliciesExtensionSupported =
+      MemFreePoliciesExtension != zeDriverExtensionMap.end() &&
+      MemFreePoliciesExtension->second >=
+          ZE_MEMORY_FREE_POLICIES_EXT_VERSION_1_0;
+  if (ZeMemFreePoliciesExtensionSupported) {
+    ZeDriverProperties.pNext = &ZeMemFreeProperties;
+  }
   ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+  ZeMemFreeBlockingSupported =
+      ZeMemFreePoliciesExtensionSupported &&
+      (ZeMemFreeProperties.freePolicies &
+       ZE_DRIVER_MEMORY_FREE_POLICY_EXT_FLAG_BLOCKING_FREE);
   if (!ZeDriverVersionString.Supported) {
     uint32_t DriverVersion = ZeDriverProperties.driverVersion;
     // Intel Level-Zero GPU driver stores version as:
