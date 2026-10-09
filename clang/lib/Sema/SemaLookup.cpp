@@ -933,6 +933,8 @@ static void InsertBuiltinDeclarationsFromTable(
         NewBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
       if (Builtin.IsConv)
         NewBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
+      if (Builtin.IsSpeculatable)
+        NewBuiltin->addAttr(SpeculatableAttr::CreateImplicit(Context));
       if (!S.getLangOpts().OpenCLCPlusPlus)
         NewBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
 
