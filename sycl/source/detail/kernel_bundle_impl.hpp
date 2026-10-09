@@ -478,88 +478,12 @@ public:
       std::vector<device_image_plain> GraphImgs =
           GraphIt.second.GetNodeValues();
 
-      auto [JITImgs, AOTImgs] =
-          [&]() -> std::pair<device_images_range, device_images_range> {
-        // Native AOT images cannot participate in urProgramLinkExp (which
-        // expects SPIR-V via ZE_MODULE_FORMAT_IL_SPIRV) and must be routed
-        // through urProgramDynamicLinkExp instead. Partition by intrinsic
-        // image format rather than by bundle_state: an AOT object SYCLBIN
-        // with unresolved imports arrives in bundle_state::object, which
-        // the previous logic (state-based partition under fast-link only)
-        // misclassified as JIT.
-        //
-        // The AOT predicate is shared with ProgramManager::getBinImageState
-        // so the two sites cannot drift. Targets currently classified as
-        // native AOT are spir64_x86_64 (OpenCL CPU) and spir64_gen (Intel
-        // GPU). NVPTX64 (CUDA) and AMDGCN (HIP) SYCLBIN paths emit PTX/HIP
-        // IR rather than native object images, so they go through the JIT
-        // branch below; if/when they grow a native-object pipeline, both
-        // sites should be updated together.
-        auto IsAOTImage = [](const device_image_plain &Img) {
-          const RTDeviceBinaryImage *Bin =
-              getSyclObjImpl(Img)->get_bin_image_ref();
-          if (!Bin)
-            return false;
-          return detail::ProgramManager::isAOTBinaryTarget(
-              Bin->getRawData().DeviceTargetSpec);
-        };
-        // Manually partition (stable) instead of std::stable_partition,
-        // whose libstdc++ implementation can fall back to the deprecated
-        // std::get_temporary_buffer when it cannot allocate scratch space.
-        std::vector<device_image_plain> Reordered;
-        Reordered.reserve(GraphImgs.size());
-        size_t NumJITImgs = 0;
-        for (const device_image_plain &Img : GraphImgs)
-          if (!IsAOTImage(Img)) {
-            Reordered.push_back(Img);
-            ++NumJITImgs;
-          }
-        for (const device_image_plain &Img : GraphImgs)
-          if (IsAOTImage(Img))
-            Reordered.push_back(Img);
-        GraphImgs = std::move(Reordered);
-        return {{GraphImgs.begin(), GraphImgs.begin() + NumJITImgs},
-                {GraphImgs.begin() + NumJITImgs, GraphImgs.end()}};
-      }();
-
-      // If there AOT binaries, the link should allow unresolved symbols.
-      // Only invoke the JIT link (urProgramLinkExp) when there is at least one
-      // JIT image; an AOT-only link (e.g. cross-library link of native AOT
-      // object SYCLBINs) has no SPIR-V to link and passing an empty program
-      // list to urProgramLinkExp is invalid. The AOT images are handled by the
-      // dynamicLink path below.
+      // Statically links GraphImgs that can go through urProgramLinkExp
+      // and stitches in the rest (native AOT binaries) via dynamicLink;
+      // see linkDeviceImages for details.
       std::vector<device_image_plain> LinkedResults =
-          JITImgs.empty() ? std::vector<device_image_plain>{}
-                          : detail::ProgramManager::getInstance().link(
-                                JITImgs, GraphDevs, PropList,
-                                /*AllowUnresolvedSymbols=*/!AOTImgs.empty());
-
-      if (!AOTImgs.empty()) {
-        // urProgramLinkExp's ze_module_program_exp_desc_t carries a single
-        // ZE_MODULE_FORMAT for the whole descriptor, so it cannot mix the
-        // SPIR-V-derived JIT-link result with the native AOT inputs in one
-        // call. Build each AOT program independently with
-        // ALLOW_UNRESOLVED_SYMBOLS (keeping its imported references intact),
-        // then resolve the cross-module references via dynamicLink(), which
-        // is the L0 API designed for linking already-built modules of
-        // arbitrary formats.
-        //
-        // Routing the AOT build through ProgramManager::build (rather than
-        // calling urProgramCreateWithBinary + urProgramBuildExp inline)
-        // keeps the result image plumbed through the standard build path
-        // and reuses NativePrograms registration, addDeviceGlobalInitializer,
-        // the program cache, kernel-id collection, and origin tracking.
-        auto &PM = detail::ProgramManager::getInstance();
-        LinkedResults.reserve(LinkedResults.size() + AOTImgs.size());
-        for (device_image_impl &AOTImg : AOTImgs) {
-          LinkedResults.push_back(PM.build(
-              DevImgPlainWithDeps{
-                  createSyclObjFromImpl<device_image_plain>(AOTImg)},
-              GraphDevs, PropList,
-              /*AllowUnresolvedSymbols=*/true));
-        }
-        PM.dynamicLink(LinkedResults);
-      }
+          detail::ProgramManager::getInstance().linkDeviceImages(
+              std::move(GraphImgs), GraphDevs, PropList);
 
       MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
                            LinkedResults.end());
