@@ -44,7 +44,7 @@ namespace ext::oneapi::experimental::detail {
 template <unsigned int Size>
 struct PropertyMetaInfo<
     sycl::ext::intel::experimental::maximum_registers_key::value_t<Size>> {
-  static_assert(Size == 128 || Size == 256 || Size == 512,
+  static_assert(Size == 128 || Size == 192 || Size == 256 || Size == 512,
                 "Unsupported maximum registers");
   static constexpr const char *name = "sycl-maximum-registers";
   static constexpr unsigned int value = Size;
