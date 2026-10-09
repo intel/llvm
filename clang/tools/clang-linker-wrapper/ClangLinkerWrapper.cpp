@@ -1143,7 +1143,15 @@ static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
   auto It = SYCLRegisterLibFuncMap.find(std::make_pair(Triple.str(), Arch));
   if (It == SYCLRegisterLibFuncMap.end())
     return;
-  for (std::string Name : It->second) {
+  auto copy = It->second;
+
+  if(Triple.str() == "spir64_gen-unknown-unknown" && !Arch.empty()) {
+    auto wat = SYCLRegisterLibFuncMap[std::make_pair(Triple.str(), std::string())];
+    for(auto why : wat) {
+      copy.insert(why);
+    }
+  }
+  for (std::string Name : copy) {
     llvm::FunctionType *FTy = llvm::FunctionType::get(
         llvm::Type::getVoidTy(M.getContext()), /*isVarArg=*/false);
     auto *Fn = llvm::Function::Create(FTy, llvm::GlobalValue::WeakAnyLinkage,
