@@ -2245,8 +2245,7 @@ code `invalid`.
 
 These restrictions do not apply when an event is used by
 `enqueue_wait_event`, `enqueue_wait_events`, or `enqueue_signal_event` with the
-link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc#graph-external-property[
-`graph_external{true}`] property.
+<<graph-external-property, `graph_external{true}`>> property.
 
 ==== Queue Limitations
 
@@ -2295,6 +2294,112 @@ generated, as no device execution is occurring. Synchronous errors specified as
 being thrown in the default queue executing state, will still be thrown when a
 queue is in the recording state. Queue query methods operate as usual in
 recording mode, as opposed to throwing.
+
+=== Reusable Events [[reusable-events]]
+
+This section defines the graph record and replay semantics of
+`enqueue_wait_event`, `enqueue_wait_events`, and `enqueue_signal_event`, whose
+signatures and behavior are defined in
+link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc#enqueue-event-operations[
+sycl_ext_oneapi_reusable_events].
+
+==== General Behavior
+
+Calls to `enqueue_wait_event`, `enqueue_wait_events`, and `enqueue_signal_event`
+on a queue in the `queue_state::recording` state are captured in the modifiable
+`command_graph` associated with that queue.
+
+By default, recorded reusable event signals and waits constitute dependency
+edges within the graph and are subject to the limitations
+defined in <<event-limitations, Event Limitations>>. These recorded operations
+have no observable effects outside the graph during replay.
+
+The same reusable event may be used by operations both inside and outside a
+`command_graph`. By default, a recorded signal or wait can only be used as a
+dependency for operations in the same graph.
+
+Recording these operations is currently supported only with
+<<native-recording, native recording>>.
+
+==== Graph External Event Property [[graph-external-property]]
+
+This extension adds the following property, which is legal to provide to
+`enqueue_wait_event`, `enqueue_wait_events`, and
+`enqueue_signal_event`:
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct graph_external {
+  graph_external(bool enable = true);  (1)
+};
+using graph_external_key = graph_external;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+The `graph_external` property lets reusable event waits and signals recorded
+in a `command_graph` synchronize with work outside it.
+
+_Effects_ (1): Creates a new `graph_external` property with a boolean value
+indicating whether the operation may cross the graph boundary.
+
+'''
+
+When this property has the value `true`, the operation is recorded as an
+external event node of the graph. The nodes display the following behavior
+during graph replay:
+
+* For `enqueue_wait_event` and `enqueue_wait_events`:
+
+** Submitting the executable graph (e.g., via `q.ext_oneapi_graph()`) captures
+   the command that is associated with each event at the time of submission.
+** During graph execution, the wait node blocks until those commands
+   complete.
+
+* For `enqueue_signal_event`:
+
+** Submitting the executable graph disassociates the event from its previous
+   command and sets its status to `info::event_command_status::submitted`.
+** The event's status becomes `info::event_command_status::complete` when the
+   graph node associated with the event is complete.
+** Events signaled with this property may be used for host or device
+   synchronization and queried with
+   `event::get_info<info::event::command_execution_status>()`. They may also be
+   queried with `event::get_profiling_info()` if profiling is enabled on the
+   event or queue.
+
+When this property has the value `false`, the operation behaves as if no
+`graph_external` property was provided.
+
+It is undefined behavior to destroy a reusable event used as a graph external
+signal or wait prior to destroying its associated modifiable and executable
+`command_graph` objects.
+
+It is undefined behavior to use a reusable event operation submitted with
+`graph_external{true}` to establish a dependency between commands in the same
+`command_graph` unless the event spans two different executions of the same
+graph.
+
+==== Additional Exceptions
+
+The `enqueue_wait_event`, `enqueue_wait_events`, and `enqueue_signal_event`
+functions throw the following additional synchronous exceptions:
+
+* An `exception` with the `errc::invalid` error code if `graph_external` has
+  the value `true` and the provided queue is not in the
+  `queue_state::recording` state.
+* An `exception` with the `errc::feature_not_supported` error code if the
+  provided queue is recording to a `command_graph` that was not created with the
+  `property::graph::enable_native_recording` property.
+
+Examples of synchronizing with work outside a graph and timing a graph region
+are provided in the
+link:../../syclgraph/SYCLGraphUsageGuide.md#graph-external-events[
+Graph External Events] section of the SYCL Graph Usage Guide.
 
 === Interaction With Other Extensions [[extension-interaction]]
 
@@ -2440,12 +2545,12 @@ The queue priority property defined by
 link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
 is ignored during queue recording.
 
-==== sycl_ext_oneapi_reusable_events
+==== sycl_ext_oneapi_reusable_events [[reusable-events-graph-interaction]]
 
-Recording the event operations defined by
-link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc#reusable-events-graph-interaction[
-sycl_ext_oneapi_reusable_events] is currently supported only with
-<<native-recording, native recording>>.
+The graph record and replay behavior of the event operations defined by
+link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc[
+sycl_ext_oneapi_reusable_events] is described in
+<<reusable-events, Reusable Events>>.
 
 ==== sycl_ext_oneapi_work_group_memory
 
