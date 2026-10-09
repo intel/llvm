@@ -8,7 +8,9 @@
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t_arg_dim_vnni.out %fp-model-precise -DARG_DIM -DVNNI
+// The default iteration count does not finish on the CRI simulator,
+// CMPLRLLVM-75924, so run fewer iterations there.
+// RUN: %{build} -o %t_arg_dim_vnni.out %fp-model-precise -DARG_DIM -DVNNI %if arch-intel_gpu_cri %{ -DTESTITERATIONS=11 %}
 // RUN: %{run} %t_arg_dim_vnni.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
