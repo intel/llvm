@@ -6,12 +6,12 @@ target triple = "spir64-unknown-unknown"
 @__const.test.a = private unnamed_addr addrspace(1) constant [4 x i32] [i32 1, i32 2, i32 3, i32 4], align 4
 
 ; Function Attrs: sanitize_address
-define weak_odr dso_local spir_kernel void @test_unsupported_global() #0 {
-; CHECK-LABEL: define weak_odr dso_local spir_kernel void @test_unsupported_global
+define weak_odr dso_local spir_kernel void @test_global_constant() #0 {
+; CHECK-LABEL: define weak_odr dso_local spir_kernel void @test_global_constant
 entry:
   %p.i = alloca [4 x i32], align 4
   call void @llvm.memcpy.p0.p1.i64(ptr align 4 %p.i, ptr addrspace(1) align 4 @__const.test.a, i64 16, i1 false)
-  ; CHECK-NOT: call ptr addrspace(1) @__asan_memcpy_p0_p1
+  ; CHECK: call ptr @__asan_memcpy_p0_p1(
   ret void
 }
 

@@ -1776,16 +1776,22 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
     return !ClSpirOffloadLocals;
 
-  // When shadow bounds check is enabled, we need to instrument all global
-  // variables that user code can access
-  if (ClSpirCheckShadowBounds)
-    return false;
+  // Globals can be accessed through callee arguments, where the original
+  // global is no longer visible to the access instrumentation.
+  if (G->getAddressSpace() != kSpirOffloadGlobalAS || !G->hasInitializer() ||
+      !G->getValueType()->isSized() || getTargetExtType(G->getValueType()) ||
+      GlobalWasGeneratedByCompiler(G) ||
+      G->getName().starts_with("__spirv_BuiltIn") ||
+      G->getName().starts_with("__usid_str") ||
+      G->getName().starts_with("__profd") ||
+      G->getName().starts_with("__profc"))
+    return true;
 
-  // Non image scope device globals are implemented by device USM, and the
-  // out-of-bounds check for them will be done by sanitizer USM part. So we
-  // exclude them here.
-  Attribute Attr = G->getAttribute("sycl-device-image-scope");
-  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+  if (G->hasSanitizerMetadata() && G->getSanitizerMetadata().NoAddress)
+    return true;
+
+  // Available-externally globals do not provide storage to add redzones to.
+  return G->hasAvailableExternallyLinkage();
 }
 
 static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
@@ -3128,9 +3134,27 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
     const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
     const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
     Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
-    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
-    Constant *NewInitializer = ConstantStruct::get(
-        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+    Type *NewTy;
+    Constant *NewInitializer;
+    auto *Data = dyn_cast<ConstantDataArray>(G.getInitializer());
+    auto *ArrayTy = dyn_cast<ArrayType>(Ty);
+    if (G.isConstant() && ArrayTy &&
+        ArrayTy->getElementType()->isIntegerTy(8) &&
+        (Data || G.getInitializer()->isNullValue())) {
+      // GPU printf lowering recognizes byte-array initializers as strings.
+      // Preserve that representation while reserving space for the redzone.
+      std::string Bytes =
+          Data ? Data->getAsString().str() : std::string(SizeInBytes, '\0');
+      Bytes.resize(SizeInBytes + RightRedzoneSize, '\0');
+      NewInitializer =
+          ConstantDataArray::getString(*C, Bytes, /*AddNull=*/false);
+      NewTy = NewInitializer->getType();
+    } else {
+      NewTy = StructType::get(Ty, RightRedZoneTy);
+      NewInitializer =
+          ConstantStruct::get(cast<StructType>(NewTy), G.getInitializer(),
+                              Constant::getNullValue(RightRedZoneTy));
+    }
 
     // Create a new global variable with enough space for a redzone.
     GlobalVariable *NewGlobal = new GlobalVariable(
@@ -3138,7 +3162,8 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
         G.getThreadLocalMode(), G.getAddressSpace());
     NewGlobal->copyAttributesFrom(&G);
     NewGlobal->setComdat(G.getComdat());
-    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->setAlignment(std::max(G.getAlign().valueOrOne(),
+                                     Align(getMinRedzoneSizeForGlobal())));
     NewGlobal->copyMetadata(&G, 0);
 
     Value *Indices2[2];
