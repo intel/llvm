@@ -1,9 +1,12 @@
 // REQUIRES: level_zero
 //
-// RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
+// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
+// so the matching zeEventDestroy calls are reported as a negative leak there.
+// Ignore negative leaks on Windows until the loader is updated.
+// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
 //
-// CHECK-NOT: LEAK
+// RUN: %{build} -o %t.out
+// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
 
 // Tests that additional resources required by discard_write reductions do not
 // leak.
