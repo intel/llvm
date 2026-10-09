@@ -118,6 +118,7 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
+          devops/scripts
     - uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
       with:
         arch: x64
@@ -257,6 +258,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        job_name: ${{ inputs.e2e_binaries_artifact }}
         extra_lit_opts: --param sycl_build_targets="spir"
         cxx: ${{ inputs.cxx }}
 
@@ -272,6 +274,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
+        job_name: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
         extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
         cxx: ${{ inputs.cxx }}
 

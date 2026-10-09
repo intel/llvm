@@ -81,7 +81,8 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
-            devops/
+            devops/actions
+            devops/scripts
 
       # download build artefact
       - name: Download toolchain
@@ -100,6 +101,7 @@ jobs:
           ref: ${{ github.ref || github.sha }}
           testing_mode: full
           target_devices: native_cpu:cpu
+          job_name: ${{ github.job }}
           sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/dpclang++
           extra_lit_opts: --param sycl_build_targets="native_cpu"
           extra_cmake_args: -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" -DSYCL_TEST_E2E_STANDALONE=ON
