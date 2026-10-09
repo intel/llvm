@@ -698,11 +698,6 @@ if platform.system() == "Windows":
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
 
-if not config.gpu_aot_target_opts:
-    config.gpu_aot_target_opts = '"-device *"'
-
-config.substitutions.append(("%gpu_aot_target_opts", config.gpu_aot_target_opts))
-
 if config.dump_ir_supported:
     config.available_features.add("dump_ir")
 
@@ -1292,6 +1287,18 @@ if amd_arch:
         f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
     )
 config.substitutions.append(("%amd_arch_options", amd_arch_flags))
+
+# Intel GPU AOT target(s), as a -fsycl-targets value. Uses the detected Intel
+# GPU architectures or defaults to intel_gpu_pvc in build-only mode.
+if not config.gpu_aot_target:
+    intel_gpu_archs = sorted(
+        feature[len("arch-") :]
+        for feature in set().union(*config.sycl_dev_features.values())
+        if feature.startswith("arch-intel_gpu_")
+    )
+    config.gpu_aot_target = ",".join(intel_gpu_archs) or "intel_gpu_pvc"
+lit_config.note("Intel GPU AOT target: {}".format(config.gpu_aot_target))
+config.substitutions.append(("%{gpu_aot_target}", config.gpu_aot_target))
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

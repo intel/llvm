@@ -298,7 +298,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 (backend, _) = sycl_device.split(":")
                 build_targets.add(test.config.backend_to_target[backend])
 
-        triples = set(test.config.target_to_triple[t] for t in build_targets)
+        # spir_gen builds for the configured Intel GPU architecture(s).
+        triples = set(
+            (
+                test.config.gpu_aot_target
+                if t == "target-spir_gen"
+                else test.config.target_to_triple[t]
+            )
+            for t in build_targets
+        )
         features_for_test = test.config.available_features.union(build_targets)
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
@@ -306,10 +314,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
-        if "target-spir_gen" in build_targets:
-            sycl_target_opts += " -Xsycl-target-backend=spir64_gen {}".format(
-                test.config.gpu_aot_target_opts
-            )
         if "target-amd" in build_targets:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(

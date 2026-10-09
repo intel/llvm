@@ -30,14 +30,13 @@
 // -- the native-AOT partition (build with ALLOW_UNRESOLVED_SYMBOLS +
 // -- dynamicLink) to reach executable state.
 //
-// -- The -device * wildcard (%gpu_aot_target_opts) keeps this off a single
-// -- Intel GPU architecture. Complements the hardware-independent unit test
+// -- Targeting the configured Intel GPU architecture(s) (%{gpu_aot_target})
+// -- keeps this off a single hard-coded one. Complements the hardware-independent unit test
 // -- SYCLBINSelector.NativeWithoutSymbolsSurfacedForObject, which covers the
 // -- selector in isolation but neither the producer nor the link-and-run path.
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object \
-// RUN:   -fsycl-targets=spir64_gen \
-// RUN:   -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts \
+// RUN:   -fsycl-targets=%{gpu_aot_target} \
 // RUN:   %S/Inputs/aot_object_no_symbols.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %t.syclbin
