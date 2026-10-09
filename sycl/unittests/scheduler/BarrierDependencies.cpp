@@ -291,6 +291,9 @@ TEST_F(BarrierCrossContextTest, HandlerBarrierWaitList) {
       Q2.submit([&](handler &CGH) { CGH.ext_oneapi_barrier({E1}); });
   BarrierEvent.wait();
 
+  ASSERT_EQ(BarrierEventsInWaitList.size(), 0u);
+  ASSERT_EQ(HostWaitedEvents.size(), 1u);
+
   EXPECT_FALSE(contains(BarrierEventsInWaitList, E1Handle));
   EXPECT_TRUE(contains(HostWaitedEvents, E1Handle));
   EXPECT_FALSE(BarrierEventsWaitVisited);
@@ -371,6 +374,10 @@ TEST_F(BarrierCrossContextTest, CrossContextNOPEvent) {
 // A barrier submitted without an event to an in-order queue must still order
 // the following commands after the cross-context event.
 TEST_F(BarrierCrossContextTest, InOrderNoEventBarrierBlocksNextKernel) {
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &redefinedUrEventWaitHold);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunchWithArgsExp",
+                                          &redefinedEnqueueKernelLaunch);
   namespace syclex = sycl::ext::oneapi::experimental;
   queue InOrderQ2{Ctx2, Dev, property::queue::in_order()};
 
@@ -380,11 +387,8 @@ TEST_F(BarrierCrossContextTest, InOrderNoEventBarrierBlocksNextKernel) {
 
   std::promise<void> Release;
   HeldEventRelease = Release.get_future().share();
-  mock::getCallbacks().set_before_callback("urEventWait",
-                                           &redefinedUrEventWaitHold);
+
   CountedQueue = detail::getSyclObjImpl(InOrderQ2)->getHandleRef();
-  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunchWithArgsExp",
-                                          &redefinedEnqueueKernelLaunch);
 
   syclex::partial_barrier(InOrderQ2, {E1});
   syclex::single_task<TestKernel>(InOrderQ2, [] {});

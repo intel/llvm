@@ -84,6 +84,5 @@ int main() {
         return Q.ext_oneapi_submit_barrier(std::vector<sycl::event>{E});
       });
 
-  std::cout << (Error ? "failed\n" : "passed\n");
   return Error;
 }
