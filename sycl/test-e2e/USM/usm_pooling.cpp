@@ -8,6 +8,11 @@
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
+// UNSUPPORTED: level_zero_usm_pooling_disabled
+// UNSUPPORTED-INTENDED: USM pooling is disabled in the Level Zero adapter on
+// Xe2 or newer devices with L0 driver at least
+// UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR.MINOR.
+
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
 // With no pooling: 1,2,3,4,5 allocs lead to ZE call.

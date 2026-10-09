@@ -956,7 +956,13 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
 
   size_t size = 0;
   umfRet = umfPoolMallocUsableSize(hPool, pMem, &size);
-  if (umfRet != UMF_RESULT_SUCCESS) {
+  if (umfRet == UMF_RESULT_ERROR_NOT_SUPPORTED) {
+    // Proxy pools (used when USM pooling is disabled) do not track allocation
+    // sizes. Query the size from the driver, otherwise the allocation would
+    // be inserted into the async pool with size 0 and never be reused.
+    ZE2UR_CALL(zeMemGetAddressRange,
+               (hContext->getZeHandle(), pMem, nullptr, &size));
+  } else if (umfRet != UMF_RESULT_SUCCESS) {
     UR_LOG(ERR, "enqueueUSMFreeExp: failed to retrieve usable malloc size");
     return UR_RESULT_ERROR_UNKNOWN;
   }
