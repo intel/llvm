@@ -99,8 +99,9 @@ TEST_F(ReductionNumWorkGroupsTest, DeviceLimitIsRespected) {
 
 TEST_F(ReductionNumWorkGroupsTest, ZeroWorkGroupSize) {
   EXPECT_EQ(getMaxNumWorkGroups(LargeRange, 0), 448u);
+}
 
-  TEST_F(ReductionNumWorkGroupsTest, DeviceLimitBelowBaseLimitIsRespected) {
-    MaxGroupsX = 128;
-    EXPECT_EQ(getMaxNumWorkGroups(SmallRange, 1024), 128u);
-  }
+TEST_F(ReductionNumWorkGroupsTest, DeviceLimitBelowBaseLimitIsRespected) {
+  MaxGroupsX = 128;
+  EXPECT_EQ(getMaxNumWorkGroups(SmallRange, 1024), 128u);
+}
