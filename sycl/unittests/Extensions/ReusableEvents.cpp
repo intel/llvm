@@ -457,6 +457,105 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   Queue.wait();
 }
 
+// enqueue_signal_event replaces the wait list of the event: after the event
+// is reassociated with a new command, event::get_wait_list does not return
+// the dependencies of the command it was associated with before.
+TEST_F(ReusableEventsTest, SignalEventReplacesWaitList) {
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  // Out-of-order, so that the kernel event keeps its dependencies for
+  // get_wait_list.
+  sycl::queue Queue{Ctx, Dev};
+  sycl::queue SignalQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"TestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+
+  sycl::event A = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  ExpectedNumEventsInWaitListKernelLaunch = 1;
+  sycl::event B = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(A);
+    cgh.single_task<TestKernel>([]() {});
+  });
+  ASSERT_EQ(B.get_wait_list().size(), 1u);
+  EXPECT_EQ(B.get_wait_list()[0], A);
+
+  // Reassociate B with a signal on an in-order queue. Its wait list is now
+  // the signal's, which has no dependencies.
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  syclex::enqueue_signal_event(SignalQueue, B);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+  EXPECT_TRUE(B.get_wait_list().empty());
+
+  Queue.wait();
+  SignalQueue.wait();
+}
+
+// enqueue_signal_event on the event of a kernel held by the runtime behind a
+// host task throws, and leaves the event and its wait list unchanged. Once the
+// kernel has been submitted to the backend, the event can be signaled, and
+// its wait list is replaced.
+TEST_F(ReusableEventsTest, SignalEventOfHeldCommandThrows) {
+  // The host task waits for a helper barrier, whose backend event comes from
+  // the default mock rather than DummyEventHandle.
+  CheckUrEventReleaseHandle = false;
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
+  sycl::queue SignalQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"TestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+  Queue.submit([&](sycl::handler &cgh) {
+    cgh.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+  // Held by the runtime until the host task completes; depends on it.
+  sycl::event Kernel = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+  ASSERT_EQ(Kernel.get_wait_list().size(), 1u);
+
+  try {
+    syclex::enqueue_signal_event(SignalQueue, Kernel);
+    ADD_FAILURE() << "expected an exception";
+  } catch (const sycl::exception &Ex) {
+    EXPECT_EQ(Ex.code(), sycl::errc::invalid);
+  }
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 0);
+  EXPECT_EQ(Kernel.get_wait_list().size(), 1u);
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+  Queue.wait();
+
+  // Submitted to the backend now: the signal succeeds and replaces the wait
+  // list.
+  EXPECT_NO_THROW(syclex::enqueue_signal_event(SignalQueue, Kernel));
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+  EXPECT_TRUE(Kernel.get_wait_list().empty());
+
+  SignalQueue.wait();
+}
+
 // Cross-context event with wait.
 // Current limitation is that the cross-context wait
 // is not supported.

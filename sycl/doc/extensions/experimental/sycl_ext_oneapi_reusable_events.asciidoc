@@ -336,6 +336,12 @@ It is legal to reassociate the event _E_ to a new command via
 `enqueue_signal_event` even before command _C_ completes.
 Doing so does _not_ change the dependency for command _C_.
 
+When an event _E_ is enqueued for signaling via `enqueue_signal_event`, its
+wait list is replaced as well.
+From then on, `event::get_wait_list` called on _E_ returns only dependencies of
+the new command, if any, and never the dependencies of a command _E_ was
+associated with before.
+
 If another host thread is blocked waiting for event _E_ to complete via
 `event::wait` or `event::wait_and_throw` when event _E_ is reassociated with a
 new command via `enqueue_signal_event`, the behavior of the `event::wait` or
@@ -525,6 +531,11 @@ two is the case, it must not rely on either outcome.
   such a command is held until the host accessor is destroyed, which happens
   when the last copy of the host accessor is destroyed, so the application
   controls how long this limitation lasts.
+* An event returned by a command submission cannot be passed to the
+  `enqueue_signal_event` function while that command, or any command it depends
+  on, is still pending inside the SYCL runtime, for example behind a host task
+  submitted using the `handler::host_task` function. The implementation throws
+  an `exception` with the `errc::invalid` error code in this case.
 * The `enqueue_signal_event`, `enqueue_wait_event` and `enqueue_wait_events`
   functions cannot be dependent on any commands which use cross-context
   event dependencies.

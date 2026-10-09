@@ -640,6 +640,25 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
+static bool isHeldInRuntime(event_impl &Event) {
+  if (Event.isHost())
+    return !Event.isCompleted();
+  return Event.getCommand() != nullptr && !Event.isEnqueued();
+}
+
+bool event_impl::isHeldInRuntimeWithDependencies() {
+  if (isHeldInRuntime(*this))
+    return true;
+  std::lock_guard<std::mutex> Lock(MMutex);
+  for (const EventImplPtr &Dep : MPreparedDepsEvents)
+    if (isHeldInRuntime(*Dep))
+      return true;
+  for (const EventImplPtr &Dep : MPreparedHostDepsEvents)
+    if (isHeldInRuntime(*Dep))
+      return true;
+  return false;
+}
+
 void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
   for (auto &Event : MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();

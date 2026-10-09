@@ -128,6 +128,17 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
         "profiling enabled.");
   }
 
+  // The event is reassociated with a new command and its wait list is
+  // replaced. That is only possible once its previous command and its
+  // dependencies have been submitted to the backend: until then the lists
+  // are the inputs of a command the scheduler still has to submit.
+  if (EventImpl.isHeldInRuntimeWithDependencies()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "An event cannot be enqueued for signaling while its command or one "
+        "of its dependencies is not enqueued in the backend.");
+  }
+
   QueueImpl.submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
       sycl::detail::getSyclObjImpl(evt));

@@ -492,6 +492,16 @@ EventImplPtr queue_impl::submit_barrier_scheduler_bypass(
   // (enqueue_signal_event function)
   assert(!EventForReuse || (EventForReuse && BarrierType == CGType::Barrier));
 
+  if (EventForReuse) {
+    // enqueue_signal_event has checked that the previous command of the event
+    // is not held by the scheduler, so the lists are no longer its inputs.
+    assert((!EventForReuse->getCommand() || EventForReuse->isEnqueued()) &&
+           "event of a command held by the scheduler enqueued for signaling");
+    // The event moves on to a new command: its wait list is the new
+    // command's from now on.
+    EventForReuse->cleanupDependencyEvents();
+  }
+
   ur_event_handle_t UREvent =
       EventForReuse ? EventForReuse->getHandleReusable(*this) : nullptr;
   std::vector<ur_event_handle_t> RawBarrierDepEvents;

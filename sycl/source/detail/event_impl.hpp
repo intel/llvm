@@ -268,6 +268,11 @@ public:
   /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
 
+  /// Whether this event, or any event in its dependency lists, is held by the
+  /// SYCL runtime: its command has not been submitted to the backend yet, or
+  /// it is a host event that has not completed.
+  bool isHeldInRuntimeWithDependencies();
+
   /// Cleans dependencies of this event's dependencies.
   void cleanDepEventsThroughOneLevel();
 
