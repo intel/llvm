@@ -6,7 +6,7 @@
 
 // Check that llvm-link uses the "-only-needed" flag.
 // Not using the flag breaks kernel bundles.
-// RUN: %clangxx -### -fsycl -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx -### -fsycl -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv -ccc-install-dir %S/Inputs/SYCL/bin \
 // RUN: -Xsycl-target-backend --offload-arch=gfx908 --rocm-path=%S/Inputs/rocm %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
 

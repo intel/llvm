@@ -26,39 +26,39 @@
 /// ---------------------------------------------------------------------------
 
 /// (1) Full path named directly as an input.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          %t.libdir/dep.lib 2>&1 | FileCheck %s
 
 /// (2) Full path passed through /link.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link %t.libdir/dep.lib 2>&1 | FileCheck %s
 
 /// (3) Bare name via /link, resolved through /libpath:.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link dep.lib /libpath:%t.libdir 2>&1 | FileCheck %s
 
 /// (4) Bare name via /link, resolved through the LIB env var.
-// RUN: env "LIB=%t.libdir" %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: env "LIB=%t.libdir" %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link dep.lib 2>&1 | FileCheck %s
 
 /// (5) /defaultlib: with the .lib extension omitted (the driver appends it),
 ///     resolved through /libpath:.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link /defaultlib:dep /libpath:%t.libdir 2>&1 | FileCheck %s
 
 /// (6) /wholearchive: with a bare name, resolved through /libpath:.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link /wholearchive:dep /libpath:%t.libdir 2>&1 | FileCheck %s
 
 /// (7) A .lib pulled in via a linker response file (bare name + /libpath:).
 // RUN: echo "dep.lib /libpath:%t.libdir" > %t.rsp
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link @%t.rsp 2>&1 | FileCheck %s
 
@@ -67,17 +67,17 @@
 /// ---------------------------------------------------------------------------
 
 /// (8) -l<name> resolved through -L.
-// RUN: %clang -fsycl --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
 // RUN:          -L%t.libdir -ldep 2>&1 | FileCheck %s
 
 /// (9) Full path forwarded verbatim via -Wl,.
-// RUN: %clang -fsycl --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
 // RUN:          -Wl,%t.libdir/dep.lib 2>&1 | FileCheck %s
 
 /// (10) Full path forwarded verbatim via -Xlinker.
-// RUN: %clang -fsycl --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies -O2 -### %s \
 // RUN:          -Xlinker %t.libdir/dep.lib 2>&1 | FileCheck %s
 
@@ -85,8 +85,8 @@
 ///      file's COFF .drectve section (as /Qmkl and #pragma comment(lib) do),
 ///      never on the command line. Resolved through /libpath:.
 // RUN: echo '#pragma comment(lib, "dep.lib")' > %t.dep.c
-// RUN: %clang_cl /clang:--sysroot=%S/Inputs/SYCL -c -o %t.dep.obj %t.dep.c
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -c -o %t.dep.obj %t.dep.c
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          %t.dep.obj /link /libpath:%t.libdir 2>&1 | FileCheck %s
 
@@ -95,8 +95,8 @@
 ///      -### time), so the directive must be read from the original on-disk
 ///      base input, not the linker's filename. Guards the getBaseInput() switch
 ///      that (11), a plain object where the two names coincide, cannot.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL -c -o %t.fatdep.obj %t.dep.c
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl -c -o %t.fatdep.obj %t.dep.c
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          %t.fatdep.obj /link /libpath:%t.libdir 2>&1 | FileCheck %s
 
@@ -106,7 +106,7 @@
 /// Negative: a named system library (kernel32.lib, found on the LIB env var
 /// the toolchain sets up) must never be force-loaded.
 /// ---------------------------------------------------------------------------
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link kernel32.lib 2>&1 | FileCheck --check-prefix=SYSLIB %s
 /// The linker line is emitted (driver did not crash scanning the .lib) but
@@ -121,12 +121,12 @@
 /// ---------------------------------------------------------------------------
 
 /// -fsycl-allow-device-image-dependencies without -fsycl.
-// RUN: %clang_cl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          %t.libdir/dep.lib 2>&1 | FileCheck --check-prefix=NONE %s
 
 /// -fsycl without -fsycl-allow-device-image-dependencies.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          /O2 -### %s \
 // RUN:          %t.libdir/dep.lib 2>&1 | FileCheck --check-prefix=NONE %s
 
@@ -139,32 +139,32 @@
 /// ---------------------------------------------------------------------------
 
 /// Bare name, nothing on the search path.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link nosuch.lib 2>&1 | FileCheck --check-prefix=NONE %s
 
 /// Name misses in a /libpath: dir that exists but lacks it.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link nosuch.lib /libpath:%t.libdir 2>&1 | FileCheck --check-prefix=NONE %s
 
 /// Nonexistent full path named directly.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          %t.libdir/nosuch.lib 2>&1 | FileCheck --check-prefix=NONE %s
 
 /// /defaultlib: (extension appended) that resolves to nothing.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link /defaultlib:nosuch /libpath:%t.libdir 2>&1 | FileCheck --check-prefix=NONE %s
 
 /// /wholearchive: that resolves to nothing.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link /wholearchive:nosuch.lib 2>&1 | FileCheck --check-prefix=NONE %s
 
 /// Missing response file.
-// RUN: %clang_cl -fsycl /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl \
 // RUN:          -fsycl-allow-device-image-dependencies /O2 -### %s \
 // RUN:          /link @%t.nosuch.rsp 2>&1 | FileCheck --check-prefix=NONE %s
 

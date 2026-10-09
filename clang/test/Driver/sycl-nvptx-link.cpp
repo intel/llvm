@@ -14,27 +14,27 @@
 
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_30 \
-// RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
+// RUN:    --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE30
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
-// RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
+// RUN:    --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE35
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_50 \
-// RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
+// RUN:    --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE50
 
 // CUDA-9+ uses the same libdevice for all GPU variants
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
-// RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
+// RUN:    --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE10
 
 // Check also that -nocudalib is obeyed
 // RUN: %clang -### -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib \
 // RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
-// RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
+// RUN:    --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,NOLIBDEVICE
 
 // First link command: ignored
