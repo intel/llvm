@@ -8,6 +8,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
@@ -200,11 +201,8 @@ int main() {
   ret |= test_has_desc<range_has_after, float>(q, ctxt);
 
   auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
-  if (std::find(SGSizes.begin(), SGSizes.end(), SG_SIZE) == SGSizes.end()) {
-    std::cout << "Device does not report sub-group size " << SG_SIZE
-              << " as supported" << std::endl;
-    return 1;
-  }
+  assert(std::find(SGSizes.begin(), SGSizes.end(), SG_SIZE) != SGSizes.end() &&
+         "Device does not report the requested sub-group size");
 
   ret |= test_sg_properties<SG_SIZE>(q, ctxt);
 
