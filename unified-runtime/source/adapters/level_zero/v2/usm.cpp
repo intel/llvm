@@ -36,11 +36,20 @@ initializeDisjointPoolConfig() {
   }
 
   int PoolTrace = 0;
-  if (auto PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE")) {
-    PoolTrace = std::atoi(PoolUrTraceVal);
+  const char *PoolTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
+  if (!PoolTraceVal) {
+    PoolTraceVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
+  }
+  if (PoolTraceVal) {
+    PoolTrace = std::atoi(PoolTraceVal);
   }
 
   const char *PoolUrConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  if (!PoolUrConfigVal) {
+    // Fall back to the legacy PI env var name for compatibility with
+    // existing tests/tools that predate the UR naming.
+    PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  }
   if (PoolUrConfigVal == nullptr) {
     return usm::DisjointPoolAllConfigs(PoolTrace);
   }
