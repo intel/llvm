@@ -194,6 +194,28 @@ TEST_P(EventPoolTest, Basic) {
   }
 }
 
+TEST_P(EventPoolTest, Detached) {
+  auto deviceId = ur::level_zero::common_cast(device)->Id.value();
+  auto pool = cache->borrow(deviceId, getParam().flags);
+
+  // Detached events own a native event each; two live ones never share it.
+  v2::ur_event_handle_t first = pool->allocateDetached();
+  v2::ur_event_handle_t second = pool->allocateDetached();
+  ASSERT_NE(first, second);
+  ze_event_handle_t zeFirst = first->getZeEvent();
+  ASSERT_NE(zeFirst, second->getZeEvent());
+
+  // Releasing a detached event destroys it instead of returning it to the
+  // pool: a subsequent pooled allocation must not hand out its native event.
+  urEventRelease(v2::v2_cast(first));
+  v2::ur_event_handle_t pooled = pool->allocate();
+  ASSERT_NE(pooled->getZeEvent(), zeFirst);
+  ASSERT_NE(pooled->getZeEvent(), second->getZeEvent());
+
+  urEventRelease(v2::v2_cast(pooled));
+  urEventRelease(v2::v2_cast(second));
+}
+
 TEST_P(EventPoolTest, Threaded) {
   std::vector<std::thread> threads;
   auto deviceId = ur::level_zero::common_cast(device)->Id.value();

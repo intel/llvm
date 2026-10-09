@@ -35,6 +35,16 @@ etors:
       desc: >
             Event captures UR_PROFILING_INFO_COMMAND_START and
             UR_PROFILING_INFO_COMMAND_END timestamps when signalled.
+    - name: NO_POOLING
+      value: "$X_BIT(2)"
+      desc: >
+            The event is backed by a newly created native event that has never
+            been used, never by one recycled from an adapter-internal pool, and
+            the native event is destroyed when the last reference to the event
+            is released instead of being returned to a pool. Intended for events
+            waited on or signaled by commands recorded into a graph, where a
+            recycled native event could still carry pending work from its
+            previous owner.
 
 --- #--------------------------------------------------------------------------
 type: struct

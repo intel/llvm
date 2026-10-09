@@ -245,3 +245,165 @@ TEST_P(urEnqueueEventsWaitWithBarrierReusableEventTest,
   ASSERT_SUCCESS(urQueueFinish(queue));
   ASSERT_SUCCESS(urQueueFinish(otherQueue));
 }
+
+struct urEventCreateExpNoPoolingTest : uur::urQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+
+    ur_device_usm_access_capability_flags_t deviceUSMSupport = 0;
+    ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
+    if (!deviceUSMSupport) {
+      GTEST_SKIP() << "Device USM is not supported";
+    }
+
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    allocationSize, &src));
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    allocationSize, &dst));
+  }
+
+  void TearDown() override {
+    if (src) {
+      EXPECT_SUCCESS(urUSMFree(context, src));
+    }
+    if (dst) {
+      EXPECT_SUCCESS(urUSMFree(context, dst));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+  }
+
+  // Enqueue enough copies that the device is still busy once this returns,
+  // then signal `event` behind them.
+  void enqueueLongWorkSignaling(ur_event_handle_t *event) {
+    for (size_t i = 0; i < numCopies; ++i) {
+      ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, dst, src, allocationSize,
+                                        0, nullptr, nullptr));
+      ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, src, dst, allocationSize,
+                                        0, nullptr, nullptr));
+    }
+    ur_exp_enqueue_ext_properties_t props{
+        UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+    ASSERT_SUCCESS(
+        urEnqueueEventsWaitWithBarrierExt(queue, &props, 0, nullptr, event));
+  }
+
+  static constexpr size_t allocationSize = 64 * 1024 * 1024;
+  static constexpr size_t numCopies = 64;
+  void *src = nullptr;
+  void *dst = nullptr;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventCreateExpNoPoolingTest);
+
+TEST_P(urEventCreateExpNoPoolingTest, Success) {
+  ur_exp_event_desc_t desc{
+      UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
+      nullptr,
+      UR_EXP_EVENT_FLAG_NO_POOLING,
+  };
+
+  uur::raii::Event event{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, event.ptr()));
+  if (!event)
+    return;
+
+  // A never-used event must not report any pending work.
+  ur_event_status_t status = UR_EVENT_STATUS_QUEUED;
+  ASSERT_SUCCESS(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                                sizeof(status), &status, nullptr));
+  ASSERT_EQ(status, UR_EVENT_STATUS_COMPLETE);
+}
+
+TEST_P(urEventCreateExpNoPoolingTest, SuccessWithProfilingFlag) {
+  ur_exp_event_desc_t desc{
+      UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
+      nullptr,
+      UR_EXP_EVENT_FLAG_NO_POOLING | UR_EXP_EVENT_FLAG_ENABLE_PROFILING,
+  };
+
+  uur::raii::Event event{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, event.ptr()));
+  if (!event)
+    return;
+
+  ur_exp_enqueue_ext_properties_t props{
+      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+  ur_result_t r =
+      urEnqueueEventsWaitWithBarrierExt(queue, &props, 0, nullptr, event.ptr());
+  if (r == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    return;
+  ASSERT_SUCCESS(r);
+  ASSERT_SUCCESS(urEventWait(1, event.ptr()));
+
+  uint64_t end = 0;
+  ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_END,
+                                         sizeof(end), &end, nullptr));
+  ASSERT_NE(end, 0u);
+}
+
+// Releasing a NO_POOLING event while its signal is still pending must not let
+// the next NO_POOLING event inherit that pending work: the new event has to be
+// backed by a fresh native event, not a recycled one.
+TEST_P(urEventCreateExpNoPoolingTest, ReleasedPendingEventIsNotRecycled) {
+  ur_exp_event_desc_t desc{
+      UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
+      nullptr,
+      UR_EXP_EVENT_FLAG_NO_POOLING,
+  };
+
+  uur::raii::Event first{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, first.ptr()));
+  if (!first)
+    return;
+
+  enqueueLongWorkSignaling(first.ptr());
+  if (HasFatalFailure())
+    return;
+
+  // Drop the only reference while the signal is (most likely) still pending.
+  first = nullptr;
+
+  uur::raii::Event second{};
+  ASSERT_SUCCESS(urEventCreateExp(context, device, &desc, second.ptr()));
+
+  ur_event_status_t status = UR_EVENT_STATUS_QUEUED;
+  ASSERT_SUCCESS(urEventGetInfo(second, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                                sizeof(status), &status, nullptr));
+  ASSERT_EQ(status, UR_EVENT_STATUS_COMPLETE);
+
+  // The new event is still fully usable for signaling behind the pending work.
+  ur_exp_enqueue_ext_properties_t props{
+      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrierExt(queue, &props, 0, nullptr,
+                                                   second.ptr()));
+  ASSERT_SUCCESS(urEventWait(1, second.ptr()));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+}
+
+// Without the flag an adapter may hand out a recycled native event; with the
+// flag every creation must yield a distinct, never-used event even when the
+// previous one is still alive.
+TEST_P(urEventCreateExpNoPoolingTest, DistinctWhileAlive) {
+  ur_exp_event_desc_t desc{
+      UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
+      nullptr,
+      UR_EXP_EVENT_FLAG_NO_POOLING,
+  };
+
+  uur::raii::Event first{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, first.ptr()));
+  if (!first)
+    return;
+
+  uur::raii::Event second{};
+  ASSERT_SUCCESS(urEventCreateExp(context, device, &desc, second.ptr()));
+  ASSERT_NE(first.get(), second.get());
+
+  ur_native_handle_t firstNative = 0, secondNative = 0;
+  ASSERT_SUCCESS(urEventGetNativeHandle(first, &firstNative));
+  ASSERT_SUCCESS(urEventGetNativeHandle(second, &secondNative));
+  ASSERT_NE(firstNative, secondNative);
+}

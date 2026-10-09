@@ -14036,13 +14036,21 @@ typedef enum ur_exp_event_flag_t {
   /// will later be obtained; it cannot be enabled after creation. Must not
   /// be combined with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING.
   UR_EXP_EVENT_FLAG_IPC_EXP = UR_BIT(1),
+  /// The event is backed by a newly created native event that has never
+  /// been used, never by one recycled from an adapter-internal pool, and
+  /// the native event is destroyed when the last reference to the event is
+  /// released instead of being returned to a pool. Intended for events
+  /// waited on or signaled by commands recorded into a graph, where a
+  /// recycled native event could still carry pending work from its previous
+  /// owner.
+  UR_EXP_EVENT_FLAG_NO_POOLING = UR_BIT(2),
   /// @cond
   UR_EXP_EVENT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_exp_event_flag_t;
 /// @brief Bit Mask for validating ur_exp_event_flags_t
-#define UR_EXP_EVENT_FLAGS_MASK 0xfffffffc
+#define UR_EXP_EVENT_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for creating reusable events.

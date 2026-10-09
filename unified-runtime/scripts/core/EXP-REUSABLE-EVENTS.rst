@@ -69,6 +69,9 @@ Changelog
 |           | adjusting event synchronization modes on      |
 |           | reusable events.                              |
 +-----------+-----------------------------------------------+
+| 1.2       | Add ``${X}_EXP_EVENT_FLAG_NO_POOLING`` to     |
+|           | request a never-recycled native event.        |
++-----------+-----------------------------------------------+
 
 
 Support
