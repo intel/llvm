@@ -12,11 +12,10 @@
 
 ## Improvements and bugfixes
 
-### SYCL Compiler
+### Clang Driver
 
-- Fixed `-fsycl-link` with fat static archive inputs in the old offloading
-  model failing with "cannot specify -o when generating multiple output
-  files". intel/llvm#23421
+- Fixed `-fsycl-link` with static archive inputs in the old offload model.
+  intel/llvm#23421
 
 ### Component A
 
