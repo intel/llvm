@@ -6,7 +6,7 @@
 //
 //===---------------------------------------------------------------------===//
 
-// REQUIRES: ocloc, gpu, target-spir
+// REQUIRES: ocloc, gpu, spir-family
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%{gpu_aot_target} %S/Inputs/aot.cpp -o %t.out
+// RUN: %clangxx -fsycl %aot_options %S/Inputs/aot.cpp -o %t.out
 // RUN: %{run} %t.out

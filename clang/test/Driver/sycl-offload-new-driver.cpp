@@ -154,43 +154,35 @@
 // WRAPPER_JIT_LTO-SAME: "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-jit-opt"
 // WRAPPER_JIT_LTO-SAME: "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-jit-link"
 
-// Link-only inputs still require the driver's implied native backend options.
+// Compilation attaches JIT, GPU AOT, and CPU AOT compiler options to the
+// object's image properties.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64 -g -O0 \
-// RUN:          -ftarget-register-alloc-mode=pvc:large \
-// RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:   | FileCheck -check-prefix JIT_LINK_IMPLIED %s
-// JIT_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-g"
-// JIT_LINK_IMPLIED-SAME: "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
-// RUN:          -g -O0 -ftarget-register-alloc-mode=pvc:large \
-// RUN:          -fsycl-fp64-conv-emu -### %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:   | FileCheck -check-prefix GPU_LINK_IMPLIED %s
-// GPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options"
-// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
-// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-opt-large-register-file"
-// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
-// GPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-fp64-gen-conv-emu -g -cl-opt-disable"
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
-// RUN:          -g -O0 -Xsycl-target-backend '-device pvc' \
-// RUN:          -### %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:   | FileCheck -check-prefix GPU_LINK_DEFAULT %s
-// GPU_LINK_DEFAULT: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device_options"
-// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
-// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-ze-intel-enable-auto-large-GRF-mode"
-// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-options"
-// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-g -cl-opt-disable"
-// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-device"
-// GPU_LINK_DEFAULT-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=pvc"
+// RUN:   -fsycl --offload-new-driver -fsycl-targets=spir64,intel_gpu_pvc,spir64_x86_64 \
+// RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large -c -### %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=OBJECT_COMPILE
+// OBJECT_COMPILE: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=-g -ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
+// OBJECT_COMPILE-SAME: "--image=file={{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=-device_options pvc -ze-opt-large-register-file -options -g -cl-opt-disable"
+// OBJECT_COMPILE-SAME: "--image=file={{.*}},triple=spir64_x86_64-unknown-unknown,arch=generic,kind=sycl,compile-opts=--bo=-g --bo=-cl-opt-disable"
 
+// Object-only links do not regenerate compiler options from link-time flags;
+// compilation options belong to the input images. Explicit linker options
+// still reach clang-linker-wrapper for all three targets, with no extra
+// JIT compiler or AOT backend options.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:          -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 \
-// RUN:          -g -O0 -### %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:   | FileCheck -check-prefix CPU_LINK_IMPLIED %s
-// CPU_LINK_IMPLIED: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-g"
-// CPU_LINK_IMPLIED-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=--bo=-cl-opt-disable"
+// RUN:   -fsycl --offload-new-driver -fsycl-targets=spir64,intel_gpu_pvc,spir64_x86_64 \
+// RUN:   -g0 -O2 -ftarget-register-alloc-mode=pvc:small \
+// RUN:   -Xsycl-target-linker=spir64 -jit-link-opt \
+// RUN:   -Xsycl-target-linker=intel_gpu_pvc -gpu-link-opt \
+// RUN:   -Xsycl-target-linker=spir64_x86_64 -cpu-link-opt \
+// RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=OBJECT_LINK \
+// RUN:       --implicit-check-not=--jit-compiler-options= \
+// RUN:       --implicit-check-not=--ocloc-options= \
+// RUN:       --implicit-check-not=--opencl-aot-options=
+// OBJECT_LINK: clang-linker-wrapper
+// OBJECT_LINK-SAME: "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-jit-link-opt"
+// OBJECT_LINK-SAME: "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-gpu-link-opt"
+// OBJECT_LINK-SAME: "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-cpu-link-opt"
 
 /// Test option passing behavior for clang-offload-wrapper options for AOT.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
