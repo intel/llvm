@@ -23,16 +23,21 @@ int main() {
   cl_device_id CLDev = get_native<backend::opencl>(Dev);
 
   size_t ExtSize = 0;
-  clGetDeviceInfo(CLDev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize);
+  cl_int Err =
+      clGetDeviceInfo(CLDev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize);
+  assert(Err == CL_SUCCESS && "clGetDeviceInfo(CL_DEVICE_EXTENSIONS) failed");
   std::string ExtStr(ExtSize, '\0');
-  clGetDeviceInfo(CLDev, CL_DEVICE_EXTENSIONS, ExtSize, &ExtStr.front(),
-                  nullptr);
+  Err = clGetDeviceInfo(CLDev, CL_DEVICE_EXTENSIONS, ExtSize, ExtStr.data(),
+                        nullptr);
+  assert(Err == CL_SUCCESS && "clGetDeviceInfo(CL_DEVICE_EXTENSIONS) failed");
 
   bool Result = false;
   if (ExtStr.find("cl_ext_float_atomics") != std::string::npos) {
     cl_device_fp_atomic_capabilities_ext Caps = 0;
-    clGetDeviceInfo(CLDev, CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT,
-                    sizeof(Caps), &Caps, nullptr);
+    Err = clGetDeviceInfo(CLDev, CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT,
+                          sizeof(Caps), &Caps, nullptr);
+    assert(Err == CL_SUCCESS &&
+           "clGetDeviceInfo(CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT) failed");
     constexpr cl_device_fp_atomic_capabilities_ext Required =
         CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT |
         CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT |

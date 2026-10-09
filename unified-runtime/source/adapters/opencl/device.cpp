@@ -594,7 +594,7 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(false);
   }
-  case UR_DEVICE_INFO_ATOMIC16_SUPPORT: {
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
     // cl_ext_float_atomics alone is not enough: e.g. Gen12 reports it with only
     // fp16 load/store/min/max, so require every fp16 atomic capability in
     // both address spaces.

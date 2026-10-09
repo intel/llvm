@@ -1133,11 +1133,10 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_ATOMIC16_SUPPORT: {
-    // Level Zero has no direct query for 16-bit integer atomics, which this
-    // query also covers (short/unsigned short), so any non-zero fp16Flags of
-    // the float atomics extension is used as a proxy. Only verified on CRI.
-    // TODO: Extend to other architectures once 16-bit atomics are supported
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    // Any non-zero fp16Flags of the float atomics extension is treated as full
+    // fp16 atomic support. Only verified on CRI.
+    // TODO: Extend to other architectures once fp16 atomics are supported
     // there.
     return ReturnValue(static_cast<ur_bool_t>(
         Device->isCRI() &&

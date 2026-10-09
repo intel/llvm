@@ -1994,9 +1994,9 @@ TEST_P(urDeviceGetInfoTest, SuccessVirtualMemorySupported) {
   ASSERT_TRUE(casted_value == false || casted_value == true);
 }
 
-TEST_P(urDeviceGetInfoTest, SuccessAtomic16Supported) {
+TEST_P(urDeviceGetInfoTest, SuccessFp16Atomic) {
   size_t property_size = 0;
-  const ur_device_info_t property_name = UR_DEVICE_INFO_ATOMIC16_SUPPORT;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_FP16_ATOMIC;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
