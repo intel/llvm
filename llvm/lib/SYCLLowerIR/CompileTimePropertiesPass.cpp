@@ -533,7 +533,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == SyclMaximumRegistersAttr) {
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
-    // The property supports only 0, 128, 192, 256 and 512.
+    // Filter by the supported property values.
     if (PropVal != 0 && PropVal != 128 && PropVal != 192 && PropVal != 256 &&
         PropVal != 512)
       return std::nullopt;
