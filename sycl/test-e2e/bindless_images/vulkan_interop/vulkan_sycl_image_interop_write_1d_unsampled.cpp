@@ -3,12 +3,16 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
+// Writes land at the wrong offsets in an imported OPTIMAL-tiled 1D image on
+// Windows (float/1ch/32: 8 of 32 mismatched; DG2 and BMG, L0 build 39500).
+// XFAIL: windows && run-mode
+// XFAIL-TRACKER: GSD-12373
+
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
 
 // Sporadic failures observed on Linux across all Intel platforms.
-// Fixed in NEO build 39809 (GSD-13245, CMPLRLLVM-77475); drop once Linux CI
-// driver >= 39809.
+// Fixed in NEO build 39809; drop once the Linux CI driver is at least that.
 // UNSUPPORTED: linux && level_zero
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
 
