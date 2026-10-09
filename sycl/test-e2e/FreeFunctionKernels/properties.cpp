@@ -7,6 +7,7 @@
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
+#include <algorithm>
 #include <iostream>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
@@ -197,6 +198,13 @@ int main() {
       q, ctxt, "range_wg_1dsize_hint_after");
   ret |= test_has_desc<range_has_before, float>(q, ctxt);
   ret |= test_has_desc<range_has_after, float>(q, ctxt);
+
+  auto SGSizes = q.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(SGSizes.begin(), SGSizes.end(), SG_SIZE) == SGSizes.end()) {
+    std::cout << "Device does not report sub-group size " << SG_SIZE
+              << " as supported" << std::endl;
+    return 1;
+  }
 
   ret |= test_sg_properties<SG_SIZE>(q, ctxt);
 
