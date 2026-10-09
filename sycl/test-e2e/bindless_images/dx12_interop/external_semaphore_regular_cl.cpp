@@ -1,4 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import, aspect-usm_shared_allocations
+// REQUIRES: aspect-ext_intel_device_info_luid
 // REQUIRES: windows, level_zero
 
 // Regular command-list external semaphore support requires this driver
@@ -18,10 +19,12 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <string>
 #include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/usm.hpp>
@@ -31,6 +34,22 @@
 #include <windows.h>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
+
+D3D12Context createSyclD3D12Context(const sycl::device &device) {
+  auto syclLuid = device.get_info<sycl::ext::intel::info::device::luid>();
+  static_assert(sizeof(LUID) == sizeof(syclLuid));
+  LUID adapterLuid{};
+  std::memcpy(&adapterLuid, syclLuid.data(), sizeof(adapterLuid));
+
+  ComPtr<IDXGIFactory4> factory;
+  ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&factory)),
+                "Failed to create DXGI factory");
+
+  ComPtr<IDXGIAdapter1> adapter;
+  ThrowIfFailed(factory->EnumAdapterByLuid(adapterLuid, IID_PPV_ARGS(&adapter)),
+                "Failed to find the DXGI adapter for the SYCL device");
+  return createD3D12Context(adapter.Get());
+}
 
 [[noreturn]] void failWithoutCleanup(const std::string &message) {
   std::cerr << message << std::endl;
@@ -84,7 +103,7 @@ int main() {
   auto device = q.get_device();
   auto context = q.get_context();
 
-  D3D12Context d3dCtx = createD3D12Context();
+  D3D12Context d3dCtx = createSyclD3D12Context(device);
   D3D12ExportableFence extFence = createExportableFence(d3dCtx);
 
   auto semDesc =
@@ -97,7 +116,7 @@ int main() {
   MarkerAtomicRef(*marker).store(0);
 
   try {
-    constexpr uint64_t D3DSignalValue = 1;
+    const uint64_t D3DSignalValue = extFence.fenceValue + 1;
     q.single_task([=]() { MarkerAtomicRef(*marker).store(1); });
     sycl::event waitEvent =
         q.ext_oneapi_wait_external_semaphore(syclSem, D3DSignalValue);
@@ -115,7 +134,7 @@ int main() {
           "The external semaphore wait did not complete after D3D12 signaled "
           "it.");
 
-    constexpr uint64_t SyclSignalValue = 2;
+    const uint64_t SyclSignalValue = D3DSignalValue + 1;
     q.ext_oneapi_signal_external_semaphore(syclSem, SyclSignalValue);
 
     ThrowIfFailed(extFence.fence->SetEventOnCompletion(SyclSignalValue,

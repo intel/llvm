@@ -2340,6 +2340,15 @@ mechanism is not supported on the default out-of-order queues.
 Use of the semaphore synchronization mechanism with a SYCL queue that was not
 constructed with this property will result in undefined behaviour.
 
+[NOTE]
+====
+Support for external semaphore operations on queues backed by regular command
+lists is backend- and driver-dependent. The {dpcpp} Level Zero backend requires
+Intel graphics driver version 39758 or newer on Linux and 101.9030 or newer on
+Windows. On older drivers, an external semaphore wait submitted to a regular
+command list might not complete.
+====
+
 External semaphore import is facilitated through the following proposed 
 descriptor struct.
 
@@ -2846,5 +2855,6 @@ This query should be added in a later revision of the proposal.
 |6.12|2025-07-03| - Add `win32_nt_dx11_resource` enum entry to
                     `external_mem_handle_type` for Direct3D 11 memory interop.
 |6.13|2026-10-07| - Allow external semaphore operations on in-order queues
-                    backed by regular command lists.
+                    backed by regular command lists and document the associated
+                    backend and driver requirements.
 |======================
