@@ -72,9 +72,6 @@
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 --sampled 32x33
 
-// None of the 2D stuff is working on Linux.
-
-
 // RUN: %{run} %t.out --type float --channels 1 32x33 --semaphores
 // RUN: %{run} %t.out --type float --channels 4 32x33 --semaphores
 // RUN: %{run} %t.out --type half --channels 1 32x33 --semaphores

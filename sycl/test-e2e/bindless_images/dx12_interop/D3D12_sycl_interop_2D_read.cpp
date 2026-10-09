@@ -2,6 +2,10 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// DG2 accesses imported textures as if they were uncompressed.
+// XFAIL: windows && run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-13691
+
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 32x33
 

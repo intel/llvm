@@ -14,7 +14,9 @@
 #include <detail/scheduler/leaves_collection.hpp>
 #include <detail/sycl_mem_obj_i.hpp>
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <queue>
 #include <set>
@@ -405,7 +407,9 @@ public:
   ///        (e.g., in case of a non-blocking read from a pipe), and the value
   ///        it's pointing to is then set according to the outcome.
 
-  void waitForEvent(event_impl &Event, bool *Success = nullptr);
+  /// \return true if auxiliary resources were registered during the wait or
+  /// its command cleanup.
+  bool waitForEvent(event_impl &Event, bool *Success = nullptr);
 
   /// Removes buffer from the graph.
   ///
@@ -463,7 +467,19 @@ public:
       std::string_view KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
+  /// Releases resources for a completed event without polling unrelated
+  /// auxiliary events unless command cleanup registered new resources.
+  void releaseResourcesAfterWait(event_impl &Event,
+                                 bool ScanAuxiliaryResources = false);
   bool isDeferredMemObjectsEmpty();
+
+  /// \return true if there may be deferred cleanup commands, deferred memory
+  /// objects or auxiliary resources waiting to be released. Lock-free and
+  /// best-effort: the result may be momentarily stale under concurrent
+  /// updates.
+  bool hasDeferredResources() const noexcept {
+    return MDeferredResourcesCount.load(std::memory_order_relaxed) != 0;
+  }
 
   void enqueueCommandForCG(event_impl &Event,
                            std::vector<Command *> &AuxilaryCmds,
@@ -524,7 +540,8 @@ protected:
   /// avoidance
   ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
 
-  void cleanupCommands(const std::vector<Command *> &Cmds);
+  void cleanupCommands(const std::vector<Command *> &Cmds,
+                       bool ScanAuxiliaryResources = true);
 
   void NotifyHostTaskCompletion(Command *Cmd);
 
@@ -544,6 +561,7 @@ protected:
   void registerAuxiliaryResources(
       EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources);
   void cleanupAuxiliaryResources(BlockingT Blocking);
+  void cleanupAuxiliaryResourcesForEvent(event_impl &Event);
 
   /// Graph builder class.
   ///
@@ -880,9 +898,19 @@ protected:
   std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
   std::mutex MDeferredMemReleaseMutex;
 
-  std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
-      MAuxiliaryResources;
+  // Keep the event alive in the value while indexing by its address for
+  // constant-time lookup from event_impl::wait().
+  using AuxiliaryResourceMap = std::unordered_map<
+      event_impl *,
+      std::pair<EventImplPtr, std::vector<std::shared_ptr<const void>>>>;
+  AuxiliaryResourceMap MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
+  std::atomic<uint64_t> MAuxiliaryResourcesGeneration{0};
+
+  // Total number of entries in MDeferredCleanupCommands,
+  // MDeferredMemObjRelease and MAuxiliaryResources. Must be updated under the
+  // mutex guarding the modified container.
+  std::atomic<std::size_t> MDeferredResourcesCount{0};
 
   // Asynchronous exceptions are captured at device-level until flushed, either
   // by queues, events or a synchronization on the device itself.

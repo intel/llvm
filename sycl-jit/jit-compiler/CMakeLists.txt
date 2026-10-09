@@ -249,12 +249,19 @@ target_link_libraries(sycl-jit
 #  - LLVMSPIRVLib is not part of libLLVM.so, so the SPIRVLib component listed
 #    above resolves to the dylib (which lacks its symbols); link it explicitly.
 #  - rtc/ESIMD.cpp includes a vc-intrinsics header (GenXSPIRVWriterAdaptor.h),
-#    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly.
+#    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly,
+#    together with VC_INTR_LLVM_VERSION_MAJOR.
 # The first mirrors llvm-spirv; the second mirrors sycl-post-link.
 if (LLVM_LINK_LLVM_DYLIB)
   target_link_libraries(sycl-jit PRIVATE LLVMSPIRVLib)
   target_include_directories(sycl-jit PRIVATE
     $<TARGET_PROPERTY:LLVMGenXIntrinsics,INTERFACE_INCLUDE_DIRECTORIES>)
+# vc-intrinsics' add_compile_definitions(VC_INTR_LLVM_VERSION_MAJOR=...) in
+# its top-level CMakeLists.txt is directory-scoped and does not propagate to
+# sycl-jit.
+# FIXME: Remove this once https://github.com/intel/vc-intrinsics is fixed.  
+  target_compile_definitions(sycl-jit PRIVATE
+    VC_INTR_LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR})
 endif()
 
 add_dependencies(sycl-jit sycl-headers)

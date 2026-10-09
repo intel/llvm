@@ -2,6 +2,10 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// DG2 accesses imported textures as if they were uncompressed.
+// XFAIL: windows && run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-13691
+
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8
 
@@ -231,7 +235,13 @@ bool uploadCustomData(D3D12Context &ctx, D3D12ImageResources &imgRes,
   src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
   src.PlacedFootprint = footprint;
 
+  // Textures without ALLOW_SIMULTANEOUS_ACCESS don't decay to COMMON after
+  // being written, so transition back explicitly before sharing with SYCL.
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COMMON,
+                     D3D12_RESOURCE_STATE_COPY_DEST);
   ctx.cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                     D3D12_RESOURCE_STATE_COMMON);
   ThrowIfFailed(ctx.cmdList->Close());
 
   executeAndWait(ctx);
@@ -347,8 +357,7 @@ inline D3D12ImageResources createExportableImageWrite(D3D12Context &ctx,
   texDesc.Format = format;
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS |
-                  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
   ThrowIfFailed(ctx.device->CreateCommittedResource(

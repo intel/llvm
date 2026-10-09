@@ -359,6 +359,10 @@ ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_CACHELINE_SIZE_EXT;
 }
 template <>
+ze_structure_type_t getZeStructureType<ze_float_atomic_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_FLOAT_ATOMIC_EXT_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<
     ze_command_list_append_launch_kernel_param_cooperative_desc_t>() {
   return ZE_STRUCTURE_TYPE_COMMAND_LIST_APPEND_PARAM_COOPERATIVE_DESC;

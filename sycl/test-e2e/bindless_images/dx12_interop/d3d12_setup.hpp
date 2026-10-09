@@ -200,6 +200,18 @@ inline void executeAndWait(D3D12Context &ctx) {
   }
 }
 
+inline void transitionResource(D3D12Context &ctx, ID3D12Resource *resource,
+                               D3D12_RESOURCE_STATES before,
+                               D3D12_RESOURCE_STATES after) {
+  D3D12_RESOURCE_BARRIER barrier = {};
+  barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+  barrier.Transition.pResource = resource;
+  barrier.Transition.StateBefore = before;
+  barrier.Transition.StateAfter = after;
+  barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+  ctx.cmdList->ResourceBarrier(1, &barrier);
+}
+
 inline void cleanupD3D12(D3D12Context &ctx, D3D12ImageResources &imgRes) {
   if (imgRes.sharedHandle)
     CloseHandle(imgRes.sharedHandle);
@@ -226,7 +238,8 @@ inline D3D12ImageResources createExportableImage(D3D12Context &ctx,
   texDesc.Format = format;
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+  // Not ALLOW_SIMULTANEOUS_ACCESS: it disables compression of the texture
+  texDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
 
@@ -260,7 +273,7 @@ createExportableImage1D(D3D12Context &ctx, uint32_t width, DXGI_FORMAT format) {
   texDesc.Format = format;
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
 
@@ -298,8 +311,7 @@ inline D3D12ImageResources createExportableImageWrite1D(D3D12Context &ctx,
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS |
-                  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
 
@@ -337,7 +349,7 @@ createExportableImage3D(D3D12Context &ctx, uint32_t width, uint32_t height,
   texDesc.Format = format;
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
 
@@ -426,7 +438,13 @@ bool uploadTestData3D(D3D12Context &ctx, D3D12ImageResources &imgRes,
   src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
   src.PlacedFootprint = footprint;
 
+  // Textures without ALLOW_SIMULTANEOUS_ACCESS don't decay to COMMON after
+  // being written, so transition back explicitly before sharing with SYCL.
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COMMON,
+                     D3D12_RESOURCE_STATE_COPY_DEST);
   ctx.cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                     D3D12_RESOURCE_STATE_COMMON);
   ThrowIfFailed(ctx.cmdList->Close());
 
   executeAndWait(ctx);
@@ -555,8 +573,7 @@ createExportableImageWrite3D(D3D12Context &ctx, uint32_t width, uint32_t height,
   texDesc.SampleDesc.Count = 1;
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS |
-                  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
 
@@ -643,7 +660,13 @@ bool uploadTestData(D3D12Context &ctx, D3D12ImageResources &imgRes,
   src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
   src.PlacedFootprint = footprint;
 
+  // Textures without ALLOW_SIMULTANEOUS_ACCESS don't decay to COMMON after
+  // being written, so transition back explicitly before sharing with SYCL.
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COMMON,
+                     D3D12_RESOURCE_STATE_COPY_DEST);
   ctx.cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+  transitionResource(ctx, imgRes.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+                     D3D12_RESOURCE_STATE_COMMON);
   ThrowIfFailed(ctx.cmdList->Close());
 
   // Execute and block until upload is finished
