@@ -55,6 +55,22 @@
 // ERR-TRIPLE: error: '-fsycl-targets=spir64_gen-unknown-unknown' is not supported with the new offloading model; use '-fsycl-targets=intel_gpu_<arch>' instead
 // ERR-XS: error: '-Xsycl-target-backend=spir64_gen' is not supported with the new offloading model; use '-Xsycl-target-backend=intel_gpu_<arch>' instead
 
+/// The other triple-scoped tool options are diagnosed the same way.
+// RUN: not %clangxx -### -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
+// RUN:   -Xspirv-translator=spir64_gen "-foo" -Xdevice-post-link=spir64_gen "-foo" \
+// RUN:   -Xspirv-to-ir-wrapper=spir64_gen "-foo" %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=ERR-XTOOL
+// RUN: %clangxx -### -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc \
+// RUN:   -Xspirv-translator=spir64_gen "-foo" -Xdevice-post-link=spir64_gen "-foo" \
+// RUN:   -Xspirv-to-ir-wrapper=spir64_gen "-foo" %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=WARN-XTOOL
+// ERR-XTOOL-DAG: error: '-Xspirv-translator=spir64_gen' is not supported with the new offloading model; use '-Xspirv-translator=intel_gpu_<arch>' instead
+// ERR-XTOOL-DAG: error: '-Xdevice-post-link=spir64_gen' is not supported with the new offloading model; use '-Xdevice-post-link=intel_gpu_<arch>' instead
+// ERR-XTOOL-DAG: error: '-Xspirv-to-ir-wrapper=spir64_gen' is not supported with the new offloading model; use '-Xspirv-to-ir-wrapper=intel_gpu_<arch>' instead
+// WARN-XTOOL-DAG: warning: option '-Xspirv-translator=spir64_gen' is deprecated and will be removed in a future release, use '-Xspirv-translator=intel_gpu_<arch>' instead [-Wdeprecated]
+// WARN-XTOOL-DAG: warning: option '-Xdevice-post-link=spir64_gen' is deprecated and will be removed in a future release, use '-Xdevice-post-link=intel_gpu_<arch>' instead [-Wdeprecated]
+// WARN-XTOOL-DAG: warning: option '-Xspirv-to-ir-wrapper=spir64_gen' is deprecated and will be removed in a future release, use '-Xspirv-to-ir-wrapper=intel_gpu_<arch>' instead [-Wdeprecated]
+
 /// The error cannot be downgraded with -Wno-deprecated.
 // RUN: not %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:   -Xsycl-target-backend "-device pvc" -Wno-deprecated %s 2>&1 \

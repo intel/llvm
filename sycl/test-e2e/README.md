@@ -210,7 +210,9 @@ or via the ***LIT_OPTS*** environment variable.
 ***GPU_AOT_TARGET*** - defines the Intel GPU target(s) used for AOT compilation,
 as a `-fsycl-targets` value (e.g. "intel_gpu_pvc" or
 "intel_gpu_pvc,intel_gpu_bmg_g21"). If not specified, the architectures of the
-detected Intel GPU devices are used, or "intel_gpu_pvc" if none are detected.
+detected Intel GPU devices are used. If none are detected, the architectures of
+the CI run-only runners are used, so that binaries built in `build-only` mode
+run on all of them.
 
 ***OFFLOAD_BUILD_TARGET*** - when testing the Offload backend, this must be set
 to specify the correct build target type for the available Offload device.
@@ -297,8 +299,8 @@ configure specific single test execution in the command line:
   compilation, as a `-fsycl-targets` value. Tests use it via the
   `%{gpu_aot_target}` substitution. It can be also set by CMake variable
   GPU_AOT_TARGET. If not specified, the architectures of the detected Intel GPU
-  devices are used, or "intel_gpu_pvc" if none are detected (e.g. in
-  `build-only` mode).
+  devices are used. If none are detected (e.g. in `build-only` mode), the
+  architectures of the CI run-only runners are used.
 * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
   system. It is developer / CI infra responsibility to make sure that the device
   is available in the system.

@@ -1287,7 +1287,7 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
   }
 
   // spir64_gen is deprecated in favor of intel_gpu_<arch>, both as a
-  // -fsycl-targets value and as the triple of -Xsycl-target-*. It is not
+  // -fsycl-targets value and as the triple of the -X<tool>= options. It is not
   // supported with the new offloading model, and is removed together with the
   // old offloading model.
   if (IsSYCL) {
@@ -1317,7 +1317,9 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
     }
     for (const Arg *A : C.getInputArgs().filtered(
              options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_frontend_EQ,
-             options::OPT_Xsycl_linker_EQ))
+             options::OPT_Xsycl_linker_EQ, options::OPT_Xspirv_translator_EQ,
+             options::OPT_Xdevice_post_link_EQ,
+             options::OPT_Xspirv_to_ir_wrapper_EQ))
       if (IsSPIRGenTarget(A->getValue()))
         DiagnoseSPIRGenTarget(A->getSpelling(), A->getValue());
   }

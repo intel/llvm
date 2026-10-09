@@ -36,7 +36,16 @@ and not recommended to use in production environment.
     * spir64_gen - generate code ahead of time for Intel Processor Graphics.
       Deprecated: use the intel_gpu_* values listed below instead. It emits a
       deprecation warning with the old offloading model and is not supported
-      with the new offloading model (--offload-new-driver);
+      with the new offloading model (--offload-new-driver). To migrate
+      '-fsycl-targets=spir64_gen -Xsycl-target-backend "-device <value>"':
+      * a device name, e.g. "-device pvc": use -fsycl-targets=intel_gpu_pvc;
+      * a full IP version, e.g. "-device 12.60.7": use
+        -fsycl-targets=intel_gpu_12_60_7;
+      * a list, e.g. "-device pvc,dg2": use
+        -fsycl-targets=intel_gpu_pvc,intel_gpu_dg2;
+      * "-device *", hex device IDs (e.g. 0x0BD5), partial versions (e.g.
+        12.60) and devices without an intel_gpu_* value (e.g. pvc-sdv) have
+        no equivalent; list the intel_gpu_* values of the devices to target;
     Full target triples can also be used:
     * spir64-unknown-unknown, spir64_x86_64-unknown-unknown,
       spir64_gen-unknown-unknown

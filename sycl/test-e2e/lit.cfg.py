@@ -1303,14 +1303,25 @@ if amd_arch:
 config.substitutions.append(("%amd_arch_options", amd_arch_flags))
 
 # Intel GPU AOT target(s), as a -fsycl-targets value. Uses the detected Intel
-# GPU architectures or defaults to intel_gpu_pvc in build-only mode.
+# GPU architectures. Without any (e.g. build-only mode), it uses the
+# architectures of the CI run-only runners, since binaries built once are run
+# on all of them.
+CI_RUNNER_GPU_AOT_TARGETS = ",".join(
+    [
+        "intel_gpu_tgllp",
+        "intel_gpu_acm_g10",
+        "intel_gpu_pvc",
+        "intel_gpu_bmg_g21",
+        "intel_gpu_mtl_u",
+    ]
+)
 if not config.gpu_aot_target:
     intel_gpu_archs = sorted(
         feature[len("arch-") :]
         for feature in set().union(*config.sycl_dev_features.values())
         if feature.startswith("arch-intel_gpu_")
     )
-    config.gpu_aot_target = ",".join(intel_gpu_archs) or "intel_gpu_pvc"
+    config.gpu_aot_target = ",".join(intel_gpu_archs) or CI_RUNNER_GPU_AOT_TARGETS
 lit_config.note("Intel GPU AOT target: {}".format(config.gpu_aot_target))
 config.substitutions.append(("%{gpu_aot_target}", config.gpu_aot_target))
 
