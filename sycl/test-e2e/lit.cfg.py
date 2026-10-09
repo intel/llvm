@@ -1054,6 +1054,18 @@ if any(
 ):
     config.available_features.add("jit")
 
+# "spir-family" is true for a build target/device whose triple is any SPIR
+# triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for tests
+# that only care "is this a SPIR backend" not which triple specifically. Kept
+# per-target (not a global available_feature) so it doesn't leak onto
+# non-SPIR targets/devices when a build/run combines multiple triples.
+SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
+config.spir_family_targets = {
+    target
+    for target in config.sycl_build_targets
+    if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+}
+
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
     config.available_features.add("device-config-file")
@@ -1265,6 +1277,8 @@ for full_name, sycl_device in zip(
     # Add corresponding target feature
     target = config.backend_to_target[be]
     features.add(target)
+    if target in config.spir_family_targets:
+        features.add("spir-family")
 
     if be == "hip":
         if not config.amd_arch:
