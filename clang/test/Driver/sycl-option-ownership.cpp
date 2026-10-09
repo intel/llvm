@@ -39,7 +39,7 @@
 
 // Multiple SPIR targets follow the same silent-acceptance policy.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen,spir64_x86_64 \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,intel_gpu_pvc,spir64_x86_64 \
 // RUN:   -Werror=unused-command-line-argument \
 // RUN:   -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
@@ -94,11 +94,11 @@
 // interpretation still includes fp64 emulation, which is not in the generic
 // Clang compiler-option allowlist.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,spir64_gen \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,intel_gpu_pvc \
 // RUN:   -g -O0 -fsycl-fp64-conv-emu \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
 // RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=AOT
-// AOT: llvm-offload-binary{{.*}}triple=spir64_gen-unknown-unknown{{.*}}compile-opts=-options -ze-fp64-gen-conv-emu -g -cl-opt-disable -igc_opts{{.*}}-ze-fp32-correctly-rounded-divide-sqrt
+// AOT: llvm-offload-binary{{.*}}triple=spir64_gen-unknown-unknown{{.*}}compile-opts={{.*}}-options -ze-fp64-gen-conv-emu -g -cl-opt-disable -igc_opts{{.*}}-ze-fp32-correctly-rounded-divide-sqrt
 // AOT: clang-linker-wrapper
 // AOT-NOT: --jit-compiler-options=
 // AOT-NOT: --ocloc-options=
@@ -114,7 +114,7 @@
 
 // Exporting symbols is a linker option, not a packaging option.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64_gen \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=intel_gpu_pvc \
 // RUN:   -ftarget-export-symbols -### %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=EXPORT
 // EXPORT: llvm-offload-binary
@@ -125,7 +125,7 @@
 
 // Link-only SYCLBIN settings retain their full-context implications.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64_gen -fsyclbin=object \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=intel_gpu_pvc -fsyclbin=object \
 // RUN:   -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=SYCLBIN
 // SYCLBIN: clang-linker-wrapper{{.*}}--ocloc-options=-options
@@ -133,7 +133,7 @@
 
 // An explicit opt-out wins over the SYCLBIN implication.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
-// RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64_gen -fsyclbin=object \
+// RUN:   --offload-new-driver -fsycl -fsycl-targets=intel_gpu_pvc -fsyclbin=object \
 // RUN:   -fno-target-export-symbols -### %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NOEXPORT
 // NOEXPORT: clang-linker-wrapper

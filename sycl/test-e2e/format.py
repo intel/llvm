@@ -304,7 +304,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 (backend, _) = sycl_device.split(":")
                 build_targets.add(test.config.backend_to_target[backend])
 
-        triples = set(test.config.target_to_triple[t] for t in build_targets)
+        # spir_gen builds for the configured Intel GPU architecture(s).
+        triples = set(
+            (
+                test.config.gpu_aot_target
+                if t == "target-spir_gen"
+                else test.config.target_to_triple[t]
+            )
+            for t in build_targets
+        )
         features_for_test = test.config.available_features.union(build_targets)
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
@@ -320,10 +328,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # CPU vs GPU AOT comes from test.requires, not the matched triple:
         # target_to_triple has no spir64_x86_64, and build-only mode has no
         # selected device to query a cpu/gpu role from either.
-        matched_spir_triple = next(
-            (t for t in triples if t in ("spir64", "spir64_gen")), None
-        )
-        if matched_spir_triple in ("spir64", "spir64_gen"):
+        # Match on build targets: triples has spir_gen mapped to gpu_aot_target.
+        if any(
+            test.config.target_to_triple[t] in ("spir64", "spir64_gen")
+            for t in build_targets
+        ):
             requires_cpu = any(r in test.requires for r in ("cpu", "any-device-is-cpu"))
             requires_gpu = any(r in test.requires for r in ("gpu", "any-device-is-gpu"))
             if requires_cpu and requires_gpu:
@@ -336,19 +345,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if requires_cpu:
                 aot_options = "-fsycl-targets=spir64_x86_64"
             else:
-                aot_options = (
-                    "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
-                    + test.config.gpu_aot_target_opts
-                )
+                aot_options = "-fsycl-targets=" + test.config.gpu_aot_target
         else:
             aot_options = ""
         substitutions.append(("%aot_options", aot_options))
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
-        if "target-spir_gen" in build_targets:
-            sycl_target_opts += " -Xsycl-target-backend=spir64_gen {}".format(
-                test.config.gpu_aot_target_opts
-            )
         if "target-amd" in build_targets:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(

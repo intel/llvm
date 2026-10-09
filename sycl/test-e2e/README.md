@@ -207,9 +207,12 @@ may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
 parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
 or via the ***LIT_OPTS*** environment variable.
 
-***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
-compilation command line for GPU device. If not specified "-device *" value is
-used.
+***GPU_AOT_TARGET*** - defines the Intel GPU target(s) used for AOT compilation,
+as a `-fsycl-targets` value (e.g. "intel_gpu_pvc" or
+"intel_gpu_pvc,intel_gpu_bmg_g21"). If not specified, the architectures of the
+detected Intel GPU devices are used. If none are detected, the architectures of
+the CI run-only runners are used, so that binaries built in `build-only` mode
+run on all of them.
 
 ***OFFLOAD_BUILD_TARGET*** - when testing the Offload backend, this must be set
 to specify the correct build target type for the available Offload device.
@@ -292,9 +295,12 @@ configure specific single test execution in the command line:
 * **compatibility_testing** - forces LIT infra to skip the tests compilation to
   support compatibility testing (a SYCL application is built with one version of
   SYCL compiler and then run with different SYCL RT version);
-* **gpu_aot_target_opts** - defines additional options which are passed to AOT
-  compilation command line for GPU device. It can be also set by CMake variable
-  GPU_AOT_TARGET_OPTS. If not specified "-device *" value is used.
+* **gpu_aot_target** - defines the Intel GPU target(s) used for AOT
+  compilation, as a `-fsycl-targets` value. Tests use it via the
+  `%{gpu_aot_target}` substitution. It can be also set by CMake variable
+  GPU_AOT_TARGET. If not specified, the architectures of the detected Intel GPU
+  devices are used. If none are detected (e.g. in `build-only` mode), the
+  architectures of the CI run-only runners are used.
 * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
   system. It is developer / CI infra responsibility to make sure that the device
   is available in the system.
@@ -474,12 +480,11 @@ to only run the compilation stage, or the execution stage respectively.
   The triples to compile in this mode are set via the `sycl_build_targets` lit
   parameter. Valid build targets are: `spir`, `nvidia`, `amd`, `native_cpu`,
   `spir_gen`, `spir_x86_64`. These correspond to `spir64`,
-  `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, `native_cpu`, `spir64_gen`, and
-  `spir64_x86_64` triples respectively. `spir_gen` and `spir_x86_64` select the
-  AOT-only GPU and CPU triples respectively, rather than the JIT `spir64`
-  triple; `spir_gen` compilation also passes the `GPU_AOT_TARGET_OPTS`/
-  `gpu_aot_target_opts` options (see above) to
-  `-Xsycl-target-backend=spir64_gen`. Each build target should be separated
+  `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, `native_cpu`, Intel GPU AOT and
+  `spir64_x86_64` targets respectively. `spir_gen` and `spir_x86_64` select the
+  AOT-only GPU and CPU targets respectively, rather than the JIT `spir64`
+  triple; `spir_gen` compiles for the `GPU_AOT_TARGET`/`gpu_aot_target` Intel
+  GPU target(s) (see above). Each build target should be separated
   with a semicolon. This parameter is set to `all` by default, which enables
   autodetection for the available build targets. A test can be marked as
   requiring, or not supporting a particular triple via the `target-*` features.

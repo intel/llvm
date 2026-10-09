@@ -480,6 +480,8 @@ def err_drv_sycl_thinlto_split_off: Error<
   "'%0' is not supported when '%1' is set with '-fsycl'">;
 def err_drv_sycl_offload_arch_new_driver: Error<
   "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
+def err_drv_sycl_spir64_gen_new_driver : Error<
+  "'%0' is not supported with the new offloading model; use '%1' instead">;
 def err_drv_sycl_offload_arch_missing_value : Error<
   "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
 def warn_drv_offload_target_duplicate

@@ -64,7 +64,7 @@
 // AOT target (spir64_gen): forwarding is target-independent.
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64_gen -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO %s
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
 // RUN:   -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:   -Wno-sycl-undefined-func-in-image %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=WNO-NEW %s

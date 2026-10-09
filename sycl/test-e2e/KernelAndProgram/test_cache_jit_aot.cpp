@@ -27,7 +27,7 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 //
-// REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device acm-g10" %s
+// REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 %s
 // ******************************
 // Check the logs first.
 // RUN: %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out
@@ -47,7 +47,7 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 //
-// REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11" %s
+// REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10,intel_gpu_acm_g11 %s
 // ******************************
 // Check the logs first.
 // RUN: %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out
