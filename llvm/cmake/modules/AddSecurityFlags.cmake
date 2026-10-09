@@ -54,7 +54,11 @@
 #
 # Added only in "sanitize" mode (all builds):
 #   Clang (including clang-cl): -fsanitize=cfi (compile and link)
-#   Other compilers:            -fcf-protection=full -mcet (compile and link)
+#   Other compilers:            nothing, "sanitize" is the same as "default".
+#     The previous "-fcf-protection=full -mcet" here was dead code: -mcet was
+#     removed in GCC 9 and never existed in Clang or icx, so the support checks
+#     always rejected it. CET is already requested by -fcf-protection=full /
+#     /Qcf-protection:full above.
 #
 # Recommended by the standard, but not added here:
 #   -Wall -Wextra -Wimplicit-fallthrough (GCC, Clang, icpx), /W4 (MSVC):
@@ -271,7 +275,7 @@ if(EXTRA_SECURITY_FLAGS)
     append_common_extra_security_flags()
   elseif(EXTRA_SECURITY_FLAGS STREQUAL "sanitize")
     append_common_extra_security_flags()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    if(is_clang)
       add_compile_option_ext("-fsanitize=cfi" FSANITIZE_CFI)
       add_link_option_ext(
         "-fsanitize=cfi" FSANITIZE_CFI_LINK CMAKE_EXE_LINKER_FLAGS
@@ -282,13 +286,6 @@ if(EXTRA_SECURITY_FLAGS)
       # add_link_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK_LINK
       # CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
       # CMAKE_SHARED_LINKER_FLAGS)
-    else()
-      add_compile_option_ext("-fcf-protection=full -mcet" FCF_PROTECTION)
-      # need to align compile and link option set, link now is set
-      # unconditionally
-      add_link_option_ext(
-        "-fcf-protection=full -mcet" FCF_PROTECTION_LINK CMAKE_EXE_LINKER_FLAGS
-        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
   else()
     message(
