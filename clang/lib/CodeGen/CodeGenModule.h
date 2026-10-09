@@ -2232,6 +2232,17 @@ private:
   /// if the binary could not be read.
   llvm::Function *embedSYCLDeviceBinary();
 
+  /// Emit a per-module __sycl_registerlib_<hash> reference that
+  /// ties the host and device sides of a translation unit together. This is
+  /// used to force linking of static libraries: we emit a global constructor
+  /// that references (calls) the symbol, creating an undefined reference that
+  /// forces the corresponding device static library member (which defines the
+  /// matching symbol) to be pulled in at link time. The device-side definition
+  /// is emitted by clang-linker-wrapper, so this is new offload model only. The
+  /// hash of the module identifier is what ties the two sides together.
+  /// \return the global constructor that calls registerlib function.
+  llvm::Function *createSYCLRegisterLibFunc();
+
   /// Determine whether the definition must be emitted; if this returns \c
   /// false, the definition can be emitted lazily if it's used.
   bool MustBeEmitted(const ValueDecl *D);

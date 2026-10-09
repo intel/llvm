@@ -1285,11 +1285,18 @@ void CodeGenModule::Release() {
     if (llvm::Function *CudaCtorFunction = CUDARuntime->finalizeModule())
       AddGlobalCtor(CudaCtorFunction);
   }
-  if (LangOpts.SYCLIsHost && !CodeGenOpts.OffloadBinaryToEmbedFile.empty()) {
-    if (llvm::Function *SYCLCtorFunction = embedSYCLDeviceBinary())
-      // A static initializer may launch a kernel, so the device binary has to
-      // be registered before any of them run, hence a priority.
-      AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
+  if (LangOpts.SYCLIsHost) {
+    if (!CodeGenOpts.OffloadBinaryToEmbedFile.empty()) {
+      if (llvm::Function *SYCLCtorFunction = embedSYCLDeviceBinary())
+        // A static initializer may launch a kernel, so the device binary has to
+        // be registered before any of them run, hence a priority.
+        AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
+    } else if (LangOpts.OffloadingNewDriver &&
+               !CodeGenOpts.OffloadObjects.empty()) {
+      // Only add registration functions if there has been a device compile (so
+      // OffloadObjects is not empty).
+      AddGlobalCtor(createSYCLRegisterLibFunc());
+    }
   }
   if (OpenMPRuntime) {
     OpenMPRuntime->createOffloadEntriesAndInfoMetadata();
