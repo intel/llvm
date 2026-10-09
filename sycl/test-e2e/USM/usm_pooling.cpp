@@ -2,10 +2,10 @@
 // RUN: %{build} -o %t.out
 
 // UNSUPPORTED: level_zero_v2_adapter
-// This test uses a Legacy allocator-configuration variable name, and checks
-// a residency call sequence that L0v2 does not reproduce. Whether L0v2
-// should honor the Legacy configuration name, and how residency should be
-// covered for L0v2, are open questions.
+// UNSUPPORTED-INTENDED: this test uses a Legacy allocator-configuration
+// variable name, and checks a residency call sequence that L0v2 does not
+// reproduce. Whether L0v2 should honor the Legacy configuration name, and
+// how residency should be covered for L0v2, are open questions.
 
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556

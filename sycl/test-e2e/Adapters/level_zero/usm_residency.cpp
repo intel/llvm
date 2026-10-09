@@ -1,7 +1,8 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: level_zero_v2_adapter
-// This test uses the Legacy SYCL_PI_LEVEL_ZERO_USM_RESIDENT control. What the
-// L0v2 testable residency contract should be is not yet decided.
+// UNSUPPORTED-INTENDED: this test uses the Legacy
+// SYCL_PI_LEVEL_ZERO_USM_RESIDENT control; what the L0v2 testable residency
+// contract should be is not yet decided.
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
