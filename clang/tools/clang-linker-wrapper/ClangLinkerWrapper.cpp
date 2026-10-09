@@ -1137,34 +1137,48 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
 static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   const std::string Arch(Args.getLastArgValue(OPT_arch_EQ));
+  bool IsGPUAOT = Triple.isSPIROrSPIRV() &&
+                  Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   // We need to keep track of the triple and arch because we may not use all
   // device images passed to the tool and we don't want to force unused objects
   // to be linked in.
   auto It = SYCLRegisterLibFuncMap.find(std::make_pair(Triple.str(), Arch));
   if (It == SYCLRegisterLibFuncMap.end())
     return;
-  auto copy = It->second;
-
-  if(Triple.str() == "spir64_gen-unknown-unknown" && !Arch.empty()) {
-    auto wat = SYCLRegisterLibFuncMap[std::make_pair(Triple.str(), std::string())];
-    for(auto why : wat) {
-      copy.insert(why);
+  auto DefineFuncs = [&](auto &&Range) {
+    for (const std::string &Name : Range) {
+      if (M.getFunction(Name))
+        continue;
+      llvm::FunctionType *FTy = llvm::FunctionType::get(
+          llvm::Type::getVoidTy(M.getContext()), /*isVarArg=*/false);
+      auto *Fn = llvm::Function::Create(FTy, llvm::GlobalValue::WeakAnyLinkage,
+                                        Name, &M);
+      llvm::BasicBlock *Entry =
+          llvm::BasicBlock::Create(M.getContext(), "entry", Fn);
+      llvm::IRBuilder<> Builder(Entry);
+      Builder.CreateRetVoid();
+      if (M.getTargetTriple().supportsCOMDAT()) {
+        llvm::Comdat *C = M.getOrInsertComdat(Name);
+        C->setSelectionKind(llvm::Comdat::Any);
+        Fn->setComdat(C);
+      }
     }
-  }
-  for (std::string Name : copy) {
-    llvm::FunctionType *FTy = llvm::FunctionType::get(
-        llvm::Type::getVoidTy(M.getContext()), /*isVarArg=*/false);
-    auto *Fn = llvm::Function::Create(FTy, llvm::GlobalValue::WeakAnyLinkage,
-                                      Name, &M);
-    llvm::BasicBlock *Entry =
-        llvm::BasicBlock::Create(M.getContext(), "entry", Fn);
-    llvm::IRBuilder<> Builder(Entry);
-    Builder.CreateRetVoid();
-    if (M.getTargetTriple().supportsCOMDAT()) {
-      llvm::Comdat *C = M.getOrInsertComdat(Name);
-      C->setSelectionKind(llvm::Comdat::Any);
-      Fn->setComdat(C);
-    }
+  };
+  // There is a special case when the current target being linked in spir64_gen
+  // with non-empty arch. We need to consider the cases where there are other
+  // device objects with spir64_gen triple with empty (generic) arch because
+  // this is considered a compatible target with spir64_gen non-empty arch and
+  // will be linked together with it. In this case, we need to also define
+  // symbols from the empty-arch device objects.
+  auto GenericArchIt =
+      SYCLRegisterLibFuncMap.find(std::make_pair(Triple.str(), std::string()));
+  if (!IsGPUAOT || GenericArchIt == SYCLRegisterLibFuncMap.end() ||
+      GenericArchIt->second.empty()) {
+    DefineFuncs(It->second);
+  } else {
+    // Just iterate over both sets, duplcates are handled in DefineFuncs.
+    DefineFuncs(
+        llvm::concat<const std::string>(It->second, GenericArchIt->second));
   }
 }
 
@@ -3372,26 +3386,31 @@ Error emitExtractCommands(
 
 /// See comments in collectSYCLRegisterLibSymbols.
 static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
+  LLVMContext Context;
   static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
-  Expected<std::unique_ptr<ObjectFile>> ObjOrErr =
-      ObjectFile::createObjectFile(Buffer);
+  llvm::file_magic Magic = identify_magic(Buffer.getBuffer());
+  Expected<std::unique_ptr<SymbolicFile>> ObjOrErr =
+      SymbolicFile::createSymbolicFile(Buffer, Magic, &Context,
+                                       /*InitContent=*/Magic !=
+                                           llvm::file_magic::bitcode);
   if (!ObjOrErr) {
     // Not something we can read symbols from; ignore it.
     consumeError(ObjOrErr.takeError());
     return Error::success();
   }
   SmallSet<std::string, 4> FuncNames;
-  for (const SymbolRef &Sym : (*ObjOrErr)->symbols()) {
+  for (const BasicSymbolRef &Sym : (*ObjOrErr)->symbols()) {
     Expected<uint32_t> FlagsOrErr = Sym.getFlags();
     if (!FlagsOrErr)
       return FlagsOrErr.takeError();
-    Expected<StringRef> NameOrErr = Sym.getName();
-    if (!NameOrErr)
-      return NameOrErr.takeError();
-    if (!NameOrErr->starts_with(SYCLRegisterLibPrefix))
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    if (Error Err = Sym.printName(OS))
+      return Err;
+    if (!StringRef(Name).starts_with(SYCLRegisterLibPrefix))
       continue;
     if (*FlagsOrErr & SymbolRef::SF_Undefined)
-      FuncNames.insert(NameOrErr->str());
+      FuncNames.insert(Name);
   }
   if (!FuncNames.empty()) {
     SmallVector<OffloadFile> Binaries;
@@ -3417,10 +3436,8 @@ static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
 static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer) {
   switch (identify_magic(Buffer.getBuffer())) {
   case file_magic::elf_relocatable:
-  case file_magic::elf_shared_object:
-  case file_magic::elf_executable:
   case file_magic::coff_object:
-  case file_magic::macho_object:
+  case file_magic::bitcode:
     if (Error Err = collectSYCLRegisterLibSymbolsFromObject(Buffer))
       return Err;
     break;
