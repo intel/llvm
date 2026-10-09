@@ -51,7 +51,6 @@
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
-#include "clang/CodeGenUtils/CodeGenUtils.h"
 #include "clang/CodeGenUtils/ModuleUtils.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ABI/IRTypeMapper.h"
