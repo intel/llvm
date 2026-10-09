@@ -2451,8 +2451,7 @@ typedef enum ur_device_info_t {
   /// feature sets the Intel GPU implements
   UR_DEVICE_INFO_IGCA_FEATURE_SET = 141,
   /// [::ur_bool_t][optional-query] return true if the device supports
-  /// 16-bit atomic operations (half, bfloat16, short, unsigned short),
-  /// including atomic add.
+  /// 16-bit atomic operations.
   UR_DEVICE_INFO_ATOMIC16_SUPPORT = 142,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
