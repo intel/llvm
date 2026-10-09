@@ -8,7 +8,7 @@
 // RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-translator=spir64_gen "foo" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET-UNUSED --implicit-check-not 'llvm-spirv{{.*}} "foo"'
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-translator=spir64_gen "foo" -Xspirv-translator=spir64 "bar" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,intel_gpu_pvc --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-translator=intel_gpu_pvc "foo" -Xspirv-translator=spir64 "bar" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-MULTIPLE-TARGET
 
 // Each token is forwarded as its own --llvm-spirv-options occurrence.

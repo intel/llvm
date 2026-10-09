@@ -1286,6 +1286,42 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
           << SYCLForceTarget->getAsString(C.getInputArgs());
   }
 
+  // spir64_gen is deprecated in favor of intel_gpu_<arch>, both as a
+  // -fsycl-targets value and as the triple of -Xsycl-target-*. It is not
+  // supported with the new offloading model, and is removed together with the
+  // old offloading model.
+  if (IsSYCL) {
+    const Driver &D = C.getDriver();
+    auto IsSPIRGenTarget = [&](StringRef Val) {
+      llvm::Triple TT = D.getSYCLDeviceTriple(Val);
+      return TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+    };
+    auto DiagnoseSPIRGenTarget = [&](StringRef Spelling, StringRef Val) {
+      std::string Opt = (Spelling + Val).str();
+      std::string Replacement = (Spelling + "intel_gpu_<arch>").str();
+      if (D.getUseNewOffloadingDriver())
+        D.Diag(diag::err_drv_sycl_spir64_gen_new_driver) << Opt << Replacement;
+      else
+        D.Diag(diag::warn_drv_deprecated_option_release)
+            << Opt << /*HasReplacement=*/true << Replacement;
+    };
+
+    for (const Arg *A :
+         C.getInputArgs().filtered(options::OPT_offload_targets_EQ)) {
+      // Report the spelling the user wrote, e.g. -fsycl-targets=.
+      StringRef Spelling =
+          A->getAlias() ? A->getAlias()->getSpelling() : A->getSpelling();
+      for (StringRef Val : A->getValues())
+        if (IsSPIRGenTarget(Val))
+          DiagnoseSPIRGenTarget(Spelling, Val);
+    }
+    for (const Arg *A : C.getInputArgs().filtered(
+             options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_frontend_EQ,
+             options::OPT_Xsycl_linker_EQ))
+      if (IsSPIRGenTarget(A->getValue()))
+        DiagnoseSPIRGenTarget(A->getSpelling(), A->getValue());
+  }
+
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);

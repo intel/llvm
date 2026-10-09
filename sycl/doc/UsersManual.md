@@ -33,7 +33,10 @@ and not recommended to use in production environment.
     The following triples are supported by default:
     * spir64 - this is the default generic SPIR-V target;
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;
-    * spir64_gen - generate code ahead of time for Intel Processor Graphics;
+    * spir64_gen - generate code ahead of time for Intel Processor Graphics.
+      Deprecated: use the intel_gpu_* values listed below instead. It emits a
+      deprecation warning with the old offloading model and is not supported
+      with the new offloading model (--offload-new-driver);
     Full target triples can also be used:
     * spir64-unknown-unknown, spir64_x86_64-unknown-unknown,
       spir64_gen-unknown-unknown
@@ -45,7 +48,9 @@ and not recommended to use in production environment.
     currently overrides all the other specified SYCL targets when enabled.)
 
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
-    support are accepted, providing a streamlined interface for AOT.
+    support are accepted, providing a streamlined interface for AOT. The
+    intel_gpu_* values are the supported way to target Intel GPUs ahead of
+    time.
     A comma-separated list of valid Intel, NVIDIA and AMD Processor Graphics values is supported.
     * intel_gpu_cri, intel_gpu_35_11_0 - Crescent Island Intel graphics architecture
     * intel_gpu_nvl_p, intel_gpu_35_10_0 - Nova Lake P Intel graphics architecture
@@ -478,7 +483,8 @@ and not recommended to use in production environment.
     Exposes exported symbols in a generated target library to allow for
     visibility to other modules.
 
-    NOTE: This flag is only supported for spir64_gen AOT targets.
+    NOTE: This flag is only supported for Intel GPU AOT targets
+    (intel_gpu_*).
 
 **`-ftarget-register-alloc-mode=<arg>`**
 
