@@ -4,7 +4,8 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
-// UNSUPPORTED: linux
+// Fails on Linux DG2 and ARL with Level Zero, passes on Linux Gen12 and CUDA.
+// UNSUPPORTED: linux && level_zero && !gpu-intel-gen12
 // UNSUPPORTED-TRACKER: GSD-12357
 
 /*
