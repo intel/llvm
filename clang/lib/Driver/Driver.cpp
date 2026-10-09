@@ -7739,8 +7739,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         LA = OffloadBuilder->processHostLinkAction(LA);
         Actions.push_back(LA);
         // The device-only wrapped object is the only output with -fsycl-link.
-        // Static archives remain in LinkerInputs (they are needed above to
-        // gather device link dependencies), but they must not produce an
+        // Host linker inputs (e.g. fat static archives) were only needed above
+        // to gather device link dependencies; they must not produce an
         // additional host link output.
         LinkerInputs.clear();
       }

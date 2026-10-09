@@ -12,6 +12,12 @@
 
 ## Improvements and bugfixes
 
+### SYCL Compiler
+
+- Fixed `-fsycl-link` with fat static archive inputs in the old offloading
+  model failing with "cannot specify -o when generating multiple output
+  files". intel/llvm#23421
+
 ### Component A
 
 - Improved handling of ... intel/llvm#pr
