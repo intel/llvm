@@ -26,12 +26,12 @@
 
 using namespace llvm;
 
-static Error
-runCodeGenPipelineLegacy(TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
-                         std::unique_ptr<ToolOutputFile> &DwoOS,
-                         CodeGenFileType CGFT, bool PrintPipelinePasses,
-                         bool DisableVerify, bool DisableSimplifyLibCalls,
-                         const TargetLibraryInfoImpl *PresetTLII) {
+static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
+                                      raw_pwrite_stream &OS,
+                                      std::unique_ptr<ToolOutputFile> &DwoOS,
+                                      CodeGenFileType CGFT, bool DisableVerify,
+                                      bool DisableSimplifyLibCalls,
+                                      const TargetLibraryInfoImpl *PresetTLII) {
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
       createTargetTransformInfoWrapperPass(TM.getTargetIRAnalysis()));
@@ -101,8 +101,8 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
 Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                raw_pwrite_stream &OS,
                                std::unique_ptr<ToolOutputFile> &DwoOS,
-                               CodeGenFileType CGFT, bool PrintPipelinePasses,
-                               bool DisableVerify, bool DisableSimplifyLibCalls,
+                               CodeGenFileType CGFT, bool DisableVerify,
+                               bool DisableSimplifyLibCalls,
                                IntrusiveRefCntPtr<vfs::FileSystem> VFS,
                                const TargetLibraryInfoImpl *TLII) {
   if (valueOr(PassesOptions::Global.force_new_pm_codegen,
@@ -111,6 +111,6 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                    TLII);
   }
 
-  return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, PrintPipelinePasses,
-                                  DisableVerify, DisableSimplifyLibCalls, TLII);
+  return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, DisableVerify,
+                                  DisableSimplifyLibCalls, TLII);
 }

@@ -25,8 +25,7 @@ class TargetLibraryInfoImpl;
 LLVM_ABI Error runCodeGenPipeline(
     TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
     std::unique_ptr<ToolOutputFile> &DwoOS, CodeGenFileType CGFT,
-    bool PrintPipelinePasses = false, bool DisableVerify = true,
-    bool DisableSimplifyLibCalls = false,
+    bool DisableVerify = true, bool DisableSimplifyLibCalls = false,
     IntrusiveRefCntPtr<vfs::FileSystem> VFS = vfs::getRealFileSystem(),
     const TargetLibraryInfoImpl *TLII = nullptr);
 
