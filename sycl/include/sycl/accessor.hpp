@@ -757,6 +757,12 @@ public:
       : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::AccessorBaseHost{Impl} {}
@@ -820,6 +826,12 @@ public:
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
             /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <typename, int, access_mode> friend class host_accessor;
 
@@ -888,6 +900,14 @@ public:
   // -------+---------+-------+----+-----+--------------
 
 public:
+#if __INTEL_PREVIEW_BREAKING_CHANGES
+  // common reference semantics
+  accessor(const accessor &) noexcept = default;
+  accessor &operator=(const accessor &) noexcept = default;
+  accessor(accessor &&) noexcept = default;
+  accessor &operator=(accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   // implicit conversion between const / non-const types for read only accessors
   template <typename DataT_,
             typename = std::enable_if_t<
@@ -1592,7 +1612,17 @@ public:
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {}
 
-  template <typename... NewPropsT>
+  template <
+      typename... NewPropsT
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      ,
+      // Same-type copies are handled by the copy constructor. Excluding them
+      // here also keeps CTAD from a prvalue accessor unambiguous.
+      typename = std::enable_if_t<!std::is_same_v<
+          std::remove_cv_t<PropertyListT>,
+          std::remove_cv_t<ext::oneapi::accessor_property_list<NewPropsT...>>>>
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+      >
   accessor(
       const accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
                      ext::oneapi::accessor_property_list<NewPropsT...>> &Other,
@@ -2416,9 +2446,24 @@ public:
                                              range>::template get<0>();
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~local_accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #else
   local_accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
+
+public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // common reference semantics
+  local_accessor(const local_accessor &) noexcept = default;
+  local_accessor &operator=(const local_accessor &) noexcept = default;
+  local_accessor(local_accessor &&) noexcept = default;
+  local_accessor &operator=(local_accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // implicit conversion between non-const read-write accessor to const
   // read-only accessor
@@ -2582,6 +2627,17 @@ protected:
 
 public:
   host_accessor() : AccessorT() {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~host_accessor() {
+    // Per the spec, the destructor of an accessor must not have any effect
+  }
+
+  // common reference semantics
+  host_accessor(const host_accessor &) noexcept = default;
+  host_accessor &operator=(const host_accessor &) noexcept = default;
+  host_accessor(host_accessor &&) noexcept = default;
+  host_accessor &operator=(host_accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // The list of host_accessor constructors with their arguments
   // -------+---------+-------+----+----------+--------------
@@ -2826,6 +2882,26 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
               Type5) -> host_accessor<DataT, Dimensions,
                                       detail::deduceAccessMode<Type4, Type5>()>;
 
+namespace detail {
+// Add specializations for SYCL accessor types to the is_sycl_accessor trait.
+// This is needed so that is_device_copyable<accessor> returns false, but
+// they can still be captured in a kernel.
+template <typename T> struct is_sycl_accessor;
+
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_sycl_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                                 IsPlaceholder, PropertyListT>>
+    : std::true_type {};
+
+template <typename DataT, int Dimensions>
+struct is_sycl_accessor<local_accessor<DataT, Dimensions>> : std::true_type {};
+
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_sycl_accessor<host_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
 

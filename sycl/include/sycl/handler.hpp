@@ -1176,7 +1176,19 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         || detail::check_if_device_copyable_v<remove_cv_ref_t<T>>;
+#else
+        // Is device copyable is too narrow a definition because not all legal
+        // sycl types are considered device copyable, and structures that
+        // contain such types are still legal SYCL types. Once C++26 is
+        // available, we might have a more precise way to determine parameter
+        // legality.
+        || (!std::is_abstract_v<remove_cv_ref_t<T>> &&
+            !std::is_polymorphic_v<remove_cv_ref_t<T>> &&
+            std::is_destructible_v<remove_cv_ref_t<T>> &&
+            std::is_copy_constructible_v<remove_cv_ref_t<T>>);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   };
 
   /// Sets argument for OpenCL interoperability kernels.
