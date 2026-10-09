@@ -616,10 +616,6 @@ EventImplPtr queue_impl::submit_barrier_direct_impl(
             /*SchedulerBypass*/ false};
   };
 
-  // The events of the wait list are regular dependencies of the barrier. The
-  // scheduler resolves those that cannot be waited for in the backend: host
-  // task events, events from another context and events of commands that are
-  // not enqueued yet.
   return submit_direct(CallerNeedsEvent, DepEvents, SubmitBarrierFunc,
                        BarrierType,
                        /*InsertBarrierForInOrderCommand*/ false);

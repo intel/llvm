@@ -969,10 +969,8 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   setType(detail::CGType::BarrierWaitlist);
-  // The events of the wait list are regular dependencies of the barrier. The
-  // scheduler resolves those that cannot be waited for in the backend: host
-  // task events, events from another context and events of commands that are
-  // not enqueued yet.
+
+  // The events of the wait list are regular dependencies of the barrier.
   depends_on(WaitList);
 }
 

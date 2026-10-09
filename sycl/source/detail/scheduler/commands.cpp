@@ -3716,10 +3716,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
-    // The barrier waits only for its dependencies, which include the events of
-    // the barrier wait list. If the resulting event is supposed to have a
-    // specific event mode, redundant in-order queue dependencies may still
-    // differ from the resulting event, so they are kept.
+
     std::vector<ur_event_handle_t> UrEvents =
         HasEventMode
             ? Command::getUrEvents(MPreparedDepsEvents,
@@ -3728,9 +3725,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     if (UrEvents.empty()) {
       // Nothing to synchronize with: no dependency contributed a native event,
-      // so the barrier has no effect. Dependencies without a native event,
-      // like host tasks or events from another context, have already been
-      // waited for on the host.
+      // so the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 

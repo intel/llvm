@@ -326,8 +326,6 @@ public:
   ur_usm_advice_flags_t getAdvice() { return MAdvice; }
 };
 
-/// "Barrier" or "barrier with wait list" command group. The events of the
-/// barrier wait list are stored as regular command group dependencies.
 class CGBarrier : public CG {
 public:
   ext::oneapi::experimental::event_mode_enum MEventMode =
