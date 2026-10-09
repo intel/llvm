@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 // REQUIRES: aspect-ext_oneapi_per_event_profiling
 
 // RUN: %{build} -o %t.out

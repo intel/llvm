@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 // REQUIRES: level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
