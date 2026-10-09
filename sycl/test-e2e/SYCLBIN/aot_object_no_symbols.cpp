@@ -31,7 +31,8 @@
 // -- dynamicLink) to reach executable state.
 //
 // -- Targeting the configured Intel GPU architecture(s) (%{gpu_aot_target})
-// -- keeps this off a single hard-coded one. Complements the hardware-independent unit test
+// -- keeps this off a single hard-coded one. Complements the
+// -- hardware-independent unit test
 // -- SYCLBINSelector.NativeWithoutSymbolsSurfacedForObject, which covers the
 // -- selector in isolation but neither the producer nor the link-and-run path.
 
