@@ -544,16 +544,25 @@ public:
   }
 
   ur_result_t queueBeginGraphCapteExp() override {
-    return commandListManager.lock()->beginGraphCapture();
+    auto lockedManager = commandListManager.lock();
+    UR_CALL(lockedManager->beginGraphCapture());
+    eventPool->setGraphCapture(true);
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t
   queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) override {
-    return commandListManager.lock()->beginCaptureIntoGraph(hGraph);
+    auto lockedManager = commandListManager.lock();
+    UR_CALL(lockedManager->beginCaptureIntoGraph(hGraph));
+    eventPool->setGraphCapture(true);
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) override {
-    return commandListManager.lock()->endGraphCapture(phGraph);
+    auto lockedManager = commandListManager.lock();
+    UR_CALL(lockedManager->endGraphCapture(phGraph));
+    eventPool->setGraphCapture(false);
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t queueIsGraphCapteEnabledExp(bool *pResult) override {

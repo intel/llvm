@@ -1057,7 +1057,9 @@ ur_result_t ur_queue_batched_t::queueBeginGraphCapteExp() {
   }
 
   lockedBatch->setGraphCapture(true);
-  return lockedBatch->getListManager().beginGraphCapture();
+  UR_CALL(lockedBatch->getListManager().beginGraphCapture());
+  eventPoolImmediate->setGraphCapture(true);
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
@@ -1071,7 +1073,9 @@ ur_queue_batched_t::queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t hGraph) {
   }
 
   lockedBatch->setGraphCapture(true);
-  return lockedBatch->getListManager().beginCaptureIntoGraph(hGraph);
+  UR_CALL(lockedBatch->getListManager().beginCaptureIntoGraph(hGraph));
+  eventPoolImmediate->setGraphCapture(true);
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
@@ -1080,6 +1084,7 @@ ur_queue_batched_t::queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) {
   ur_result_t result = lockedBatch->getListManager().endGraphCapture(phGraph);
   if (result == UR_RESULT_SUCCESS) {
     lockedBatch->setGraphCapture(false);
+    eventPoolImmediate->setGraphCapture(false);
   }
   return result;
 }
