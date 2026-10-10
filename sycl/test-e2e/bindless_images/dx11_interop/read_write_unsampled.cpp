@@ -475,8 +475,8 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 int main() {
   // Create SYCL queue, relying on SYCL device selection.
 #ifdef TEST_SEMAPHORE_IMPORT
-  // External semaphore ops require an in-order queue backed by immediate
-  // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+  // External semaphore operations require an in-order queue. This test also
+  // uses immediate command lists for its existing configuration.
   sycl::queue syclQueue{
       {sycl::property::queue::in_order{},
        sycl::ext::intel::property::queue::immediate_command_list{}}};
