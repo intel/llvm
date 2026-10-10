@@ -106,6 +106,9 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_offload_bundler_not_found : Error<
+  "cannot find 'clang-offload-bundler' in '%0', which is required to inspect "
+  "'%1' for offload device code">;
 def err_drv_sycl_no_rdc_multiple_targets : Error<
   "'%0' is not supported with multiple SYCL offloading targets">;
 
