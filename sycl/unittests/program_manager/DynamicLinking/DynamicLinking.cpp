@@ -15,6 +15,7 @@ class UnresolvedDepKernel;
 class MutualDepKernelA;
 class MutualDepKernelB;
 class AOTCaseKernel;
+class ExportOnlyImportKernel;
 } // namespace DynamicLinkingTest
 
 const static sycl::specialization_id<int> SpecConst1{1};
@@ -35,6 +36,7 @@ KERNEL_INFO(UnresolvedDepKernel)
 KERNEL_INFO(MutualDepKernelA)
 KERNEL_INFO(MutualDepKernelB)
 KERNEL_INFO(AOTCaseKernel)
+KERNEL_INFO(ExportOnlyImportKernel)
 
 #undef KERNEL_INFO
 
@@ -134,6 +136,8 @@ static constexpr unsigned MUTUAL_DEP_PRG_A = 13;
 static constexpr unsigned MUTUAL_DEP_PRG_B = 17;
 static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
 static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
+static constexpr unsigned EXPORT_ONLY_IMPORT_PRG = 31;
+static constexpr unsigned EXPORT_ONLY_EXPORTER_PRG = 37;
 
 static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
@@ -159,10 +163,14 @@ static sycl::unittest::MockDeviceImage Imgs[] = {
                   __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
                   AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)};
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
+    // Dependency image with no kernels, only an exported device function.
+    generateImage({}, {"ExportOnlyDep"}, {}, EXPORT_ONLY_EXPORTER_PRG),
+    generateImage({"ExportOnlyImportKernel"}, {}, {"ExportOnlyDep"},
+                  EXPORT_ONLY_IMPORT_PRG)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::MockDeviceImageArray<9> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<11> ImgArray{Imgs};
 
 void runCommonBasicCaseChecks() {
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
@@ -201,6 +209,24 @@ TEST(DynamicLinking, UnresolvedDep) {
     EXPECT_STREQ(e.what(), "No device image found for external symbol "
                            "UnresolvedDepKernelUnresolvedDep");
   }
+}
+
+TEST(DynamicLinking, ExportOnlyDependency) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+
+  sycl::queue Q;
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::ExportOnlyImportKernel>([=]() {});
+
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 2u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {EXPORT_ONLY_IMPORT_PRG, EXPORT_ONLY_EXPORTER_PRG}));
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            EXPORT_ONLY_IMPORT_PRG * EXPORT_ONLY_EXPORTER_PRG);
 }
 
 void runCommonMutualDepTestChecks() {

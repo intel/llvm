@@ -1694,13 +1694,7 @@ getExportedSymbolPS(sycl_device_binary RawImg) {
 }
 
 static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
-  // For bfloat16 device library image, we should keep it although it doesn't
-  // include any kernel.
-  if (isBfloat16DeviceLibImage(RawImg))
-    return false;
-
-  // We may extend the logic here other than bfloat16 device library image.
-  return true;
+  return !getExportedSymbolPS(RawImg);
 }
 
 void ProgramManager::addImage(sycl_device_binary RawImg,
@@ -1922,9 +1916,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       continue;
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    if (EntriesB == EntriesE)
-      continue;
-
+    // Kernel-less images that only export symbols are inserted into
+    // m_DeviceImages/m_ExportedSymbolImages, so clean them up below too.
     RTDeviceBinaryImage *Img = DevImgIt->second.get();
 
     // Drop the kernel argument mask map
