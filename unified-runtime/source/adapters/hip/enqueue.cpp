@@ -1878,6 +1878,14 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
 
       UR_CHECK_ERROR(hipFuncSetAttribute(
           HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, MaxLocalMem));
+    } else if (LocalSize >
+               static_cast<uint32_t>(Device->getMaxDefaultLocalMem())) {
+      // Match the CUDA adapter: dynamic shared memory above the default
+      // per-block limit must be opted in. UR_HIP_MAX_LOCAL_MEM_SIZE is only a
+      // cap on that ceiling; it is not required to reach the opt-in pool.
+      UR_CHECK_ERROR(hipFuncSetAttribute(
+          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize,
+          static_cast<int>(LocalSize)));
     }
   } catch (ur_result_t Err) {
     return Err;
