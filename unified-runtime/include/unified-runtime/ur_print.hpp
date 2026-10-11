@@ -3325,6 +3325,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_IGCA_FEATURE_SET:
     os << "UR_DEVICE_INFO_IGCA_FEATURE_SET";
     break;
+  case UR_DEVICE_INFO_FP16_ATOMIC:
+    os << "UR_DEVICE_INFO_FP16_ATOMIC";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -5292,6 +5295,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << (const void *)(tptr) << " (";
 
     ur::details::printFlag<ur_device_igca_feature_flag_t>(os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
 
     os << ")";
   } break;
