@@ -6,7 +6,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
 
 #include <sycl/builtins.hpp>
