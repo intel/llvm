@@ -2393,8 +2393,8 @@ functions throw the following additional synchronous exceptions:
   the value `true` and the provided queue is not in the
   `queue_state::recording` state.
 * An `exception` with the `errc::feature_not_supported` error code if the
-  provided queue is recording to a `command_graph` that was not created with the
-  `property::graph::enable_native_recording` property.
+  provided queue is recording to a `command_graph` that does not use
+  <<native-recording, native recording>>.
 
 Examples of synchronizing with work outside a graph and timing a graph region
 are provided in the
