@@ -52,6 +52,12 @@ constexpr uint32_t ASAN_MAX_WG_LOCAL = 8192;
 
 constexpr uint32_t ASAN_MAX_SG_PRIVATE = 256;
 
+// Size of the local memory window shadowed for each work-group. Must be a power
+// of two and no less than the local memory size of any supported device: DG2 is
+// 64KB, PVC and BMG are 128KB. Used by both the host (AllocLocalShadow) and the
+// device (MemToShadow_*), which must agree on the stride.
+constexpr uint32_t ASAN_SLM_SIZE = 128 * 1024;
+
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct AsanRuntimeData {
