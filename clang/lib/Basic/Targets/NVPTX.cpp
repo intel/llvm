@@ -219,6 +219,15 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
   }
 }
 
+void NVPTXTargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+                             const TargetInfo *Aux) {
+  TargetInfo::adjust(Diags, Opts, Aux);
+  AtomicOpts = AtomicOptions(Opts);
+
+  // FIXME: Needed for compiling SYCL to PTX.
+  TLSSupported = TLSSupported || Opts.SYCLIsDevice;
+}
+
 llvm::SmallVector<Builtin::InfosShard>
 NVPTXTargetInfo::getTargetBuiltins() const {
   return {{&BuiltinStrings, BuiltinInfos}};

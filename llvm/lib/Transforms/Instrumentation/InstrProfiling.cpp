@@ -77,8 +77,7 @@ extern cl::opt<bool> EnableVTableValueProfiling;
 } // namespace llvm
 
 bool llvm::isProfileCorrelationEnabled() {
-  return InstrumentationOptions::Global.profile_correlate !=
-         InstrProfCorrelator::NONE;
+  return InstrumentationOptions::Global.profile_correlate.has_value();
 }
 
 namespace {
@@ -1032,7 +1031,7 @@ void InstrLowerer::lowerValueProfileInst(InstrProfValueProfileInst *Ind) {
   // in lightweight mode. We need to move the value profile pointer to the
   // Counter struct to get this working.
   assert(
-      Opts.profile_correlate == InstrProfCorrelator::NONE &&
+      !Opts.profile_correlate &&
       "Value profiling is not yet supported with lightweight instrumentation");
   GlobalVariable *Name = Ind->getName();
   auto It = ProfileDataMap.find(Name);
@@ -1626,7 +1625,7 @@ static inline Constant *getVTableAddrForProfData(GlobalVariable *GV) {
 }
 
 void InstrLowerer::getOrCreateVTableProfData(GlobalVariable *GV) {
-  assert(Opts.profile_correlate != InstrProfCorrelator::DEBUG_INFO &&
+  assert(Opts.profile_correlate != ProfCorrelatorKind::DebugInfo &&
          "Value profiling is not supported with lightweight instrumentation");
   if (GV->isDeclaration() || GV->hasAvailableExternallyLinkage())
     return;
@@ -1705,7 +1704,7 @@ GlobalVariable *InstrLowerer::setupProfileSection(InstrProfInstBase *Inc,
 
   // Use internal rather than private linkage so the counter variable shows up
   // in the symbol table when using debug info for correlation.
-  if (Opts.profile_correlate == InstrProfCorrelator::DEBUG_INFO &&
+  if (Opts.profile_correlate == ProfCorrelatorKind::DebugInfo &&
       TT.isOSBinFormatMachO() && Linkage == GlobalValue::PrivateLinkage)
     Linkage = GlobalValue::InternalLinkage;
 
@@ -1777,7 +1776,7 @@ InstrLowerer::getOrCreateRegionBitmaps(InstrProfMCDCBitmapInstBase *Inc) {
   PD.NumBitmapBytes = Inc->getNumBitmapBytes();
 
   if (PD.NumBitmapBytes &&
-      Opts.profile_correlate == InstrProfCorrelator::DEBUG_INFO) {
+      Opts.profile_correlate == ProfCorrelatorKind::DebugInfo) {
     LLVMContext &Ctx = M.getContext();
     Function *Fn = Inc->getParent()->getParent();
     if (auto *SP = Fn->getSubprogram()) {
@@ -1865,7 +1864,7 @@ InstrLowerer::getOrCreateRegionCounters(InstrProfCntrInstBase *Inc) {
   auto *CounterPtr = setupProfileSection(Inc, IPSK_cnts);
   PD.RegionCounters = CounterPtr;
 
-  if (Opts.profile_correlate == InstrProfCorrelator::DEBUG_INFO) {
+  if (Opts.profile_correlate == ProfCorrelatorKind::DebugInfo) {
     LLVMContext &Ctx = M.getContext();
     Function *Fn = Inc->getParent()->getParent();
     if (auto *SP = Fn->getSubprogram()) {
@@ -1952,7 +1951,7 @@ InstrLowerer::getOrCreateUniformCounters(InstrProfCntrInstBase *Inc) {
 void InstrLowerer::createDataVariable(InstrProfCntrInstBase *Inc) {
   // When debug information is correlated to profile data, a data variable
   // is not needed.
-  if (Opts.profile_correlate == InstrProfCorrelator::DEBUG_INFO)
+  if (Opts.profile_correlate == ProfCorrelatorKind::DebugInfo)
     return;
 
   GlobalVariable *NamePtr = Inc->getName();
@@ -2074,7 +2073,7 @@ void InstrLowerer::createDataVariable(InstrProfCntrInstBase *Inc) {
   InstrProfSectKind DataSectionKind;
   // With binary profile correlation, profile data is not loaded into memory.
   // profile data must reference profile counter with an absolute relocation.
-  if (Opts.profile_correlate == InstrProfCorrelator::BINARY) {
+  if (Opts.profile_correlate == ProfCorrelatorKind::Binary) {
     DataSectionKind = IPSK_covdata;
     RelativeCounterPtr = ConstantExpr::getPtrToInt(CounterPtr, IntPtrTy);
     if (BitmapPtr != nullptr)
@@ -2272,7 +2271,7 @@ void InstrLowerer::emitNameData() {
   NamesSize = CompressedNameStr.size();
   setGlobalVariableLargeSection(TT, *NamesVar);
   std::string NamesSectionName =
-      Opts.profile_correlate == InstrProfCorrelator::BINARY
+      Opts.profile_correlate == ProfCorrelatorKind::Binary
           ? getInstrProfSectionName(IPSK_covname, TT.getObjectFormat())
           : getInstrProfSectionName(IPSK_name, TT.getObjectFormat());
   NamesVar->setSection(NamesSectionName);
