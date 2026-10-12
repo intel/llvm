@@ -14040,8 +14040,9 @@ bool BoUpSLP::matchesShlZExt(const TreeEntry &TE, OrdersType &Order,
          "Expected Shl node.");
   IsBSwap = false;
   ForLoads = false;
-  if (TE.State != TreeEntry::Vectorize || !TE.ReorderIndices.empty() ||
-      !TE.ReuseShuffleIndices.empty() || MinBWs.contains(&TE) ||
+  if (TE.State != TreeEntry::Vectorize || TE.isAltShuffle() ||
+      !TE.ReorderIndices.empty() || !TE.ReuseShuffleIndices.empty() ||
+      MinBWs.contains(&TE) ||
       any_of(TE.Scalars, [](Value *V) { return !V->hasOneUse(); }))
     return false;
   Type *ScalarTy = TE.getMainOp()->getType();
@@ -17697,8 +17698,8 @@ BoUpSLP::getEntryCost(const TreeEntry *E, ArrayRef<Value *> VectorizedVals,
             CostKind);
         if (StridedLoadTy != VecTy)
           VecLdCost +=
-              TTI->getCastInstrCost(Instruction::BitCast, VecTy, StridedLoadTy,
-                                    getCastContextHint(*E), CostKind);
+              getWidenedStridedCastCost(*TTI, StridedLoadTy, VecTy, *DL,
+                                        getCastContextHint(*E), CostKind);
 
         break;
       }
@@ -17818,8 +17819,8 @@ BoUpSLP::getEntryCost(const TreeEntry *E, ArrayRef<Value *> VectorizedVals,
             CostKind);
         if (StridedStoreTy != VecTy)
           VecStCost +=
-              TTI->getCastInstrCost(Instruction::BitCast, VecTy, StridedStoreTy,
-                                    getCastContextHint(*E), CostKind);
+              getWidenedStridedCastCost(*TTI, VecTy, StridedStoreTy, *DL,
+                                        getCastContextHint(*E), CostKind);
       } else if (E->State == TreeEntry::ExpandVectorize) {
         const StridedPtrInfo &SPtrInfo = TreeEntryToStridedPtrInfoMap.at(E);
         FixedVectorType *MaskedStoreTy = SPtrInfo.Ty;
@@ -24041,6 +24042,12 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
     auto *I = dyn_cast<Instruction>(V);
     if (!I)
       return V;
+    // Drop nneg propagated from the original cast.
+    Value *Op;
+    if (auto *CI = dyn_cast<CastInst>(VL0);
+        CI && match(I, m_NNegZExt(m_Value(Op))) &&
+        Op->getType()->getScalarType() != CI->getSrcTy())
+      cast<ZExtInst>(I)->setNonNeg(false);
     // A lane may be emitted in negated form (sub C, x as add x, -C, or an
     // add/sub lane with swapped operands) when all its uses are
     // sign-insensitive (icmp eq/ne 0 or abs). The value stays correct for
@@ -25165,7 +25172,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
                      : PropagateIRFlags(NewLI);
 
       if (StridedLoadTy != VecTy)
-        V = Builder.CreateBitOrPointerCast(V, VecTy);
+        V = createWidenedStridedCast(Builder, V, VecTy, *DL);
       V = FinalShuffle(V, E);
       E->VectorizedValue = V;
       ++NumVectorInstructions;
@@ -25231,7 +25238,8 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
             ConstantInt::getSigned(
                 StrideTy, static_cast<int>(DL->getTypeAllocSize(ScalarTy))));
         if (StridedStoreTy != VecTy)
-          VecValue = Builder.CreateBitOrPointerCast(VecValue, StridedStoreTy);
+          VecValue =
+              createWidenedStridedCast(Builder, VecValue, StridedStoreTy, *DL);
         auto *Inst = Builder.CreateIntrinsicWithoutFolding(
             Intrinsic::experimental_vp_strided_store,
             {StridedStoreTy, Ptr->getType(), StrideTy},

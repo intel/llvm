@@ -151,8 +151,6 @@ static cl::opt<PGOOptions::ColdFuncOpt> ClPGOColdFuncAttr(
                clEnumValN(PGOOptions::ColdFuncOpt::OptNone, "optnone",
                           "Mark cold functions with optnone.")));
 
-LLVM_ABI extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
-
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
     cl::desc("Re-link builtin bitcodes after optimization."));
