@@ -573,6 +573,18 @@ static bool compatibleWithDevice(const RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// An image with a compile_target was built for that device architecture only.
+// Images without one are matched by compatibleWithDevice.
+static bool doesCompileTargetMatchDevice(const RTDeviceBinaryImage &Img,
+                                         const device_impl &Dev) {
+  const RTDeviceBinaryImage::PropertyRange &Range = Img.getDeviceRequirements();
+  const bool HasCompileTarget =
+      std::any_of(Range.begin(), Range.end(), [](const auto &Prop) {
+        return Prop->Name == std::string_view("compile_target");
+      });
+  return !HasCompileTarget || doesImageTargetMatchDevice(Img, Dev);
+}
+
 // Check if the device image is a BF16 devicelib image.
 bool ProgramManager::isBfloat16DeviceImage(
     const RTDeviceBinaryImage *BinImage) {
@@ -693,7 +705,8 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       const RTDeviceBinaryImage *Img = It->second;
 
       if (!doesDevSupportDeviceRequirements(Dev, *Img) ||
-          !compatibleWithDevice(Img, Dev))
+          !compatibleWithDevice(Img, Dev) ||
+          !doesCompileTargetMatchDevice(*Img, Dev))
         continue;
 
       // If the image is a BF16 device image, we need to check if it
@@ -791,7 +804,8 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         // virtual function set and it is incompatible, then we should link its
         // "dummy" version to avoid link errors about unresolved external
         // symbols.
-        if (doesDevSupportDeviceRequirements(Dev, *BinImage))
+        if (doesDevSupportDeviceRequirements(Dev, *BinImage) &&
+            doesCompileTargetMatchDevice(*BinImage, Dev))
           DeviceImagesToLink.insert(BinImage);
       }
     }
@@ -2316,7 +2330,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
     for (const RTDeviceBinaryImage *BinImage : BinImages) {
       if (!compatibleWithDevice(BinImage, Dev) ||
-          !doesDevSupportDeviceRequirements(Dev, *BinImage))
+          !doesDevSupportDeviceRequirements(Dev, *BinImage) ||
+          !doesCompileTargetMatchDevice(*BinImage, Dev))
         continue;
 
       auto InsertRes = ImageInfoMap.insert({BinImage, {}});
