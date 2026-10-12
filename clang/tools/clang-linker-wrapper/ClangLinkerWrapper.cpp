@@ -3385,7 +3385,9 @@ Error emitExtractCommands(
 }
 
 /// See comments in collectSYCLRegisterLibSymbols.
-static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
+static Error
+collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer,
+                                        ArrayRef<OffloadFile> Binaries) {
   LLVMContext Context;
   static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
   llvm::file_magic Magic = identify_magic(Buffer.getBuffer());
@@ -3413,10 +3415,11 @@ static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
       FuncNames.insert(Name);
   }
   if (!FuncNames.empty()) {
-    SmallVector<OffloadFile> Binaries;
-    if (Error Err = extractOffloadBinaries(Buffer, Binaries))
-      return std::move(Err);
     for (const auto &Binary : Binaries) {
+      // Only use the binaries embedded in this object.
+      if (Binary.getBinary()->getMemoryBufferRef().getBufferIdentifier() !=
+          Buffer.getBufferIdentifier())
+        continue;
       std::string Triple = Binary.getBinary()->getTriple().str();
       std::string Arch = Binary.getBinary()->getArch().str();
       if (Arch == "generic")
@@ -3433,12 +3436,14 @@ static Error collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer) {
 /// global SYCLRegisterLibFuncMap. Each such reference is satisfied by defining
 /// the symbol in the generated SYCL device-image wrapper object. The references
 /// may live in bare object inputs or in members of a static archive.
-static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer) {
+/// \p Binaries are the offload binaries already extracted from \p Buffer.
+static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer,
+                                           ArrayRef<OffloadFile> Binaries) {
   switch (identify_magic(Buffer.getBuffer())) {
   case file_magic::elf_relocatable:
   case file_magic::coff_object:
   case file_magic::bitcode:
-    if (Error Err = collectSYCLRegisterLibSymbolsFromObject(Buffer))
+    if (Error Err = collectSYCLRegisterLibSymbolsFromObject(Buffer, Binaries))
       return Err;
     break;
   case file_magic::archive: {
@@ -3451,7 +3456,8 @@ static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer) {
       Expected<MemoryBufferRef> ChildBufOrErr = Child.getMemoryBufferRef();
       if (!ChildBufOrErr)
         return ChildBufOrErr.takeError();
-      if (Error E = collectSYCLRegisterLibSymbolsFromObject(*ChildBufOrErr))
+      if (Error E =
+              collectSYCLRegisterLibSymbolsFromObject(*ChildBufOrErr, Binaries))
         return E;
     }
     if (Err)
@@ -3540,8 +3546,6 @@ getDeviceInput(const ArgList &Args) {
     MemoryBufferRef Buffer = **BufferOrErr;
     if (identify_magic(Buffer.getBuffer()) == file_magic::elf_shared_object)
       continue;
-    if (Error Err = collectSYCLRegisterLibSymbols(Buffer))
-      return std::move(Err);
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
     if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
@@ -3550,6 +3554,8 @@ getDeviceInput(const ArgList &Args) {
       // fall through to the SYCL bundled objects extraction path.
       consumeError(std::move(Err));
     }
+    if (Error Err = collectSYCLRegisterLibSymbols(Buffer, Binaries))
+      return std::move(Err);
     if (Binaries.size() == OldSize) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
         return std::move(Err);
