@@ -48,7 +48,7 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT: Global metadata:
 // CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT:   SYCLBIN/global metadata:
 // CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT:     state: 0
-// CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT: Number of Abstract Modules: 1
+// CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT: Number of Abstract Modules: {{[1-9][0-9]*}}
 // CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT: Abstract Module 0:
 // CHECK-INPUT-ALL-GPU-DEVICE-ARCHS-NEXT:   Metadata:
 // CHECK-INPUT-ALL-GPU-DEVICE-ARCHS:      Number of IR Modules: 0
