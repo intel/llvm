@@ -1306,15 +1306,19 @@ config.substitutions.append(("%amd_arch_options", amd_arch_flags))
 # GPU architectures. Without any (e.g. build-only mode), it uses the
 # architectures of the CI run-only runners, since binaries built once are run
 # on all of them.
-CI_RUNNER_GPU_AOT_TARGETS = ",".join(
-    [
-        "intel_gpu_tgllp",
-        "intel_gpu_acm_g10",
-        "intel_gpu_pvc",
-        "intel_gpu_bmg_g21",
-        "intel_gpu_mtl_u",
-    ]
-)
+if platform.system() == "Windows":
+    # Windows ocloc no longer supports Gen12 and older GPUs, such as tgllp.
+    CI_RUNNER_GPU_AOT_TARGETS = "intel_gpu_acm_g10,intel_gpu_bmg_g21"
+else:
+    CI_RUNNER_GPU_AOT_TARGETS = ",".join(
+        [
+            "intel_gpu_tgllp",
+            "intel_gpu_acm_g10",
+            "intel_gpu_pvc",
+            "intel_gpu_bmg_g21",
+            "intel_gpu_mtl_u",
+        ]
+    )
 if not config.gpu_aot_target:
     intel_gpu_archs = sorted(
         feature[len("arch-") :]
