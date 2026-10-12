@@ -10,23 +10,17 @@
 #include <uur/fixtures.h>
 
 #include <cstring>
-#include <string>
 #include <vector>
 
 using urLevelZeroFloatAtomicsExtTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroFloatAtomicsExtTest);
 
-TEST_P(urLevelZeroFloatAtomicsExtTest, ExtensionMatchesFp16FlagsOnCRI) {
-  // Query the extension string from UR.
-  size_t size = 0;
-  ASSERT_SUCCESS(
-      urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr, &size));
-  std::vector<char> extensions(size);
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS, size,
-                                 extensions.data(), nullptr));
-  const bool urReports =
-      std::string(extensions.data()).find("cl_ext_float_atomics") !=
-      std::string::npos;
+TEST_P(urLevelZeroFloatAtomicsExtTest, Fp16AtomicMatchesFp16FlagsOnCRI) {
+  // Query fp16 atomic support from UR.
+  ur_bool_t fp16Atomic = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_FP16_ATOMIC,
+                                 sizeof(fp16Atomic), &fp16Atomic, nullptr));
+  const bool urReports = fp16Atomic;
 
   // Query the same information natively.
   ur_native_handle_t nativeDevice = 0;
@@ -64,7 +58,7 @@ TEST_P(urLevelZeroFloatAtomicsExtTest, ExtensionMatchesFp16FlagsOnCRI) {
   uint32_t ipVersion = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IP_VERSION,
                                  sizeof(ipVersion), &ipVersion, nullptr));
-  // Only CRI (and its steppings) reports the extension.
+  // Only CRI (and its steppings) reports fp16 atomic support.
   const bool isCRI = (ipVersion & 0xffffc000) == 0x08c2c000;
 
   ASSERT_EQ(urReports, isCRI && driverHasExt && floatProps.fp16Flags != 0);
