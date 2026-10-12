@@ -27,7 +27,7 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 //
-// REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=%{gpu_aot_target} %s
+// REDEFINE: %{build_cmd} = %clangxx -fsycl -fsycl-targets=%{gpu_aot_target},spir64 %s
 // ******************************
 // Check the logs first.
 // RUN: %{run-aux} %{build_cmd} -DVALUE=1 -o %t.out
