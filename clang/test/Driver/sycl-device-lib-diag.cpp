@@ -1,7 +1,7 @@
 /// Test for SYCL device library diagnostic.
 
-// Only run when libdevice is not enabled.  This allows for a known
-// environment that does not have the device libraries installed.
+// Only run when the SYCL device libraries are not built.  This allows for a
+// known environment that does not have the device libraries installed.
 // UNSUPPORTED: libdevice
 
 /// Check for expected device library diagnostic.

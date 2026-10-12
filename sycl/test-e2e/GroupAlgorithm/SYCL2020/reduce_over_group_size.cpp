@@ -11,6 +11,7 @@
     sycl::vec<float> is sensitive to .get_size() vs .size() in SYCL headers
     (ie, byte size versus vector size)
 */
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>

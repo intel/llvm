@@ -28,7 +28,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: call spir_func half @_Z21__spirv_FSigmoidINTELDh(half
 ; CHECK-LLVM: call spir_func <8 x half> @_Z21__spirv_FSigmoidINTELDv8_Dh(<8 x half>
-; CHECK-LLVM: call spir_func half @_Z21__spirv_FSigmoidINTELDh(half 0xH3C00)
+; CHECK-LLVM: call spir_func half @_Z21__spirv_FSigmoidINTELDh(half 1.000000e+00)
 
 define spir_func void @_Z2opffv8(half %a, <8 x half> %in) {
   %1 = tail call spir_func half @_Z21__spirv_FSigmoidINTELDh(half %a)

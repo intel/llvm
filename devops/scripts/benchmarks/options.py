@@ -55,6 +55,13 @@ class Options:
     pytorch_root: str = None
     offline: bool = False
     redownload: bool = False
+    # Use an existing compute-benchmarks source dir instead of cloning. When the
+    # dir is not a git repository, the benchmarks are always rebuilt.
+    compute_benchmarks_source_dir: str = None
+    # LLVM install prefix containing the liboffload library and headers in
+    # include/offload. When set, the Offload SubmitKernel benchmark is built.
+    offload_prefix: str = None
+    offload_lib_dir: str = None
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3

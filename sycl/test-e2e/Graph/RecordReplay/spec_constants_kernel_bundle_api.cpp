@@ -9,6 +9,8 @@
 // Sycl-Graph but comes from the orignal test :
 // `SpecConstants/2020/kernel-bundle-api.cpp`
 
+// REQUIRES: jit
+
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/spec_constants_kernel_bundle_api.cpp"

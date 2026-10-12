@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
@@ -31,10 +32,10 @@ int run_test_on_queue(sycl::queue &Queue) {
   sycl::event EndTagE =
       sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
 
-  Queue.wait();
-
   int Failures = 0;
 
+  // Query submit without an explicit wait: the tag timestamp must be ready
+  // before the profiling query returns.
   uint64_t StartTagSubmit =
       StartTagE
           .get_profiling_info<sycl::info::event_profiling::command_submit>();
@@ -62,14 +63,14 @@ int run_test_on_queue(sycl::queue &Queue) {
   CHECK(Failures, StartTagEnd != 0)
   CHECK(Failures, EndTagSubmit != 0)
   CHECK(Failures, EndTagStart != 0)
-  CHECK(Failures, StartTagSubmit != 0)
+  CHECK(Failures, EndTagEnd != 0)
 
   CHECK(Failures, StartTagSubmit <= StartTagEnd)
   CHECK(Failures, StartTagSubmit <= StartTagStart)
-  CHECK(Failures, StartTagStart <= StartTagEnd)
+  CHECK(Failures, StartTagStart == StartTagEnd)
   CHECK(Failures, EndTagSubmit <= EndTagEnd)
   CHECK(Failures, EndTagSubmit <= EndTagStart)
-  CHECK(Failures, EndTagStart <= EndTagEnd)
+  CHECK(Failures, EndTagStart == EndTagEnd)
   CHECK(Failures, StartTagEnd <= EndTagEnd)
 
   if (Queue.has_property<sycl::property::queue::enable_profiling>()) {

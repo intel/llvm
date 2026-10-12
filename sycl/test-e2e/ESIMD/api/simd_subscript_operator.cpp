@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-INTENDED: There is a separate version of this test for PVC.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
@@ -13,6 +14,7 @@
 // operator. E.g.:
 //   simd<int, 4> v = 1;
 //   v[1] = 0; // v[1] returns writable simd_view
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -44,8 +46,8 @@ template <class T> bool test(queue &q) {
     range<1> glob_range{1};
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufA.template get_access<access::mode::read>(cgh);
-      auto PB = bufB.template get_access<access::mode::read_write>(cgh);
+      auto PA = bufA.template get_access<access_mode::read>(cgh);
+      auto PB = bufB.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<T>(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
         using namespace sycl::ext::intel::esimd;
         unsigned int offset = i * VL * sizeof(T);

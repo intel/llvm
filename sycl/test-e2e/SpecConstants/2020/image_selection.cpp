@@ -1,4 +1,4 @@
-// REQUIRES: (opencl || level_zero) && gpu && ocloc
+// REQUIRES: (opencl || level_zero) && gpu && ocloc && target-spir
 
 // Check the case when -fsycl-add-default-spec-consts-image option is used which
 // results in generation of two types of images: where specialization constants
@@ -41,6 +41,7 @@
 // RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
 // clang-format on
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

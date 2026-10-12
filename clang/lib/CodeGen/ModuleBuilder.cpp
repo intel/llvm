@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CodeGen/ModuleBuilder.h"
+#include "CGCXXABI.h"
 #include "CGDebugInfo.h"
 #include "CodeGenModule.h"
 #include "clang/AST/ASTContext.h"
@@ -20,6 +21,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
@@ -131,6 +133,11 @@ namespace {
       return Builder->GetAddrOfGlobal(global, ForDefinition_t(isForDefinition));
     }
 
+    llvm::Constant *GetAddrOfVTable(BaseSubobject subobject,
+                                    const CXXRecordDecl *decl) {
+      return Builder->getCXXABI().getVTableAddressPoint(subobject, decl);
+    }
+
     llvm::Module *StartModule(llvm::StringRef ModuleName,
                               llvm::LLVMContext &C) {
       assert(!M && "Replacing existing Module?");
@@ -228,8 +235,9 @@ namespace {
 
       // Provide some coverage mapping even for methods that aren't emitted.
       // Don't do this for templated classes though, as they may not be
-      // instantiable.
-      if (!D->getLexicalDeclContext()->isDependentContext())
+      // instantiable. Also skip consteval methods as they are never emitted.
+      if (!D->getLexicalDeclContext()->isDependentContext() &&
+          !D->getAsFunction()->isImmediateFunction())
         Builder->AddDeferredUnusedCoverageMapping(D);
     }
 
@@ -340,8 +348,14 @@ namespace {
       if (Diags.hasUnrecoverableErrorOccurred())
         return;
 
-      // No VTable usage is legal in SYCL, so don't bother marking them used.
-      if (Ctx->getLangOpts().SYCLIsDevice)
+      // The only vtables which are meaningful in SYCL device code are those of
+      // classes with 'indirectly_callable' virtual functions: they are
+      // inspected by SYCLVirtualFunctionsAnalysisPass to determine which
+      // virtual functions a kernel may end up calling. Emitting vtables for any
+      // other polymorphic class would only add unused globals to the device
+      // image.
+      if (Ctx->getLangOpts().SYCLIsDevice &&
+          !SemaSYCL::hasSYCLIndirectlyCallableVirtualMethod(RD))
         return;
 
       Builder->EmitVTable(RD);
@@ -379,6 +393,11 @@ llvm::Constant *CodeGenerator::GetAddrOfGlobal(GlobalDecl global,
                                                bool isForDefinition) {
   return static_cast<CodeGeneratorImpl*>(this)
            ->GetAddrOfGlobal(global, isForDefinition);
+}
+
+llvm::Constant *CodeGenerator::GetAddrOfVTable(BaseSubobject base,
+                                               const CXXRecordDecl *decl) {
+  return static_cast<CodeGeneratorImpl *>(this)->GetAddrOfVTable(base, decl);
 }
 
 llvm::Module *CodeGenerator::StartModule(llvm::StringRef ModuleName,

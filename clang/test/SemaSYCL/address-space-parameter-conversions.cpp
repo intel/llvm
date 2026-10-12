@@ -14,8 +14,8 @@ void tmpl(T *t){}
 
 void usages() {
   __attribute__((opencl_global)) int *GLOB;
-  __attribute__((opencl_global_device)) int *GLOBDEV;
-  __attribute__((opencl_global_host)) int *GLOBHOST;
+  __attribute__((opencl_global_device)) int *GLOBDEV; // expected-warning{{''opencl_global_device'' attribute is deprecated and may be removed in a future version of Clang}}
+  __attribute__((opencl_global_host)) int *GLOBHOST; // expected-warning{{''opencl_global_host'' attribute is deprecated and may be removed in a future version of Clang}}
   __attribute__((opencl_private)) int *PRIV;
   __attribute__((opencl_local)) int *LOC;
   int *NoAS;

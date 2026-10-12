@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
+#include <vector>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -25,8 +26,8 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
   queue q;
   size_t sg_size = get_sg_size<class copy>(q);
   q.submit([&](handler &cgh) {
-     auto accC = bufC.get_access<access::mode::read_write>(cgh);
-     auto accA = bufA.get_access<access::mode::write>(cgh);
+     auto accC = bufC.get_access<access_mode::read_write>(cgh);
+     auto accA = bufA.get_access<access_mode::write>(cgh);
 
      cgh.parallel_for<class copy>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
@@ -64,6 +65,14 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
 }
 
 int main() {
+  device dev;
+  auto combinations = dev.get_info<
+      sycl::ext::oneapi::experimental::info::device::matrix_combinations>();
+  for (const auto &combination : combinations)
+    if (combination.nsize == 8) // architecture::intel_gpu_dg2*
+      // N and K must be the same for this test.\n";
+      return 0;
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;

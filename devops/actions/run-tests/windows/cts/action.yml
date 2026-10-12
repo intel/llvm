@@ -60,9 +60,10 @@ runs:
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
-      -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DDPCPP_INSTALL_DIR="$(dirname $(which dpclang++))/.." \
       -DCMAKE_CXX_COMPILER=cl \
       -DCMAKE_BUILD_TYPE=Release \
+      -DDPCPP_ENABLE_PREVIEW_CHANGES=OFF \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that
@@ -72,7 +73,12 @@ runs:
   - name: Pack SYCL-CTS binaries
     if:  ${{ !cancelled() && inputs.testing_mode == 'build-only' }}
     shell: bash
-    run: tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./build-cts/bin .
+    run: |
+      # Compiler generates test.exe, test.exp and test.lib. Pack only exe.
+      mkdir executables
+      find ./build-cts/bin -name 'test_*.exe' -exec cp {} executables/ \;
+      tar -I 'zstd -9' -cf sycl_cts_bin.tar.zst -C ./executables .
+      rm -rf executables
 
   - name: Upload SYCL-CTS binaries
     if:  ${{ !cancelled() && inputs.testing_mode == 'build-only' }}

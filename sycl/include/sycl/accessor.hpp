@@ -9,12 +9,13 @@
 #pragma once
 
 #include <sycl/access/access.hpp>                     // for target, mode
-#include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
-#include <sycl/detail/common.hpp>                     // for code_location
+#include <sycl/detail/code_location.hpp>              // for code_location
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>                    // for __SYCL_SPECIAL...
 #include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
+#include <sycl/detail/fwd/buffer.hpp>                 // for buffer (fwd)
 #include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
 #include <sycl/detail/loop.hpp>                       // for loop
@@ -29,7 +30,6 @@
 #include <sycl/multi_ptr.hpp>                         // for multi_ptr
 #include <sycl/pointers.hpp>                          // for local_ptr, glo...
 #include <sycl/properties/accessor_properties.hpp>    // for buffer_location
-#include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
 
@@ -213,6 +213,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+class device;
 class stream;
 template <typename T, access::address_space addressSpace> class atomic;
 
@@ -227,17 +228,11 @@ template <typename, int> class dynamic_local_accessor;
 
 namespace detail {
 
-template <typename... Ts>
 #ifndef __SYCL_DEVICE_ONLY__
-[[noreturn]]
+[[noreturn]] __SYCL_EXPORT void cannot_be_called_on_host(const char *API);
+#else
+inline void cannot_be_called_on_host(const char *) {}
 #endif
-void cannot_be_called_on_host([[maybe_unused]] const char *API,
-                              Ts &&.../* ignore */) {
-#ifndef __SYCL_DEVICE_ONLY__
-  std::cerr << API << " cannot be called on host!" << std::endl;
-  std::abort();
-#endif
-}
 
 // A helper structure which is shared between buffer accessor and accessor_impl
 // TODO: Unify with AccessorImplDevice?

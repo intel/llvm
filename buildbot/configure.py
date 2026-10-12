@@ -29,7 +29,7 @@ def do_configure(args, passthrough_args):
     if sys.platform != "darwin":
         llvm_external_projects += ";libdevice"
 
-    libclc_amd_target_names = ";amdgcn-amd-amdhsa"
+    libclc_amd_target_names = ";amdgcn-amd-amdhsa-llvm"
     libclc_nvidia_target_names = ";nvptx64-nvidia-cuda"
 
     sycl_enable_jit = "OFF"
@@ -49,8 +49,7 @@ def do_configure(args, passthrough_args):
     jit_dir = os.path.join(abs_src_dir, "sycl-jit")
     llvm_targets_to_build = args.host_target + ";SPIRV"
     llvm_enable_projects = "clang;" + llvm_external_projects
-    libclc_build_native = "OFF"
-    libclc_targets_to_build = ""
+    runtime_targets = "default" # for non-libclc runtimes
     sycl_build_ur_hip_platform = "AMD"
     sycl_clang_extra_flags = ""
     sycl_werror = "OFF"
@@ -59,6 +58,7 @@ def do_configure(args, passthrough_args):
     llvm_enable_sphinx = "OFF"
     llvm_build_shared_libs = "OFF"
     llvm_enable_lld = "OFF"
+    llvm_link_dylib = "OFF"
     sycl_enabled_backends = ["opencl"]
     sycl_preview_lib = "ON"
 
@@ -79,8 +79,6 @@ def do_configure(args, passthrough_args):
             sycl_enabled_backends.append("level_zero_v2")
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
-    if libclc_enabled:
-        llvm_enable_runtimes += ";libclc"
 
     # DeviceRTL uses -fuse-ld=lld, so enable lld.
     if args.offload:
@@ -89,26 +87,23 @@ def do_configure(args, passthrough_args):
 
     if args.cuda:
         llvm_targets_to_build += ";NVPTX"
-        libclc_targets_to_build = libclc_nvidia_target_names
+        runtime_targets += libclc_nvidia_target_names
         sycl_enabled_backends.append("cuda")
 
     if args.hip:
         if args.hip_platform == "AMD":
             llvm_targets_to_build += ";AMDGPU"
-            libclc_targets_to_build += libclc_amd_target_names
+            runtime_targets += libclc_amd_target_names
 
         elif args.hip_platform == "NVIDIA" and not args.cuda:
             llvm_targets_to_build += ";NVPTX"
-            libclc_targets_to_build += libclc_nvidia_target_names
+            runtime_targets += libclc_nvidia_target_names
 
         sycl_build_ur_hip_platform = args.hip_platform
         sycl_enabled_backends.append("hip")
 
     if args.native_cpu:
-        if args.native_cpu_libclc_targets:
-            libclc_targets_to_build += ";" + args.native_cpu_libclc_targets
-        else:
-            libclc_build_native = "ON"
+        runtime_targets += ";native_cpu"
         sycl_enabled_backends.append("native_cpu")
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
@@ -132,6 +127,9 @@ def do_configure(args, passthrough_args):
     if args.use_lld:
         llvm_enable_lld = "ON"
 
+    if args.llvm_link_dylib:
+        llvm_link_dylib = "ON"
+
     if args.use_zstd:
         llvm_enable_zstd = "FORCE_ON"
 
@@ -149,14 +147,12 @@ def do_configure(args, passthrough_args):
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
-            if "libclc" not in llvm_enable_runtimes:
-                llvm_enable_runtimes += ";libclc"
             # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
             if "NVPTX" not in llvm_targets_to_build:
                 llvm_targets_to_build += ";NVPTX"
             # Add NVIDIA libclc targets
-            if libclc_nvidia_target_names not in libclc_targets_to_build:
-                libclc_targets_to_build += libclc_nvidia_target_names
+            if libclc_nvidia_target_names not in runtime_targets:
+                runtime_targets += libclc_nvidia_target_names
             spirv_enable_dis = "ON"
 
     if args.enable_backends:
@@ -197,6 +193,8 @@ def do_configure(args, passthrough_args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
+        "-DLLVM_LINK_LLVM_DYLIB={}".format(llvm_link_dylib),
+        "-DCLANG_LINK_CLANG_DYLIB={}".format(llvm_link_dylib),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
         "-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS={}".format(spirv_enable_dis),
@@ -207,6 +205,24 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
+
+    if sys.platform != "darwin":
+        llvm_spirv64_runtimes = "compiler-rt"
+        llvm_spirv64_sanitizers = ""
+        runtime_targets += ";spirv64-unknown-unknown"
+        cmake_cmd.extend(
+            [
+                "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
+                    llvm_spirv64_runtimes
+                ),
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
+                    llvm_spirv64_sanitizers
+                ),
+                # Disable compiler-rt tests (e.g. builtins) for the spirv64
+                # runtime target so they are not added to `check-all`.
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_INCLUDE_TESTS=OFF",
+            ]
+        )
 
     if llvm_enable_runtimes:
         cmake_cmd.extend(
@@ -232,13 +248,20 @@ def do_configure(args, passthrough_args):
             )
 
     if libclc_enabled:
-        cmake_cmd.extend(
-            [
-                "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-                "-DLIBCLC_NATIVECPU_HOST_TARGET={}".format(libclc_build_native),
-            ]
-        )
+        for target in runtime_targets.split(";"):
+            if target == "default" or target == "spirv64-unknown-unknown":
+                continue
+            cmake_cmd.extend(
+                [
+                    f"-DRUNTIMES_{target}_LLVM_ENABLE_RUNTIMES=libclc",
+                ]
+            )
 
+    cmake_cmd.extend(
+        [
+            "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
+        ]
+    )
     if args.l0_headers and args.l0_loader:
         cmake_cmd.extend(
             [
@@ -405,6 +428,11 @@ def main():
     parser.add_argument("--use-libcxx", action="store_true", help="build with libcxx")
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
+    )
+    parser.add_argument(
+        "--llvm-link-dylib",
+        action="store_true",
+        help="Build/link against the shared libLLVM.so and libclang-cpp.so ",
     )
     parser.add_argument(
         "--llvm-external-projects",

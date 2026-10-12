@@ -32,9 +32,15 @@ __SYCL_MANUALLY_DEFINED_PROP(property::queue::cuda, use_default_stream)
 // Contains data field, defined explicitly.
 __SYCL_MANUALLY_DEFINED_PROP(ext::intel::property::queue, compute_index)
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+/// Inform the implementation that the application will not use events returned
+/// by queue member functions.
+///
+/// This property is incompatible with `enable_profiling`.
 __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(
     ext::oneapi::property::queue, discard_events, DiscardEvents,
     __SYCL2020_DEPRECATED("use sycl_ext_oneapi_enqueue_functions instead"))
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #undef __SYCL_DATA_LESS_PROP
 #undef __SYCL_MANUALLY_DEFINED_PROP

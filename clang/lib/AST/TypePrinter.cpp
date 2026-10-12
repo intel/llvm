@@ -290,6 +290,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::MacroQualified:
     case Type::OverflowBehavior:
     case Type::CountAttributed:
+    case Type::LateParsedAttr:
       CanPrefixQualifiers = false;
       break;
 
@@ -735,13 +736,25 @@ void TypePrinter::printVectorBefore(const VectorType *T, raw_ostream &OS) {
     // FIXME: We prefer to print the size directly here, but have no way
     // to get the size of the type.
     OS << "__attribute__((__riscv_rvv_vector_bits__(";
-
-    OS << T->getNumElements();
-
-    OS << " * sizeof(";
-    print(T->getElementType(), OS, StringRef());
-    // Multiply by 8 for the number of bits.
-    OS << ") * 8))) ";
+    switch (T->getVectorKind()) {
+    case VectorKind::RVVFixedLengthMask_1:
+      OS << '1';
+      break;
+    case VectorKind::RVVFixedLengthMask_2:
+      OS << '2';
+      break;
+    case VectorKind::RVVFixedLengthMask_4:
+      OS << '4';
+      break;
+    default:
+      OS << T->getNumElements();
+      OS << " * sizeof(";
+      print(T->getElementType(), OS, StringRef());
+      // Multiply by 8 for the number of bits.
+      OS << ") * 8";
+      break;
+    }
+    OS << "))) ";
     printBefore(T->getElementType(), OS);
     break;
   }
@@ -818,12 +831,25 @@ void TypePrinter::printDependentVectorBefore(
     // FIXME: We prefer to print the size directly here, but have no way
     // to get the size of the type.
     OS << "__attribute__((__riscv_rvv_vector_bits__(";
-    if (T->getSizeExpr()) {
-      T->getSizeExpr()->printPretty(OS, nullptr, Policy);
-      OS << " * sizeof(";
-      print(T->getElementType(), OS, StringRef());
-      // Multiply by 8 for the number of bits.
-      OS << ") * 8";
+    switch (T->getVectorKind()) {
+    case VectorKind::RVVFixedLengthMask_1:
+      OS << '1';
+      break;
+    case VectorKind::RVVFixedLengthMask_2:
+      OS << '2';
+      break;
+    case VectorKind::RVVFixedLengthMask_4:
+      OS << '4';
+      break;
+    default:
+      if (T->getSizeExpr()) {
+        T->getSizeExpr()->printPretty(OS, nullptr, Policy);
+        OS << " * sizeof(";
+        print(T->getElementType(), OS, StringRef());
+        // Multiply by 8 for the number of bits.
+        OS << ") * 8";
+      }
+      break;
     }
     OS << "))) ";
     printBefore(T->getElementType(), OS);
@@ -1150,6 +1176,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
     case CC_AArch64SVEPCS:
       OS << " __attribute__((aarch64_sve_pcs))";
       break;
+    case CC_NativeCPUFunction:
+      // Do nothing. This CC is not available as an attribute.
+      break;
     case CC_DeviceKernel:
       OS << " __attribute__((device_kernel))";
       break;
@@ -1164,9 +1193,6 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       break;
     case CC_X86RegCall:
       OS << " __attribute__((regcall))";
-      break;
-    case CC_SpirFunction:
-      // Do nothing. These CCs are not available as attributes.
       break;
     case CC_Swift:
       OS << " __attribute__((swiftcall))";
@@ -1379,7 +1405,7 @@ void TypePrinter::printUnaryTransformBefore(const UnaryTransformType *T,
   static const llvm::DenseMap<int, const char *> Transformation = {{
 #define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
   {UnaryTransformType::Enum, "__" #Trait},
-#include "clang/Basic/TransformTypeTraits.def"
+#include "clang/Basic/BuiltinTraits.inc"
   }};
   OS << Transformation.lookup(T->getUTTKind()) << '(';
   print(T->getBaseType(), OS, StringRef());
@@ -1398,12 +1424,16 @@ void TypePrinter::printAutoBefore(const AutoType *T, raw_ostream &OS) {
     if (T->isConstrained()) {
       // FIXME: Track a TypeConstraint as type sugar, so that we can print the
       // type as it was written.
-      T->getTypeConstraintConcept()->getDeclName().print(OS, Policy);
+      TemplateName Concept = T->getTypeConstraintConcept();
+      Concept.print(OS, Policy, TemplateName::Qualified::None);
       auto Args = T->getTypeConstraintArguments();
-      if (!Args.empty())
-        printTemplateArgumentList(
-            OS, Args, Policy,
-            T->getTypeConstraintConcept()->getTemplateParameters());
+      if (!Args.empty()) {
+        const TemplateDecl *TD = Concept.getAsTemplateDecl();
+        if (!TD)
+          TD = Concept.getAsTemplateTemplateParmDecl();
+        printTemplateArgumentList(OS, Args, Policy,
+                                  TD->getTemplateParameters());
+      }
       OS << ' ';
     }
     switch (T->getKeyword()) {
@@ -1841,6 +1871,20 @@ void TypePrinter::printCountAttributedAfter(const CountAttributedType *T,
     printCountAttributedImpl(T, OS, Policy);
 }
 
+void TypePrinter::printLateParsedAttrBefore(const LateParsedAttrType *T,
+                                            raw_ostream &OS) {
+  // LateParsedAttrType is a transient placeholder that should not appear
+  // in user-facing output. Just print the wrapped type.
+  printBefore(T->getWrappedType(), OS);
+}
+
+void TypePrinter::printLateParsedAttrAfter(const LateParsedAttrType *T,
+                                           raw_ostream &OS) {
+  // LateParsedAttrType is a transient placeholder that should not appear
+  // in user-facing output. Just print the wrapped type.
+  printAfter(T->getWrappedType(), OS);
+}
+
 void TypePrinter::printAttributedBefore(const AttributedType *T,
                                         raw_ostream &OS) {
   // FIXME: Generate this with TableGen.
@@ -1994,11 +2038,13 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     llvm_unreachable("BTFTypeTag attribute handled separately");
 
   case attr::HLSLResourceClass:
-  case attr::HLSLROV:
+  case attr::HLSLIsROV:
   case attr::HLSLRawBuffer:
   case attr::HLSLContainedType:
   case attr::HLSLIsCounter:
   case attr::HLSLResourceDimension:
+  case attr::HLSLIsArray:
+  case attr::HLSLIsMultiSampled:
     llvm_unreachable("HLSL resource type attributes handled separately");
 
   case attr::OpenCLPrivateAddressSpace:
@@ -2056,6 +2102,13 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
 
   case attr::NSReturnsRetained:
     OS << "ns_returns_retained";
+    break;
+
+  case attr::HLSLRowMajor:
+    OS << "row_major";
+    break;
+  case attr::HLSLColumnMajor:
+    OS << "column_major";
     break;
 
   // FIXME: When Sema learns to form this AttributedType, avoid printing the
@@ -2165,15 +2218,19 @@ void TypePrinter::printHLSLAttributedResourceAfter(
     const HLSLAttributedResourceType *T, raw_ostream &OS) {
   printAfter(T->getWrappedType(), OS);
   const HLSLAttributedResourceType::Attributes &Attrs = T->getAttrs();
-  OS << " [[hlsl::resource_class("
+  OS << " [[hlsl::resource_class(\""
      << HLSLResourceClassAttr::ConvertResourceClassToStr(Attrs.ResourceClass)
-     << ")]]";
+     << "\")]]";
   if (Attrs.IsROV)
     OS << " [[hlsl::is_rov]]";
   if (Attrs.RawBuffer)
     OS << " [[hlsl::raw_buffer]]";
   if (Attrs.IsCounter)
     OS << " [[hlsl::is_counter]]";
+  if (Attrs.IsArray)
+    OS << " [[hlsl::is_array]]";
+  if (Attrs.isMultiSampled())
+    OS << " [[hlsl::is_ms]]";
 
   QualType ContainedTy = T->getContainedType();
   if (!ContainedTy.isNull()) {
@@ -2184,10 +2241,10 @@ void TypePrinter::printHLSLAttributedResourceAfter(
   }
 
   if (Attrs.ResourceDimension != llvm::dxil::ResourceDimension::Unknown)
-    OS << " [[hlsl::resource_dimension("
+    OS << " [[hlsl::dimension(\""
        << HLSLResourceDimensionAttr::ConvertResourceDimensionToStr(
               Attrs.ResourceDimension)
-       << ")]]";
+       << "\")]]";
 }
 
 void TypePrinter::printHLSLInlineSpirvBefore(const HLSLInlineSpirvType *T,
@@ -2742,6 +2799,8 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "hlsl_push_constant";
   case LangAS::wasm_funcref:
     return "__funcref";
+  case LangAS::amdgpu_barrier:
+    return "amdgpu_barrier";
   default:
     return std::to_string(toTargetAddressSpace(AS));
   }

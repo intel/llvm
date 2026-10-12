@@ -9,6 +9,7 @@
 // RUN: %{run} %t.out
 
 // Smoke test for scatter/gather also illustrating correct use of these APIs
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

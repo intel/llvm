@@ -155,7 +155,7 @@ The following section gives a brief overview of how a simple SYCL application is
 The extracted device code produces the following LLVM-IR:
 
 ```llvm
-define weak_odr dso_local spir_kernel void @_Z6Sample(ptr noundef align 4 %_arg_c_ptr, ptr noundef align 4 %_arg_a_ptr, ptr noundef align 4 %_arg_b_ptr) local_unnamed_addr #1 comdat !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
+define weak_odr dso_local spir_kernel void @_Z6Sample(ptr noundef align 4 %_arg_c_ptr, ptr noundef align 4 %_arg_a_ptr, ptr noundef align 4 %_arg_b_ptr) local_unnamed_addr #1 comdat !srcloc !74 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
 entry:
   %0 = load i64, ptr @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !78
   %arrayidx.i = getelementptr inbounds i32, ptr %_arg_a_ptr, i64 %0

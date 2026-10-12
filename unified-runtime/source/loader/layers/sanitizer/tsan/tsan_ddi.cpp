@@ -26,13 +26,18 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   std::shared_ptr<ContextInfo> CI;
   UR_CALL(getTsanInterceptor()->insertContext(Context, CI));
   for (uint32_t i = 0; i < numDevices; i++) {
-    std::shared_ptr<DeviceInfo> DI;
-    UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
-    DI->Type = GetDeviceType(Context, DI->Handle);
-    if (DI->Type == DeviceType::UNKNOWN) {
+    // Reject unsupported devices before registering them: the interceptor
+    // teardown expects every device it knows about to have shadow memory.
+    auto Type = GetDeviceType(Context, phDevices[i]);
+    if (Type == DeviceType::UNKNOWN) {
       UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
+    UR_CALL(CheckDeviceBackendSupported(phDevices[i], Type));
+
+    std::shared_ptr<DeviceInfo> DI;
+    UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
+    DI->Type = Type;
     if (!DI->Shadow)
       UR_CALL(DI->allocShadowMemory());
     CI->DeviceList.emplace_back(DI->Handle);
@@ -1164,7 +1169,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
   return getTsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::DEVICE_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1182,8 +1188,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     void **ppMem) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
 
-  return getTsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
-                                              size, AllocType::HOST_USM, ppMem);
+  return getTsanInterceptor()->allocateMemory(
+      hContext, nullptr, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::HOST_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1204,7 +1211,8 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
 
   return getTsanInterceptor()->allocateMemory(
-      hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
+      hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
+      AllocType::SHARED_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1269,8 +1277,12 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
   KernelInfo.ArgProps.resize(numArgs);
-  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
-              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+  // A kernel may take no arguments at all, in which case pArgs is null and the
+  // resized vector has not allocated, so both memcpy pointers are null. That is
+  // undefined behaviour even for a zero length.
+  if (numArgs)
+    std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+                numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
@@ -1324,6 +1336,108 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
       launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportAllocExportableMemoryExp");
+
+  UR_CALL(getTsanInterceptor()->allocateMemory(
+      hContext, hDevice,
+      AllocMemoryParams::forExportableMem(alignment, handleTypeToExport), size,
+      AllocType::EXPORTABLE_MEM, ppMem));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) {
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urMemoryExportFreeExportableMemoryExp");
+
+  auto DI = getTsanInterceptor()->getDeviceInfo(hDevice);
+  std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+  auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
+                         [&](auto &P) { return P.AllocBegin == (uptr)pMem; });
+  if (It != DI->AllocInfos.end())
+    DI->AllocInfos.erase(It);
+
+  return getContext()->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp(
+      hContext, hDevice, pMem);
+}
+
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCOpenMemHandleExp");
+
+  UR_CALL(getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp(
+      hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
+
+  size_t MemSize;
+  UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
+      nullptr));
+  auto DI = getTsanInterceptor()->getDeviceInfo(hDevice);
+  DI->insertAllocInfo(TsanAllocInfo{reinterpret_cast<uptr>(*ppMem), MemSize});
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCCloseMemHandleExp");
+
+  UR_CALL(getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp(hContext, pMem));
+
+  auto CI = getTsanInterceptor()->getContextInfo(hContext);
+  auto Addr = reinterpret_cast<uptr>(pMem);
+  for (const auto &Device : CI->DeviceList) {
+    auto DI = getTsanInterceptor()->getDeviceInfo(Device);
+    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
+                           [&](auto &P) { return P.AllocBegin == Addr; });
+    if (It != DI->AllocInfos.end())
+      DI->AllocInfos.erase(It);
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -1552,12 +1666,52 @@ ur_result_t urGetEnqueueExpProcAddrTable(
 
   return result;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExport table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL
+urGetMemoryExportExpProcAddrTable(ur_memory_export_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur_sanitizer_layer::tsan::urMemoryExportAllocExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur_sanitizer_layer::tsan::urMemoryExportFreeExportableMemoryExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetIPCExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnOpenMemHandleExp =
+      ur_sanitizer_layer::tsan::urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp =
+      ur_sanitizer_layer::tsan::urIPCCloseMemHandleExp;
+
+  return result;
+}
+
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
-
-  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: TSAN");
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
@@ -1604,6 +1758,16 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
         &dditable->EnqueueExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetMemoryExportExpProcAddrTable(
+        &dditable->MemoryExportExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::tsan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

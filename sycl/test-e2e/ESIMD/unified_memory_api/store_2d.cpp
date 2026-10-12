@@ -12,6 +12,7 @@
 // The test verifies esimd::store_2d() function accepting USM pointer
 // and optional compile-time esimd::properties.
 #include "../esimd_test_utils.hpp"
+#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

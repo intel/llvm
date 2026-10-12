@@ -111,6 +111,20 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   // We do nothing here
 }
 
+// Optional: query callback for stream detail level (defaults to NORMAL if
+// omitted). Use XPTI_HAS_STREAM_DETAIL_LEVEL for backward compatibility.
+#ifdef XPTI_HAS_STREAM_DETAIL_LEVEL
+XPTI_CALLBACK_API bool
+xptiQuerySubscriberStreamDetailLevel(const char *stream_name,
+                                     xpti::stream_detail_level_t *level) {
+  if (level) {
+    *level = xpti::stream_detail_level_t::XPTI_STREAM_DETAIL_LEVEL_VERBOSE;
+    return true;
+  }
+  return false;
+}
+#endif
+
 XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Parent,
                                   xpti::trace_event_data_t *Event,

@@ -140,21 +140,27 @@ inline bool is_valid_uid(const xpti::uid128_t &UID) {
 struct hash_t {
   /// @brief Calculates the number of bits required to represent a given value.
   ///
-  /// This function uses the logarithm base 2 (log2) of the input value to
-  /// calculate the number of bits required to represent it. It then adds 1 to
-  /// the result to account for the fact that log2 of a value is one less than
-  /// the number of bits required to represent it.
+  /// This function computes the bit count using integer arithmetic. For zero,
+  /// it returns 1 to ensure zero fields keep their place in the hash. For
+  /// non-zero values, it counts the number of shifts needed to reduce the
+  /// value to zero, i.e. the position of the highest set bit plus 1.
   ///
   /// @param value A 64-bit integer for which the bit count is to be calculated.
   /// @return The number of bits required to represent the input value.
   unsigned bit_count(uint64_t value) {
-    // FIXME: using std::log2 is imprecise. There is no guarantee that the
-    // implementation has actual integer overload for log2 and it is allowed to
-    // do a static_cast<double>(value) to compute the result. Not every integer
-    // is represetntable as floating-point, meaning that byte representation of
-    // value as double may not be the same as for integer, resulting in
-    // different result.
-    return static_cast<unsigned>(std::log2(value)) + 1;
+    // Computed with integer arithmetic: std::log2 is imprecise for large
+    // integers, which are not all representable as floating-point, and
+    // std::log2(0) is -inf, which is not representable as unsigned.
+    // Zero still takes one bit, so that a zero field keeps its place in the
+    // hash instead of letting the neighbouring fields shift into it.
+    if (value == 0)
+      return 1;
+    unsigned count = 0;
+    while (value) {
+      ++count;
+      value >>= 1;
+    }
+    return count;
   }
 
   /// @brief Compacts the file ID, function ID, line number, and column number
@@ -351,6 +357,24 @@ enum class payload_flag_t {
 };
 
 using stream_id_t = uint8_t;
+
+/// @enum stream_detail_level_t
+/// @brief Defines detail level for optional stream data emission.
+/// Values are ordered to allow threshold checks. Effective level is the
+/// maximum requested across all subscribers for a stream.
+enum class stream_detail_level_t : uint8_t {
+  XPTI_STREAM_DETAIL_LEVEL_NONE = 0,   ///< No optional data
+  XPTI_STREAM_DETAIL_LEVEL_BASIC = 1,  ///< Basic optional data
+  XPTI_STREAM_DETAIL_LEVEL_NORMAL = 2, ///< Normal detail (default)
+  XPTI_STREAM_DETAIL_LEVEL_VERBOSE = 3 ///< Maximum detail
+};
+
+/// @def XPTI_HAS_STREAM_DETAIL_LEVEL
+/// @brief Feature detection macro for stream detail level support.
+/// Subscribers can use this macro to conditionally compile code that uses
+/// stream_detail_level_t, xptiQuerySubscriberStreamDetailLevel, and
+/// xptiGetEffectiveStreamDetailLevel.
+#define XPTI_HAS_STREAM_DETAIL_LEVEL 1
 
 //
 //  Helper macros for creating new tracepoint and
@@ -1246,6 +1270,16 @@ typedef void (*plugin_init_t)(unsigned int, unsigned int, const char *,
                               const char *);
 typedef void (*plugin_fini_t)(const char *);
 
+/// @typedef query_subscriber_stream_detail_level_t
+/// @brief Optional callback for querying subscriber's requested detail level
+/// per stream.
+/// @param stream_name Stream name being queried.
+/// @param level Output: subscriber's desired detail level for the stream.
+/// @return true if level was set, false otherwise.
+/// @note If not implemented, defaults to NORMAL for all streams.
+typedef bool (*query_subscriber_stream_detail_level_t)(
+    const char *stream_name, xpti::stream_detail_level_t *level);
+
 constexpr uint16_t trace_task_begin =
     static_cast<uint16_t>(xpti::trace_point_type_t::task_begin);
 constexpr uint16_t trace_task_end =
@@ -1445,4 +1479,15 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
 /// subscribed to this stream can now free up all internal data structures and
 /// memory that has been allocated to manage the stream data.
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name);
+
+/// @brief Optional callback for querying subscriber's stream detail level
+/// preference. Called by framework during stream initialization to compute
+/// effective detail level.
+/// @param stream_name Stream name being queried.
+/// @param level Output: subscriber's requested detail level.
+/// @return true if level was set, false otherwise.
+/// @note Optional. If not implemented, defaults to NORMAL.
+XPTI_CALLBACK_API bool
+xptiQuerySubscriberStreamDetailLevel(const char *stream_name,
+                                     xpti::stream_detail_level_t *level);
 }

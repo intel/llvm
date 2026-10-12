@@ -452,7 +452,8 @@ static CallInst *createRISCVMaskedIntrinsic(IRBuilder<> &B, Intrinsic::ID ID,
   SmallVector<Value *> InArgs(Args.begin(), Args.end());
   InArgs.push_back(
       B.getIntN(Args.back()->getType()->getIntegerBitWidth(), TailPolicy));
-  return B.CreateIntrinsic(ID, Types, InArgs, FMFSource, Name);
+  Value *Result = B.CreateIntrinsic(ID, Types, InArgs, FMFSource, Name);
+  return cast<CallInst>(Result);
 }
 
 llvm::Value *TargetInfoRISCV::createScalableInsertElement(

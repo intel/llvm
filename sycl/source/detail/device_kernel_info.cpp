@@ -58,6 +58,10 @@ void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
   MImplicitLocalArgPos = Pos;
 }
 
+void DeviceKernelInfo::setWorkGroupDynamicLocalMem() {
+  MWorkGroupDynamicLocalMem = true;
+}
+
 std::string_view DeviceKernelInfo::getDemangledName() const {
   std::call_once(MDemangledNameInitFlag, [&]() {
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING

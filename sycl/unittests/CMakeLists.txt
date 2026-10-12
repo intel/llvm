@@ -23,6 +23,13 @@ if (SYCL_CXX_SUPPORTS_INCONSISTENT_MISSING_OVERRIDE_FLAG)
   add_compile_options("-Wno-inconsistent-missing-override")
 endif()
 
+if (MSVC)
+  add_compile_options("/WX")
+else()
+  add_compile_options("-Werror")
+endif()
+
+
 string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
@@ -63,5 +70,4 @@ if (SYCL_ENABLE_XPTI_TRACING AND NOT WIN32)
 endif()
 add_subdirectory(sampler)
 add_subdirectory(reduction)
-add_subdirectory(range)
 add_subdirectory(OneAPIDeviceSelector)

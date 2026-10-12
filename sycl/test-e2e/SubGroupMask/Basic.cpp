@@ -36,7 +36,7 @@ int main() {
       buffer resbuf(&Res, range<1>(1));
 
       Queue.submit([&](handler &cgh) {
-        auto resacc = resbuf.get_access<access::mode::read_write>(cgh);
+        auto resacc = resbuf.get_access<access_mode::read_write>(cgh);
 
         cgh.parallel_for<class sub_group_mask_test>(
             NdRange, [=](nd_item<1> NdItem) [[sycl::reqd_sub_group_size(32)]] {

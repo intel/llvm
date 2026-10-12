@@ -23,8 +23,7 @@
 // RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64 -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fno-sycl-dead-args-optimization -c %s -o b.o -Wno-sycl-strict
 //
 // >> ---- link the full hetero app
-// RUN: %{run-aux} %clangxx --offload-new-driver -fsycl -fsycl-targets=spir64 a.o b.o -o app.exe %sycl_options
-//
+// RUN: %{run-aux} %clangxx --offload-new-driver -Wno-unused-command-line-argument -fsycl -fsycl-targets=spir64 a.o b.o -o app.exe %sycl_options
 // RUN: %{run} ./app.exe
 
 #ifdef B_CPP
@@ -38,7 +37,7 @@ int run_test_b(int v) {
     sycl::queue deviceQueue;
     sycl::buffer<int, 1> buf(arr, 1);
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class kernel_b>([=]() { acc[0] *= 3; });
     });
   }
@@ -63,7 +62,7 @@ int run_test_a(int v) {
     sycl::queue deviceQueue;
     sycl::buffer<int, 1> buf(arr, 1);
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class kernel_a>([=]() { acc[0] *= 2; });
     });
   }

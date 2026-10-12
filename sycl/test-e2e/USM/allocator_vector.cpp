@@ -25,7 +25,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
     std::vector<int, decltype(alloc)> vec(alloc);
@@ -54,7 +54,7 @@ int main() {
       return -1;
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     usm_allocator<int, usm::alloc::shared> alloc(ctxt, dev);
 
     std::vector<int, decltype(alloc)> vec(alloc);

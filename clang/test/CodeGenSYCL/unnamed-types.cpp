@@ -3,11 +3,13 @@
 // template functions. It ensures that the compiler generates distinct symbols
 // for each lambda and resolves them correctly in function calls.
 
-// RUN: %clang_cc1 -fsycl-is-device -O0 -triple spirv64-unknown-unknown \
-// RUN: -emit-llvm  %s -o - | FileCheck %s --check-prefix=DEVICE
+// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -O0 \
+// RUN: -aux-triple x86_64-unknown-linux-gnu -triple spirv64-unknown-unknown \
+// RUN: %s -o - | FileCheck %s --check-prefix=DEVICE
 
-// RUN: %clang_cc1 -fsycl-is-host -O0 -triple spirv64-unknown-unknown \
-// RUN: -emit-llvm  %s -o - | FileCheck %s --check-prefix=HOST
+// RUN: %clang_cc1 -fsycl-is-host -emit-llvm -O0 \
+// RUN: -triple x86_64-unknown-linux-gnu \
+// RUN: %s -o - | FileCheck %s --check-prefix=HOST
 
 // RUN: %clang_cc1 -fsycl-is-device -emit-llvm \
 // RUN: -aux-triple x86_64-pc-windows-msvc -triple spir64-unknown--unknown \
@@ -51,22 +53,22 @@ void g() {
 // DEVICE: define spir_kernel void @_ZTSN2QL3dg2MUlvE_E
 // DEVICE: call spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
 // DEVICE: define internal spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
-// DEVICE: define spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
+// DEVICE: define weak_odr spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
 // DEVICE: call spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
 // DEVICE: define linkonce_odr spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
-// DEVICE: define spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
+// DEVICE: define weak_odr spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
 // DEVICE: call spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 // DEVICE: define linkonce_odr spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 
-// HOST: define spir_func void @_Z1gv
-// HOST: call spir_func void @_Z1fIN2QL3dg1MUlvE_EEvT_
-// HOST: call spir_func void @_Z1fIN2QL3dg2MUlvE_EEvT_
-// HOST: call spir_func void @_Z1fIN2QL10dg_inline1MUlvE_EEvT_
-// HOST: call spir_func void @_Z1fIN2QL11dg_templateILi3EEMUlvE_EEvT_
-// HOST: define internal spir_func void @_Z1fIN2QL3dg1MUlvE_EEvT
-// HOST: define internal spir_func void @_Z1fIN2QL3dg2MUlvE_EEvT_
-// HOST: define linkonce_odr spir_func void @_Z1fIN2QL10dg_inline1MUlvE_EEvT_
-// HOST: define linkonce_odr spir_func void @_Z1fIN2QL11dg_templateILi3EEMUlvE_EEvT_
+// HOST: define dso_local void @_Z1gv
+// HOST: call void @_Z1fIN2QL3dg1MUlvE_EEvT_
+// HOST: call void @_Z1fIN2QL3dg2MUlvE_EEvT_
+// HOST: call void @_Z1fIN2QL10dg_inline1MUlvE_EEvT_
+// HOST: call void @_Z1fIN2QL11dg_templateILi3EEMUlvE_EEvT_
+// HOST: define internal void @_Z1fIN2QL3dg1MUlvE_EEvT
+// HOST: define internal void @_Z1fIN2QL3dg2MUlvE_EEvT_
+// HOST: define linkonce_odr void @_Z1fIN2QL10dg_inline1MUlvE_EEvT_
+// HOST: define linkonce_odr void @_Z1fIN2QL11dg_templateILi3EEMUlvE_EEvT_
 
 // MSVC: define dso_local spir_kernel void @_ZTSN2QL3dg1MUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL3dg1MUlvE_clEv
@@ -74,9 +76,9 @@ void g() {
 // MSVC: define dso_local spir_kernel void @_ZTSN2QL3dg2MUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
 // MSVC: define internal spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
-// MSVC: define dso_local spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
+// MSVC: define weak_odr spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
 // MSVC: define linkonce_odr spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
-// MSVC: define dso_local spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
+// MSVC: define weak_odr spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 // MSVC: define linkonce_odr spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv

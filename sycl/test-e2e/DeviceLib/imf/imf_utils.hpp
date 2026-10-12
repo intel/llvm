@@ -7,6 +7,8 @@
 #include <iostream>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
 #include <type_traits>
 
 #if defined(__SPIR__) || defined(__SPIRV__)
@@ -207,6 +209,28 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
   }
 }
 
+template <class InputTy, class OutputTy, class FuncTy>
+void run_on_device(sycl::queue &q, std::initializer_list<InputTy> Input,
+                   std::vector<OutputTy> &Output, FuncTy Func) {
+  auto Size = Input.size();
+  assert(Size == Output.size());
+  sycl::buffer<InputTy> InBuf(Size);
+  {
+    sycl::host_accessor InAcc(InBuf, sycl::write_only);
+    int i = 0;
+    for (auto x : Input)
+      InAcc[i++] = x;
+  }
+
+  sycl::buffer<OutputTy> OutBuf(Output.data(), Size);
+  q.submit([&](sycl::handler &CGH) {
+     sycl::accessor InAcc(InBuf, CGH, sycl::read_only);
+     sycl::accessor OutAcc(OutBuf, CGH, sycl::write_only);
+     CGH.parallel_for(Size,
+                      [=](sycl::id<1> Id) { OutAcc[Id] = Func(InAcc[Id]); });
+   }).wait();
+}
+
 template <class InputTy, class OutputTy, class FuncTy,
           class EquTy = imf_utils_default_equ<OutputTy>>
 void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
@@ -401,6 +425,28 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
     }
     assert(false);
   }
+}
+
+inline bool is_bfloat16_nan(uint16_t x, bool &signaling) {
+  uint16_t exp_bits = x & 0x7F80;
+  uint16_t man_bits = x & 0x7F;
+  if (!(exp_bits == 0x7F80) || (man_bits == 0))
+    return false;
+  signaling = ((man_bits & 0x40) == 0x0);
+  return true;
+}
+
+// x is nan value
+inline bool is_signaling_nan(float x) {
+  uint32_t fp32_bits = __builtin_bit_cast(uint32_t, x);
+  uint32_t man_bits = fp32_bits & 0x400000;
+  return (man_bits & 0x400000) == 0x0;
+}
+
+inline bool is_signaling_nan(double x) {
+  uint64_t fp64_bits = __builtin_bit_cast(uint64_t, x);
+  uint64_t man_bits = fp64_bits & 0x8'0000'0000'0000;
+  return (man_bits & 0x8'0000'0000'0000) == 0x0;
 }
 
 #define F(Name) [](auto x) { return (Name)(x); }

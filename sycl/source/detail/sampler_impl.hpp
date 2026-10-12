@@ -37,7 +37,7 @@ public:
                addressing_mode addressingMode, filtering_mode filteringMode,
                const property_list &propList);
 
-  sampler_impl(cl_sampler clSampler, context_impl &syclContext);
+  sampler_impl(OpenCLSamplerT clSampler, context_impl &syclContext);
 
   addressing_mode get_addressing_mode() const;
 

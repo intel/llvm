@@ -33,7 +33,7 @@ void native_tanh_tester(sycl::queue q, T val, T up, T lo) {
   {
     sycl::buffer<T, 1> BufR(&r, sycl::range<1>(1));
     q.submit([&](sycl::handler &cgh) {
-      auto AccR = BufR.template get_access<sycl::access::mode::read_write>(cgh);
+      auto AccR = BufR.template get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task([=]() {
         AccR[0] = sycl::ext::oneapi::experimental::native::tanh(AccR[0]);
       });
@@ -54,7 +54,7 @@ void native_exp2_tester(sycl::queue q, T val, T up, T lo) {
   {
     sycl::buffer<T, 1> BufR(&r, sycl::range<1>(1));
     q.submit([&](sycl::handler &cgh) {
-      auto AccR = BufR.template get_access<sycl::access::mode::read_write>(cgh);
+      auto AccR = BufR.template get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task([=]() {
         AccR[0] = sycl::ext::oneapi::experimental::native::exp2(AccR[0]);
       });

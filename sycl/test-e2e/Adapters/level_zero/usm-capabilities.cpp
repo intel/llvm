@@ -11,9 +11,9 @@
 // CHECK:  usm_host_allocations: 1
 // CHECK:  usm_device_allocations: 1
 // CHECK:  usm_shared_allocations: 1
-// CHECK:  usm_system_allocations: 0
 // CHECK:  usm_atomic_host_allocations: 0
-// usm_atomic_shared_allocations is device and driver version dependent.
+// usm_system_allocations and usm_atomic_shared_allocations are device and
+// driver version dependent.
 
 using namespace sycl;
 

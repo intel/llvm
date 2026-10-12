@@ -12,8 +12,8 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/info/context.hpp>              // for is_context_info_desc
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/usm/usm_enums.hpp>             // for usm::alloc
 #include <unified-runtime/ur_api.h>           // for ur_native_handle_t
@@ -170,7 +170,7 @@ public:
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
 #ifdef __SYCL_INTERNAL_API
-  context(cl_context ClContext, async_handler AsyncHandler = {});
+  context(OpenCLContextT ClContext, async_handler AsyncHandler = {});
 #endif
 
   /// Queries this SYCL context for information.
@@ -194,10 +194,19 @@ public:
 
   context &operator=(context &&rhs) = default;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   bool operator==(const context &rhs) const { return impl == rhs.impl; }
 
   bool operator!=(const context &rhs) const { return !(*this == rhs); }
+#else
+  friend bool operator==(const context &lhs, const context &rhs) {
+    return rhs.impl == lhs.impl;
+  }
 
+  friend bool operator!=(const context &lhs, const context &rhs) {
+    return !(lhs == rhs);
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
@@ -221,7 +230,7 @@ public:
   ///
   /// \return a valid instance of OpenCL cl_context.
 #ifdef __SYCL_INTERNAL_API
-  cl_context get() const;
+  OpenCLContextT get() const;
 #endif
 
   /// Returns the backend associated with this context.

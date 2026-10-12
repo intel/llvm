@@ -16,6 +16,7 @@
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
 // producers. Producer stores data to SLM, then all threads read SLM and store
 // data to surface.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 
@@ -47,7 +48,7 @@ bool test(QueueTY q) {
     sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::write>(cgh);
+      auto acc = buf.get_access<access_mode::write>(cgh);
       cgh.parallel_for<KernelID<case_num>>(
           Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             // 2 named barriers, id 0 reserved for unnamed

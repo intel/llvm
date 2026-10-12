@@ -1,0 +1,43 @@
+; The Base Type operand of an untyped access chain is the type being indexed,
+; not a pointer to it, so it must be used as is.
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: %[[#GEP:]] = getelementptr inbounds <4 x float>, ptr addrspace(1) %{{.*}}, i64 %{{.*}}
+; CHECK-LLVM-NEXT: load <4 x float>, ptr addrspace(1) %[[#GEP]], align 16
+
+119734787 67072 458752 14 0
+2 Capability Addresses
+2 Capability Kernel
+2 Capability Int64
+2 Capability UntypedPointersKHR
+8 Extension "SPV_KHR_untyped_pointers"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+5 EntryPoint 6 2 "test"
+3 Source 3 102000
+3 Name 3 "p"
+3 Name 4 "idx"
+
+4 TypeInt 6 64 0
+2 TypeVoid 5
+3 TypeFloat 7 32
+4 TypeVector 8 7 4
+3 TypeUntypedPointerKHR 9 5
+5 TypeFunction 10 5 9 6
+
+5 Function 5 2 0 10
+3 FunctionParameter 9 3
+3 FunctionParameter 6 4
+
+2 Label 11
+6 UntypedInBoundsPtrAccessChainKHR 9 12 8 3 4
+6 Load 8 13 12 2 16
+5 Store 3 13 2 16
+1 Return
+
+1 FunctionEnd
+

@@ -29,7 +29,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  if (!dev.get_info<info::device::usm_shared_allocations>())
+  if (!dev.has(aspect::usm_shared_allocations))
     return 0;
 
   Node *s_head = (Node *)malloc_shared(sizeof(Node), dev, ctxt);

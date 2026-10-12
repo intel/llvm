@@ -13,12 +13,15 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -28,7 +31,7 @@ void store_global_test(queue q, size_t N) {
   {
     buffer<T> store_buf(&store, 1);
     q.submit([&](handler &cgh) {
-      auto st = store_buf.template get_access<access::mode::read_write>(cgh);
+      auto st = store_buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
         auto atm = AtomicRef<T, memory_order::relaxed, scope, space>(st[0]);
@@ -43,8 +46,8 @@ void store_global_test(queue q, size_t N) {
   assert(store >= T(0) && store <= T(N - 1));
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -70,8 +73,8 @@ void store_global_test_usm_shared(queue q, size_t N) {
   free(st, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -81,13 +84,13 @@ void store_local_test(queue q, size_t N) {
   {
     buffer<T> store_buf(&store, 1);
     q.submit([&](handler &cgh) {
-      auto st = store_buf.template get_access<access::mode::read_write>(cgh);
+      auto st = store_buf.template get_access<access_mode::read_write>(cgh);
       local_accessor<T, 1> loc(1, cgh);
       cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
         size_t gid = it.get_global_id(0);
         auto atm = AtomicRef<T, memory_order::relaxed, scope, space>(loc[0]);
         atm.store(T(gid), order);
-        it.barrier(access::fence_space::local_space);
+        group_barrier(it.get_group());
         if (gid == 0)
           st[0] = loc[0];
       });
@@ -215,7 +218,10 @@ template <access::address_space space> void store_test_all() {
     return;
   }
 
+  store_test_orders_scopes<space, short>(q, N);
+  store_test_orders_scopes<space, unsigned short>(q, N);
   store_test_orders_scopes<space, sycl::half>(q, N);
+  store_test_orders_scopes<space, sycl::ext::oneapi::bfloat16>(q, N);
 #endif
 
   std::cout << "Test passed." << std::endl;

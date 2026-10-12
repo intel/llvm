@@ -38,7 +38,7 @@ template <size_t SGSize> void test(queue Queue) {
       buffer resbuf(Res, range<1>(32 / SGSize));
 
       Queue.submit([&](handler &cgh) {
-        auto resacc = resbuf.template get_access<access::mode::read_write>(cgh);
+        auto resacc = resbuf.template get_access<access_mode::read_write>(cgh);
 
         cgh.parallel_for<sycl_subgr<SGSize>>(
             NdRange,

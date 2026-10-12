@@ -108,7 +108,7 @@ int main(void) {
               << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto out_accessor = buf.get_access<access::mode::write>(cgh);
+      auto out_accessor = buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<class Test>(
           nd_range<1>(GlobalRange, LocalRange),

@@ -5,14 +5,14 @@
 
 ; CHECK: TypeInt [[int_32:[0-9]+]] 32 0
 ; CHECK: Constant  {{[0-9]+}} [[zero:[0-9]+]] 0
-; CHECK: Constant  {{[0-9]+}} [[one:[0-9]+]] 1
+; CHECK: Constant  {{[0-9]+}} [[mone:[0-9]+]] 4294967295
 ; CHECK: TypeBool [[bool:[0-9]+]]
 
 ; CHECK: Function
 ; CHECK: FunctionParameter {{[0-9]+}} [[A:[0-9]+]]
 ; CHECK: FunctionParameter {{[0-9]+}} [[B:[0-9]+]]
 ; CHECK: SGreaterThan [[bool]] [[cmp_res:[0-9]+]] [[B]] [[zero]]
-; CHECK: Select [[int_32]] [[select_res:[0-9]+]] [[cmp_res]] [[one]] [[zero]]
+; CHECK: Select [[int_32]] [[select_res:[0-9]+]] [[cmp_res]] [[mone]] [[zero]]
 ; CHECK: ConvertSToF {{[0-9]+}} [[stof_res:[0-9]+]] [[select_res]]
 ; CHECK: Store [[A]] [[stof_res]]
 

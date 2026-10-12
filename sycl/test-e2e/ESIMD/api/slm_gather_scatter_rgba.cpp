@@ -3,6 +3,7 @@
 //
 // The test checks functionality of the slm_gather_rgba/slm_scatter_rgba ESIMD
 // API.
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

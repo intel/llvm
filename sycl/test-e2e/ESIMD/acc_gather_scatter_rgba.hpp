@@ -8,6 +8,7 @@
 
 // The test checks functionality of the gather_rgba/scatter_rgba accessor-based
 // ESIMD intrinsics.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -108,8 +109,8 @@ bool test(queue q) {
     buffer<T, 1> OutBuf(B, range<1>(size));
     range<1> glob_range{numWorkItems};
     auto e = q.submit([&](handler &cgh) {
-      auto InAcc = InBuf.template get_access<access::mode::read_write>(cgh);
-      auto OutAcc = OutBuf.template get_access<access::mode::read_write>(cgh);
+      auto InAcc = InBuf.template get_access<access_mode::read_write>(cgh);
+      auto OutAcc = OutBuf.template get_access<access_mode::read_write>(cgh);
       Kernel<T, VL, STRIDE, CH_MASK> kernel(InAcc, OutAcc);
       cgh.parallel_for(glob_range, kernel);
     });

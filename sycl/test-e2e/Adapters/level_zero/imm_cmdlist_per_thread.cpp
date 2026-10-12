@@ -12,6 +12,8 @@
 
 // CHECK-ONE-CMDLIST: zeCommandListCreateImmediate = 2
 // CHECK-PER-THREAD-CMDLIST: zeCommandListCreateImmediate = 4
+#include <CL/cl.h>
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <thread>

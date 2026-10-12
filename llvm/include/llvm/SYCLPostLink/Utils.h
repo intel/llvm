@@ -55,13 +55,15 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 /// \param AllowDeviceImageDependencies If true, preserves inter-module
 /// dependencies
 /// \param SplitMode The module splitting mode used
+/// \param IdQueriesRange SYCL id queries range.
 ///
 /// \return Error::success() on success, or error details on failure
 llvm::Error saveModuleProperties(const module_split::ModuleDesc &MD,
                                  const sycl::GlobalBinImageProps &GlobProps,
                                  StringRef Filename, StringRef Target,
                                  bool AllowDeviceImageDependencies,
-                                 module_split::IRSplitMode SplitMode);
+                                 module_split::IRSplitMode SplitMode,
+                                 int IdQueriesRange);
 
 /// \brief Saves the symbol table (entry point names) for a module to a file.
 ///

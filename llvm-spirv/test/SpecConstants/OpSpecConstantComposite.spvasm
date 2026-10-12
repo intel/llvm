@@ -23,7 +23,7 @@
   
 ; CHECK-DEFAULT: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 1, float 0.000000e+00 }, %struct._ZTS1A.A { i32 35, float 0.000000e+00 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 45, i32 55> }     }, ptr addrspace(4) %[[#]]
 
-; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 0x4005AE1480000000 }, %struct._ZTS1A.A { i32 43, float 0x40091EB860000000 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, ptr addrspace(4) %2
+; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 2.710000e+00 }, %struct._ZTS1A.A { i32 43, float 3.140000e+00 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, ptr addrspace(4) %2
 
 ; SPIR-V
 ; Version: 1.1

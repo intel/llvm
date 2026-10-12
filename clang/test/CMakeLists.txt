@@ -93,7 +93,7 @@ list(APPEND CLANG_TEST_DEPS
   clang
   clang-fuzzer-dictionary
   clang-resource-headers
-  clang-format
+  clang-format-check-format
   clang-tblgen
   clang-offload-bundler
   clang-offload-deps
@@ -106,8 +106,10 @@ list(APPEND CLANG_TEST_DEPS
   clang-linker-wrapper
   clang-nvlink-wrapper
   clang-offload-bundler
+  clang-ssaf-analyzer
   clang-ssaf-format
   clang-ssaf-linker
+  clang-ssaf-src-edit-merge
   clang-sycl-linker
   diagtool
   hmaptool
@@ -117,8 +119,8 @@ if(CLANG_ENABLE_CIR)
   list(APPEND CLANG_TEST_DEPS
     cir-opt
     cir-translate
-    mlir-translate
     )
+  add_subdirectory(CIR/lib)
 endif()
 
 if(CLANG_ENABLE_STATIC_ANALYZER)
@@ -209,6 +211,14 @@ if(CLANG_ENABLE_STATIC_ANALYZER)
       CheckerOptionHandlingAnalyzerPlugin
       )
   endif()
+endif()
+
+if(CLANG_PLUGIN_SUPPORT AND LLVM_ENABLE_PLUGINS AND NOT WIN32)
+  list(APPEND CLANG_TEST_DEPS
+    SSAFExamplePlugin
+    SSAFTestTransformationPlugin
+    )
+  add_subdirectory(Analysis/Scalable/source-edit-generation/Plugins)
 endif()
 
 if (HAVE_CLANG_REPL_SUPPORT)

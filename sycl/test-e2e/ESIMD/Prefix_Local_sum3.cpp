@@ -10,6 +10,7 @@
 
 // UNSUPPORTED: arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17075
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

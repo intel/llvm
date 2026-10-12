@@ -22,10 +22,10 @@
 #include "event.hpp"
 #include "event_provider.hpp"
 
-#include "../device.hpp"
-#include "../ur_interface_loader.hpp"
+#include "../common/device.hpp"
+#include "ur_interface_loader.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 class provider_pool {
 public:
@@ -58,4 +58,4 @@ private:
   std::vector<std::unique_ptr<provider_pool>> pools;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

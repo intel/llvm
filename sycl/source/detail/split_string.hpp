@@ -31,8 +31,9 @@ inline std::vector<std::string> split_string(std::string_view str,
     std::string LastSubStr(str.substr(Start, End - Start));
     // In case str has a delimeter at the end, the substring will be empty, so
     // we shouldn't add it to the final vector
-    if (!LastSubStr.empty())
-      Result.push_back(LastSubStr);
+    if (!LastSubStr.empty()) {
+      Result.push_back(std::move(LastSubStr));
+    }
   }
   return Result;
 }

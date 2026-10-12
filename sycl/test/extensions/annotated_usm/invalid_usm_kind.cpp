@@ -94,7 +94,7 @@ void testConflictingUsmKind(sycl::queue &q) {
 
 // Duplicated properties (consistent or conflicting) exist in the property list
 void testInvalidPropList() {
-  // expected-error-re@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Duplicate properties in property list.}}
+  // expected-error-re@sycl/ext/oneapi/properties.hpp:* {{static assertion failed due to requirement {{.+}}: Duplicate properties in property list.}}
   properties InvalidPropList{usm_kind_device, usm_kind_host};
 }
 

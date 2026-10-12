@@ -27,7 +27,7 @@ void assignment_test(queue q, size_t N) {
     buffer<T> assignment_buf(&assignment, 1);
     q.submit([&](handler &cgh) {
       auto st =
-          assignment_buf.template get_access<access::mode::read_write>(cgh);
+          assignment_buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<assignment_kernel<AtomicRef, address_space, T>>(
           range<1>(N), [=](item<1> it) {
             size_t gid = it.get_id(0);

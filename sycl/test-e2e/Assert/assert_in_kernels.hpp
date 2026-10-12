@@ -14,7 +14,7 @@ void kernelFunc1(int *Buf, int wiID) {
 
 void assertTest1(queue &Q, buffer<int, 1> &Buf) {
   Q.submit([&](handler &CGH) {
-    auto Acc = Buf.template get_access<mode::read_write>(CGH);
+    auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_1>(
         Buf.get_range(), [=](sycl::id<1> wiID) { kernelFunc1(&Acc[0], wiID); });
@@ -29,7 +29,7 @@ void kernelFunc2(int *Buf, int wiID) {
 
 void assertTest2(queue &Q, buffer<int, 1> &Buf) {
   Q.submit([&](handler &CGH) {
-    auto Acc = Buf.template get_access<mode::read_write>(CGH);
+    auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_2>(
         Buf.get_range(), [=](sycl::id<1> wiID) { kernelFunc2(&Acc[0], wiID); });
@@ -44,7 +44,7 @@ void kernelFunc3(int *Buf, int wiID) {
 
 void assertTest3(queue &Q, buffer<int, 1> &Buf) {
   Q.submit([&](handler &CGH) {
-    auto Acc = Buf.template get_access<mode::read_write>(CGH);
+    auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_3>(
         Buf.get_range(), [=](sycl::id<1> wiID) { kernelFunc3(&Acc[0], wiID); });

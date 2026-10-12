@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -23,7 +24,6 @@ inline namespace _V1 {
 // Forward declarations
 class device;
 class context;
-enum class aspect;
 
 namespace ext::oneapi {
 class filter_selector;
@@ -46,6 +46,7 @@ public:
   virtual int operator()(const device &device) const = 0;
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 /// The default selector chooses the first available SYCL device.
 ///
 /// \sa device
@@ -93,6 +94,7 @@ __SYCL2020_DEPRECATED("Use the callable sycl::accelerator_selector_v instead.")
 public:
   int operator()(const device &dev) const override;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // -------------- SYCL 2020
 
@@ -101,6 +103,55 @@ __SYCL_EXPORT int default_selector_v(const device &dev);
 __SYCL_EXPORT int gpu_selector_v(const device &dev);
 __SYCL_EXPORT int cpu_selector_v(const device &dev);
 __SYCL_EXPORT int accelerator_selector_v(const device &dev);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+/// The default selector chooses the first available SYCL device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_dev_sel
+class __SYCL2020_DEPRECATED(
+    "Use the callable sycl::default_selector_v instead.") default_selector {
+public:
+  int operator()(const device &dev) const { return default_selector_v(dev); }
+};
+
+/// Selects any SYCL GPU device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_dev_sel
+class __SYCL2020_DEPRECATED("Use the callable sycl::gpu_selector_v instead.")
+    gpu_selector {
+public:
+  int operator()(const device &dev) const { return gpu_selector_v(dev); }
+};
+
+/// Selects any SYCL CPU device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_dev_sel
+class __SYCL2020_DEPRECATED("Use the callable sycl::cpu_selector_v instead.")
+    cpu_selector {
+public:
+  int operator()(const device &dev) const { return cpu_selector_v(dev); }
+};
+
+/// Selects any SYCL accelerator device.
+///
+/// \sa device
+///
+/// \ingroup sycl_api_dev_sel
+class __SYCL2020_DEPRECATED(
+    "Use the callable sycl::accelerator_selector_v instead.")
+    accelerator_selector {
+public:
+  int operator()(const device &dev) const {
+    return accelerator_selector_v(dev);
+  }
+};
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 namespace detail {
 // SYCL 2020 section 4.6.1.1 defines a negative score to reject a device from

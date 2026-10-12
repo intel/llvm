@@ -3,6 +3,7 @@
 
 // This test only checks that the shortcut method queue::parallel_for()
 // can accept 2 or more reduction variables.
+#include <iostream>
 
 #include "reduction_utils.hpp"
 

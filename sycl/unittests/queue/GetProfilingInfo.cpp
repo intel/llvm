@@ -111,7 +111,8 @@ TEST(GetProfilingInfo, command_exception_check) {
       EXPECT_STREQ(
           e.what(),
           "Profiling information is unavailable as the queue associated with "
-          "the event does not have the 'enable_profiling' property.");
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   }
   {
@@ -130,7 +131,8 @@ TEST(GetProfilingInfo, command_exception_check) {
       EXPECT_STREQ(
           e.what(),
           "Profiling information is unavailable as the queue associated with "
-          "the event does not have the 'enable_profiling' property.");
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   }
   {
@@ -147,7 +149,8 @@ TEST(GetProfilingInfo, command_exception_check) {
       EXPECT_STREQ(
           e.what(),
           "Profiling information is unavailable as the queue associated with "
-          "the event does not have the 'enable_profiling' property.");
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   }
 }
@@ -256,7 +259,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       EXPECT_STREQ(
           e.what(),
           "Profiling information is unavailable as the queue associated with "
-          "the event does not have the 'enable_profiling' property.");
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   }
   {
@@ -270,7 +274,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       EXPECT_STREQ(
           e.what(),
           "Profiling information is unavailable as the queue associated with "
-          "the event does not have the 'enable_profiling' property.");
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   }
   {
@@ -283,7 +288,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       EXPECT_STREQ(
           e.what(),
           "Profiling information is unavailable as the queue associated with "
-          "the event does not have the 'enable_profiling' property.");
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   }
   // The test passes without this, but keep it still, just in case.
@@ -361,8 +367,9 @@ TEST(GetProfilingInfo, check_host_task_profiling_info) {
     } catch (sycl::exception const &e) {
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated "
-          "with the event does not have the 'enable_profiling' property.");
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property or the "
+          "event was not created with the 'enable_profiling' property.");
     }
   };
 

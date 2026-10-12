@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   // submit a command group(work) to the queue
   queue.submit([&](sycl::handler &cgh) {
     // get write only access to the buffer on a device
-    auto accessor = buffer.get_access<sycl::access::mode::write>(cgh);
+    auto accessor = buffer.get_access<sycl::access_mode::write>(cgh);
     // executing the kernel
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
       // fill the buffer with indexes

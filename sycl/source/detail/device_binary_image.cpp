@@ -209,9 +209,13 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   SpecConstIDMap.init(Bin, __SYCL_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
       Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
+  SpecConstSetValuesMap.init(Bin,
+                             __SYCL_PROPERTY_SET_SPEC_CONST_SET_VALUES_MAP);
   DeviceLibMetadata.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);
+  WorkGroupDynamicLocalMem.init(
+      Bin, __SYCL_PROPERTY_SET_SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM);
   ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
   // Convert ProgramMetadata into the UR format
   for (const auto &Prop : ProgramMetadata) {
@@ -531,6 +535,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getSpecConstantsDefaultValues();
       });
+  auto MergedSpecConstantsSetValues =
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getSpecConstantsSetValues();
+      });
   auto MergedKernelParamOptInfo =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getKernelParamOptInfo();
@@ -547,6 +555,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getImplicitLocalArg();
       });
+  auto MergedWorkGroupDynamicLocalMem =
+      naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getWorkGroupDynamicLocalMem();
+      });
+
   auto MergedKernelNames =
       naiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
         return Img.getKernelNames();
@@ -560,11 +573,16 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
         return Img.getRegisteredKernels();
       });
 
-  std::array<const std::vector<sycl_device_binary_property> *, 9> MergedVecs{
-      &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
-      &MergedKernelParamOptInfo, &MergedDeviceGlobals,
-      &MergedVirtualFunctions,   &MergedImplicitLocalArg,
-      &MergedKernelNames,        &MergedExportedSymbols,
+  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
+      &MergedSpecConstants,
+      &MergedSpecConstantsDefaultValues,
+      &MergedKernelParamOptInfo,
+      &MergedDeviceGlobals,
+      &MergedVirtualFunctions,
+      &MergedImplicitLocalArg,
+      &MergedWorkGroupDynamicLocalMem,
+      &MergedKernelNames,
+      &MergedExportedSymbols,
       &MergedRegisteredKernels};
 
   // Exclusive merges.
@@ -679,10 +697,12 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   CopyPropertiesVec(MergedSpecConstants, SpecConstIDMap);
   CopyPropertiesVec(MergedSpecConstantsDefaultValues,
                     SpecConstDefaultValuesMap);
+  CopyPropertiesVec(MergedSpecConstantsSetValues, SpecConstSetValuesMap);
   CopyPropertiesVec(MergedKernelParamOptInfo, KernelParamOptInfo);
   CopyPropertiesVec(MergedDeviceGlobals, DeviceGlobals);
   CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);
   CopyPropertiesVec(MergedImplicitLocalArg, ImplicitLocalArg);
+  CopyPropertiesVec(MergedWorkGroupDynamicLocalMem, WorkGroupDynamicLocalMem);
   CopyPropertiesVec(MergedKernelNames, KernelNames);
   CopyPropertiesVec(MergedExportedSymbols, ExportedSymbols);
   CopyPropertiesVec(MergedRegisteredKernels, RegisteredKernels);

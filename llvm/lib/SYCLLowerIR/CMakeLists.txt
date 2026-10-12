@@ -6,9 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT LLVMGenXIntrinsics_FOUND)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: May 29, 2025
-    # Use OneNthEltsVecArgument instead of HalfVecArguments to fix build failure.
-    set(LLVMGenXIntrinsics_GIT_TAG 60cea7590bd022d95f5cf336ee765033bd114d69)
+    set(LLVMGenXIntrinsics_GIT_TAG 0c3296b5fe7ab5a8392197478d0bbd35649dc924)
     if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
       message(STATUS "vc-intrinsics repo is missing. Will try to download "
         "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
@@ -64,6 +62,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   TargetHelpers.cpp
 
   SanitizerPostOptimizer.cpp
+  SanitizerUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -94,3 +93,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
 target_link_libraries(LLVMSYCLLowerIR
   PUBLIC LLVMGenXIntrinsics
   )
+
+# vc-intrinsics' add_compile_definitions(VC_INTR_LLVM_VERSION_MAJOR=...) in
+# its top-level CMakeLists.txt is directory-scoped and does not propagate to
+# LLVMSYCLLowerIR.
+# FIXME: Remove this once https://github.com/intel/vc-intrinsics is fixed.
+target_compile_definitions(LLVMSYCLLowerIR PUBLIC
+  VC_INTR_LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR})

@@ -228,7 +228,8 @@ public:
                           /*IsConstPtr=*/true);
   }
 
-  image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
+  image_impl(OpenCLMemT MemObject, const context &SyclContext,
+             event AvailableEvent,
              std::unique_ptr<SYCLMemObjAllocator> Allocator,
              uint8_t Dimensions);
 
@@ -328,8 +329,7 @@ private:
     return Desc;
   }
 
-  bool checkImageDesc(const ur_image_desc_t &Desc, context_impl *Context,
-                      void *UserPtr);
+  bool checkImageDesc(const ur_image_desc_t &Desc, context_impl *Context);
 
   ur_image_format_t getImageFormat() {
     ur_image_format_t Format = {};

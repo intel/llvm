@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: opencl && arch-intel_gpu_pvc
-
 //==- copyto_char_test.cpp - Test for using copy_to to copy char buffers -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -56,7 +54,7 @@ template <int NumElems, bool IsAcc, int ResultOffset = 0> int test_to_copy() {
       DataT *init_ref_ptr = initial_ref_data.data();
       DataT *ref_data_for_fill_ptr = ref_data_for_fill.data();
       auto acc =
-          output_buf.template get_access<sycl::access::mode::read_write>(cgh);
+          output_buf.template get_access<sycl::access_mode::read_write>(cgh);
 
       cgh.single_task([=]() SYCL_ESIMD_KERNEL {
         simd<DataT, NumElems> src_simd_obj;

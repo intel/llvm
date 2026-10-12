@@ -23,7 +23,7 @@ $_ZTSZZ3fooiENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_ = comdat any
 @.str.1 = private unnamed_addr addrspace(1) constant [10 x i8] c"String 1\0A\00", align 1
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZZ3fooiENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_(ptr addrspace(1) %_arg_, ptr byval(%"class.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !5 !sycl_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ3fooiENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_(ptr addrspace(1) %_arg_, ptr byval(%"class.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !sycl_kernel_omit_args !6 {
 entry:
   %0 = addrspacecast ptr %_arg_3 to ptr addrspace(4)
   %1 = load i64, ptr addrspace(4) %0, align 8
@@ -53,7 +53,6 @@ attributes #2 = { convergent }
 !2 = !{i32 1, i32 2}
 !3 = !{i32 4, i32 100000}
 !4 = !{!"clang version 14.0.0"}
-!5 = !{i32 -1, i32 -1, i32 -1, i32 -1}
 !6 = !{i1 false, i1 true, i1 true, i1 false}
 !7 = !{!8, !8, i64 0}
 !8 = !{!"int", !9, i64 0}

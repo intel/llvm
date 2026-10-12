@@ -21,7 +21,7 @@ $_ZTSZ4mainEUlvE_ = comdat any
 ; CHECK: @[[NewAnnotStr3:.*]] = private unnamed_addr addrspace(1) constant [13 x i8] c"{6442:\222,3\22}\00"
 
 ; Function Attrs: convergent norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_(ptr addrspace(1) noundef align 1 %_arg_dataPtr) local_unnamed_addr comdat !srcloc !5 !kernel_arg_buffer_location !6 !sycl_fixed_targets !7 !sycl_kernel_omit_args !8 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlvE_(ptr addrspace(1) noundef align 1 %_arg_dataPtr) local_unnamed_addr comdat !srcloc !5 !sycl_fixed_targets !7 !sycl_kernel_omit_args !8 {
 entry:
   %0 = addrspacecast ptr addrspace(1) %_arg_dataPtr to ptr addrspace(4)
   %call.i.i.i.i = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef %0, i32 noundef 5)
@@ -61,6 +61,5 @@ declare dso_local spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToP
 !3 = !{i32 4, i32 100000}
 !4 = !{!"clang version 18.0.0"}
 !5 = !{i32 1522}
-!6 = !{i32 -1}
 !7 = !{}
 !8 = !{i1 false}

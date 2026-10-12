@@ -57,6 +57,7 @@
 #include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
+#include "llvm/Transforms/Utils/AssignGUID.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include <algorithm>
@@ -66,6 +67,7 @@ using namespace llvm;
 using namespace opt_tool;
 
 static codegen::RegisterCodeGenFlags CFG;
+static codegen::RegisterMTuneFlag MTF;
 static codegen::RegisterSaveStatsFlag SSF;
 
 // The OptimizationList is automatically populated with registered Passes by the
@@ -425,7 +427,6 @@ optMain(int argc, char **argv,
   // For codegen passes, only passes that do IR to IR transformation are
   // supported.
   initializeExpandIRInstsLegacyPassPass(Registry);
-  initializeExpandMemCmpLegacyPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
   initializeInlineAsmPreparePass(Registry);
@@ -503,8 +504,10 @@ optMain(int argc, char **argv,
 
   // If user just wants to list available options, skip module loading.
   auto MAttrs = codegen::getMAttrs();
+  std::string CPUStr = codegen::getCPUStr();
+  std::string TuneCPUStr = codegen::getTuneCPUStr();
   bool SkipModule =
-      codegen::getCPUStr() == "help" || is_contained(MAttrs, "help");
+      CPUStr == "help" || TuneCPUStr == "help" || is_contained(MAttrs, "help");
   if (SkipModule) {
     Triple TheTriple;
     if (!TargetTriple.empty())
@@ -512,13 +515,26 @@ optMain(int argc, char **argv,
     else
       TheTriple = Triple(sys::getDefaultTargetTriple());
 
+    std::string Error;
+    const Target *TheTarget =
+        TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
+    if (!TheTarget) {
+      errs() << argv[0] << ": " << Error << "\n";
+      return 1;
+    }
+
+    // Pass "help" as CPU for -mtune=help
+    std::string SkipModuleCPU = (TuneCPUStr == "help" ? "help" : CPUStr);
+    TargetOptions Options =
+        codegen::InitTargetOptionsFromCodeGenFlags(TheTriple);
     // Create the target machine just to print the help info. Use unique_ptr
     // to avoid a memory leak.
-    Expected<std::unique_ptr<TargetMachine>> ExpectedTM =
-        codegen::createTargetMachineForTriple(TheTriple.str(),
-                                              GetCodeGenOptLevel());
-    if (Error E = ExpectedTM.takeError()) {
-      errs() << argv[0] << ": " << toString(std::move(E)) << "\n";
+    std::unique_ptr<TargetMachine> TM(TheTarget->createTargetMachine(
+        TheTriple, SkipModuleCPU, codegen::getFeaturesStr(), Options,
+        codegen::getExplicitRelocModel(), codegen::getExplicitCodeModel(),
+        GetCodeGenOptLevel()));
+    if (!TM) {
+      errs() << argv[0] << ": could not allocate target machine\n";
       return 1;
     }
 
@@ -622,6 +638,12 @@ optMain(int argc, char **argv,
     return 1;
   }
 
+  // Manually assign GUIDs -- updateVCallVisibilityInModule accesses GUIDs, and
+  // there's no way to specify it in the pass pipeline since this runs before
+  // any pass given on the command line.
+  if (hasWholeProgramVisibility(/*WholeProgramVisibilityEnabledInLTO=*/false))
+    AssignGUIDPass::runOnModule(*M);
+
   // Enable testing of whole program devirtualization on this module by invoking
   // the facility for updating public visibility to linkage unit visibility when
   // specified by an internal option. This is normally done during LTO which is
@@ -667,13 +689,18 @@ optMain(int argc, char **argv,
   }
 
   Triple ModuleTriple(M->getTargetTriple());
-  std::string CPUStr, FeaturesStr;
+  // Avoid setting target function attributes if no arch is found, by resetting
+  // them first
+  CPUStr.clear();
+  TuneCPUStr.clear();
+  std::string FeaturesStr;
   std::unique_ptr<TargetMachine> TM;
   if (ModuleTriple.getArch()) {
     CPUStr = codegen::getCPUStr();
+    TuneCPUStr = codegen::getTuneCPUStr();
     FeaturesStr = codegen::getFeaturesStr();
     Expected<std::unique_ptr<TargetMachine>> ExpectedTM =
-        codegen::createTargetMachineForTriple(ModuleTriple.str(),
+        codegen::createTargetMachineForTriple(ModuleTriple,
                                               GetCodeGenOptLevel());
     if (auto E = ExpectedTM.takeError()) {
       errs() << argv[0] << ": WARNING: failed to create target machine for '"
@@ -695,9 +722,9 @@ optMain(int argc, char **argv,
         codegen::InitTargetOptionsFromCodeGenFlags(ModuleTriple);
   }
 
-  // Override function attributes based on CPUStr, FeaturesStr, and command line
-  // flags.
-  codegen::setFunctionAttributes(*M, CPUStr, FeaturesStr);
+  // Override function attributes based on CPUStr, TuneCPUStr, FeaturesStr, and
+  // command line flags.
+  codegen::setFunctionAttributes(*M, CPUStr, FeaturesStr, TuneCPUStr);
 
   // If the output is set to be emitted to standard out, and standard out is a
   // console, print out a warning message and refuse to do it.  We don't
@@ -720,9 +747,8 @@ optMain(int argc, char **argv,
     TLII.disableAllFunctions();
   else {
     // Disable individual builtin functions in TargetLibraryInfo.
-    LibFunc F;
     for (const std::string &FuncName : DisableBuiltins) {
-      if (TLII.getLibFunc(FuncName, F))
+      if (LibFunc F = TLII.getLibFunc(FuncName))
         TLII.setUnavailable(F);
       else {
         errs() << argv[0] << ": cannot disable nonexistent builtin function "
@@ -732,7 +758,7 @@ optMain(int argc, char **argv,
     }
 
     for (const std::string &FuncName : EnableBuiltins) {
-      if (TLII.getLibFunc(FuncName, F))
+      if (LibFunc F = TLII.getLibFunc(FuncName))
         TLII.setAvailable(F);
       else {
         errs() << argv[0] << ": cannot enable nonexistent builtin function "
@@ -838,8 +864,8 @@ optMain(int argc, char **argv,
 
   Passes.add(new TargetLibraryInfoWrapperPass(TLII));
   Passes.add(new RuntimeLibraryInfoWrapper(
-      ModuleTriple, Options->ExceptionModel, Options->FloatABIType,
-      Options->EABIVersion, Options->MCOptions.ABIName, Options->VecLib));
+      Options->ExceptionModel, Options->EABIVersion, Options->MCOptions.ABIName,
+      Options->VecLib));
 
   // Add internal analysis passes from the target machine.
   Passes.add(createTargetTransformInfoWrapperPass(TM ? TM->getTargetIRAnalysis()
@@ -917,10 +943,11 @@ optMain(int argc, char **argv,
       BOS = std::make_unique<raw_svector_ostream>(Buffer);
       OS = BOS.get();
     }
-    if (OutputAssembly)
+    if (OutputAssembly) {
       Passes.add(createPrintModulePass(
-          *OS, "", /* ShouldPreserveAssemblyUseListOrder */ false));
-    else
+          *OS, "", /*ShouldPreserveAssemblyUseListOrder=*/false,
+          /*ShouldRenumberMetadata=*/true));
+    } else
       Passes.add(createBitcodeWriterPass(
           *OS, /* ShouldPreserveBitcodeUseListOrder */ true));
   }
@@ -966,6 +993,11 @@ optMain(int argc, char **argv,
 
   if (DebugifyEach && !DebugifyExport.empty())
     exportDebugifyStats(DebugifyExport, Passes.getDebugifyStatsMap());
+
+  // If a pass reported an error via LLVMContext::emitError, fail without
+  // writing the output module.
+  if (Context.getDiagHandlerPtr()->HasErrors)
+    return 1;
 
   // Declare success.
   if (!NoOutput)

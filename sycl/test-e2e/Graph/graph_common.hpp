@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -99,15 +100,15 @@ event run_kernels(queue Q, const size_t Size, buffer<T> BufferA,
                   buffer<T> BufferB, buffer<T> BufferC) {
   // Read & write Buffer A.
   Q.submit([&](handler &CGH) {
-    auto DataA = BufferA.template get_access<access::mode::read_write>(CGH);
+    auto DataA = BufferA.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { DataA[Id]++; });
   });
 
   // Reads Buffer A.
   // Read & Write Buffer B.
   Q.submit([&](handler &CGH) {
-    auto DataA = BufferA.template get_access<access::mode::read>(CGH);
-    auto DataB = BufferB.template get_access<access::mode::read_write>(CGH);
+    auto DataA = BufferA.template get_access<access_mode::read>(CGH);
+    auto DataB = BufferB.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> Id) { DataB[Id] += DataA[Id]; });
   });
@@ -115,16 +116,16 @@ event run_kernels(queue Q, const size_t Size, buffer<T> BufferA,
   // Reads Buffer A.
   // Read & writes Buffer C
   Q.submit([&](handler &CGH) {
-    auto DataA = BufferA.template get_access<access::mode::read>(CGH);
-    auto DataC = BufferC.template get_access<access::mode::read_write>(CGH);
+    auto DataA = BufferA.template get_access<access_mode::read>(CGH);
+    auto DataC = BufferC.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> Id) { DataC[Id] -= DataA[Id]; });
   });
 
   // Read & write Buffers B and C.
   auto ExitEvent = Q.submit([&](handler &CGH) {
-    auto DataB = BufferB.template get_access<access::mode::read_write>(CGH);
-    auto DataC = BufferC.template get_access<access::mode::read_write>(CGH);
+    auto DataB = BufferB.template get_access<access_mode::read_write>(CGH);
+    auto DataC = BufferC.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) {
       DataB[Id]--;
       DataC[Id]--;
@@ -150,15 +151,15 @@ add_kernels(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
             buffer<T> BufferC) {
   // Read & write Buffer A
   Graph.add([&](handler &CGH) {
-    auto DataA = BufferA.template get_access<access::mode::read_write>(CGH);
+    auto DataA = BufferA.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { DataA[Id]++; });
   });
 
   // Reads Buffer A
   // Read & Write Buffer B
   Graph.add([&](handler &CGH) {
-    auto DataA = BufferA.template get_access<access::mode::read>(CGH);
-    auto DataB = BufferB.template get_access<access::mode::read_write>(CGH);
+    auto DataA = BufferA.template get_access<access_mode::read>(CGH);
+    auto DataB = BufferB.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> Id) { DataB[Id] += DataA[Id]; });
   });
@@ -166,16 +167,16 @@ add_kernels(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   // Reads Buffer A
   // Read & writes Buffer C
   Graph.add([&](handler &CGH) {
-    auto DataA = BufferA.template get_access<access::mode::read>(CGH);
-    auto DataC = BufferC.template get_access<access::mode::read_write>(CGH);
+    auto DataA = BufferA.template get_access<access_mode::read>(CGH);
+    auto DataC = BufferC.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size),
                      [=](item<1> Id) { DataC[Id] -= DataA[Id]; });
   });
 
   // Read & write Buffers B and C
   auto ExitNode = Graph.add([&](handler &CGH) {
-    auto DataB = BufferB.template get_access<access::mode::read_write>(CGH);
-    auto DataC = BufferC.template get_access<access::mode::read_write>(CGH);
+    auto DataB = BufferB.template get_access<access_mode::read_write>(CGH);
+    auto DataC = BufferC.template get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) {
       DataB[Id]--;
       DataC[Id]--;

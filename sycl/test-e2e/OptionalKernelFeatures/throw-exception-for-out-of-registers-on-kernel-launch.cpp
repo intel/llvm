@@ -65,11 +65,11 @@ int main() {
 
   try {
     q.submit([&](sycl::handler &h) {
-       auto input1 = valuesBuf1.get_access<sycl::access::mode::read>(h);
-       auto input2 = valuesBuf2.get_access<sycl::access::mode::read>(h);
-       auto input3 = valuesBuf3.get_access<sycl::access::mode::read>(h);
-       auto input4 = valuesBuf4.get_access<sycl::access::mode::read>(h);
-       auto output = outputBuf.get_access<sycl::access::mode::write>(h);
+       auto input1 = valuesBuf1.get_access<sycl::access_mode::read>(h);
+       auto input2 = valuesBuf2.get_access<sycl::access_mode::read>(h);
+       auto input3 = valuesBuf3.get_access<sycl::access_mode::read>(h);
+       auto input4 = valuesBuf4.get_access<sycl::access_mode::read>(h);
+       auto output = outputBuf.get_access<sycl::access_mode::write>(h);
        h.parallel_for<kernel_vadd_and_sum>(
            sycl::nd_range<1>{{GLOBAL_WORK_SIZE}, {local_size}},
            [=](sycl::id<1> i) {

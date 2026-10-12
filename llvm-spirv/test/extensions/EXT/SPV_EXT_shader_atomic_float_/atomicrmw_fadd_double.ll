@@ -7,7 +7,7 @@
 ; CHECK-DAG: Capability AtomicFloat64AddEXT
 ; CHECK: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-DAG: Constant [[Int]] [[Scope_CrossDevice:[0-9]+]] 0 {{$}}
-; CHECK-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
+; CHECK-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 528
 ; CHECK: TypeFloat [[Double:[0-9]+]] 64
 ; CHECK: Variable {{[0-9]+}} [[DoublePointer:[0-9]+]]
 ; CHECK: Constant [[Double]] [[DoubleValue:[0-9]+]] 0 1078263808

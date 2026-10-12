@@ -1,0 +1,92 @@
+; Backward-compatibility test: the SPIR-V Reader must still consume modules that
+; use the OLD SPV_INTEL_fp_conversions spec revision, i.e. the removed
+; OpClampConvertFToFINTEL (6216) and OpClampStochasticRoundFToFINTEL (6218)
+; instructions. For FP8 destinations they must lower to the SAME __builtin_spirv_*
+; calls that the new spec (OpFConvert / OpStochasticRoundFToFINTEL +
+; SaturatedToLargestFloat8NormalConversionEXT) lowers to, since the LLVM IR
+; representation did not change. For other (non-fp4/fp8/int4) destinations they
+; are emitted as __spirv_<OpName>_R<type> builtin calls.
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: call spir_func i8 @_Z43__builtin_spirv_ClampConvertFP16ToE4M3INTELDh(half 1.000000e+00)
+; CHECK-LLVM: call spir_func i8 @_Z51__builtin_spirv_ClampStochasticRoundFP16ToE5M2INTELDhi(half 1.000000e+00, i32 1)
+; CHECK-LLVM: call spir_func float @_Z36__spirv_ClampConvertFToFINTEL_RfloatDh(half 1.000000e+00)
+; CHECK-LLVM: call spir_func float @_Z44__spirv_ClampStochasticRoundFToFINTEL_RfloatDhi(half 1.000000e+00, i32 1)
+; CHECK-LLVM: call spir_func half @_Z35__spirv_ClampConvertFToFINTEL_Rhalff(float 1.000000e+00)
+; CHECK-LLVM: call spir_func half @_Z43__spirv_ClampStochasticRoundFToFINTEL_Rhalffi(float 1.000000e+00, i32 1)
+
+119734787 65536 393230 34 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Float16Buffer
+2 Capability Int8
+2 Capability Float8EXT
+2 Capability FloatConversionsFtoFINTEL
+5 Extension "SPV_EXT_float8"
+8 Extension "SPV_INTEL_fp_conversions"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+3 Source 0 0
+6 Name 4 "hf16_hf8_clamp"
+4 Name 5 "entry"
+9 Name 11 "hf16_bf8_clamp_stochastic"
+4 Name 12 "entry"
+6 Name 20 "hf16_fp32_clamp"
+9 Name 23 "hf16_fp32_clamp_stochastic"
+6 Name 28 "fp32_hf16_clamp"
+9 Name 31 "fp32_hf16_clamp_stochastic"
+8 Decorate 4 LinkageAttributes "hf16_hf8_clamp" Export
+11 Decorate 11 LinkageAttributes "hf16_bf8_clamp_stochastic" Export
+8 Decorate 20 LinkageAttributes "hf16_fp32_clamp" Export
+11 Decorate 23 LinkageAttributes "hf16_fp32_clamp_stochastic" Export
+8 Decorate 28 LinkageAttributes "fp32_hf16_clamp" Export
+11 Decorate 31 LinkageAttributes "fp32_hf16_clamp_stochastic" Export
+4 TypeInt 2 8 0
+4 TypeInt 14 32 0
+4 Constant 14 15 1
+3 TypeFunction 3 2
+3 TypeFloat 6 16
+4 TypeFloat 8 8 4214
+4 TypeFloat 13 8 4215
+3 TypeFloat 18 32
+3 TypeFunction 19 18
+4 Constant 6 7 15360
+3 TypeFunction 27 6
+4 Constant 18 26 1065353216
+5 Function 2 4 0 3
+2 Label 5
+4 ClampConvertFToFINTEL 8 9 7
+4 Bitcast 2 10 9
+2 ReturnValue 10
+1 FunctionEnd
+5 Function 2 11 0 3
+2 Label 12
+5 ClampStochasticRoundFToFINTEL 13 16 7 15
+4 Bitcast 2 17 16
+2 ReturnValue 17
+1 FunctionEnd
+5 Function 18 20 0 19
+2 Label 21
+4 ClampConvertFToFINTEL 18 22 7
+2 ReturnValue 22
+1 FunctionEnd
+5 Function 18 23 0 19
+2 Label 24
+5 ClampStochasticRoundFToFINTEL 18 25 7 15
+2 ReturnValue 25
+1 FunctionEnd
+5 Function 6 28 0 27
+2 Label 29
+4 ClampConvertFToFINTEL 6 30 26
+2 ReturnValue 30
+1 FunctionEnd
+5 Function 6 31 0 27
+2 Label 32
+5 ClampStochasticRoundFToFINTEL 6 33 26 15
+2 ReturnValue 33
+1 FunctionEnd

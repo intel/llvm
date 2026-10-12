@@ -9,16 +9,18 @@ set(SYCL_JIT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # directories, similar to how clang/CMakeLists.txt does it.
 set(LLVM_SPIRV_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/../llvm-spirv/include")
 
-if (NOT WIN32 AND NOT CYGWIN)
-  # Set library-wide warning options.
-  set(SYCL_JIT_WARNING_FLAGS -Wall -Wextra -Wconversion -Wimplicit-fallthrough)
+option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL JIT library" ON)
 
-  option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL JIT library" ON)
-  if(SYCL_JIT_ENABLE_WERROR)
-    list(APPEND SYCL_JIT_WARNING_FLAGS -Werror)
-  endif(SYCL_JIT_ENABLE_WERROR)
-endif()
-
+# sycl-jit warning flags; host GCC: -Wno-error=conversion on LLVM/Clang headers.
+function(sycl_jit_apply_target_warning_flags target)
+  if(WIN32 OR CYGWIN)
+    return()
+  endif()
+  target_compile_options(${target} PRIVATE
+    -Wall -Wextra -Wconversion -Wimplicit-fallthrough
+    $<$<BOOL:${SYCL_JIT_ENABLE_WERROR}>:-Werror>
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-Wno-error=conversion>)
+endfunction()
 
 add_subdirectory(jit-compiler)
 add_subdirectory(passes)

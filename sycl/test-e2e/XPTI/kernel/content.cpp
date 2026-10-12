@@ -46,8 +46,8 @@ int main() {
     buffer<int> in_buf(input.data(), input.size());
     buffer<int> out_buf(input.size());
     myQueue.submit([&](handler &cgh) {
-      auto in = in_buf.template get_access<access::mode::read>(cgh);
-      auto out = out_buf.template get_access<access::mode::read_write>(cgh);
+      auto in = in_buf.template get_access<access_mode::read>(cgh);
+      auto out = out_buf.template get_access<access_mode::read_write>(cgh);
       // CHECK-OPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 3 ]]:13|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 2
       // CHECK-NOOPT:Node create|{{.*}}test2{{.*}}|{{.*}}.cpp:[[# @LINE - 4 ]]:13|{128, 4, 2}, {32, 2, 1}, {16, 1, 0}, 8
       cgh.parallel_for<class test2>(

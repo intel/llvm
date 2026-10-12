@@ -24,6 +24,7 @@ config.sycl_clang_extra_flags = "@SYCL_CLANG_EXTRA_FLAGS@"
 config.test_include_path = "@TEST_INCLUDE_PATH@"
 
 config.llvm_enable_projects = "@LLVM_ENABLE_PROJECTS@"
+config.install_bin_dir = "@LLVM_TOOLS_DIR@"
 
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.sycl_use_libcxx = 'ON' if @LLVM_LIBCXX_USED@ else 'OFF'

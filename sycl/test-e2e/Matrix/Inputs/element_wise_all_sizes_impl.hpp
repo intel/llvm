@@ -1,3 +1,4 @@
+#include <iostream>
 //===---element_wise_all_ops_all_sizes_impl.hpp - DPC++ joint_matrix-------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,7 +11,7 @@ static constexpr size_t M_MULTIPLIER = 16;
 template <typename T, size_t TileM, size_t TileN, size_t TileK> class add;
 
 template <typename T, size_t M, size_t N>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read_write> C,
+void assert_ops_ref(host_accessor<T, 2, access_mode::read_write> C,
                     const T ref) {
   for (size_t i = 0; i < M; i++)
     for (size_t j = 0; j < N; j++) {

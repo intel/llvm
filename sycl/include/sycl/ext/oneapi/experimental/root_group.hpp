@@ -24,8 +24,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-// See 'sycl/info/kernel_device_specific_traits.def' for the kernel
-// device-specific properties that relate to 'root_group'.
+// See `info::kernel_device_specific` in `sycl/info/info_desc.hpp` for the
+// kernel device-specific properties that relate to `root_group`.
 
 template <int Dimensions> class root_group {
 public:

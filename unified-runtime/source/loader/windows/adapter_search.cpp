@@ -33,7 +33,7 @@ std::optional<fs::path> getLoaderLibPath() {
       GetModuleFileNameA(hModule, pathStr, MAX_PATH_LEN_WIN)) {
     auto libPath = fs::path(pathStr);
     if (fs::exists(libPath)) {
-      return fs::absolute(libPath).parent_path();
+      return fs::canonical(libPath).parent_path();
     }
   }
 

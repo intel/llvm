@@ -140,7 +140,7 @@ void test_accessor() {
   kernel Kernel = bundle.get_kernel(id);
   sycl::buffer<int, 1> buf(data, sycl::range<1>(N));
   Q.submit([&](handler &h) {
-    auto acc = buf.get_access<sycl::access::mode::write>(h);
+    auto acc = buf.get_access<sycl::access_mode::write>(h);
     h.set_args(acc);
     h.parallel_for(nd_range{{1}, {1}}, Kernel);
   });

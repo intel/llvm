@@ -143,6 +143,7 @@ inline bool isValid(spv::LinkageType V) {
   case LinkageTypeExport:
   case LinkageTypeImport:
   case LinkageTypeLinkOnceODR:
+  case LinkageTypeWeakAMD:
   case internal::LinkageTypeInternal:
     return true;
   default:

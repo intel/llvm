@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // This test verifies the correctness of LSC SLM scatter intrinsics.
+#include <iostream>
 
 #include "Inputs/lsc_slm_store.hpp"
 

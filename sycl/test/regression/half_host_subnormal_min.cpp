@@ -3,6 +3,7 @@
 //
 // Checks that sycl::half on host can correctly cast its minimum subnormal value
 // to and from a floating point value.
+#include <iostream>
 
 #include <sycl/sycl.hpp>
 

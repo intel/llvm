@@ -11,6 +11,7 @@
 
 #include <iostream>
 #include <string>
+#include <utility>
 
 using namespace llvm;
 
@@ -41,7 +42,7 @@ int main(int argc, char **argv, char *env[]) {
   }
 
   std::string ProfOutFile = "SYCL_PROF_OUT_FILE=" + OutputFilename;
-  NewEnv.push_back(ProfOutFile);
+  NewEnv.push_back(std::move(ProfOutFile));
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_profiler_collector.so");
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");

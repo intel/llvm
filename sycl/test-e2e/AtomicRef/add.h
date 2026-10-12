@@ -14,12 +14,15 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -31,23 +34,23 @@ void add_fetch_local_test(queue q, size_t N) {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-       auto out =
-           output_buf.template get_access<access::mode::discard_write>(cgh);
+       auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
+       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
        local_accessor<T, 1> loc(1, cgh);
 
        cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = 0;
-         it.barrier(access::fence_space::local_space);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         group_barrier(it.get_group());
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          out[gid] = atm.fetch_add(Difference(1), order);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            sum[0] = loc[0];
        });
@@ -67,8 +70,8 @@ void add_fetch_local_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -80,16 +83,16 @@ void add_fetch_test(queue q, size_t N) {
     buffer<T> sum_buf(&sum, 1);
     buffer<T> output_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-       auto out =
-           output_buf.template get_access<access::mode::discard_write>(cgh);
+       auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
+       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (sum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(sum[0]);
          out[gid] = atm.fetch_add(Difference(1), order);
        });
      }).wait_and_throw();
@@ -108,8 +111,8 @@ void add_fetch_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -123,11 +126,12 @@ void add_fetch_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (sum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(sum[0]);
          output[gid] = atm.fetch_add(Difference(1), order);
        });
      }).wait_and_throw();
@@ -149,8 +153,8 @@ void add_fetch_test_usm_shared(queue q, size_t N) {
   free(output, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -163,16 +167,16 @@ void add_plus_equal_test(queue q, size_t N) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out =
-          output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
+      auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (sum[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(sum[0]);
         out[gid] = atm += Difference(1);
       });
     });
@@ -191,8 +195,8 @@ void add_plus_equal_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -206,11 +210,12 @@ void add_plus_equal_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (sum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(sum[0]);
          output[gid] = atm += Difference(1);
        });
      }).wait_and_throw();
@@ -232,8 +237,8 @@ void add_plus_equal_test_usm_shared(queue q, size_t N) {
   free(output, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -246,16 +251,16 @@ void add_pre_inc_test(queue q, size_t N) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out =
-          output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
+      auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (sum[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(sum[0]);
         out[gid] = ++atm;
       });
     });
@@ -274,8 +279,8 @@ void add_pre_inc_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -288,11 +293,12 @@ void add_pre_inc_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (sum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(sum[0]);
          output[gid] = ++atm;
        });
      }).wait_and_throw();
@@ -314,8 +320,8 @@ void add_pre_inc_test_usm_shared(queue q, size_t N) {
   free(output, q);
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -328,16 +334,16 @@ void add_post_inc_test(queue q, size_t N) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out =
-          output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto sum = sum_buf.template get_access<access_mode::read_write>(cgh);
+      auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (sum[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(sum[0]);
         out[gid] = atm++;
       });
     });
@@ -356,8 +362,8 @@ void add_post_inc_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference = T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -370,11 +376,12 @@ void add_post_inc_test_usm_shared(queue q, size_t N) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          int gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (sum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(sum[0]);
          output[gid] = atm++;
        });
      }).wait_and_throw();
@@ -432,7 +439,9 @@ void add_test(queue q, size_t N) {
         add_plus_equal_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space,
                                        T, Difference, order, scope>(q, N);
       }
-      if constexpr (!std::is_floating_point_v<T>) {
+      if constexpr (!std::is_floating_point_v<T> &&
+                    !std::is_same_v<T, sycl::half> &&
+                    !std::is_same_v<T, sycl::ext::oneapi::bfloat16>) {
         add_pre_inc_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
                          order, scope>(q, N);
         add_post_inc_test<::sycl::ext::oneapi::atomic_ref, space, T, Difference,
@@ -456,7 +465,9 @@ void add_test(queue q, size_t N) {
       add_plus_equal_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
                                      order, scope>(q, N);
     }
-    if constexpr (!std::is_floating_point_v<T>) {
+    if constexpr (!std::is_floating_point_v<T> &&
+                  !std::is_same_v<T, sycl::half> &&
+                  !std::is_same_v<T, sycl::ext::oneapi::bfloat16>) {
       add_pre_inc_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
           q, N);
       add_post_inc_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
@@ -544,7 +555,10 @@ template <access::address_space space> void add_test_all() {
     return;
   }
 
+  add_test_orders_scopes<space, short>(q, N);
+  add_test_orders_scopes<space, unsigned short>(q, N);
   add_test_orders_scopes<space, sycl::half>(q, N);
+  add_test_orders_scopes<space, sycl::ext::oneapi::bfloat16>(q, N);
 #endif
   std::cout << "Test passed." << std::endl;
 }

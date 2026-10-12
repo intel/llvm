@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include <iostream>
 
 #include <sycl/usm.hpp>
 

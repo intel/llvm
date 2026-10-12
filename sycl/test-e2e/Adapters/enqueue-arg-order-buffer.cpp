@@ -90,11 +90,11 @@ void testDetailConvertToArrayOfN() {
 
 // class to give access to protected function getLinearIndex
 template <typename T, int Dims>
-class AccTest : public accessor<T, Dims, access::mode::read_write,
+class AccTest : public accessor<T, Dims, access_mode::read_write,
                                 access::target::host_buffer,
                                 access::placeholder::false_t> {
   using AccessorT =
-      accessor<T, Dims, access::mode::read_write, access::target::host_buffer,
+      accessor<T, Dims, access_mode::read_write, access::target::host_buffer,
                access::placeholder::false_t>;
 
 public:
@@ -178,8 +178,8 @@ void testcopyD2HBuffer() {
     buffer<float, 1> buffer_to_1D(data_to_1D.data(), range<1>(width));
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_1D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_1D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_1D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_1D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyD2H_1D>(
           buffer_from_1D.get_range(),
           [=](id<1> index) { write[index] = read[index] * -1; });
@@ -192,8 +192,8 @@ void testcopyD2HBuffer() {
     buffer<float, 2> buffer_to_2D(data_to_2D.data(), range<2>(height, width));
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_2D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_2D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_2D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_2D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyD2H_2D>(
           buffer_from_2D.get_range(),
           [=](id<2> index) { write[index] = read[index] * -1; });
@@ -207,8 +207,8 @@ void testcopyD2HBuffer() {
                                   range<3>(depth, height, width));
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_3D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_3D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_3D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_3D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyD2H_3D>(
           buffer_from_3D.get_range(),
           [=](id<3> index) { write[index] = read[index] * -1; });
@@ -242,8 +242,8 @@ void testcopyH2DBuffer() {
     queue myQueue{myCtx, Dev};
     queue otherQueue{otherCtx, Dev};
     myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_1D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_1D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_1D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_1D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyH2D_1D>(
           buffer_from_1D.get_range(),
           [=](id<1> index) { write[index] = read[index] * -1; });
@@ -251,8 +251,8 @@ void testcopyH2DBuffer() {
     myQueue.wait();
 
     otherQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_1D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_1D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_1D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_1D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyH2D_1D_2nd>(
           buffer_from_1D.get_range(),
           [=](id<1> index) { write[index] = read[index] * 10; });
@@ -271,16 +271,16 @@ void testcopyH2DBuffer() {
     queue myQueue{myCtx, Dev};
     queue otherQueue{otherCtx, Dev};
     myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_2D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_2D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_2D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_2D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyH2D_2D>(
           buffer_from_2D.get_range(),
           [=](id<2> index) { write[index] = read[index] * -1; });
     });
 
     otherQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_2D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_2D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_2D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_2D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyH2D_2D_2nd>(
           buffer_from_2D.get_range(),
           [=](id<2> index) { write[index] = read[index] * 10; });
@@ -300,16 +300,16 @@ void testcopyH2DBuffer() {
     queue myQueue{myCtx, Dev};
     queue otherQueue{otherCtx, Dev};
     myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_3D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_3D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_3D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_3D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyH2D_3D>(
           buffer_from_3D.get_range(),
           [=](id<3> index) { write[index] = read[index] * -1; });
     });
 
     otherQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_3D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_3D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_3D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_3D.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class copyH2D_3D_2nd>(
           buffer_from_3D.get_range(),
           [=](id<3> index) { write[index] = read[index] * 10; });
@@ -340,20 +340,20 @@ void testcopyD2DBuffer() {
 
     queue myQueue;
     auto e1 = myQueue.submit([&](handler &cgh) {
-      auto read = buffer_from_1D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_1D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_1D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_1D.get_access<access_mode::write>(cgh);
       cgh.copy(read, write);
     });
     auto e2 = myQueue.submit([&](handler &cgh) {
       cgh.depends_on(e1);
-      auto read = buffer_from_2D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_2D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_2D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_2D.get_access<access_mode::write>(cgh);
       cgh.copy(read, write);
     });
     auto e3 = myQueue.submit([&](handler &cgh) {
       cgh.depends_on(e2);
-      auto read = buffer_from_3D.get_access<access::mode::read>(cgh);
-      auto write = buffer_to_3D.get_access<access::mode::write>(cgh);
+      auto read = buffer_from_3D.get_access<access_mode::read>(cgh);
+      auto write = buffer_to_3D.get_access<access_mode::write>(cgh);
       cgh.copy(read, write);
     });
 
@@ -373,17 +373,17 @@ void testFill_Buffer() {
 
     queue myQueue;
     auto e1 = myQueue.submit([&](handler &cgh) {
-      auto acc1D = buffer_1D.get_access<sycl::access::mode::write>(cgh);
+      auto acc1D = buffer_1D.get_access<sycl::access_mode::write>(cgh);
       cgh.fill(acc1D, float{1});
     });
     auto e2 = myQueue.submit([&](handler &cgh) {
       cgh.depends_on(e1);
-      auto acc2D = buffer_2D.get_access<sycl::access::mode::write>(cgh);
+      auto acc2D = buffer_2D.get_access<sycl::access_mode::write>(cgh);
       cgh.fill(acc2D, float{2});
     });
     auto e3 = myQueue.submit([&](handler &cgh) {
       cgh.depends_on(e2);
-      auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(cgh);
+      auto acc3D = buffer_3D.get_access<sycl::access_mode::write>(cgh);
       cgh.fill(acc3D, float{3});
     });
   } // ~buffer

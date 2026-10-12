@@ -12,7 +12,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: norecurse
-define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlT_E0_() local_unnamed_addr #0  !kernel_arg_buffer_location !6 !spir_kernel_omit_args !6 {
+define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlT_E0_() local_unnamed_addr #0 !spir_kernel_omit_args !6 {
 entry:
   ret void
 }

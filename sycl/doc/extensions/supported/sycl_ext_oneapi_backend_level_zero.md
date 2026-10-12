@@ -50,12 +50,15 @@ For further details see here: <https://github.com/intel/llvm/blob/sycl/sycl/doc/
         
 ### 3.2 Through a programming API
         
-There is an extension that introduces a filtering device selection to SYCL described in
-[sycl\_ext\_oneapi\_filter\_selector](../supported/sycl_ext_oneapi_filter_selector.asciidoc).
-Similar to how ONEAPI_DEVICE_SELECTOR applies filtering to the entire process this device selector can be used to
-programmatically select the Level-Zero backend.
+A SYCL 2020 device selector callable can be used to programmatically select the Level-Zero backend,
+e.g. by returning a negative score for devices whose ```get_backend()``` is not ```sycl::backend::ext_oneapi_level_zero```:
+```C++
+sycl::queue Q([](const sycl::device &D) {
+  return D.get_backend() == sycl::backend::ext_oneapi_level_zero ? 1 : -1;
+});
+```
                 
-When neither the environment variable nor the filtering device selector are used, the implementation chooses
+When neither the environment variable nor a device selector are used, the implementation chooses
 the Level-Zero backend for GPU devices supported by the installed Level-Zero runtime.
 The serving backend for a SYCL platform can be queried with the ```get_backend()``` member function of ```sycl::platform```.
 
@@ -304,7 +307,13 @@ auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>
 ```
 It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```,
-```kernel_bundle```, and ```kernel``` classes. 
+```kernel_bundle```, and ```kernel``` classes.
+
+#### 4.2.1 Default context mapping guarantee
+
+When using the Level Zero v2 adapter, if a SYCL context is created with all root devices of a Level Zero platform (for example, the context returned by ```platform::khr_get_default_context()```), the backend reuses the Level Zero driver default context. In this case, the native handle returned by ```sycl::get_native<backend::ext_oneapi_level_zero>(Ctx)``` is the same handle returned by ```zeDriverGetDefaultContext``` for that platform's driver.
+
+This guarantee applies only to full-platform root-device contexts. Contexts created for a subset of devices, with sub-devices, or with custom context creation properties are not guaranteed to map to the Level Zero driver default context.
 
 The ```get_native(queue)``` function returns either ```ze_command_queue_handle_t``` or ```ze_command_list_handle_t``` depending on the manner in which the input argument ```queue``` had been created. Queues created with the SYCL ```queue``` constructors have a default setting for whether they use command queues or command lists. The default and how it may be changed is documented in the description for the environment variable ```SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS```. Queues created using ```make_queue()``` use either a command list or command queue depending on the input argument to ```make_queue``` and are not affected by the default for SYCL queues or the environment variable.
 

@@ -18,7 +18,7 @@ void test() {
     HostAcc.reset(new host_accessor(Buffer));
     // Host accessor should block kernel execution
     Q.submit([&](handler &CGH) {
-      auto Acc = Buffer.template get_access<mode::write>(CGH);
+      auto Acc = Buffer.template get_access<access_mode::write>(CGH);
       CGH.parallel_for<class Test>(BUFFER_SIZE,
                                    [=](item<1> Id) { Acc[Id] = 0; });
     });

@@ -86,19 +86,19 @@ template <typename T, access::decorated IsDecorated> void testMultPtr() {
     buffer<T, 1> bufferData_5(data_5, numOfItems);
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      accessor<T, 1, access::mode::read, access::target::device,
+      accessor<T, 1, access_mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_1(bufferData_1, cgh);
-      accessor<T, 1, access::mode::read_write, access::target::device,
+      accessor<T, 1, access_mode::read_write, access::target::device,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
-      accessor<T, 1, access::mode::read_write, access::target::device,
+      accessor<T, 1, access_mode::read_write, access::target::device,
                access::placeholder::false_t>
           accessorData_3(bufferData_3, cgh);
-      accessor<T, 1, access::mode::read_write, access::target::device,
+      accessor<T, 1, access_mode::read_write, access::target::device,
                access::placeholder::false_t>
           accessorData_4(bufferData_4, cgh);
-      accessor<T, 1, access::mode::read_write, access::target::device,
+      accessor<T, 1, access_mode::read_write, access::target::device,
                access::placeholder::false_t>
           accessorData_5(bufferData_5, cgh);
       local_accessor<T, 1> localAccessor(numOfItems, cgh);
@@ -172,11 +172,11 @@ void testMultPtrArrowOperator() {
     buffer<point<T>, 1> bufferData_3(data_3, numOfItems);
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
-      accessor<point<T>, 1, access::mode::read, access::target::device,
+      accessor<point<T>, 1, access_mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_1(bufferData_1, cgh);
       local_accessor<point<T>, 1> accessorData_2(1, cgh);
-      accessor<point<T>, 1, access::mode::read, access::target::device,
+      accessor<point<T>, 1, access_mode::read, access::target::device,
                access::placeholder::false_t>
           accessorData_3(bufferData_3, cgh);
 

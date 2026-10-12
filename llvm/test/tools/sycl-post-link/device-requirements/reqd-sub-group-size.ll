@@ -32,6 +32,15 @@
 ; CHECK-PROP-AUTO-SPLIT-1: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-1: reqd_sub_group_size=1|16
 
+; -split=none keeps disagreeing KernelA/KernelB/KernelC in one module.
+; RUN: sycl-post-link -properties -split=none %s -o %t-none.table
+; RUN: FileCheck %s -input-file=%t-none_0.prop --check-prefix CHECK-PROP-NO-SPLIT
+
+; CHECK-PROP-NO-SPLIT: [SYCL/device requirements]
+; The value here (16) is KernelA's: the first value seen wins on
+; disagreement; see SYCLDeviceRequirements.cpp.
+; CHECK-PROP-NO-SPLIT: reqd_sub_group_size=1|16
+
 ; ModuleID = 'foo.cpp'
 source_filename = "foo.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -44,19 +53,19 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB = comdat any
 $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC = comdat any
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !48 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !48 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !51 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !52 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !51 !intel_reqd_sub_group_size !52 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
 
 ; Function Attrs: norecurse nounwind
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !53 !kernel_arg_buffer_location !49 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !53 !intel_reqd_sub_group_size !50 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
   ret void
 }
@@ -119,7 +128,7 @@ attributes #0 = { norecurse nounwind "frame-pointer"="all" "no-trapping-math"="t
 !47 = !{!"clang version 17.0.0 (https://github.com/jzc/llvm eed5b5576bef314433e8ae7313620dae399c9d22)"}
 !48 = !{i32 170}
 !49 = !{}
-!50 = !{i32 16}
+!50 =!{i32 16}
 !51 = !{i32 351}
 !52 = !{i32 32}
 !53 = !{i32 532}

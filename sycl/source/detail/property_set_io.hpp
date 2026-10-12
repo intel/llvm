@@ -14,7 +14,10 @@
 #include "detail/base64.hpp"
 #include "sycl/exception.hpp"
 
-#include <unordered_map>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -237,7 +240,54 @@ private:
   } Val;
 };
 
-using PropertySet = std::unordered_map<std::string, PropertyValue>;
+// Insertion-ordered map. The serialized format is order-sensitive (spec-const
+// default-value blob is laid out in descriptor iteration order), so a hash
+// container would mismap blob offsets (CMPLRLLVM-77316). Mirrors the MapVector
+// in upstream PropertySetIO.h; linear lookup, sets are small.
+template <typename ValueT> class InsertionOrderedMap {
+public:
+  using key_type = std::string;
+  using value_type = std::pair<key_type, ValueT>;
+  using StorageT = std::vector<value_type>;
+  using iterator = typename StorageT::iterator;
+  using const_iterator = typename StorageT::const_iterator;
+
+  iterator begin() { return Storage.begin(); }
+  iterator end() { return Storage.end(); }
+  const_iterator begin() const { return Storage.begin(); }
+  const_iterator end() const { return Storage.end(); }
+
+  bool empty() const { return Storage.empty(); }
+  size_t size() const { return Storage.size(); }
+  void clear() { Storage.clear(); }
+
+  // Returns the value for Key, appending a new entry if absent.
+  ValueT &operator[](std::string_view Key) {
+    iterator It = find(Key);
+    if (It != end())
+      return It->second;
+    Storage.emplace_back(key_type{Key}, ValueT{});
+    return Storage.back().second;
+  }
+
+  iterator find(std::string_view Key) {
+    for (iterator It = begin(); It != end(); ++It)
+      if (It->first == Key)
+        return It;
+    return end();
+  }
+  const_iterator find(std::string_view Key) const {
+    for (const_iterator It = begin(); It != end(); ++It)
+      if (It->first == Key)
+        return It;
+    return end();
+  }
+
+private:
+  StorageT Storage;
+};
+
+using PropertySet = InsertionOrderedMap<PropertyValue>;
 
 /// A registry of property sets. Maps a property set name to its
 /// content.
@@ -245,7 +295,7 @@ using PropertySet = std::unordered_map<std::string, PropertyValue>;
 /// The order of keys is preserved and corresponds to the order of insertion.
 class PropertySetRegistry {
 public:
-  using MapTy = std::unordered_map<std::string, PropertySet>;
+  using MapTy = InsertionOrderedMap<PropertySet>;
 
   // SYCLBIN specific property sets.
   static constexpr char SYCLBIN_GLOBAL_METADATA[] = "SYCLBIN/global metadata";
@@ -357,6 +407,44 @@ public:
   }
   /// Constant access to the underlying map.
   const MapTy &getPropSets() const { return PropSetMap; }
+
+  /// Adds a property to the property set with the given \p Category name.
+  template <typename T>
+  void add(std::string_view Category, std::string_view Name, const T &Value) {
+    PropertySet &Set = (*this)[Category];
+    Set[std::string{Name}] = PropertyValue(Value);
+  }
+
+  /// Serialize the registry into \p Out using the same textual format that
+  /// PropertySetRegistry::read accepts.
+  void write(std::ostream &Out) const {
+    for (const auto &PropSet : PropSetMap) {
+      Out << '[' << PropSet.first << "]\n";
+      for (const auto &Prop : PropSet.second) {
+        Out << Prop.first << '=' << static_cast<int>(Prop.second.getType())
+            << '|';
+        switch (Prop.second.getType()) {
+        case PropertyValue::Type::UINT32:
+          Out << Prop.second.asUint32();
+          break;
+        case PropertyValue::Type::BYTE_ARRAY: {
+          PropertyValue::SizeTy RawSize = Prop.second.getRawByteArraySize();
+          Base64::encode(Prop.second.asRawByteArray(), Out,
+                         static_cast<size_t>(RawSize));
+          break;
+        }
+        default:
+          throw sycl::exception(
+              make_error_code(errc::invalid),
+              "Unsupported property type: " +
+                  std::to_string(static_cast<int>(Prop.second.getType())) +
+                  " (property '" + Prop.first + "' in set '" + PropSet.first +
+                  "').");
+        }
+        Out << '\n';
+      }
+    }
+  }
 
 private:
   MapTy PropSetMap;
