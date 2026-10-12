@@ -168,8 +168,18 @@ static bool LinkingSYCLBINFiles = false;
 static SmallString<128> OffloadImageDumpDir;
 
 using TripleAndArch = std::pair<std::string, std::string>;
+struct TripleAndArchInfo {
+  static unsigned getHashValue(const TripleAndArch &K) {
+    return hash_combine(K.first, K.second);
+  }
+  static bool isEqual(const TripleAndArch &L, const TripleAndArch &R) {
+    return L == R;
+  }
+};
+
 using FuncNameSet = SmallSet<std::string, 4>;
-static DenseMap<TripleAndArch, FuncNameSet> SYCLRegisterLibFuncMap;
+static DenseMap<TripleAndArch, FuncNameSet, TripleAndArchInfo>
+    SYCLRegisterLibFuncMap;
 
 /// Whether or not to look through symlinks when resolving binaries.
 static bool CanonicalPrefixes = true;
@@ -190,14 +200,6 @@ template <> struct DenseMapInfo<OffloadKind> {
 
   static bool isEqual(const OffloadKind &LHS, const OffloadKind &RHS) {
     return LHS == RHS;
-  }
-};
-template <> struct DenseMapInfo<std::string> {
-  static unsigned getHashValue(const std::string &S) {
-    return hash_value(StringRef(S));
-  }
-  static bool isEqual(const std::string &L, const std::string &R) {
-    return L == R;
   }
 };
 } // namespace llvm
@@ -1128,10 +1130,10 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
   return *TempFileOrErr;
 }
 
-/// Define __sycl_registerlib_<unique_prefix> functions defined by the
+/// Define __sycl_registerlib_<unique_prefix> functions referenced by the
 /// host compile to force all device code images to be linked in, which
 /// may not happen for static archives with -fsycl-link.
-/// \p Module The module.
+/// \p M The module.
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
 static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
@@ -3432,10 +3434,11 @@ collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer,
 }
 
 /// Scan the host input in \p Buffer for
-/// undefined symbols named __sycl_registerlib_<hash> and record them in the
-/// global SYCLRegisterLibFuncMap. Each such reference is satisfied by defining
-/// the symbol in the generated SYCL device-image wrapper object. The references
-/// may live in bare object inputs or in members of a static archive.
+/// undefined symbols named __sycl_registerlib_<unique_identifier> and record
+/// them in the global SYCLRegisterLibFuncMap. Each such reference is satisfied
+/// by defining the symbol in the generated SYCL device-image wrapper object.
+/// The references may live in bare object inputs or in members of a static
+/// archive.
 /// \p Binaries are the offload binaries already extracted from \p Buffer.
 static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer,
                                            ArrayRef<OffloadFile> Binaries) {
