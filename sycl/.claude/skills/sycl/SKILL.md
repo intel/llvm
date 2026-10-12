@@ -10,6 +10,7 @@ Refer necessary guides for the task; Also apply the Common rules below.
 | Task | Guide |
 |---|---|
 | Add, extend, fix or review a test (`sycl/test`, `sycl/test-e2e`, `sycl/unittests`) | `guides/testing.md` |
+| Review an extension specification (`sycl/doc/extensions`) | `guides/extension-specification-review.md` |
 
 ## Common rules for changes in `sycl/`
 
