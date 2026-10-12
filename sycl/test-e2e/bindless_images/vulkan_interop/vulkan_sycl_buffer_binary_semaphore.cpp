@@ -3,11 +3,11 @@
 // REQUIRES: vulkan
 
 // Linux fix tracked by GSD-12371, landed in driver 38362.
-// REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
+// REQUIRES-INTEL-DRIVER: lin: 38362
 
-// Binary semaphore sharing is broken in driver on linux.
-// UNSUPPORTED: linux
-// UNSUPPORTED-TRACKER: CMPLRLLVM-78008
+// Hangs on Windows Gen12.
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-TRACKER: TODO
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
