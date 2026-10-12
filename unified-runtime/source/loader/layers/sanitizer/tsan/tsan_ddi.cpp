@@ -26,13 +26,18 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   std::shared_ptr<ContextInfo> CI;
   UR_CALL(getTsanInterceptor()->insertContext(Context, CI));
   for (uint32_t i = 0; i < numDevices; i++) {
-    std::shared_ptr<DeviceInfo> DI;
-    UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
-    DI->Type = GetDeviceType(Context, DI->Handle);
-    if (DI->Type == DeviceType::UNKNOWN) {
+    // Reject unsupported devices before registering them: the interceptor
+    // teardown expects every device it knows about to have shadow memory.
+    auto Type = GetDeviceType(Context, phDevices[i]);
+    if (Type == DeviceType::UNKNOWN) {
       UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
+    UR_CALL(CheckDeviceBackendSupported(phDevices[i], Type));
+
+    std::shared_ptr<DeviceInfo> DI;
+    UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
+    DI->Type = Type;
     if (!DI->Shadow)
       UR_CALL(DI->allocShadowMemory());
     CI->DeviceList.emplace_back(DI->Handle);
