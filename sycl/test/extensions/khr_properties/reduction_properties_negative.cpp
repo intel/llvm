@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 //
 // Checks that the reduction() factory functions reject khr properties that are
-// not reduction properties.
+// not reduction properties, and spans with a dynamic extent.
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/sycl.hpp>
@@ -18,4 +18,11 @@ void foreign_property(int *usm) {
       properties{kp::initialize_to_identity{}, kp::enable_profiling{}});
   (void)r1;
   (void)r2;
+}
+
+void dynamic_extent_span(sycl::span<int> span) {
+  // expected-error@+2 {{no matching function for call to 'reduction'}}
+  auto r =
+      sycl::reduction(span, sycl::plus<int>(), kp::initialize_to_identity{});
+  (void)r;
 }
