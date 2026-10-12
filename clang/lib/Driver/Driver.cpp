@@ -9930,8 +9930,10 @@ InputInfoList Driver::BuildJobsForActionNoCache(
   auto *DA = dyn_cast<OffloadDepsJobAction>(JA);
   const ToolChain *JATC = DA ? DA->getHostTC() : TC;
 
-  ToolSelector TS(JA, *JATC, C, isSaveTempsEnabled(),
-                  embedBitcodeInObject() && !JATC->isUsingLTO(C.getArgs()));
+  ToolSelector TS(
+      JA, *JATC, C, isSaveTempsEnabled(),
+      embedBitcodeInObject() &&
+          !JATC->isUsingLTO(C.getArgs(), JA->getOffloadingDeviceKind()));
 
   const Tool *T = TS.getTool(Inputs, CollapsedOffloadActions);
 
