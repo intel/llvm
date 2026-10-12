@@ -1204,7 +1204,8 @@ bool VectorCombine::scalarizeOpOrCmp(Instruction &I) {
 
   // TODO: Allow intrinsics with different argument types
   if (II) {
-    if (!isTriviallyVectorizable(II->getIntrinsicID()))
+    if (!isTriviallyVectorizable(II->getIntrinsicID()) ||
+        isa<FPBuiltinIntrinsic>(II))
       return false;
     for (auto [Idx, Arg] : enumerate(II->args()))
       if (Arg->getType() != II->getType() &&
@@ -3459,7 +3460,7 @@ bool VectorCombine::foldShuffleOfIntrinsics(Instruction &I) {
   if (!ShuffleDstTy || !II0Ty)
     return false;
 
-  if (!isTriviallyVectorizable(IID))
+  if (!isTriviallyVectorizable(IID) || isa<FPBuiltinIntrinsic>(II0))
     return false;
 
   for (unsigned I = 0, E = II0->arg_size(); I != E; ++I) {
@@ -3575,7 +3576,7 @@ bool VectorCombine::foldPermuteOfIntrinsic(Instruction &I) {
     return false;
 
   Intrinsic::ID IID = II0->getIntrinsicID();
-  if (!isTriviallyVectorizable(IID))
+  if (!isTriviallyVectorizable(IID) || isa<FPBuiltinIntrinsic>(II0))
     return false;
 
   // Cost analysis
@@ -4045,7 +4046,7 @@ bool VectorCombine::foldShuffleToIdentity(Instruction &I) {
         continue;
       } else if (auto *II = dyn_cast<IntrinsicInst>(FrontV);
                  II && isTriviallyVectorizable(II->getIntrinsicID()) &&
-                 !II->hasOperandBundles()) {
+                 !II->hasOperandBundles() && !isa<FPBuiltinIntrinsic>(II)) {
         for (unsigned Op = 0, E = II->getNumOperands() - 1; Op < E; Op++) {
           if (isVectorIntrinsicWithScalarOpAtArg(II->getIntrinsicID(), Op,
                                                  &TTI)) {

@@ -2320,6 +2320,9 @@ CallInst *VPWidenIntrinsicRecipe::createVectorCall(VPTransformState &State) {
 
   CallInst *V = State.Builder.CreateCall(VectorF, Args, OpBundles);
 
+  if (CI)
+    FPBuiltinIntrinsic::copyFPAttrs(*CI, *V);
+
   applyFlags(*V);
   applyMetadata(*V);
 

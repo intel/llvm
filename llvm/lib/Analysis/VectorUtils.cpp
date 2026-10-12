@@ -124,6 +124,9 @@ bool llvm::isTriviallyVectorizable(Intrinsic::ID ID) {
   case Intrinsic::scmp:
   case Intrinsic::clmul:
     return true;
+#define OPERATION(NAME, INTRINSIC) case Intrinsic::INTRINSIC:
+#include "llvm/IR/FPBuiltinOps.def"
+    return ID != Intrinsic::fpbuiltin_sincos;
   default:
     return false;
   }

@@ -9791,7 +9791,8 @@ BoUpSLP::TreeEntry::EntryState BoUpSLP::getScalarsVectorizationState(
           (ID != ID2 && Equivalent == Intrinsic::not_intrinsic) ||
           (VecFunc &&
            VecFunc != VFDatabase(*CI2).getVectorizedFunction(Shape)) ||
-          !CI->hasIdenticalOperandBundleSchema(*CI2)) {
+            !CI->hasIdenticalOperandBundleSchema(*CI2) ||
+            !FPBuiltinIntrinsic::haveSameFPAttrs(*CI, *CI2)) {
         LLVM_DEBUG(dbgs() << "SLP: mismatched calls:" << *CI << "!=" << *V
                           << "\n");
         return TreeEntry::NeedToGather;
@@ -24211,6 +24212,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
 
       V = PropagateIRFlags(V);
       cast<CallInst>(V)->setCallingConv(CF->getCallingConv());
+      FPBuiltinIntrinsic::copyFPAttrs(*CI, *cast<CallInst>(V));
       V = FinalShuffle(V, E);
 
       E->VectorizedValue = V;

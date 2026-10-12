@@ -681,6 +681,11 @@ public:
   /// current intrinsic has unrecognized attributes
   bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs) const;
 
+  /// Returns true if \p A and \p B have the same "fpbuiltin-*" attributes.
+  static bool haveSameFPAttrs(const CallBase &A, const CallBase &B);
+  /// Copies the "fpbuiltin-*" attributes of \p From onto \p To.
+  static void copyFPAttrs(const CallBase &From, CallBase &To);
+
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
   static bool classof(const IntrinsicInst *I);
