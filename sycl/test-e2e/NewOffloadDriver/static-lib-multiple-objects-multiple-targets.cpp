@@ -33,8 +33,8 @@
 // RUN: g++ %t.main.o %t.a -L%sycl_libs_dir -lsycl -Wl,-rpath,%sycl_libs_dir -o %t.exe
 // RUN: %{run} %t.exe
 
-// The same library, found through -l and linked by clang (non-SYCL mode). With a
-// plain host main nothing pulls the members' device code into the link, so
+// The same library, found through -l and linked by clang (non-SYCL mode). With
+// a plain host main nothing pulls the members' device code into the link, so
 // their pre-linked objects have to be pulled in by the
 // __sycl_registerlib_<hash> references instead.
 // RUN: mkdir -p %t.dir && cp %t.a %t.dir/libregisterlib.a
