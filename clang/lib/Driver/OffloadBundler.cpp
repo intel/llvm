@@ -134,6 +134,20 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   this->OffloadKind = Components.front();
   ArrayRef<StringRef> TripleSlice{&Components[1], /*length=*/4};
   llvm::Triple T = llvm::Triple(llvm::join(TripleSlice, "-"));
+
+  // SYCL bundle entry IDs use a 3-component triple followed by the target ID,
+  // e.g. sycl-spir64_gen-unknown-unknown-pvc, so the last component is the
+  // target ID rather than the environment.
+  if (Components.size() == 5 &&
+      T.getEnvironment() == llvm::Triple::UnknownEnvironment &&
+      !clang::StringToOffloadArch(Components.back().split(':').first)
+           .isUnknown()) {
+    this->TargetID = Components.back();
+    this->Triple =
+        llvm::Triple(T.getArchName(), T.getVendorName(), T.getOSName());
+    return;
+  }
+
   this->Triple = llvm::Triple(T.getArchName(), T.getVendorName(), T.getOSName(),
                               T.getEnvironmentName());
 }
@@ -1712,6 +1726,18 @@ bool isCodeObjectCompatible(const OffloadTargetInfo &CodeObjectInfo,
                << CodeObjectInfo.str() << "]\t:\t[Target: " << TargetInfo.str()
                << "]\n");
     return false;
+  }
+
+  // SYCL device code without a target ID (e.g. -fsycl-targets=spir64_gen)
+  // stays compatible with any target ID of the same triple.
+  if (CodeObjectInfo.OffloadKind == "sycl" &&
+      (CodeObjectInfo.TargetID.empty() || TargetInfo.TargetID.empty())) {
+    DEBUG_WITH_TYPE("CodeObjectCompatibility",
+                    dbgs() << "Compatible: SYCL code object without target ID "
+                              "\t[CodeObject: "
+                           << CodeObjectInfo.str()
+                           << "]\t:\t[Target: " << TargetInfo.str() << "]\n");
+    return true;
   }
 
   // Incompatible if Processors mismatch.
