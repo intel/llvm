@@ -841,17 +841,27 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+
+  // Keep the external wait in a separate regular command list. Some drivers
+  // block the whole list at an external wait, including commands recorded
+  // before it, so submit any preceding work first.
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   markIssuedCommandInBatch(lockedBatch);
 
   UR_CALL(lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
       getEvent(lockedBatch, phEvent)));
 
-  // External semaphore operations must not be deferred in a batch. Batching
-  // leaves the append sitting in the queue's open regular command list until
-  // some unrelated event flushes it, which means the external producer's
-  // signal cannot release a command list that was never submitted and can
-  // deadlock.
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Submit the external wait immediately so the external producer can release
+  // it without relying on a later operation to flush the batch.
   return renewBatchUnlocked(lockedBatch);
 }
 
@@ -863,6 +873,14 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+
+  // Keep the external signal in a separate regular command list, ordered after
+  // all preceding work.
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   markIssuedCommandInBatch(lockedBatch);
 
   UR_CALL(
@@ -870,10 +888,12 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
           hSemaphore, hasSignalValue, signalValue, waitListView,
           getEvent(lockedBatch, phEvent)));
 
-  // External semaphore operations must not be deferred in a batch. Batching
-  // leaves the append sitting in the queue's open regular command list until
-  // some unrelated event flushes it, which means the external consumer may
-  // never observe the signal.
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Submit the external signal immediately so the external consumer can
+  // observe it without relying on a later operation to flush the batch.
   return renewBatchUnlocked(lockedBatch);
 }
 
