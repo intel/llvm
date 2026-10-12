@@ -33,12 +33,12 @@
 // RUN: g++ %t.main.o %t.a -L%sycl_libs_dir -lsycl -Wl,-rpath,%sycl_libs_dir -o %t.exe
 // RUN: %{run} %t.exe
 
-// The same library, found through -l and linked by the SYCL driver. With a
+// The same library, found through -l and linked by clang (non-SYCL mode). With a
 // plain host main nothing pulls the members' device code into the link, so
 // their pre-linked objects have to be pulled in by the
 // __sycl_registerlib_<hash> references instead.
 // RUN: mkdir -p %t.dir && cp %t.a %t.dir/libregisterlib.a
-// RUN: %clangxx -fsycl %{ond} %t.main.o -L%t.dir -lregisterlib -o %t.l.exe
+// RUN: %clangxx %{ond} %t.main.o -L%sycl_libs_dir -lsycl -Wl,-rpath,%sycl_libs_dir -L%t.dir -lregisterlib -o %t.l.exe
 // RUN: %{run} %t.l.exe
 
 // With a SYCL main the spir64 member's device code is linked into the wrapper
