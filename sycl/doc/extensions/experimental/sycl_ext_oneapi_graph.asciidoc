@@ -2375,9 +2375,9 @@ during graph replay:
 When this property has the value `false`, the operation behaves as if no
 `graph_external` property was provided.
 
-It is undefined behavior to destroy a reusable event used as a graph external
-signal or wait prior to destroying its associated modifiable and executable
-`command_graph` objects.
+The application may destroy all `sycl::event` objects referring to a reusable
+event recorded with `graph_external{true}` without affecting the behavior of
+the external event node during graph replay.
 
 It is undefined behavior to use a reusable event operation submitted with
 `graph_external{true}` to establish a dependency between commands in the same
