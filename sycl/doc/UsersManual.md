@@ -35,8 +35,8 @@ and not recommended to use in production environment.
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;
     * spir64_gen - generate code ahead of time for Intel Processor Graphics.
       Deprecated: use the intel_gpu_* values listed below instead. It emits a
-      deprecation warning with the old offloading model and is not supported
-      with the new offloading model (--offload-new-driver). To migrate
+      deprecation warning by default, and is an error with
+      --offload-new-driver. To migrate
       '-fsycl-targets=spir64_gen -Xsycl-target-backend "-device <value>"':
       * a device name, e.g. "-device pvc": use -fsycl-targets=intel_gpu_pvc;
       * a full IP version, e.g. "-device 12.60.7": use
