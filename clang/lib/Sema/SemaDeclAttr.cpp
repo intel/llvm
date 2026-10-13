@@ -539,7 +539,7 @@ static bool checkThreadSafetyAttrSubject(Sema &S, Decl *D, const ParsedAttr &AL,
 bool Sema::checkInstantiatedThreadSafetyAttrs(const Decl *D, const Attr *A) {
   if (!isa<AssertCapabilityAttr, AcquireCapabilityAttr,
            TryAcquireCapabilityAttr, ReleaseCapabilityAttr,
-           RequiresCapabilityAttr, LocksExcludedAttr>(A))
+           RequiresCapabilityAttr, LocksExcludedAttr, LockReturnedAttr>(A))
     return true;
 
   const auto *VD = dyn_cast<ValueDecl>(D);
@@ -548,7 +548,9 @@ bool Sema::checkInstantiatedThreadSafetyAttrs(const Decl *D, const Attr *A) {
 
   // Parameters of template functions need to be re-checked during
   // instantiation because their types might have been dependent.
-  if (const auto *PVD = dyn_cast<ParmVarDecl>(VD)) {
+  // lock_returned does not apply to scoped_lockable references.
+  if (const auto *PVD = dyn_cast<ParmVarDecl>(VD);
+      PVD && !isa<LockReturnedAttr>(A)) {
     if (isCallbackOrDependent(PVD->getType()))
       return true;
     return checkFunParamsAreScopedLockable(*this, PVD, *A);
@@ -730,6 +732,9 @@ static bool checkTryLockFunAttrCommon(Sema &S, Decl *D, const ParsedAttr &AL,
 }
 
 static void handleLockReturnedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!checkThreadSafetyAttrSubject(S, D, AL))
+    return;
+
   // check that the argument is lockable object
   SmallVector<Expr*, 1> Args;
   checkAttrArgsAreCapabilityObjs(S, D, AL, Args);
