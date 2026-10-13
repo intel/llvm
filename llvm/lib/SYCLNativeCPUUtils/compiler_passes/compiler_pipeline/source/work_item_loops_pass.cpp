@@ -217,8 +217,8 @@ struct ScheduleGenerator {
              "Modules should be using the new debug info format");
 #endif
       auto *const DVR =
-          static_cast<DbgVariableRecord *>(cast<DbgRecord *>(DIB.insertDeclare(
-              barrier.getDebugAddr(), new_var, expr, wrapperDbgLoc, block)));
+          cast<DbgVariableRecord>(DIB.insertDeclare(
+              barrier.getDebugAddr(), new_var, expr, wrapperDbgLoc, block));
 
       // This is nasty, but LLVM errors out on trailing debug info, we need a
       // subsequent instruction even if we delete it immediately afterwards.

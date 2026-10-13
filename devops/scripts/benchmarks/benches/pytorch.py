@@ -41,6 +41,9 @@ class RealWorldAppBench(Benchmark):
     def __init__(self, suite: PytorchBenchSuite):
         super().__init__(suite)
         self._script_path: Path | None = None
+        if is_pytorch_bench_available():
+            root = Path(options.pytorch_root)
+            self._script_path = root / self._SCRIPT_NAME
 
     def name(self) -> str:
         return "real-world-app"
@@ -51,9 +54,7 @@ class RealWorldAppBench(Benchmark):
     def enabled(self) -> bool:
         if not is_pytorch_bench_available():
             return False
-        root = Path(options.pytorch_root)
-        script = root / self._SCRIPT_NAME
-        return script.is_file()
+        return self._script_path.is_file() if self._script_path else False
 
     def description(self) -> str:
         return "Measures real-world XPU application performance via PyTorch dynamo microbenchmark."

@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // This is a basic test to validate the compressed store API.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

@@ -157,6 +157,10 @@ public:
     return std::get<std::reference_wrapper<graph_impl>>(MQueueOrGraph).get();
   }
 
+  /// \return true if the command group can be submitted to the backend
+  ///         directly, bypassing the scheduler.
+  bool canBypassScheduler();
+
   // Make the following methods templates to avoid circular dependencies for the
   // includes.
   template <typename Self = handler_impl> detail::device_impl &get_device() {
@@ -198,6 +202,10 @@ public:
   /// List of work group memory objects associated with this handler
   std::vector<std::shared_ptr<detail::work_group_memory_impl>>
       MWorkGroupMemoryObjects;
+
+  /// True if the work_group_scratch_size launch property is present for the
+  /// kernel
+  bool MHasWorkGroupScratchSizeProperty = false;
 
   /// Potential event mode for the result event of the command.
   ext::oneapi::experimental::event_mode_enum MEventMode =

@@ -48,13 +48,11 @@ public:
 };
 
 class SPIRVLowerOCLBlocksPass
-    : public llvm::PassInfoMixin<SPIRVLowerOCLBlocksPass>,
+    : public llvm::RequiredPassInfoMixin<SPIRVLowerOCLBlocksPass>,
       public SPIRVLowerOCLBlocksBase {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerOCLBlocksLegacy : public llvm::ModulePass,

@@ -3005,6 +3005,19 @@ ValuePacket Packetizer::Impl::packetizeGEP(GetElementPtrInst *GEP) {
   return results;
 }
 
+static Intrinsic::ID getVPIntrinsicForOpcode(unsigned IROPC) {
+  switch (IROPC) {
+  default:
+    break;
+
+#define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) break;
+#define VP_PROPERTY_FUNCTIONAL_OPC(OPC) case Instruction::OPC:
+#define END_REGISTER_VP_INTRINSIC(VPID) return Intrinsic::VPID;
+#include "llvm/IR/VPIntrinsics.def"
+  }
+  return Intrinsic::not_intrinsic;
+}
+
 ValuePacket Packetizer::Impl::packetizeBinaryOp(BinaryOperator *BinOp) {
   ValuePacket results;
   auto packetWidth = getPacketWidthForType(BinOp->getType());
@@ -3022,7 +3035,7 @@ ValuePacket Packetizer::Impl::packetizeBinaryOp(BinaryOperator *BinOp) {
     // operations in other cases. This support will improve over time.
     if (Ctx.targetInfo().isVPVectorLegal(F, VecTy)) {
       PACK_FAIL_IF(packetWidth != 1);
-      auto VPId = VPIntrinsic::getForOpcode(opcode);
+      auto VPId = getVPIntrinsicForOpcode(opcode);
       PACK_FAIL_IF(VPId == Intrinsic::not_intrinsic);
       auto *const Mask = createAllTrueMask(
           B, multi_llvm::getVectorElementCount(LHS[0]->getType()));
@@ -3035,8 +3048,9 @@ ValuePacket Packetizer::Impl::packetizeBinaryOp(BinaryOperator *BinOp) {
             B.getInt32(
                 multi_llvm::getVectorElementCount(VecTy).getKnownMinValue()));
       }
-      auto *const NewBinOp = B.CreateIntrinsic(VPId, {LHS[0]->getType()},
-                                               {LHS[0], RHS[0], Mask, EVL});
+      Value *NewBinOpValue = B.CreateIntrinsic(VPId, {LHS[0]->getType()},
+                                                {LHS[0], RHS[0], Mask, EVL});
+      auto *const NewBinOp = cast<CallInst>(NewBinOpValue);
       NewBinOp->copyIRFlags(BinOp, true);
       NewBinOp->copyMetadata(*BinOp);
       results.push_back(NewBinOp);

@@ -24,7 +24,7 @@ int main() {
   auto ctxt = q.get_context();
 
   // Test ability to create a shared pointer.
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
     auto ptr1 = std::allocate_shared<int>(alloc);
 
@@ -33,7 +33,7 @@ int main() {
     assert((*ptr2 == 42) && "Host construct passed.");
   }
 
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     usm_allocator<int, usm::alloc::shared> alloc(ctxt, dev);
     auto ptr1 = std::allocate_shared<int>(alloc);
 

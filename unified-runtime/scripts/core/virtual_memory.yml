@@ -246,8 +246,9 @@ desc: "Physical memory creation properties."
 class: $xPhysicalMem
 name: $x_physical_mem_flags_t
 etors:
-    - name: TBD
-      desc: "reserved for future use."
+    - name: ENABLE_IPC
+      value: "$X_BIT(1)"
+      desc: "allocate physical memory that can be shared via IPC handles."
 
 --- #--------------------------------------------------------------------------
 type: struct

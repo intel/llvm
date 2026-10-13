@@ -1,10 +1,11 @@
+#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
 using namespace sycl;
 
-constexpr access::mode sycl_read = access::mode::read;
-constexpr access::mode sycl_write = access::mode::write;
+constexpr access_mode sycl_read = access_mode::read;
+constexpr access_mode sycl_write = access_mode::write;
 
 using BFP = sycl::ext::oneapi::bfloat16;
 

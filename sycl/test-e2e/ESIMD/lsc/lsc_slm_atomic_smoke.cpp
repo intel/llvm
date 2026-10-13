@@ -10,6 +10,7 @@
 // REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 

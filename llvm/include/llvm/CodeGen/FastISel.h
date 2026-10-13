@@ -54,7 +54,8 @@ class MCSymbol;
 class TargetInstrInfo;
 class TargetLibraryInfo;
 class TargetMachine;
-class TargetRegisterClass;
+class MCRegisterClass;
+using TargetRegisterClass = MCRegisterClass;
 class TargetRegisterInfo;
 class Type;
 class User;
@@ -63,7 +64,7 @@ class Value;
 /// This is a fast-path instruction selection class that generates poor
 /// code and doesn't support illegal types or non-trivial lowering, but runs
 /// quickly.
-class FastISel {
+class LLVM_ABI FastISel {
 public:
   using ArgListEntry = TargetLoweringBase::ArgListEntry;
   using ArgListTy = TargetLoweringBase::ArgListTy;
@@ -107,12 +108,12 @@ public:
       RetTy = ResultTy;
       Callee = Target;
 
-      IsInReg = Call.hasRetAttr(Attribute::InReg);
+      IsInReg = Call.hasABIRetAttr(Attribute::InReg);
       DoesNotReturn = Call.doesNotReturn();
       IsVarArg = FuncTy->isVarArg();
       IsReturnValueUsed = !Call.use_empty();
-      RetSExt = Call.hasRetAttr(Attribute::SExt);
-      RetZExt = Call.hasRetAttr(Attribute::ZExt);
+      RetSExt = Call.hasABIRetAttr(Attribute::SExt);
+      RetZExt = Call.hasABIRetAttr(Attribute::ZExt);
 
       CallConv = Call.getCallingConv();
       Args = std::move(ArgsList);
@@ -131,12 +132,12 @@ public:
       Callee = Call.getCalledOperand();
       Symbol = Target;
 
-      IsInReg = Call.hasRetAttr(Attribute::InReg);
+      IsInReg = Call.hasABIRetAttr(Attribute::InReg);
       DoesNotReturn = Call.doesNotReturn();
       IsVarArg = FuncTy->isVarArg();
       IsReturnValueUsed = !Call.use_empty();
-      RetSExt = Call.hasRetAttr(Attribute::SExt);
-      RetZExt = Call.hasRetAttr(Attribute::ZExt);
+      RetSExt = Call.hasABIRetAttr(Attribute::SExt);
+      RetZExt = Call.hasABIRetAttr(Attribute::ZExt);
 
       CallConv = Call.getCallingConv();
       Args = std::move(ArgsList);
@@ -158,10 +159,10 @@ public:
       return *this;
     }
 
-    CallLoweringInfo &setCallee(const DataLayout &DL, MCContext &Ctx,
-                                CallingConv::ID CC, Type *ResultTy,
-                                StringRef Target, ArgListTy &&ArgsList,
-                                unsigned FixedArgs = ~0U);
+    LLVM_ABI CallLoweringInfo &setCallee(const DataLayout &DL, MCContext &Ctx,
+                                         CallingConv::ID CC, Type *ResultTy,
+                                         StringRef Target, ArgListTy &&ArgsList,
+                                         unsigned FixedArgs = ~0U);
 
     CallLoweringInfo &setCallee(CallingConv::ID CC, Type *ResultTy,
                                 MCSymbol *Target, ArgListTy &&ArgsList,

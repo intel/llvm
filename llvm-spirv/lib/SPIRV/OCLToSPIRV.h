@@ -304,12 +304,10 @@ public:
 };
 
 class OCLToSPIRVPass : public OCLToSPIRVBase,
-                       public llvm::PassInfoMixin<OCLToSPIRVPass> {
+                       public llvm::RequiredPassInfoMixin<OCLToSPIRVPass> {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace SPIRV

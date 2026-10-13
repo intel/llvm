@@ -81,8 +81,6 @@ class App:
                 self.OUTPUT_DIR,
                 "--preset",
                 "Minimal",
-                "--timestamp-override",
-                "20240102_030405",
                 "--stddev-threshold",
                 "999999999.9",
                 "--iterations",

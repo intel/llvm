@@ -1,5 +1,9 @@
+// TODO: Remove 'UNSUPPORTED' below once
+// https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
+// intel/llvm.
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78263
 // REQUIRES: opencl-aot, cpu
-// UNSUPPORTED: windows
 
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142

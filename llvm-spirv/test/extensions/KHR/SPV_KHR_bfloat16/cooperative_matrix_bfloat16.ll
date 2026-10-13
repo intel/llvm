@@ -21,7 +21,7 @@
 ; CHECK-SPIRV-DAG: Constant [[#BFloatTy]] [[#]] 16256
 ; CHECK-SPIRV: CompositeConstruct [[#MatTy]]
 
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", bfloat, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDF16b(bfloat 0xR3F80)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", bfloat, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDF16b(bfloat 1.000000e+00)
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

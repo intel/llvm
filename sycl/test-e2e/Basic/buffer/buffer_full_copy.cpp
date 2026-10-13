@@ -22,7 +22,7 @@ void check_copy_device_to_host(sycl::queue &Queue) {
 
   // Submit kernel where you'll fill the buffer
   Queue.submit([&](sycl::handler &cgh) {
-    auto acc = simple_buffer.get_access<sycl::access::mode::write>(cgh);
+    auto acc = simple_buffer.get_access<sycl::access_mode::write>(cgh);
     cgh.fill(acc, 13);
   });
 
@@ -69,8 +69,8 @@ void check_fill(sycl::queue &Queue) {
   }
 
   auto e = Queue.submit([&](sycl::handler &cgh) {
-    auto a = buf_1.template get_access<sycl::access::mode::write>(cgh, size / 2,
-                                                                  offset);
+    auto a = buf_1.template get_access<sycl::access_mode::write>(cgh, size / 2,
+                                                                 offset);
     cgh.fill(a, (float)1337.0);
   });
   e.wait();
@@ -102,8 +102,8 @@ void check_copy_host_to_device(sycl::queue &Queue) {
     expected_res_2[i] = expected_res_1[offset + i];
 
   auto e = Queue.submit([&](sycl::handler &cgh) {
-    auto a = buf_1.get_access<sycl::access::mode::read>(cgh, size / 2, offset);
-    auto b = buf_2.get_access<sycl::access::mode::write>(cgh, size / 2);
+    auto a = buf_1.get_access<sycl::access_mode::read>(cgh, size / 2, offset);
+    auto b = buf_2.get_access<sycl::access_mode::write>(cgh, size / 2);
     cgh.copy(a, b);
   });
   e.wait();
@@ -141,10 +141,10 @@ void check_copy_host_to_device(sycl::queue &Queue) {
       expected_res_4[i][j] = expected_res_3[i + offset][j + offset];
 
   e = Queue.submit([&](sycl::handler &cgh) {
-    auto a = buf_3.get_access<sycl::access::mode::read>(
+    auto a = buf_3.get_access<sycl::access_mode::read>(
         cgh, {size / 2, size / 2}, {offset, offset});
     auto b =
-        buf_4.get_access<sycl::access::mode::write>(cgh, {size / 2, size / 2});
+        buf_4.get_access<sycl::access_mode::write>(cgh, {size / 2, size / 2});
     cgh.copy(a, b);
   });
   e.wait();
@@ -190,9 +190,9 @@ void check_copy_host_to_device(sycl::queue &Queue) {
             expected_res_5[i + offset][j + offset][k + offset];
 
   e = Queue.submit([&](sycl::handler &cgh) {
-    auto a = buf_5.get_access<sycl::access::mode::read>(
+    auto a = buf_5.get_access<sycl::access_mode::read>(
         cgh, {size / 2, size / 2, size / 2}, {offset, offset, offset});
-    auto b = buf_6.get_access<sycl::access::mode::write>(
+    auto b = buf_6.get_access<sycl::access_mode::write>(
         cgh, {size / 2, size / 2, size / 2});
     cgh.copy(a, b);
   });

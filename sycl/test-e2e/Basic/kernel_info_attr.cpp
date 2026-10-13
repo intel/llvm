@@ -3,6 +3,7 @@
 //
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22226
 //
 // Consistently fails with opencl gpu, enable when fixed.
 // XFAIL: opencl && gpu
@@ -36,7 +37,7 @@ int main() {
   kernel krn = KB.get_kernel(KernelID);
 
   q.submit([&](handler &cgh) {
-    auto acc = buf.get_access<access::mode::read_write>(cgh);
+    auto acc = buf.get_access<access_mode::read_write>(cgh);
     cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 

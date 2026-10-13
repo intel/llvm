@@ -13,6 +13,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN:  %{l0_leak_check} %{run} %t.out
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 
@@ -26,7 +27,7 @@ void test_exception(sycl::queue &q, sycl::buffer<int, 1> &buf,
 
     // Will throw when submitted
     q.submit([&](sycl::handler &cgh) {
-       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+       auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
        cgh.parallel_for(illegal_range, [=](sycl::nd_item<1> nd_item) {
          acc[nd_item.get_global_linear_id()] = 42; // will not be reached
        });

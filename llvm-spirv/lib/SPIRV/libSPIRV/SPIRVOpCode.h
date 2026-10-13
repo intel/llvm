@@ -267,8 +267,8 @@ inline bool isSpecConstantOpCode(Op OpCode) {
 inline bool isConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpConstantTrue <= OC && OC <= OpSpecConstantOp) || OC == OpUndef ||
-         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL ||
-         isSpecConstantOpCode(OpCode);
+         OC == OpPoisonKHR || OC == OpConstantPipeStorage ||
+         OC == OpConstantFunctionPointerINTEL || isSpecConstantOpCode(OpCode);
 }
 
 inline bool isModuleScopeAllowedOpCode(Op OpCode) {

@@ -10,8 +10,12 @@
 
 #include "common.hpp"
 
+namespace ur::opencl {
+
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
 /// TODO: Implement.
 ///
-struct ur_physical_mem_handle_t_ : ur::opencl::handle_base {};
+struct ur_physical_mem_handle_t_ : handle_base {};
+
+} // namespace ur::opencl

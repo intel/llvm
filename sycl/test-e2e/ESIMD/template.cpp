@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 
@@ -24,9 +25,9 @@ sycl::event createKernel(sycl::queue &q, buffer<T, 1> &bufa, buffer<T, 1> &bufb,
   // We need that many threads in each group
   range<1> LocalRange{1};
   return q.submit([&](handler &cgh) {
-    auto PA = bufa.template get_access<access::mode::read>(cgh);
-    auto PB = bufb.template get_access<access::mode::read>(cgh);
-    auto PC = bufc.template get_access<access::mode::write>(cgh);
+    auto PA = bufa.template get_access<access_mode::read>(cgh);
+    auto PB = bufb.template get_access<access_mode::read>(cgh);
+    auto PC = bufc.template get_access<access_mode::write>(cgh);
     cgh.parallel_for<class Test>(GlobalRange * LocalRange,
                                  [=](id<1> i) SYCL_ESIMD_KERNEL {
                                    using namespace sycl::ext::intel::esimd;

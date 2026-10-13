@@ -11,20 +11,17 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
-#include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
 #include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/range_rounding.hpp>
 #include <sycl/detail/reduction_forward.hpp>
-#include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -32,13 +29,11 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
-#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
-#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
@@ -49,6 +44,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -56,7 +52,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -138,12 +133,11 @@ inline namespace _V1 {
 
 template <bundle_state State> class kernel_bundle;
 class handler;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
+class memory_pool;
 struct image_descriptor;
 enum class prefetch_type;
 
@@ -214,22 +208,22 @@ class HostTask;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
+Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg>
-static Arg member_ptr_helper(RetType (Func::*)(Arg));
+Arg member_ptr_helper(RetType (Func::*)(Arg));
 
 // Version with two arguments to handle the case when kernel_handler is passed
 // to a lambda
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
 // Non-const version of the above template to match functors whose 'operator()'
 // is declared w/o the 'const' qualifier.
 template <typename RetType, typename Func, typename Arg1, typename Arg2>
-static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
+Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -263,7 +257,7 @@ using sycl::detail::queue_impl;
 // Returns true if x*y will overflow in T;
 // otherwise, returns false and stores x*y in dst.
 template <typename T>
-static std::enable_if_t<std::is_unsigned_v<T>, bool>
+std::enable_if_t<std::is_unsigned_v<T>, bool>
 multiply_with_overflow_check(T &dst, T x, T y) {
   dst = x * y;
   return (y != 0) && (x > (std::numeric_limits<T>::max)() / y);
@@ -370,10 +364,33 @@ private:
     setType(detail::CGType::Kernel);
   }
 
+  // Sets up this handler to launch a free function kernel that the caller has
+  // already resolved to its DeviceKernelInfo via getDeviceKernelInfo<Func>().
+  // Deliberately *not* templated on `Func`: threading the resolved (opaque)
+  // DeviceKernelInfo* instead of the kernel function pointer keeps the kernel's
+  // (potentially huge) mangled signature out of the host symbols on the launch
+  // path, which is the dominant host object size cost of free function kernels
+  // on MSVC. See CMPLRLLVM-77222.
+  //
+  // Kept header-inline (adds no new libsycl ABI symbol): we do not copy the
+  // kernel name into MKernelName here, so the (source-only) DeviceKernelInfo
+  // definition is not needed. finalize() reads the name directly from the
+  // DeviceKernelInfo pointer set below (KernelData::getKernelName()); the
+  // handler's MKernelName is only consulted when that pointer is absent, which
+  // is not the case on this path.
+  void setFreeFunctionKernelInfoRT(detail::DeviceKernelInfo *KI) {
+    setDeviceKernelInfoPtr(KI);
+    setType(detail::CGType::Kernel);
+  }
+
   void setDeviceKernelInfo(kernel &&Kernel);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
+
+  /// Extracts and prepares kernel arguments set via set_arg(s) for a free
+  /// function kernel launched by name (no interop kernel object involved).
+  void extractFreeFunctionArgsAndReqs();
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
@@ -422,11 +439,10 @@ private:
   /// only after the command group finishes the work on device/host.
   ///
   /// @param ReduBuf is a pointer to buffer that must be stored.
-  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-  void
-  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
-                   &ReduBuf) {
-    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+  template <typename T, int Dimensions, typename AllocatorT>
+  void addReduction(
+      const std::shared_ptr<buffer<T, Dimensions, AllocatorT>> &ReduBuf) {
+    detail::markBufferAsInternal(detail::getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
 
@@ -512,7 +528,7 @@ private:
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
 
-    if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
+    if (!std::is_same<OpenCLMemT, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
     } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
@@ -864,7 +880,7 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             decltype(Wrapper)>::value) {
-        SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(
+        setKernelLaunchProperties(detail::extractKernelProperties(
             Wrapper.get(ext::oneapi::experimental::properties_tag{})));
       }
 
@@ -875,7 +891,6 @@ private:
       // kernel use items/ids in the user range, which means that
       // ID range assumptions can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
@@ -895,16 +910,14 @@ private:
       if constexpr (ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value) {
-        SetKernelLaunchpropertiesIfNotEmpty(
-            detail::extractKernelProperties<Info.IsESIMD>(
-                KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
+        setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
+            KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
       }
 
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
-      SetKernelLaunchpropertiesIfNotEmpty(
+      setKernelLaunchProperties(
           detail::extractKernelProperties<Info.IsESIMD>(Props));
-      detail::checkValueRange<Dims>(UserRange);
       convertToRangeViewAndSetDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
@@ -930,9 +943,8 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems);
     convertToRangeViewAndSetDescriptor(std::move(NumWorkItems));
-    SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -953,9 +965,8 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
     convertToRangeViewAndSetDescriptor(std::move(NDRange));
-    SetKernelLaunchpropertiesIfNotEmpty(detail::extractKernelProperties(Props));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -978,9 +989,8 @@ private:
 
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
-      SetKernelLaunchpropertiesIfNotEmpty(
-          detail::extractKernelProperties<Info.IsESIMD>(
-              KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
+      setKernelLaunchProperties(detail::extractKernelProperties<Info.IsESIMD>(
+          KernelFunc.get(ext::oneapi::experimental::properties_tag{})));
     }
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -990,7 +1000,6 @@ private:
     throwIfActionIsCreated();
     verifyUsedKernelBundleInternal(Info.Name);
 
-    detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
       convertToRangeViewAndSetDescriptor(std::move(params)...,
                                          /*SetNumWorkGroups=*/true);
@@ -999,7 +1008,7 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    SetKernelLaunchpropertiesIfNotEmpty(
+    setKernelLaunchProperties(
         detail::extractKernelProperties<Info.IsESIMD>(Props));
 #endif
   }
@@ -1081,6 +1090,8 @@ private:
   kernel_bundle<bundle_state::input> getKernelBundle() const;
 
 public:
+  handler() = delete;
+
   handler(const handler &) = delete;
   handler(handler &&) = delete;
   handler &operator=(const handler &) = delete;
@@ -1161,11 +1172,11 @@ public:
             && std::is_standard_layout<std::remove_reference_t<T>>::value
 #endif
         || is_same_type<sampler, T>::value // Sampler
-        || (!is_same_type<cl_mem, T>::value &&
+        || (!is_same_type<OpenCLMemT, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
-        || sycl::is_device_copyable_v<remove_cv_ref_t<T>>;
+        || detail::check_if_device_copyable_v<remove_cv_ref_t<T>>;
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1428,6 +1439,33 @@ public:
     extractArgsAndReqs();
   }
 
+  // Launches the free function kernel `Func` directly, without materializing a
+  // kernel object or building a kernel bundle in the enqueue functions header.
+  // The kernel is resolved by name through the cached getDeviceKernelInfo<Func>
+  // and enqueued via the fast (scheduler-bypass-capable) path in finalize().
+  // Kernel arguments must have been set beforehand via set_arg(s).
+  // `KI` is the free function kernel's DeviceKernelInfo, resolved by the caller
+  // via getDeviceKernelInfo<Func>(). Neither this method nor
+  // nd_launch_free_function is templated on `Func`, so the kernel's mangled
+  // signature is not re-spelled here (or in the submit closure that reaches
+  // them). See CMPLRLLVM-77222.
+  void single_task_free_function(detail::DeviceKernelInfo *KI) {
+    throwIfActionIsCreated();
+    convertToRangeViewAndSetDescriptor(range<1>{1});
+    setFreeFunctionKernelInfoRT(KI);
+    extractFreeFunctionArgsAndReqs();
+  }
+
+  template <int Dims, typename PropertiesT>
+  void nd_launch_free_function(detail::DeviceKernelInfo *KI,
+                               nd_range<Dims> NDRange, PropertiesT Props) {
+    throwIfActionIsCreated();
+    convertToRangeViewAndSetDescriptor(std::move(NDRange));
+    setKernelLaunchProperties(detail::extractKernelProperties(Props));
+    setFreeFunctionKernelInfoRT(KI);
+    extractFreeFunctionArgsAndReqs();
+  }
+
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
     parallel_for_impl(NumWorkItems,
                       ext::oneapi::experimental::empty_properties_t{}, Kernel);
@@ -1459,7 +1497,6 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     setDeviceKernelInfo(std::move(Kernel));
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     extractArgsAndReqs();
 #endif
@@ -1993,7 +2030,7 @@ public:
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
     setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
-    static_assert(is_device_copyable<T>::value,
+    static_assert(detail::check_if_device_copyable_v<T>,
                   "Pattern must be device copyable");
     if (getDeviceBackend() == backend::ext_oneapi_level_zero) {
       parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
@@ -2856,6 +2893,7 @@ private:
   void setKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   inline constexpr void SetKernelLaunchpropertiesIfNotEmpty(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
     (void)KernelLaunchProperties;
@@ -2863,8 +2901,9 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     if (!KernelLaunchProperties.isEmpty())
       setKernelLaunchProperties(KernelLaunchProperties);
-#endif
+#endif // __SYCL_DEVICE_ONLY
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time
@@ -3017,6 +3056,8 @@ public:
   static void internalProfilingTagImpl(handler &Handler) {
     Handler.internalProfilingTagImpl();
   }
+
+  static std::function<void()> getHostTaskFunc(detail::HostTask &HT);
 
   template <typename FuncT>
   static std::enable_if_t<

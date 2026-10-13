@@ -91,6 +91,9 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=dg1 -DMAC_STR=DG1
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_10_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=dg1 -DMAC_STR=DG1
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=dg2 \
+// RUN:             -DMAC_STR=DG2
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
 // RUN:             -DMAC_STR=ACM_G10
@@ -126,6 +129,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc_xt_c0_vg -DMAC_STR=PVC_VG
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_61_7 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc_xt_c0_vg -DMAC_STR=PVC_VG
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl -DMAC_STR=MTL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_u -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_s -DMAC_STR=MTL_U
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_s -### %s 2>&1 | \
@@ -144,6 +149,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=xe_lpgplus_b0 -DMAC_STR=ARL_H
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_74_4 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=xe_lpgplus_b0 -DMAC_STR=ARL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg -DMAC_STR=BMG
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g21 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_1_4 -### %s 2>&1 | \
@@ -156,6 +163,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_4_4 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_ptl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl -DMAC_STR=PTL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_ptl_h -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_h -DMAC_STR=PTL_H
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_0_4 -### %s 2>&1 | \
@@ -195,6 +204,19 @@
 // MACRO: clang{{.*}} "-fsycl-is-host"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
+
+/// Each TU's host compile should get the macro once, even when TUs share an invocation.
+// RUN: touch %t_file1.cpp
+// RUN: touch %t_file2.cpp
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -c -### %t_file1.cpp %t_file2.cpp 2>&1 | \
+// RUN:   grep "fsycl-is-host" | \
+// RUN:   FileCheck %s --check-prefix=CHK-PVC-HOST-MACRO-ONCE
+// CHK-PVC-HOST-MACRO-ONCE: "-fsycl-is-host"
+// CHK-PVC-HOST-MACRO-ONCE-SAME: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-HOST-MACRO-ONCE-NOT: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-HOST-MACRO-ONCE: "-fsycl-is-host"
+// CHK-PVC-HOST-MACRO-ONCE-SAME: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-HOST-MACRO-ONCE-NOT: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
 
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
@@ -260,6 +282,7 @@
 // RUN:   -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   grep -v "fsycl-is-host" | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"

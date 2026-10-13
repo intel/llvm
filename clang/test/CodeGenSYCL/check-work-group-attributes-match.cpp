@@ -15,17 +15,17 @@ int main() {
   queue q;
 
   q.submit([&](handler &h) {
-    // CHECK: define {{.*}} void @{{.*}}kernel_1d() #0 {{.*}} !work_group_size_hint ![[WGSH1D:[0-9]+]]{{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]]{{.*}} !reqd_work_group_size ![[WGSH1D]]
+    // CHECK: define {{.*}} void @{{.*}}kernel_1d() #[[#]] {{.*}} !work_group_size_hint ![[WGSH1D:[0-9]+]]{{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]]{{.*}} !reqd_work_group_size ![[WGSH1D]]
     h.single_task<class kernel_1d>([]() [[sycl::work_group_size_hint(8)]] [[sycl::reqd_work_group_size(8)]] {});
   });
 
   q.submit([&](handler &h) {
-    // CHECK: define {{.*}} void @{{.*}}kernel_2d() #0 {{.*}} !work_group_size_hint ![[WGSH2D:[0-9]+]]{{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]]{{.*}} !reqd_work_group_size ![[WGSH2D:[0-9]+]]{{.*}}
+    // CHECK: define {{.*}} void @{{.*}}kernel_2d() #[[#]] {{.*}} !work_group_size_hint ![[WGSH2D:[0-9]+]]{{.*}} !work_group_num_dim ![[NDRWGS2D:[0-9]+]]{{.*}} !reqd_work_group_size ![[WGSH2D:[0-9]+]]{{.*}}
     h.single_task<class kernel_2d>([]() [[sycl::work_group_size_hint(8, 16)]] [[sycl::reqd_work_group_size(8, 16)]] {});
   });
 
   q.submit([&](handler &h) {
-    // CHECK: define {{.*}} void @{{.*}}kernel_3d() #0 {{.*}} !work_group_size_hint ![[WG3D:[0-9]+]]{{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]]{{.*}} !reqd_work_group_size ![[WG3D]]
+    // CHECK: define {{.*}} void @{{.*}}kernel_3d() #[[#]] {{.*}} !work_group_size_hint ![[WG3D:[0-9]+]]{{.*}} !work_group_num_dim ![[NDRWGS3D:[0-9]+]]{{.*}} !reqd_work_group_size ![[WG3D]]
     h.single_task<class kernel_3d>([]() [[sycl::work_group_size_hint(8, 16, 32)]] [[sycl::reqd_work_group_size(8, 16, 32)]] {});
   });
 }

@@ -193,6 +193,11 @@ This layer shouldn't be enabled explicitly, for example, by the environment vari
 
 Currently, AddressSanitizer only supports some of the devices on OpenCL and Level-Zero adapters, and this could be extended to support other devices and adapters if UR virtual memory APIs and shadow memory mapping in libdevice are supported.
 
+Launch blocking
+---------------------
+
+The validation layer implements a debugging mode (`UR_LAYER_LAUNCH_BLOCKING`) which makes commands enqueued to a queue synchronous: an enqueue does not return until the queue has drained, so a device fault is reported at the command that caused it. It serializes the application, which is why `UR_LAYER_FULL_VALIDATION` does not enable it. The SYCL Runtime enables it for `SYCL_LAUNCH_BLOCKING=1`. Markers, host tasks and capturing queues are not made synchronous, and the drain has no deadline, so work that can only complete through host progress after the enqueue returns hangs.
+
 Logging
 ---------------------
 
@@ -311,6 +316,8 @@ By default, no layers are enabled. Layers currently included with the runtime ar
      - Performs lifetime validation on objects (check if it was used within the scope of its creation and destruction) used in API calls. Automatically enables UR_LAYER_LEAK_CHECKING.
    * - UR_LAYER_FULL_VALIDATION
      - Enables UR_LAYER_PARAMETER_VALIDATION, UR_LAYER_BOUNDS_CHECKING, UR_LAYER_LEAK_CHECKING, and UR_LAYER_LIFETIME_VALIDATION.
+   * - UR_LAYER_LAUNCH_BLOCKING
+     - Makes commands enqueued to a queue synchronous, see `Launch blocking`_ for more detail. Not enabled by UR_LAYER_FULL_VALIDATION.
    * - UR_LAYER_TRACING
      - Enables the XPTI tracing layer, see Tracing_ for more detail.
    * - UR_LAYER_ASAN \| UR_LAYER_MSAN \| UR_LAYER_TSAN

@@ -240,24 +240,3 @@ In order to indicate support for a particular set of functions,
 underlying runtime have to support the corresponding OpenCL (PI)
 extension. See ``../../design/DeviceLibExtensions.rst`` for
 a list of supported functions and corresponding extensions.
-
-Fallback implementation
-=======================
-
-If a device compiler does not indicate "native" support for a
-particular function, a fallback library is linked at JIT time by the
-SYCL Runtime. This library is distributed with the SYCL Runtime and
-resides in the same directory as the `libsycl.so` or `sycl.dll`.
-
-A fallback library is implemented as a device-agnostic SPIR-V program,
-and it is supposed to work for any device that supports SPIR-V.
-
-Every set of functions is implemented in a separate fallback
-library. For example, a fallback for `cl_intel_devicelib_cassert`
-extension is provided as `libsycl-fallback-cassert.spv`
-
-For AOT compilation, fallback libraries are provided as object files
-(e.g. `libsycl-fallback-cassert.o`) which contain device code in LLVM
-IR format. Device code in these object files is equivalent to device
-code in the `*.spv` files. Those object files are located in compiler
-package's 'lib/' folder.

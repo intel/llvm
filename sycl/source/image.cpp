@@ -120,7 +120,7 @@ image_plain::image_plain(const std::shared_ptr<const void> &HostPointer,
 }
 
 #ifdef __SYCL_INTERNAL_API
-image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
+image_plain::image_plain(OpenCLMemT ClMemObject, const context &SyclContext,
                          event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator,
                          uint8_t Dimensions) {

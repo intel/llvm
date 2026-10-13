@@ -68,13 +68,11 @@ ur_result_t EnqueueMemCopyRectHelper(
     UR_CALL(getContext()->urDdiTable.Event.pfnWait(Events.size(), &Events[0]));
   }
 
-  if (Event) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
-                                                           &Events[0], Event));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
+                                                         &Events[0], Event));
+  getTsanInterceptor()
+      ->getContextInfo(GetContext(Queue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }
@@ -103,10 +101,9 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
   if (!Allocation) {
     ur_usm_desc_t USMDesc{};
     USMDesc.align = getAlignment();
-    ur_usm_pool_handle_t Pool{};
-    URes = getTsanInterceptor()->allocateMemory(Context, Device, &USMDesc, Pool,
-                                                Size, AllocType::DEVICE_USM,
-                                                ur_cast<void **>(&Allocation));
+    URes = getTsanInterceptor()->allocateMemory(
+        Context, Device, AllocMemoryParams::forUSM(&USMDesc, {}), Size,
+        AllocType::DEVICE_USM, ur_cast<void **>(&Allocation));
     if (URes != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR,
                "Failed to allocate {} bytes memory for buffer {}", Size, this);

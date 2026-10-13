@@ -12,6 +12,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <vector>
 
@@ -38,7 +39,7 @@ template <typename T1, typename T2> struct KernelFunctor {
       Ptr[WgSize * I + Item.get_local_linear_id()] = Item.get_local_linear_id();
     }
 
-    Item.barrier();
+    sycl::group_barrier(Item.get_group());
     for (size_t I = 0; I < RepeatWG; ++I) {
       // Check that the memory is accessible from other
       // work-items
@@ -57,7 +58,7 @@ int main() {
   buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 
   Q.submit([&](handler &Cgh) {
-    auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+    auto Acc = Buf.get_access<access_mode::read_write>(Cgh);
     sycl_ext::work_group_scratch_size static_size(WgSize * RepeatWG *
                                                   sizeof(int));
     sycl_ext::properties properties{static_size};

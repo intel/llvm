@@ -10,6 +10,12 @@ add_sycl_unittest(ProgramManagerTests OBJECT
   passing_link_and_compile_options.cpp
   Cleanup.cpp
   MultipleDevsKernelBundle.cpp
+  AOTBinaryTarget.cpp
+  LibraryCompilation.cpp
+  SYCLBINSelector.cpp
+  SYCLBINAOTLink.cpp
+  FreeFunctionKernelInfo.cpp
+  UnregisteredKernel.cpp
 )
 endif()
 

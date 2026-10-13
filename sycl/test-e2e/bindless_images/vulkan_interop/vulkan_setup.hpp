@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -282,7 +283,7 @@ inline VkFormat getUnorm8Format(int channels) {
 
 // Generates a deterministic test value based on position and channel
 template <typename T>
-T generateTestValue(size_t index, int channel, size_t rangeMax) {
+inline T generateTestValue(size_t index, int channel, size_t rangeMax) {
   if constexpr (std::is_floating_point_v<T>) {
     // Float: 0.0 -> 1.0 gradient with channel offset
     float val = (float)index / (float)(rangeMax > 1 ? rangeMax - 1 : 1);
@@ -294,9 +295,10 @@ T generateTestValue(size_t index, int channel, size_t rangeMax) {
 }
 
 // Compares values with appropriate tolerance for Floats
-template <typename T> bool checkValue(T actual, T expected) {
+template <typename T>
+inline bool checkValue(T actual, T expected, float epsilon = 0.01f) {
   if constexpr (std::is_floating_point_v<T>) {
-    return std::abs(actual - expected) < 0.01f;
+    return std::abs(actual - expected) < epsilon;
   } else {
     return actual == expected;
   }
@@ -306,11 +308,20 @@ template <typename T> bool checkValue(T actual, T expected) {
 // Boilerplate
 // ---------------------------------------------------------
 
-size_t getRowPitch(VulkanContext &ctx, VkImage image) {
+inline size_t getRowPitch(VulkanContext &ctx, VkImage image) {
   VkSubresourceLayout layout;
   VkImageSubresource subResource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
   vkGetImageSubresourceLayout(ctx.device, image, &subResource, &layout);
   return layout.rowPitch;
+}
+
+// vkGetImageSubresourceLayout is only valid for VK_IMAGE_TILING_LINEAR images;
+// call only when the VkImage was created with linear tiling.
+inline size_t getSlicePitch(VulkanContext &ctx, VkImage image) {
+  VkSubresourceLayout layout;
+  VkImageSubresource subResource{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
+  vkGetImageSubresourceLayout(ctx.device, image, &subResource, &layout);
+  return layout.depthPitch;
 }
 
 inline uint32_t findMemoryType(VkPhysicalDevice physicalDevice,
@@ -327,13 +338,19 @@ inline uint32_t findMemoryType(VkPhysicalDevice physicalDevice,
   throw std::runtime_error("failed to find suitable memory type!");
 }
 
-inline VulkanContext createVulkanContext() {
+inline VulkanContext
+createVulkanContext(const std::array<uint8_t, VK_UUID_SIZE> &SyclDeviceUUID) {
   VulkanContext ctx;
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.apiVersion = VK_API_VERSION_1_2;
 
   std::vector<const char *> instanceExtensions;
+  VkInstanceCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  createInfo.pApplicationInfo = &appInfo;
+
+#ifndef ONT_VALIDATE
   uint32_t instanceExtensionCount = 0;
   VK_CHECK(vkEnumerateInstanceExtensionProperties(
       nullptr, &instanceExtensionCount, nullptr));
@@ -373,13 +390,8 @@ inline VulkanContext createVulkanContext() {
     throw std::runtime_error("failed to find Vulkan validation layer!");
   }
 
-  VkInstanceCreateInfo createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  createInfo.pApplicationInfo = &appInfo;
   createInfo.ppEnabledLayerNames = &validationLayerName;
   createInfo.enabledLayerCount = 1;
-  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
 
   VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerInfo{};
   debugUtilsMessengerInfo.sType =
@@ -397,8 +409,16 @@ inline VulkanContext createVulkanContext() {
   // that occur while creating the instance itself. This debug util messangegr
   // will be alive only during instance creation.
   createInfo.pNext = &debugUtilsMessengerInfo;
+#else
+  ctx.debugMessenger = VK_NULL_HANDLE;
+#endif
+
+  createInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
+  createInfo.ppEnabledExtensionNames = instanceExtensions.data();
+
   VK_CHECK(vkCreateInstance(&createInfo, nullptr, &ctx.instance));
 
+#ifndef ONT_VALIDATE
   // Create a persistent debug messenger that stays alive for the application's
   // lifetime to capture all subsequent events.
   auto vkCreateDebugUtilsMessengerFuncPtr =
@@ -411,12 +431,30 @@ inline VulkanContext createVulkanContext() {
     throw std::runtime_error(
         "Failed to fetch vkCreateDebugUtilsMessengerEXT function pointer!");
   }
+#endif
 
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, nullptr);
   std::vector<VkPhysicalDevice> devices(deviceCount);
   vkEnumeratePhysicalDevices(ctx.instance, &deviceCount, devices.data());
-  ctx.physicalDevice = devices[0];
+
+  ctx.physicalDevice = VK_NULL_HANDLE;
+  for (VkPhysicalDevice device : devices) {
+    VkPhysicalDeviceIDProperties idProperties{};
+    idProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+    VkPhysicalDeviceProperties2 properties{};
+    properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    properties.pNext = &idProperties;
+    vkGetPhysicalDeviceProperties2(device, &properties);
+    if (std::memcmp(idProperties.deviceUUID, SyclDeviceUUID.data(),
+                    VK_UUID_SIZE) == 0) {
+      ctx.physicalDevice = device;
+      break;
+    }
+  }
+
+  if (ctx.physicalDevice == VK_NULL_HANDLE)
+    throw std::runtime_error("Failed to find matching Vulkan physical device!");
 
   uint32_t queueFamilyCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice,
@@ -466,6 +504,7 @@ inline VulkanContext createVulkanContext() {
 
 inline void cleanupVulkanContext(VulkanContext &ctx) {
   vkDestroyDevice(ctx.device, nullptr);
+#ifndef ONT_VALIDATE
   auto vkDestroyDebugUtilsMessengerFuncPtr =
       (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
           ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -473,20 +512,21 @@ inline void cleanupVulkanContext(VulkanContext &ctx) {
     vkDestroyDebugUtilsMessengerFuncPtr(ctx.instance, ctx.debugMessenger,
                                         nullptr);
   }
+#endif
   vkDestroyInstance(ctx.instance, nullptr);
 }
-
 inline ImageResources createExportableImage(
     VulkanContext &ctx, VkExtent3D extent, VkFormat format, VkImageType type,
     VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
     VkImageUsageFlags usage = VK_IMAGE_USAGE_STORAGE_BIT |
                               VK_IMAGE_USAGE_SAMPLED_BIT |
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+    uint32_t mipLevels = 1) {
   VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
   imageInfo.imageType = type;
   imageInfo.extent = extent;
-  imageInfo.mipLevels = 1;
+  imageInfo.mipLevels = mipLevels;
   imageInfo.arrayLayers = 1;
   imageInfo.format = format;
   imageInfo.tiling = tiling;
@@ -652,6 +692,57 @@ inline void cleanupBuffer(VulkanContext &ctx, BufferResources &res) {
   vkFreeMemory(ctx.device, res.memory, nullptr);
 }
 
+inline VkCommandBuffer createCommandBuffer(const VulkanContext &ctx,
+                                           VkCommandPool &pool) {
+  VkCommandPoolCreateInfo poolInfo{};
+  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  poolInfo.queueFamilyIndex = ctx.queueFamilyIndex;
+  poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  VK_CHECK(vkCreateCommandPool(ctx.device, &poolInfo, nullptr, &pool));
+
+  VkCommandBufferAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.commandPool = pool;
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandBufferCount = 1;
+  VkCommandBuffer commandBuffer;
+  VK_CHECK(vkAllocateCommandBuffers(ctx.device, &allocInfo, &commandBuffer));
+  return commandBuffer;
+}
+
+inline void submitCommandBuffer(VulkanContext &ctx,
+                                VkCommandBuffer commandBuffer,
+                                VkCommandPool pool) {
+  VK_CHECK(vkEndCommandBuffer(commandBuffer));
+  VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &commandBuffer;
+  VK_CHECK(vkQueueSubmit(ctx.queue, 1, &submitInfo, VK_NULL_HANDLE));
+  VK_CHECK(vkQueueWaitIdle(ctx.queue));
+  vkDestroyCommandPool(ctx.device, pool, nullptr);
+}
+
+inline VkImageMemoryBarrier createImageMemoryBarrier(
+    VkImage image, uint32_t mipLevels,
+    VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    VkImageLayout newLayout = VK_IMAGE_LAYOUT_GENERAL,
+    VkAccessFlags srcAccessMask = 0,
+    VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT) {
+  VkImageMemoryBarrier barrier{};
+  barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrier.srcAccessMask = srcAccessMask;
+  barrier.dstAccessMask = dstAccessMask;
+  barrier.oldLayout = oldLayout;
+  barrier.newLayout = newLayout;
+  barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrier.image = image;
+  barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  barrier.subresourceRange.levelCount = mipLevels;
+  barrier.subresourceRange.layerCount = 1;
+  return barrier;
+}
+
 // ---------------------------------------------------------
 // PLATFORM SPECIFIC GETTERS
 // ---------------------------------------------------------
@@ -756,8 +847,9 @@ inline int getSemaphoreFd(VulkanContext &ctx, VkSemaphore semaphore) {
 // HELPER: Upload Data (Host -> Staging -> Device)
 // ---------------------------------------------------------
 template <typename Functor>
-void uploadImage(VulkanContext &ctx, ImageResources &imgRes, int channels,
-                 VkSemaphore signalSemaphore, Functor generator) {
+inline void uploadImage(VulkanContext &ctx, ImageResources &imgRes,
+                        int channels, VkSemaphore signalSemaphore,
+                        Functor generator) {
   uint32_t width = imgRes.extent.width;
   uint32_t height = imgRes.extent.height;
   uint32_t depth = imgRes.extent.depth;
@@ -863,8 +955,9 @@ void uploadImage(VulkanContext &ctx, ImageResources &imgRes, int channels,
 // HELPER: Verify Data (Device -> Staging -> Host)
 // ---------------------------------------------------------
 template <typename Functor>
-bool verifyImage(VulkanContext &ctx, ImageResources &imgRes, int channels,
-                 VkSemaphore waitSemaphore, Functor expectedGenerator) {
+inline bool verifyImage(VulkanContext &ctx, ImageResources &imgRes,
+                        int channels, VkSemaphore waitSemaphore,
+                        Functor expectedGenerator) {
   uint32_t width = imgRes.extent.width;
   uint32_t height = imgRes.extent.height;
   uint32_t depth = imgRes.extent.depth;
@@ -993,9 +1086,9 @@ bool verifyImage(VulkanContext &ctx, ImageResources &imgRes, int channels,
 }
 
 template <typename T>
-bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
-                     VkSemaphore signalSemaphore = VK_NULL_HANDLE,
-                     int channels = 4) {
+inline bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
+                            VkSemaphore signalSemaphore = VK_NULL_HANDLE,
+                            int channels = 4) {
   size_t texWidth = imgRes.extent.width;
   size_t texHeight = imgRes.extent.height;
   size_t texDepth = imgRes.extent.depth;
@@ -1193,9 +1286,9 @@ bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
 // ---------------------------------------------------------
 // Used by the Boss Battle to pass custom functors
 template <typename Functor>
-bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
-                     VkSemaphore signalSemaphore, int channels,
-                     Functor generator) {
+inline bool uploadAndVerify(VulkanContext &ctx, ImageResources &imgRes,
+                            VkSemaphore signalSemaphore, int channels,
+                            Functor generator) {
   // Same logic, but using the passed generator
   uploadImage(ctx, imgRes, channels, VK_NULL_HANDLE, generator);
 
@@ -1230,6 +1323,7 @@ inline void cleanupVulkan(VulkanContext &ctx, ImageResources &res) {
   vkDestroyImage(ctx.device, res.image, nullptr);
   vkFreeMemory(ctx.device, res.memory, nullptr);
   vkDestroyDevice(ctx.device, nullptr);
+#ifndef ONT_VALIDATE
   auto vkDestroyDebugUtilsMessengerFuncPtr =
       (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
           ctx.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -1237,5 +1331,6 @@ inline void cleanupVulkan(VulkanContext &ctx, ImageResources &res) {
     vkDestroyDebugUtilsMessengerFuncPtr(ctx.instance, ctx.debugMessenger,
                                         nullptr);
   }
+#endif
   vkDestroyInstance(ctx.instance, nullptr);
 }

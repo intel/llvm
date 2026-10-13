@@ -23,6 +23,14 @@ namespace detail {
 // Property value tooling
 //******************************************************************************
 
+// Trait for checking that all size_t values are non-zero.
+template <size_t... Xs> struct AllNonZero {
+  static constexpr bool value = true;
+};
+template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
+  static constexpr bool value = X > 0 && AllNonZero<Xs...>::value;
+};
+
 // Simple helpers for containing primitive types as template arguments.
 template <size_t... Sizes> struct SizeList {};
 template <char... Sizes> struct CharList {};

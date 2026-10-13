@@ -9,6 +9,9 @@
 // REQUIRES: aspect-ext_intel_matrix, gpu
 // REQUIRES-INTEL-DRIVER: lin: 30049
 
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17165
+
 // RUN: %{build} -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out
 

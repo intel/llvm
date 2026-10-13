@@ -8,6 +8,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
+#include <iostream>
 
 #include "../esimd_test_utils.hpp"
 #include "bitmap_helpers.h"
@@ -85,8 +86,8 @@ int main(int argc, char *argv[]) {
 
     for (int iter = 0; iter <= num_iters; ++iter) {
       auto e = q.submit([&](handler &cgh) {
-        auto accInput = imgInput.get_access<uint4, access::mode::read>(cgh);
-        auto accOutput = imgOutput.get_access<uint4, access::mode::write>(cgh);
+        auto accInput = imgInput.get_access<uint4, access_mode::read>(cgh);
+        auto accOutput = imgOutput.get_access<uint4, access_mode::write>(cgh);
 
         cgh.parallel_for<class Test>(
             GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {

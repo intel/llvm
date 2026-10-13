@@ -6,6 +6,7 @@
 
 // Simple test filling a SYCL private alloca and copying it back to an output
 // accessor using a decorated multi_ptr.
+#include <iostream>
 
 #include "Inputs/private_alloca_test.hpp"
 

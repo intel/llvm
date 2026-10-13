@@ -13,6 +13,7 @@
 // and using optional compile-time esimd::properties.
 // The block_load() calls in this test use the mask operand which requires
 // DG2 target device.
+#include <iostream>
 
 #include "Inputs/block_load.hpp"
 

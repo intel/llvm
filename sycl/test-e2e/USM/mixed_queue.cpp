@@ -21,9 +21,9 @@ int main() {
   const int SIZE = N * sizeof(int);
   queue q;
   auto dev = q.get_device();
-  if (!(dev.get_info<info::device::usm_device_allocations>() &&
-        dev.get_info<info::device::usm_host_allocations>() &&
-        dev.get_info<info::device::usm_shared_allocations>()))
+  if (!(dev.has(aspect::usm_device_allocations) &&
+        dev.has(aspect::usm_host_allocations) &&
+        dev.has(aspect::usm_shared_allocations)))
     return 0;
 
   int *ptr = (int *)malloc_device(SIZE, q);

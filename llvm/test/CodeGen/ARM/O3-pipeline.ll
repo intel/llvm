@@ -25,17 +25,10 @@
 ; CHECK-NEXT:        Canonicalize Freeze Instructions in Loops
 ; CHECK-NEXT:        Induction Variable Users
 ; CHECK-NEXT:        Loop Strength Reduction
-; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
-; CHECK-NEXT:      Function Alias Analysis Results
-; CHECK-NEXT:      Merge contiguous icmps into a memcmp
-; CHECK-NEXT:      Natural Loop Information
-; CHECK-NEXT:      Lazy Branch Probability Analysis
-; CHECK-NEXT:      Lazy Block Frequency Analysis
-; CHECK-NEXT:      Expand memcmp() to load/stores
 ; CHECK-NEXT:      Lower Garbage Collection Instructions
 ; CHECK-NEXT:      Shadow Stack GC Lowering
 ; CHECK-NEXT:      Remove unreachable blocks from the CFG
-; CHECK-NEXT:      Natural Loop Information
+; CHECK-NEXT:      Cycle Info Analysis
 ; CHECK-NEXT:      Post-Dominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Analysis
 ; CHECK-NEXT:      Block Frequency Analysis
@@ -57,6 +50,7 @@
 ; CHECK-NEXT:      Interleaved Access Pass
 ; CHECK-NEXT:      FPBuiltin Function Selection
 ; CHECK-NEXT:      Type Promotion
+; CHECK-NEXT:      Cycle Info Analysis
 ; CHECK-NEXT:      Post-Dominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Analysis
 ; CHECK-NEXT:      Block Frequency Analysis
@@ -66,14 +60,15 @@
 ; CHECK-NEXT:      Merge internal globals
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Scalar Evolution Analysis
+; CHECK-NEXT:      Cycle Info Analysis
 ; CHECK-NEXT:      Lazy Branch Probability Analysis
 ; CHECK-NEXT:      Lazy Block Frequency Analysis
 ; CHECK-NEXT:      Optimization Remark Emitter
 ; CHECK-NEXT:      Hardware Loop Insertion
 ; CHECK-NEXT:      Loop Pass Manager
 ; CHECK-NEXT:        Transform predicated vector loops to use MVE tail predication
-; CHECK-NEXT:      A No-Op Barrier Pass
-; CHECK-NEXT:      FunctionPass Manager
+; CHECK-NEXT:    A No-Op Barrier Pass
+; CHECK-NEXT:    FunctionPass Manager
 ; CHECK-NEXT:      Prepare inline asm insts
 ; CHECK-NEXT:      Safe Stack instrumentation pass
 ; CHECK-NEXT:      Insert stack protectors
@@ -81,7 +76,7 @@
 ; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:      Function Alias Analysis Results
-; CHECK-NEXT:      Natural Loop Information
+; CHECK-NEXT:      Cycle Info Analysis
 ; CHECK-NEXT:      Post-Dominator Tree Construction
 ; CHECK-NEXT:      Branch Probability Analysis
 ; CHECK-NEXT:      Assignment Tracking Analysis
@@ -98,13 +93,15 @@
 ; CHECK-NEXT:      Remove dead machine instructions
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      Machine Natural Loop Construction
+; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine Block Frequency Analysis
+; CHECK-NEXT:      Machine Register Class Info Analysis
 ; CHECK-NEXT:      Early Machine Loop Invariant Code Motion
 ; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      Machine Common Subexpression Elimination
 ; CHECK-NEXT:      MachinePostDominator Tree Construction
-; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine code sinking
 ; CHECK-NEXT:      Peephole Optimizations
 ; CHECK-NEXT:      Remove dead machine instructions
@@ -116,7 +113,7 @@
 ; CHECK-NEXT:      Modulo Software Pipelining
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      Machine Natural Loop Construction
-; CHECK-NEXT:      MVE TailPred and VPT Optimisation Pass
+; CHECK-NEXT:      ARM MVE TailPred and VPT Optimisation Pass
 ; CHECK-NEXT:      ARM MLA / MLS expansion pass
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      ARM pre- register allocation load / store optimization pass
@@ -134,6 +131,7 @@
 ; CHECK-NEXT:      Live Interval Analysis
 ; CHECK-NEXT:      Register Coalescer
 ; CHECK-NEXT:      Rename Disconnected Subregister Components
+; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      Machine Instruction Scheduler
 ; CHECK-NEXT:      Debug Variable Analysis
@@ -153,6 +151,7 @@
 ; CHECK-NEXT:      Remove Redundant DEBUG_VALUE analysis
 ; CHECK-NEXT:      Fixup Statepoint Caller Saved
 ; CHECK-NEXT:      PostRA Machine Sink
+; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      MachinePostDominator Tree Construction
@@ -173,8 +172,7 @@
 ; CHECK-NEXT:      ARM pseudo instruction expansion pass
 ; CHECK-NEXT:      Insert KCFI indirect call checks
 ; CHECK-NEXT:      Thumb2 instruction size reduce pass
-; CHECK-NEXT:      MachineDominator Tree Construction
-; CHECK-NEXT:      Machine Natural Loop Construction
+; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      If Converter
 ; CHECK-NEXT:      Thumb IT blocks insertion pass
@@ -186,10 +184,11 @@
 ; CHECK-NEXT:      ARM Indirect Thunks
 ; CHECK-NEXT:      ARM sls hardening pass
 ; CHECK-NEXT:      Analyze Machine Code For Garbage Collection
-; CHECK-NEXT:      MachineDominator Tree Construction
-; CHECK-NEXT:      Machine Natural Loop Construction
+; CHECK-NEXT:      Machine Cycle Info Analysis
 ; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      MachinePostDominator Tree Construction
+; CHECK-NEXT:      MachineDominator Tree Construction
+; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      Branch Probability Basic Block Placement
 ; CHECK-NEXT:      Insert fentry calls
 ; CHECK-NEXT:      Insert XRay ops

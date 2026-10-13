@@ -57,17 +57,21 @@ public:
   bool VisitCallExpr(const CallExpr *CE) {
     // Indirect calls (e.g., function pointers) are skipped because lifetime
     // annotations currently apply to declarations, not types.
-    if (const auto *FD = CE->getDirectCallee())
+    if (const auto *FD = CE->getDirectCallee()) {
       collect(FD, FD->getReturnType());
+      collectCaptureBy(FD);
+    }
     return true;
   }
 
   bool VisitCXXConstructExpr(const CXXConstructExpr *CCE) {
     collect(CCE->getConstructor(), CCE->getType());
+    collectCaptureBy(CCE->getConstructor());
     return true;
   }
 
   bool shouldVisitLambdaBody() const { return false; }
+  bool shouldVisitTemplateInstantiations() const { return true; }
 
   const llvm::SmallVector<QualType> &getCollectedTypes() const {
     return CollectedTypes;
@@ -95,24 +99,61 @@ private:
       }
     }
   }
+
+  void collectCaptureBy(const FunctionDecl *FD) {
+    if (!FD)
+      return;
+    FD = getDeclWithMergedLifetimeBoundAttrs(FD);
+    const auto *MD = dyn_cast<CXXMethodDecl>(FD);
+    bool IsInstance = MD && MD->isInstance();
+    int Offset = (MD && MD->isImplicitObjectMemberFunction()) ? 1 : 0;
+    for (const auto *Param : FD->parameters()) {
+      if (auto *Attr = Param->getAttr<LifetimeCaptureByAttr>()) {
+        for (int Idx : Attr->params()) {
+          if (Idx == LifetimeCaptureByAttr::Global ||
+              Idx == LifetimeCaptureByAttr::Unknown ||
+              Idx == LifetimeCaptureByAttr::Invalid)
+            continue;
+          if (Idx == LifetimeCaptureByAttr::This) {
+            if (IsInstance)
+              CollectedTypes.push_back(MD->getFunctionObjectParameterType());
+          } else if (int LogicalIdx = Idx - Offset;
+                     LogicalIdx >= 0 &&
+                     (unsigned)LogicalIdx < FD->getNumParams()) {
+            CollectedTypes.push_back(
+                FD->getParamDecl(LogicalIdx)->getType().getNonReferenceType());
+          }
+        }
+      }
+    }
+  }
 };
 
 } // namespace
 
-bool OriginManager::hasOrigins(QualType QT) const {
+bool OriginManager::hasOrigins(QualType QT, bool IntrinsicOnly) const {
   if (QT->isPointerOrReferenceType() || isGslPointerType(QT))
     return true;
-  if (LifetimeAnnotatedOriginTypes.contains(QT.getCanonicalType().getTypePtr()))
+  if (!IntrinsicOnly &&
+      LifetimeAnnotatedOriginTypes.contains(QT.getCanonicalType().getTypePtr()))
     return true;
+  // An `_Atomic(T)` wraps T transparently for lifetime purposes (the atomic
+  // holds the same value); see through it.
+  if (const auto *AT = QT->getAs<AtomicType>())
+    return hasOrigins(AT->getValueType(), IntrinsicOnly);
   const auto *RD = QT->getAsCXXRecordDecl();
   if (!RD)
     return false;
+  // Standard library callable wrappers (e.g., std::function) can propagate the
+  // stored lambda's origins.
+  if (isStdCallableWrapperType(RD))
+    return true;
   // TODO: Limit to lambdas for now. This will be extended to user-defined
   // structs with pointer-like fields.
   if (!RD->isLambda())
     return false;
   for (const auto *FD : RD->fields())
-    if (hasOrigins(FD->getType()))
+    if (hasOrigins(FD->getType(), IntrinsicOnly))
       return true;
   return false;
 }
@@ -181,9 +222,16 @@ OriginList *OriginManager::createNode(const Expr *E, QualType QT) {
   return new (ListAllocator.Allocate<OriginList>()) OriginList(NewID);
 }
 
+OriginList *OriginManager::createSingleOriginList(OriginID OID) {
+  return new (ListAllocator.Allocate<OriginList>()) OriginList(OID);
+}
+
 template <typename T>
 OriginList *OriginManager::buildListForType(QualType QT, const T *Node) {
   assert(hasOrigins(QT) && "buildListForType called for non-pointer type");
+  // `_Atomic(T)` is transparent for lifetime purposes: build the node for T.
+  if (const auto *AT = QT->getAs<AtomicType>())
+    return buildListForType(AT->getValueType(), Node);
   OriginList *Head = createNode(Node, QT);
 
   if (QT->isPointerOrReferenceType()) {
@@ -212,6 +260,13 @@ OriginList *OriginManager::getOrCreateList(const Expr *E) {
   if (const ExprWithCleanups *EWC = dyn_cast<ExprWithCleanups>(E))
     return getOrCreateList(EWC->getSubExpr());
 
+  // An OpaqueValueExpr is a placeholder for an already-evaluated subexpression
+  // (e.g. the common operand of `a ?: b`) and is not itself a CFG statement, so
+  // reuse its source's origins rather than flowing into a fresh node.
+  if (const auto *OVE = dyn_cast<OpaqueValueExpr>(E))
+    if (const Expr *Src = OVE->getSourceExpr())
+      return getOrCreateList(Src);
+
   if (!hasOrigins(E))
     return nullptr;
 
@@ -232,7 +287,7 @@ OriginList *OriginManager::getOrCreateList(const Expr *E) {
     ReferencedDecl = DRE->getDecl();
   else if (auto *ME = dyn_cast<MemberExpr>(E))
     if (auto *Field = dyn_cast<FieldDecl>(ME->getMemberDecl());
-        Field && isa<CXXThisExpr>(ME->getBase()))
+        Field && isa<CXXThisExpr>(ME->getBase()->IgnoreParenImpCasts()))
       ReferencedDecl = Field;
   if (ReferencedDecl) {
     OriginList *Head = nullptr;

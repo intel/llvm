@@ -103,7 +103,7 @@ public:
   bool legalizeFEXPF64(MachineInstr &MI, MachineIRBuilder &B) const;
 
   bool legalizeFExp(MachineInstr &MI, MachineIRBuilder &B) const;
-  bool legalizeFPow(MachineInstr &MI, MachineIRBuilder &B) const;
+  bool legalizeFPow(LegalizerHelper &Helper, MachineInstr &MI) const;
   bool legalizeFFloor(MachineInstr &MI, MachineRegisterInfo &MRI,
                       MachineIRBuilder &B) const;
 
@@ -117,8 +117,8 @@ public:
   bool legalizeMul(LegalizerHelper &Helper, MachineInstr &MI) const;
   bool legalizeCTLZ_CTTZ(MachineInstr &MI, MachineRegisterInfo &MRI,
                          MachineIRBuilder &B) const;
-  bool legalizeCTLZ_ZERO_UNDEF(MachineInstr &MI, MachineRegisterInfo &MRI,
-                               MachineIRBuilder &B) const;
+  bool legalizeCTLZ_ZERO_POISON(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                MachineIRBuilder &B) const;
   bool legalizeCTLS(MachineInstr &MI, MachineRegisterInfo &MRI,
                     MachineIRBuilder &B) const;
 
@@ -231,8 +231,6 @@ public:
   bool legalizeLaneOp(LegalizerHelper &Helper, MachineInstr &MI,
                       Intrinsic::ID IID) const;
 
-  bool legalizeBVHIntrinsic(MachineInstr &MI, MachineIRBuilder &B) const;
-
   bool legalizeStackSave(MachineInstr &MI, MachineIRBuilder &B) const;
   bool legalizeWaveID(MachineInstr &MI, MachineIRBuilder &B) const;
   bool legalizeConstHwRegRead(MachineInstr &MI, MachineIRBuilder &B,
@@ -266,6 +264,10 @@ public:
 
   bool legalizeIntrinsic(LegalizerHelper &Helper,
                          MachineInstr &MI) const override;
+
+private:
+  Register getBaseSegmentAperture(unsigned AS, MachineRegisterInfo &MRI,
+                                  MachineIRBuilder &B) const;
 };
 } // End llvm namespace.
 #endif

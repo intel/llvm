@@ -35,6 +35,8 @@ add_llvm_tool_subdirectory(llvm-config)
 add_llvm_tool_subdirectory(llvm-ctxprof-util)
 add_llvm_tool_subdirectory(llvm-lto)
 add_llvm_tool_subdirectory(llvm-profdata)
+add_llvm_tool_subdirectory(llvm-nm)
+add_llvm_tool_subdirectory(llvm-readobj)
 
 # Projects supported via LLVM_EXTERNAL_*_SOURCE_DIR need to be explicitly
 # specified.
@@ -51,11 +53,7 @@ add_llvm_external_project(bolt)
 # file as external projects.
 add_llvm_implicit_projects()
 
-add_llvm_external_project(libclc)
 add_llvm_external_project(polly)
-
-# libclc depends on clang
-add_llvm_external_project(libclc)
 
 # Add subprojects specified using LLVM_EXTERNAL_PROJECTS
 foreach(p ${LLVM_EXTERNAL_PROJECTS})

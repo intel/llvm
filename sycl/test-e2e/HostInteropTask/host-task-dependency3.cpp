@@ -57,7 +57,7 @@ void test(size_t Count) {
     Q.submit([&](handler &CGH) {
       std::cout << "Submit Kernel-1" << std::endl;
 
-      auto Acc0 = B0.get_access<mode::read_write>(CGH);
+      auto Acc0 = B0.get_access<access_mode::read_write>(CGH);
 
       CGH.single_task<class Test5_Kernel1>([=] { Acc0[1] = 1 * Idx; });
     });
@@ -65,7 +65,7 @@ void test(size_t Count) {
     Q.submit([&](handler &CGH) {
       std::cout << "Submit Kernel-2" << std::endl;
 
-      auto Acc1 = B1.get_access<mode::read_write>(CGH);
+      auto Acc1 = B1.get_access<access_mode::read_write>(CGH);
 
       CGH.single_task<class Test5_Kernel2>([=] { Acc1[2] = 1 * Idx; });
     });

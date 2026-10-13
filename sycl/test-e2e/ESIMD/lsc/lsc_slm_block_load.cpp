@@ -3,6 +3,7 @@
 // RUN: %{run} %t.out
 
 // This test verifies the correctness of LSC SLM block load intrinsics.
+#include <iostream>
 
 #include "Inputs/lsc_slm_load.hpp"
 

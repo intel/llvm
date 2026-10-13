@@ -13,6 +13,7 @@
 // accessor-based ESIMD intrinsics when stateless memory accesses are enforced,
 // i.e. accessor based accesses are automatically converted to stateless
 // accesses.
+#include <iostream>
 
 #include "Inputs/lsc_surf_store.hpp"
 

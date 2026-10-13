@@ -135,7 +135,8 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
 }
 
 void syclPrintersInit() {
-  std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
+  const char *PrinterTypeEnv = std::getenv("SYCL_TRACE_PRINT_FORMAT");
+  std::string_view PrinterType = PrinterTypeEnv ? PrinterTypeEnv : "";
   if (PrinterType == "classic") {
     std::cerr << "Classic output is not supported yet for SYCL API\n";
   } else if (PrinterType == "verbose") {

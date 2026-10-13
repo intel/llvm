@@ -13,17 +13,18 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/atomic_ref.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
 void xor_local_test(queue q) {
-  const size_t N = 32;
+  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   T cum = 0;
   std::vector<T> output(N);
   std::fill(output.begin(), output.end(), T(123456));
@@ -31,23 +32,23 @@ void xor_local_test(queue q) {
     buffer<T> cum_buf(&cum, 1);
     buffer<T> output_buf(output.data(), output.size());
     q.submit([&](handler &cgh) {
-       auto cum = cum_buf.template get_access<access::mode::read_write>(cgh);
-       auto out =
-           output_buf.template get_access<access::mode::discard_write>(cgh);
+       auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
+       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
        local_accessor<T, 1> loc(1, cgh);
 
        cgh.parallel_for(nd_range<1>(N, N), [=](nd_item<1> it) {
          int gid = it.get_global_id(0);
          if (gid == 0)
            loc[0] = 0;
-         it.barrier(access::fence_space::local_space);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (loc[0]);
+         group_barrier(it.get_group());
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(loc[0]);
          out[gid] = atm.fetch_xor(T(1ll << gid), order);
-         it.barrier(access::fence_space::local_space);
+         group_barrier(it.get_group());
          if (gid == 0)
            cum[0] = loc[0];
        });
@@ -62,13 +63,13 @@ void xor_local_test(queue q) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
 void xor_global_test(queue q) {
-  const size_t N = 32;
+  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   const T initial = 0;
   T cum = initial;
   std::vector<T> output(N);
@@ -78,16 +79,16 @@ void xor_global_test(queue q) {
     buffer<T> output_buf(output.data(), output.size());
 
     q.submit([&](handler &cgh) {
-      auto cum = cum_buf.template get_access<access::mode::read_write>(cgh);
-      auto out =
-          output_buf.template get_access<access::mode::discard_write>(cgh);
+      auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
+      auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = AtomicRef < T,
-             (order == memory_order::acquire || order == memory_order::release)
-                 ? memory_order::relaxed
-                 : order,
-             scope, space > (cum[0]);
+        auto atm = AtomicRef<T,
+                             (order == memory_order::acquire ||
+                              order == memory_order::release)
+                                 ? memory_order::relaxed
+                                 : order,
+                             scope, space>(cum[0]);
         out[gid] = atm.fetch_xor(T(1ll << gid), order);
       });
     });
@@ -101,13 +102,13 @@ void xor_global_test(queue q) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope, access::address_space>
-          class AtomicRef,
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
 void xor_global_test_usm_shared(queue q) {
-  const size_t N = 32;
+  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   const T initial = 0;
   T *cum = malloc_shared<T>(1, q);
   cum[0] = initial;
@@ -118,11 +119,12 @@ void xor_global_test_usm_shared(queue q) {
     q.submit([&](handler &cgh) {
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          size_t gid = it.get_id(0);
-         auto atm = AtomicRef < T,
-              (order == memory_order::acquire || order == memory_order::release)
-                  ? memory_order::relaxed
-                  : order,
-              scope, space > (cum[0]);
+         auto atm = AtomicRef<T,
+                              (order == memory_order::acquire ||
+                               order == memory_order::release)
+                                  ? memory_order::relaxed
+                                  : order,
+                              scope, space>(cum[0]);
          output[gid] = atm.fetch_xor(T(1ll << gid), order);
        });
      }).wait_and_throw();
@@ -236,6 +238,16 @@ template <access::address_space space> void xor_test_all() {
     xor_test_orders_scopes<space, long>(q);
     xor_test_orders_scopes<space, unsigned long>(q);
   }
+#endif
+
+#ifdef FULL_ATOMIC16_COVERAGE
+  if (!q.get_device().has(aspect::ext_oneapi_atomic16)) {
+    std::cout << "Skipping ext_oneapi_atomic16 tests\n";
+    return;
+  }
+
+  xor_test_orders_scopes<space, short>(q);
+  xor_test_orders_scopes<space, unsigned short>(q);
 #endif
 
   std::cout << "Test passed." << std::endl;

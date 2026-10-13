@@ -4,6 +4,7 @@
 
 // This test verifies the correctness of LSC intrinsics storing
 // to SLM memory.
+#include <iostream>
 
 #include "Inputs/lsc_slm_store.hpp"
 

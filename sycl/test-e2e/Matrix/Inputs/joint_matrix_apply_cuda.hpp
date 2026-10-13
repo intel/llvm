@@ -38,7 +38,7 @@ void matrix_verify_lambda(queue q,
     buffer<T2, 2> bufC(C.get_data(), range<2>(N * nWGperDim, M * nWGperDim));
 
     q.submit([&](handler &cgh) {
-      accessor<T2, 2, access::mode::read_write, target::device> accC(bufC, cgh);
+      accessor<T2, 2, access_mode::read_write, target::device> accC(bufC, cgh);
 
       cgh.parallel_for<KernelApply<T, T2, M, K, N>>(
           r, [accC, lambda](

@@ -43,15 +43,17 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     GraphReadLock.lock();
 }
 
-bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
-                                                  EnqueueResultT &EnqueueResult,
-                                                  Command *RootCommand,
-                                                  BlockingT Blocking) {
-  if (Cmd == RootCommand || Blocking)
+bool Scheduler::GraphProcessor::handleBlockingCmd(
+    Command *Cmd, EnqueueResultT &EnqueueResult, Command *RootCommand,
+    [[maybe_unused]] BlockingT Blocking) {
+  // A caller enqueueing itself does not block on itself.
+  if (Cmd == RootCommand)
     return true;
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
+      // Defer even Blocking=true callers; waitForEvent unlocks the graph and
+      // parks on the root's event, avoiding the CMPLRLLVM-77682 deadlock.
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
@@ -91,10 +93,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
-  // Host task execution is asynchronous. In current implementation enqueue for
-  // this command will wait till host task completion by waitInternal call on
-  // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
-  // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,

@@ -147,7 +147,7 @@ int main() {
     // The error handling tests rely on Kernel3Name binary existing.
     sycl::buffer<int, 1> Buf(sycl::range<1>{1});
     Q.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
       CGH.single_task<Kernel3Name>([=]() { Acc[0] = 42; });
     });
 

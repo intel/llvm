@@ -44,6 +44,7 @@ class queue_impl;
 class NDRDescT;
 class ArgDesc;
 class CG;
+struct EnqueueHostTaskData;
 } // namespace detail
 
 namespace ext {
@@ -324,10 +325,7 @@ public:
       ur_result_t Result =
           Adapter.call_nocheck<sycl::detail::UrApiKind::urGraphDumpContentsExp>(
               MNativeGraphHandle, FilePath.c_str());
-      if (Result != UR_RESULT_SUCCESS) {
-        throw sycl::exception(sycl::make_error_code(errc::runtime),
-                              "Failed to dump native UR graph contents");
-      }
+      Adapter.checkUrResult(Result, "Failed to dump native UR graph contents");
     } else {
       /// Vector of nodes visited during the graph printing
       std::vector<node_impl *> VisitedNodes;
@@ -476,17 +474,26 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
-  /// Does not take the queue submission lock.
+  /// Takes the graph mutex, and requires that the caller already holds the
+  /// queue's submission mutex.
   ///
   /// Required for the cases, when the recording is started directly
   /// from within the kernel submission flow.
   /// @param[in] Queue The queue to be recorded from.
-  void beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue);
+  void beginRecordingQueueLockHeld(sycl::detail::queue_impl &Queue);
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
+  /// Takes both the queue's submission mutex and the graph mutex
   /// @param[in] Queue The queue to be recorded from.
   void beginRecording(sycl::detail::queue_impl &Queue);
+
+  /// Sets the Queue state to queue_state::recording. Adds the queue to the list
+  /// of recording queues associated with this graph.
+  /// Assumes the caller must already hold both the graph mutex and the
+  /// queue's submission mutex.
+  /// @param[in] Queue The queue to be recorded from.
+  void beginRecordingBothLocksHeld(sycl::detail::queue_impl &Queue);
 
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
@@ -503,7 +510,7 @@ public:
     return MBarrierDependencyMap[Queue];
   }
 
-  unsigned long long getID() const { return MID; }
+  unsigned long long getID() const { return MNativeID.value_or(MID); }
 
   /// Get the memory pool used for graph-owned allocations.
   graph_mem_pool &getMemPool() { return MGraphMemPool; }
@@ -550,14 +557,18 @@ public:
   /// @return True if the queue is recording to this graph, false otherwise.
   bool isQueueRecording(sycl::detail::queue_impl &Queue);
 
-private:
-  /// Common implementation for beginRecording and beginRecordingUnlockedQueue.
-  /// @param[in] Queue The queue to be recorded from.
-  /// @param[in] AcquireQueueLock Whether to acquire the queue lock when setting
-  /// command graph.
-  void beginRecordingImpl(sycl::detail::queue_impl &Queue,
-                          bool AcquireQueueLock);
+  /// Register a destruction callback to be invoked when the graph is destroyed.
+  /// Uses the native UR callback if a native graph handle exists, otherwise
+  /// stores locally for invocation in ~graph_impl().
+  /// @param Callback Callable to invoke on graph destruction.
+  void setDestructionCallback(std::function<void()> Callback);
 
+  /// Take ownership of callback data for a native-recorded host task and return
+  /// a non-owning pointer for passing to UR.
+  detail::EnqueueHostTaskData *
+  addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
+
+private:
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
         std::make_shared<node_impl>(std::forward<Ts>(Args)...));
@@ -623,10 +634,14 @@ private:
   /// Native UR graph handle used for native recording mode.
   ///
   /// This handle is non-null only when native recording is enabled via the
-  /// enable_native_recording property.
+  /// enable_native_recording property or SYCL_GRAPH_FORCE_NATIVE_RECORDING=1.
   ///
   /// @note Native recording requires immediate command lists.
   ur_exp_graph_handle_t MNativeGraphHandle = nullptr;
+
+  /// Callback data for host tasks recorded in native recording mode.
+  std::vector<std::unique_ptr<detail::EnqueueHostTaskData>>
+      MNativeHostTaskCallbacks;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
@@ -639,11 +654,22 @@ private:
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
-  inline static std::atomic<unsigned long long> NextAvailableID = 0;
+  // Starts from 1 to align with the convention used by native graph backends
+  // for get_id() calls.
+  inline static std::atomic<unsigned long long> NextAvailableID = 1;
+
+  /// Backend graph ID, queried from urGraphGetIdExp when native recording is
+  /// enabled. Unset for non-native graphs, or for native graphs whose backend
+  /// does not provide the ID; getID() then falls back to MID.
+  std::optional<unsigned long long> MNativeID;
 
   // The number of live executable graphs that have been created from this
   // modifiable graph
   std::atomic<size_t> MExecGraphCount = 0;
+
+  /// Destruction callbacks registered for the command buffer path.
+  /// Invoked in ~graph_impl() when native recording is not enabled.
+  std::vector<std::function<void()>> MDestructionCallbacks;
 };
 
 /// Get whether native recording is enabled for this graph.

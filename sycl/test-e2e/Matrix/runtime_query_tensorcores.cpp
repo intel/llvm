@@ -10,6 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include <algorithm>
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 

@@ -33,6 +33,7 @@ protected:
     counter_urUSMEnqueuePrefetch = 0;
     counter_urUSMEnqueueMemAdvise = 0;
     counter_urEnqueueEventsWaitWithBarrier = 0;
+    counter_urEnqueueHostTaskExp = 0;
   }
 
   unittest::UrMock<> Mock;
@@ -405,6 +406,28 @@ TEST_F(EnqueueFunctionsEventsTests, BarrierBeforeHostTask) {
   ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
   ASSERT_EQ(counter_urEnqueueEventsWaitWithBarrier, size_t{1});
   ASSERT_TRUE(HostTaskTimestamp > timestamp_urEnqueueEventsWaitWithBarrier);
+}
+
+TEST_F(EnqueueFunctionsEventsTests, SubmitHostTaskNative) {
+  mock::getCallbacks().set_replace_callback("urEnqueueHostTaskExp",
+                                            redefined_urEnqueueHostTaskExp);
+  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
+                                            redefined_urDeviceGetInfo<true>);
+
+  oneapiext::host_task(Q, [=] {});
+
+  ASSERT_EQ(counter_urEnqueueHostTaskExp, size_t{1});
+}
+
+TEST_F(EnqueueFunctionsEventsTests, SubmitHostTaskThread) {
+  mock::getCallbacks().set_replace_callback("urEnqueueHostTaskExp",
+                                            redefined_urEnqueueHostTaskExp);
+  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
+                                            redefined_urDeviceGetInfo<false>);
+
+  oneapiext::host_task(Q, [=] {});
+
+  ASSERT_EQ(counter_urEnqueueHostTaskExp, size_t{0});
 }
 
 } // namespace

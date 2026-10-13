@@ -105,7 +105,7 @@ int main(int argc, const char **argv) {
   // Verify that given targets are valid. Each target string is expected to have
   // the following format
   //     <kind>-<triple>
-  // where <kind> is host, openmp, hip, sycl or fpga,
+  // where <kind> is host, openmp, hip or sycl,
   // and <triple> is an offload target triple.
   SmallVector<StringRef, 8u> Kinds(Targets.size());
   SmallVector<StringRef, 8u> Triples(Targets.size());
@@ -117,7 +117,6 @@ int main(int argc, const char **argv) {
                            .Case("openmp", true)
                            .Case("hip", true)
                            .Case("sycl", true)
-                           .Case("fpga", true)
                            .Default(false);
 
     bool TripleIsValid = Triple(Triples[I]).getArch() != Triple::UnknownArch;

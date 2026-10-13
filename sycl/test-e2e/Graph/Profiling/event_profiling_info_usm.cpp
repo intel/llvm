@@ -11,6 +11,7 @@
 // test the path with no implicit dependencies which bypasses the SYCL
 // scheduler.
 #define GRAPH_TESTS_VERBOSE_PRINT 0
+#include <iostream>
 
 #include "../graph_common.hpp"
 

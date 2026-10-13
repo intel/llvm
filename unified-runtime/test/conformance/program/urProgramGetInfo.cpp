@@ -154,7 +154,7 @@ TEST_P(urProgramGetInfoTest, SuccessBinarySizes) {
 TEST_P(urProgramGetInfoTest, SuccessBinaries) {
   // Not implemented correctly on these targets - they copy their own pointer into the output rather than copying the
   // binary
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+  UUR_KNOWN_FAILURE_ON(uur::HIP{});
 
   size_t binary_sizes_len = 0;
   std::vector<char> property_value(0);

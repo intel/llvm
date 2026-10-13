@@ -13,30 +13,42 @@
 #include "context.hpp"
 #include "device.hpp"
 
+#include <mutex>
 #include <vector>
 
-struct ur_queue_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_queue_handle_t_ : handle_base {
   using native_type = cl_command_queue;
   native_type CLQueue;
-  ur_context_handle_t Context;
-  ur_device_handle_t Device;
+  ur_context_handle_t_ *Context;
+  ur_device_handle_t_ *Device;
   // Used to keep a handle to the default queue alive if it is different
-  std::optional<ur_queue_handle_t> DeviceDefault = std::nullopt;
+  std::optional<ur_queue_handle_t_ *> DeviceDefault = std::nullopt;
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
-  ur_event_handle_t LastEvent = nullptr;
+  // Native event of the last command enqueued on an in-order queue.
+  // Protect both the handle and its retained reference during replacement.
+  std::mutex LastEventMutex;
+  cl_event LastEvent = nullptr;
   ur::RefCount RefCount;
+
+  // Lazily created buffer for the profilable fill in
+  // urEnqueueTimestampRecordingExp. Keep it per queue so independent queues
+  // do not contend on the same memory object.
+  std::mutex TimestampRecordingBufferMutex;
+  cl_mem TimestampRecordingBuffer = nullptr;
 
   ur_queue_handle_t_(const ur_queue_handle_t_ &) = delete;
   ur_queue_handle_t_ &operator=(const ur_queue_handle_t_ &) = delete;
 
-  ur_queue_handle_t_(native_type Queue, ur_context_handle_t Ctx,
-                     ur_device_handle_t Dev, bool InOrder)
+  ur_queue_handle_t_(native_type Queue, ur_context_handle_t_ *Ctx,
+                     ur_device_handle_t_ *Dev, bool InOrder)
       : handle_base(), CLQueue(Queue), Context(Ctx), Device(Dev),
         IsInOrder(InOrder) {
-    urDeviceRetain(Device);
-    urContextRetain(Context);
+    ur::opencl::urDeviceRetain(cast(Device));
+    ur::opencl::urContextRetain(cast(Context));
   }
 
   static ur_result_t makeWithNative(native_type NativeQueue,
@@ -44,30 +56,54 @@ struct ur_queue_handle_t_ : ur::opencl::handle_base {
                                     ur_device_handle_t Device,
                                     ur_queue_handle_t &Queue);
 
+  // Returns the small internal buffer used by urEnqueueTimestampRecordingExp,
+  // creating it on first use. Thread-safe.
+  ur_result_t getTimestampRecordingBuffer(cl_mem *OutBuffer) {
+    std::lock_guard<std::mutex> Lock(TimestampRecordingBufferMutex);
+    if (!TimestampRecordingBuffer) {
+      cl_int CLErr = CL_SUCCESS;
+      TimestampRecordingBuffer =
+          clCreateBuffer(Context->CLContext, CL_MEM_READ_WRITE, sizeof(cl_uint),
+                         nullptr, &CLErr);
+      CL_RETURN_ON_FAILURE(CLErr);
+    }
+    *OutBuffer = TimestampRecordingBuffer;
+    return UR_RESULT_SUCCESS;
+  }
+
   ~ur_queue_handle_t_() {
-    urDeviceRelease(Device);
-    urContextRelease(Context);
+    if (TimestampRecordingBuffer) {
+      clReleaseMemObject(TimestampRecordingBuffer);
+    }
+    if (LastEvent) {
+      clReleaseEvent(LastEvent);
+    }
+    ur::opencl::urDeviceRelease(cast(Device));
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseCommandQueue(CLQueue);
     }
     if (DeviceDefault.has_value()) {
-      urQueueRelease(*DeviceDefault);
+      ur::opencl::urQueueRelease(cast(*DeviceDefault));
     }
   }
 
   // Stores last event for in-order queues. Has no effect if queue is Out Of
   // Order. The last event is used to implement UR_QUEUE_INFO_EMPTY query.
-  ur_result_t storeLastEvent(ur_event_handle_t Event) {
+  ur_result_t storeLastEvent(cl_event Event) {
     if (!IsInOrder) {
       return UR_RESULT_SUCCESS;
     }
+    std::lock_guard<std::mutex> Lock(LastEventMutex);
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(urEventRelease(LastEvent));
+      CL_RETURN_ON_FAILURE(clReleaseEvent(LastEvent));
     }
     LastEvent = Event;
     if (LastEvent) {
-      UR_RETURN_ON_FAILURE(urEventRetain(LastEvent));
+      CL_RETURN_ON_FAILURE(clRetainEvent(LastEvent));
     }
     return UR_RESULT_SUCCESS;
   }
 };
+
+} // namespace ur::opencl

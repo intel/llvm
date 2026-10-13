@@ -41,8 +41,10 @@ foreach(adapter ${UR_ADAPTERS_LIST})
     if(NOT "${adapter}" STREQUAL "mock")
         if(UR_STANDALONE_BUILD)
             add_custom_target(check-unified-runtime-conformance-${adapter}
-                COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}"
-                    -v -Dselector=${adapter}:*
+                COMMAND ${CMAKE_COMMAND} -E env "LIT_OPTS=$ENV{LIT_OPTS}"
+                    "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}"
+                    --show-unsupported --show-pass --show-xfail --no-progress-bar --succinct --timeout 120 -j 50 --time-tests --show-flakypass --show-skipped
+                    -Dselector=${adapter}:*
                 DEPENDS deps_check-unified-runtime-conformance
             )
         else()
@@ -71,6 +73,7 @@ add_subdirectory(virtual_memory)
 add_subdirectory(exp_usm_context_memcpy)
 add_subdirectory(exp_graph)
 add_subdirectory(exp_usm_host_mem_register)
+add_subdirectory(exp_reusable_events)
 
 set(TEST_SUBDIRECTORIES_DPCXX
     "device_code"

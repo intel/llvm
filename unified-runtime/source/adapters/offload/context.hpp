@@ -22,12 +22,15 @@ struct alloc_info_t {
 };
 
 struct ur_context_handle_t_ : RefCounted {
-  ur_context_handle_t_(ur_device_handle_t hDevice) : Device{hDevice} {
+  ur_context_handle_t_(ur_device_handle_t hDevice,
+                       ol_context_handle_t OffloadContext)
+      : Device{hDevice}, OffloadContext{OffloadContext} {
     urDeviceRetain(Device);
   }
   ~ur_context_handle_t_() { urDeviceRelease(Device); }
 
   ur_device_handle_t Device;
+  ol_context_handle_t OffloadContext;
   std::unordered_map<void *, alloc_info_t> AllocTypeMap;
 
   std::optional<alloc_info_t> getAllocType(const void *UsmPtr) {

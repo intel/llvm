@@ -10,6 +10,7 @@
 // of CPU devices to that number, erroring if they differ.
 
 // clang++ -fsycl -o ndd.bin no_duplicate_devices.cpp
+#include <iostream>
 
 #include <string>
 #include <sycl/detail/core.hpp>

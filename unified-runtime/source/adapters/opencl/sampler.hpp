@@ -13,25 +13,32 @@
 
 #include <vector>
 
-struct ur_sampler_handle_t_ : ur::opencl::handle_base {
+namespace ur::opencl {
+
+struct ur_context_handle_t_;
+
+struct ur_sampler_handle_t_ : handle_base {
   using native_type = cl_sampler;
   native_type CLSampler;
-  ur_context_handle_t Context;
+  ur::opencl::ur_context_handle_t_ *Context;
   bool IsNativeHandleOwned = false;
   ur::RefCount RefCount;
 
   ur_sampler_handle_t_(const ur_sampler_handle_t_ &) = delete;
   ur_sampler_handle_t_ &operator=(const ur_sampler_handle_t_ &) = delete;
 
-  ur_sampler_handle_t_(native_type Sampler, ur_context_handle_t Ctx)
+  ur_sampler_handle_t_(native_type Sampler,
+                       ur::opencl::ur_context_handle_t_ *Ctx)
       : handle_base(), CLSampler(Sampler), Context(Ctx) {
-    urContextRetain(Context);
+    ur::opencl::urContextRetain(cast(Context));
   }
 
   ~ur_sampler_handle_t_() {
-    urContextRelease(Context);
+    ur::opencl::urContextRelease(cast(Context));
     if (IsNativeHandleOwned) {
       clReleaseSampler(CLSampler);
     }
   }
 };
+
+} // namespace ur::opencl

@@ -98,7 +98,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+            [in,out][optional][alloc] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array. If *phEvent is not NULL on input and points to a reusable event created by $xEventCreateExp, it is signaled by this command instead of allocating a new event. A reusable event may only be passed when the device associated with hQueue reports $X_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP as true.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT

@@ -1,5 +1,5 @@
 // REQUIRES: cpu
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks correctness of compiling and running of application with
@@ -7,6 +7,7 @@
 // specialization constants in AOT mode
 
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 #include <sycl/specialization_id.hpp>
 

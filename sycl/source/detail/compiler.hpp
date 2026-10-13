@@ -43,6 +43,10 @@
 /// PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
+/// PropertySetRegistry::SYCL_SPEC_CONSTANTS_SET_VALUES defined in
+/// PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SPEC_CONST_SET_VALUES_MAP                          \
+  "SYCL/specialization constants set values"
 /// PropertySetRegistry::SYCL_DEVICELIB_METADATA defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_METADATA "SYCL/devicelib metadata"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
@@ -65,6 +69,10 @@
 #define __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS "SYCL/virtual functions"
 /// PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG "SYCL/implicit local arg"
+/// PropertySetRegistry::SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM defined in
+/// PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM                  \
+  "SYCL/work group dynamic local mem"
 /// PropertySetRegistry::SYCL_REGISTERED_KERNELS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS "SYCL/registered kernels"
 

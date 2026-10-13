@@ -10,13 +10,15 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
 #include <sycl/detail/array.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/detail/fwd/buffer.hpp>
 #include <sycl/detail/helpers.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/property_helper.hpp>
@@ -24,6 +26,8 @@
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/id.hpp>
+#include <sycl/khr/properties.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <unified-runtime/ur_api.h> // for ur_native_handle_t
@@ -32,6 +36,7 @@
 #include <functional>  // for function
 #include <iterator>    // for iterator_traits
 #include <memory>      // for shared_ptr
+#include <mutex>       // for mutex (khr::property::use_mutex)
 #include <stdint.h>    // for uint32_t
 #include <string>      // for string
 #include <type_traits> // for enable_if_t
@@ -52,9 +57,6 @@ template <int dimensions> class range;
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
 
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
-
 namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
@@ -74,18 +76,16 @@ inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
 class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
-buffer<T, Dimensions, AllocatorT, void>
+buffer<T, Dimensions, AllocatorT>
 make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
-  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
-                                                 Evt);
+  return buffer<T, Dimensions, AllocatorT>(Handle, Ctx, OwnNativeHandle, Evt);
 }
 
 template <backend BackendName, typename DataT, int Dimensions,
           typename Allocator>
-auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
-    -> backend_return_t<BackendName,
-                        buffer<DataT, Dimensions, Allocator, void>>;
+auto get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
+    -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
 template <backend Backend, typename DataT, int Dimensions,
           typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
@@ -163,6 +163,35 @@ protected:
 
 } // namespace detail
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr::property {
+namespace key {
+struct use_host_ptr : detail::runtime_property_key {};
+struct use_mutex : detail::runtime_property_key {};
+struct context_bound : detail::runtime_property_key {};
+} // namespace key
+
+struct use_host_ptr : detail::runtime_property<key::use_host_ptr> {
+  constexpr use_host_ptr(bool v = true) : value{v} {}
+  bool value;
+};
+struct use_mutex : detail::runtime_property<key::use_mutex> {
+  use_mutex(std::mutex &mutexRef) : MMutex{&mutexRef} {}
+  std::mutex *get_mutex_ptr() const { return MMutex; }
+
+private:
+  std::mutex *MMutex;
+};
+struct context_bound : detail::runtime_property<key::context_bound> {
+  context_bound(context boundContext) : MCtx{std::move(boundContext)} {}
+  context get_context() const { return MCtx; }
+
+private:
+  context MCtx;
+};
+} // namespace khr::property
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 /// Defines a shared array that can be used by kernels in queues.
 ///
 /// Buffers can be 1-, 2-, and 3-dimensional. They have to be accessed using
@@ -171,14 +200,45 @@ protected:
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-template <typename T, int dimensions = 1,
-          typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
-          typename __Enabled =
-              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
+template <typename T, int dimensions, typename AllocatorT, typename __Enabled>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
-  static_assert(is_device_copyable_v<T>,
+  static_assert((dimensions > 0) && (dimensions <= 3),
+                "buffer dimensions must be 1, 2, or 3");
+  static_assert(detail::check_if_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForBuffer =
+      khr::is_property_for_v<PropertyOrList, buffer> ||
+      khr::is_property_list_for_v<PropertyOrList, buffer>;
+
+  template <typename PropertyOrList>
+  static property_list khrToPropertyList(const PropertyOrList &Props) {
+    if constexpr (khr::is_property_v<PropertyOrList>) {
+      return khrToPropertyList(khr::properties{Props});
+    } else {
+      detail::PropertyListBuilder Builder;
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::use_host_ptr>())
+        if (Props.template get_property<khr::property::key::use_host_ptr>()
+                .value)
+          Builder.template add<property::buffer::use_host_ptr>();
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::use_mutex>())
+        Builder.add(std::make_shared<property::buffer::use_mutex>(
+            *Props.template get_property<khr::property::key::use_mutex>()
+                 .get_mutex_ptr()));
+      if constexpr (PropertyOrList::template has_property<
+                        khr::property::key::context_bound>())
+        Builder.add(std::make_shared<property::buffer::context_bound>(
+            Props.template get_property<khr::property::key::context_bound>()
+                .get_context()));
+      return Builder.finalize();
+    }
+  }
+#endif
 
 public:
   using value_type = T;
@@ -439,6 +499,121 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer(container, {}, propList, CodeLoc) {}
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(const range<dimensions> &bufferRange, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(bufferRange, khrToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
+         PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(bufferRange, allocator, khrToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(T *hostData, const range<dimensions> &bufferRange,
+         PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, khrToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(T *hostData, const range<dimensions> &bufferRange,
+         AllocatorT allocator, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, allocator, khrToPropertyList(props),
+               CodeLoc) {}
+
+  template <typename _T = T, typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(EnableIfSameNonConstIterators<T, _T> const *hostData,
+         const range<dimensions> &bufferRange, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, khrToPropertyList(props), CodeLoc) {}
+
+  template <typename _T = T, typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(EnableIfSameNonConstIterators<T, _T> const *hostData,
+         const range<dimensions> &bufferRange, AllocatorT allocator,
+         PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, allocator, khrToPropertyList(props),
+               CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(const std::shared_ptr<T> &hostData,
+         const range<dimensions> &bufferRange, AllocatorT allocator,
+         PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, allocator, khrToPropertyList(props),
+               CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(const std::shared_ptr<T[]> &hostData,
+         const range<dimensions> &bufferRange, AllocatorT allocator,
+         PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, allocator, khrToPropertyList(props),
+               CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(const std::shared_ptr<T> &hostData,
+         const range<dimensions> &bufferRange, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, khrToPropertyList(props), CodeLoc) {}
+
+  template <typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(const std::shared_ptr<T[]> &hostData,
+         const range<dimensions> &bufferRange, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(hostData, bufferRange, khrToPropertyList(props), CodeLoc) {}
+
+  template <class InputIterator, int N = dimensions,
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfItInputIterator<InputIterator>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(InputIterator first, InputIterator last, AllocatorT allocator,
+         PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(first, last, allocator, khrToPropertyList(props), CodeLoc) {}
+
+  template <class InputIterator, int N = dimensions,
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfItInputIterator<InputIterator>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(InputIterator first, InputIterator last, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(first, last, khrToPropertyList(props), CodeLoc) {}
+
+  template <class Container, int N = dimensions,
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfContiguous<Container>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(Container &container, AllocatorT allocator, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(container, allocator, khrToPropertyList(props), CodeLoc) {}
+
+  template <class Container, int N = dimensions,
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfContiguous<Container>,
+            typename PropertyOrList = khr::empty_properties_t,
+            typename = std::enable_if_t<KhrPropsForBuffer<PropertyOrList>>>
+  buffer(Container &container, PropertyOrList props,
+         const detail::code_location CodeLoc = detail::code_location::current())
+      : buffer(container, khrToPropertyList(props), CodeLoc) {}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
          const range<dimensions> &subRange,
          const detail::code_location CodeLoc = detail::code_location::current())
@@ -469,8 +644,8 @@ public:
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
-  buffer(buffer &&rhs,
-         const detail::code_location CodeLoc = detail::code_location::current())
+  buffer(buffer &&rhs, const detail::code_location CodeLoc =
+                           detail::code_location::current()) noexcept
       : buffer_plain(std::move(rhs.impl)), Range(rhs.Range),
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(
@@ -734,7 +909,7 @@ private:
             access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
-  friend buffer<HT, HDims, HAllocT, void>
+  friend buffer<HT, HDims, HAllocT>
   detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
@@ -819,10 +994,9 @@ private:
 
   template <backend BackendName, typename DataT, int Dimensions,
             typename Allocator>
-  friend auto detail::get_native_buffer(
-      const buffer<DataT, Dimensions, Allocator, void> &Obj)
-      -> backend_return_t<BackendName,
-                          buffer<DataT, Dimensions, Allocator, void>>;
+  friend auto
+  detail::get_native_buffer(const buffer<DataT, Dimensions, Allocator> &Obj)
+      -> backend_return_t<BackendName, buffer<DataT, Dimensions, Allocator>>;
 
   template <backend BackendName>
   backend_return_t<BackendName, buffer<T, dimensions, AllocatorT>>
@@ -854,6 +1028,23 @@ template <class T, int dimensions>
 buffer(const T *, const range<dimensions> &,
        const property_list & = {}) -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr {
+template <typename T, int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::use_host_ptr,
+                           buffer<T, Dimensions, AllocatorT>> : std::true_type {
+};
+template <typename T, int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::use_mutex,
+                           buffer<T, Dimensions, AllocatorT>> : std::true_type {
+};
+template <typename T, int Dimensions, typename AllocatorT>
+struct is_property_key_for<property::key::context_bound,
+                           buffer<T, Dimensions, AllocatorT>> : std::true_type {
+};
+} // namespace khr
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 } // namespace _V1
 } // namespace sycl

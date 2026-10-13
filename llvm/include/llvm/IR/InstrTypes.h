@@ -51,6 +51,15 @@ namespace Intrinsic {
 typedef unsigned ID;
 }
 
+/// Provide fast-math flags storage, instructions that support fast-math flags
+/// should inherit from this class.
+class FastMathFlagsStorage {
+  friend class FPMathOperator;
+
+protected:
+  FastMathFlags FMF;
+};
+
 //===----------------------------------------------------------------------===//
 //                          UnaryInstruction Class
 //===----------------------------------------------------------------------===//
@@ -158,6 +167,32 @@ public:
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
     return I->isUnaryOp();
+  }
+  static bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
+  }
+};
+
+/// Unary operators support fast-math flags, users should not use this
+/// class directly, Unary can create instructions with correct type
+/// automatically.
+class FPUnaryOperator : public UnaryOperator, public FastMathFlagsStorage {
+  // Note: Instruction needs to be a friend here to call cloneImpl.
+  friend class Instruction;
+  friend class UnaryOperator;
+  using UnaryOperator::UnaryOperator;
+
+  LLVM_ABI FPUnaryOperator *cloneImpl() const;
+
+public:
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const Instruction *I) {
+    switch (I->getOpcode()) {
+    case Instruction::FNeg:
+      return true;
+    default:
+      return false;
+    }
   }
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
@@ -434,6 +469,35 @@ BinaryOperator *BinaryOperator::CreateDisjoint(BinaryOps Opc, Value *V1,
   cast<PossiblyDisjointInst>(BO)->setIsDisjoint(true);
   return BO;
 }
+
+/// Binary operators support fast-math flags, users should not use this
+/// class directly, BinaryOperator can create instructions with correct type
+/// automatically.
+class FPBinaryOperator : public BinaryOperator, public FastMathFlagsStorage {
+  // Note: Instruction needs to be a friend here to call cloneImpl.
+  friend class Instruction;
+  friend class BinaryOperator;
+  LLVM_ABI FPBinaryOperator *cloneImpl() const;
+  using BinaryOperator::BinaryOperator;
+
+public:
+  static bool classof(const Instruction *I) {
+    switch (I->getOpcode()) {
+    case Instruction::FAdd:
+    case Instruction::FSub:
+    case Instruction::FMul:
+    case Instruction::FDiv:
+    case Instruction::FRem:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  static bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
+  }
+};
 
 //===----------------------------------------------------------------------===//
 //                               CastInst Class
@@ -728,8 +792,7 @@ public:
 protected:
   LLVM_ABI CmpInst(Type *ty, Instruction::OtherOps op, Predicate pred,
                    Value *LHS, Value *RHS, const Twine &Name = "",
-                   InsertPosition InsertBefore = nullptr,
-                   Instruction *FlagsSource = nullptr);
+                   InsertPosition InsertBefore = nullptr);
 
 public:
   // allocate space for exactly two operands
@@ -1187,6 +1250,10 @@ public:
   removeOperandBundle(CallBase *CB, uint32_t ID,
                       InsertPosition InsertPt = nullptr);
 
+  LLVM_ABI static CallBase *
+  removeOperandBundleAt(CallBase *CB, size_t Offset,
+                        InsertPosition InsertPtr = nullptr);
+
   /// Return the convergence control token for this call, if it exists.
   Value *getConvergenceControlToken() const {
     if (auto Bundle = getOperandBundle(llvm::LLVMContext::OB_convergencectrl)) {
@@ -1591,6 +1658,7 @@ public:
 
   /// Determine whether the return value has the given attribute.
   bool hasRetAttr(Attribute::AttrKind Kind) const {
+    assert(!Attribute::isABIAttr(Kind) && "Use hasABIRetAttr() instead");
     return hasRetAttrImpl(Kind);
   }
   /// Determine whether the return value has the given attribute.
@@ -1619,6 +1687,22 @@ public:
   /// poison.
   LLVM_ABI bool paramHasNonNullAttr(unsigned ArgNo,
                                     bool AllowUndefOrPoison) const;
+
+  /// Determine whether the argument has the given ABI attribute. As this is
+  /// an ABI attribute, only check the call-site and do not inherit from the
+  /// callee.
+  bool hasABIParamAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
+    assert(Attribute::isABIAttr(Kind) && "Expected ABI attribute");
+    return Attrs.hasParamAttr(ArgNo, Kind);
+  }
+
+  /// Determine whether the return value has the given ABI attribute. As this
+  /// is an ABI attribute, only check the call-site and do not inherit from the
+  /// callee.
+  bool hasABIRetAttr(Attribute::AttrKind Kind) const {
+    assert(Attribute::isABIAttr(Kind) && "Expected ABI attribute");
+    return Attrs.hasRetAttr(Kind);
+  }
 
   /// Get the attribute of a given kind at a position.
   Attribute getAttributeAtIndex(unsigned i, Attribute::AttrKind Kind) const {
@@ -1709,20 +1793,20 @@ public:
 
   /// Determine whether this argument is passed by value.
   bool isByValArgument(unsigned ArgNo) const {
-    return paramHasAttr(ArgNo, Attribute::ByVal);
+    return hasABIParamAttr(ArgNo, Attribute::ByVal);
   }
 
   /// Determine whether this argument is passed in an alloca.
   bool isInAllocaArgument(unsigned ArgNo) const {
-    return paramHasAttr(ArgNo, Attribute::InAlloca);
+    return hasABIParamAttr(ArgNo, Attribute::InAlloca);
   }
 
   /// Determine whether this argument is passed by value, in an alloca, or is
   /// preallocated.
   bool isPassPointeeByValueArgument(unsigned ArgNo) const {
-    return paramHasAttr(ArgNo, Attribute::ByVal) ||
-           paramHasAttr(ArgNo, Attribute::InAlloca) ||
-           paramHasAttr(ArgNo, Attribute::Preallocated);
+    return hasABIParamAttr(ArgNo, Attribute::ByVal) ||
+           hasABIParamAttr(ArgNo, Attribute::InAlloca) ||
+           hasABIParamAttr(ArgNo, Attribute::Preallocated);
   }
 
   /// Determine whether passing undef to this argument is undefined behavior.
@@ -1739,7 +1823,7 @@ public:
   /// Determine if there are is an inalloca argument. Only the last argument can
   /// have the inalloca attribute.
   bool hasInAllocaArgument() const {
-    return !arg_empty() && paramHasAttr(arg_size() - 1, Attribute::InAlloca);
+    return !arg_empty() && hasABIParamAttr(arg_size() - 1, Attribute::InAlloca);
   }
 
   // FIXME: Once this API is no longer duplicated in `CallSite`, rename this to
@@ -1785,49 +1869,29 @@ public:
     return Attrs.getParamStackAlignment(ArgNo);
   }
 
-  /// Extract the byref type for a call or parameter.
+  /// Extract the byref type for a call argument.
   Type *getParamByRefType(unsigned ArgNo) const {
-    if (auto *Ty = Attrs.getParamByRefType(ArgNo))
-      return Ty;
-    if (const Function *F = getCalledFunction())
-      return F->getAttributes().getParamByRefType(ArgNo);
-    return nullptr;
+    return Attrs.getParamByRefType(ArgNo);
   }
 
-  /// Extract the byval type for a call or parameter.
+  /// Extract the byval type for a call argument.
   Type *getParamByValType(unsigned ArgNo) const {
-    if (auto *Ty = Attrs.getParamByValType(ArgNo))
-      return Ty;
-    if (const Function *F = getCalledFunction())
-      return F->getAttributes().getParamByValType(ArgNo);
-    return nullptr;
+    return Attrs.getParamByValType(ArgNo);
   }
 
-  /// Extract the preallocated type for a call or parameter.
+  /// Extract the preallocated type for a call argument.
   Type *getParamPreallocatedType(unsigned ArgNo) const {
-    if (auto *Ty = Attrs.getParamPreallocatedType(ArgNo))
-      return Ty;
-    if (const Function *F = getCalledFunction())
-      return F->getAttributes().getParamPreallocatedType(ArgNo);
-    return nullptr;
+    return Attrs.getParamPreallocatedType(ArgNo);
   }
 
-  /// Extract the inalloca type for a call or parameter.
+  /// Extract the inalloca type for a call argument.
   Type *getParamInAllocaType(unsigned ArgNo) const {
-    if (auto *Ty = Attrs.getParamInAllocaType(ArgNo))
-      return Ty;
-    if (const Function *F = getCalledFunction())
-      return F->getAttributes().getParamInAllocaType(ArgNo);
-    return nullptr;
+    return Attrs.getParamInAllocaType(ArgNo);
   }
 
-  /// Extract the sret type for a call or parameter.
+  /// Extract the sret type for a call argument.
   Type *getParamStructRetType(unsigned ArgNo) const {
-    if (auto *Ty = Attrs.getParamStructRetType(ArgNo))
-      return Ty;
-    if (const Function *F = getCalledFunction())
-      return F->getAttributes().getParamStructRetType(ArgNo);
-    return nullptr;
+    return Attrs.getParamStructRetType(ArgNo);
   }
 
   /// Extract the elementtype type for a parameter.
@@ -1976,8 +2040,7 @@ public:
     if (arg_empty())
       return false;
 
-    // Be friendly and also check the callee.
-    return paramHasAttr(0, Attribute::StructRet);
+    return hasABIParamAttr(0, Attribute::StructRet);
   }
 
   /// Determine if any call argument is an aggregate passed by value.
@@ -2284,6 +2347,12 @@ public:
   /// Return the range [\p bundle_op_info_begin, \p bundle_op_info_end).
   iterator_range<const_bundle_op_iterator> bundle_op_infos() const {
     return make_range(bundle_op_info_begin(), bundle_op_info_end());
+  }
+
+  auto operand_bundles() const {
+    return map_range(bundle_op_infos(), [this](BundleOpInfo BOI) {
+      return operandBundleFromBundleOpInfo(BOI);
+    });
   }
 
   /// Populate the BundleOpInfo instances and the Use& vector from \p

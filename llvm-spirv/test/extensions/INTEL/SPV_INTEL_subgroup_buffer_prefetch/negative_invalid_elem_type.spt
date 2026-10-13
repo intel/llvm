@@ -1,0 +1,30 @@
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s
+
+; CHECK: InvalidInstruction: Can't translate llvm instruction:
+; CHECK-NEXT: OpSubgroupBlockPrefetchINTEL
+; CHECK-NEXT: Ptr must point to a scalar integer type
+
+119734787 65536 393230 11 0
+2 Capability Addresses
+2 Capability Kernel
+2 Capability SubgroupBufferPrefetchINTEL
+10 Extension "SPV_INTEL_subgroup_buffer_prefetch"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+5 EntryPoint 6 7 "test"
+3 Source 4 100000
+3 TypeFloat 3 32
+4 TypeInt 5 32 0
+2 TypeVoid 2
+4 TypePointer 4 5 3
+5 TypeFunction 6 2 4 5
+
+5 Function 2 7 0 6
+3 FunctionParameter 4 8
+3 FunctionParameter 5 9
+
+2 Label 10
+3 SubgroupBlockPrefetchINTEL 8 9
+1 Return
+
+1 FunctionEnd

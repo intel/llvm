@@ -240,7 +240,7 @@ int main() {
     sycl::buffer<int, 1> Buf(sycl::range<1>{1});
 
     Q.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
       CGH.use_kernel_bundle(KernelBundleExecutable);
       CGH.single_task<Kernel3Name>([=]() { Acc[0] = 42; });
     });

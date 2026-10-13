@@ -12,9 +12,7 @@
 #include "queue_api.hpp"
 #include "unified-runtime/ur_api.h"
 
-namespace v2 {
-
-static constexpr size_t EVENTS_BURST = 64;
+namespace ur::level_zero::v2 {
 
 ur_event_handle_t event_pool::allocate() {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
@@ -22,12 +20,8 @@ ur_event_handle_t event_pool::allocate() {
   std::unique_lock<ur_mutex> lock(mutex);
 
   if (freelist.empty()) {
-    auto start = events.size();
-    auto end = start + EVENTS_BURST;
-    for (; start < end; ++start) {
-      events.emplace_back(hContext, provider->allocate(), this);
-      freelist.push_back(&events.at(start));
-    }
+    events.emplace_back(hContext, provider->allocate(), this);
+    freelist.push_back(&events.back());
   }
 
   auto event = freelist.back();
@@ -40,6 +34,14 @@ ur_event_handle_t event_pool::allocate() {
 #endif
 
   return event;
+}
+
+ur_event_handle_t event_pool::allocateDetached() {
+  TRACK_SCOPE_LATENCY("event_pool::allocateDetached");
+  raii::ze_event_handle_t ownedEvent(provider->allocate().release(),
+                                     /*ownZeHandle=*/true);
+  return new ur_event_handle_t_(hContext, std::move(ownedEvent),
+                                provider->eventFlags());
 }
 
 void event_pool::free(ur_event_handle_t event) {
@@ -61,4 +63,4 @@ event_flags_t event_pool::getFlags() const {
   return getProvider()->eventFlags();
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

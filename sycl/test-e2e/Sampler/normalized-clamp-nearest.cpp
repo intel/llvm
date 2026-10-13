@@ -9,6 +9,7 @@
     CLAMP address_mode and NEAREST filter_mode
 
 */
+#include <iostream>
 
 #include "common.hpp"
 
@@ -47,7 +48,7 @@ void test_normalized_clamp_nearest_sampler(image_channel_order ChanOrder,
     // - create an image
     image<1> image_1D(ChanOrder, ChanType, ImgRange_1D);
     event E_Setup = Q.submit([&](handler &cgh) {
-      auto image_acc = image_1D.get_access<pixelT, access::mode::write>(cgh);
+      auto image_acc = image_1D.get_access<pixelT, access_mode::write>(cgh);
       cgh.single_task<class setupUnormLinear>([=]() {
         image_acc.write(0, leftEdge);
         image_acc.write(1, body);
@@ -65,8 +66,8 @@ void test_normalized_clamp_nearest_sampler(image_channel_order ChanOrder,
         sampler(normalized, addressing_mode::clamp, nearest);
 
     event E_Test = Q.submit([&](handler &cgh) {
-      auto image_acc = image_1D.get_access<pixelT, access::mode::read>(cgh);
-      auto test_acc = testResults.get_access<access::mode::write>(cgh);
+      auto image_acc = image_1D.get_access<pixelT, access_mode::read>(cgh);
+      auto test_acc = testResults.get_access<access_mode::write>(cgh);
 
       cgh.single_task<class im1D_norm_nearest>([=]() {
         int i = 0; // the index for writing into the testResult buffer.

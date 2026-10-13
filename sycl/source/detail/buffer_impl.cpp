@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/code_location.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 
@@ -50,11 +51,17 @@ void buffer_impl::addInteropObject(
                   ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
         Handles.end()) {
       adapter_impl &Adapter = getAdapter();
-      Adapter.call<UrApiKind::urMemRetain>(
-          ur::cast<ur_mem_handle_t>(MInteropMemObject));
       ur_native_handle_t NativeHandle = 0;
       Adapter.call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
                                                     &NativeHandle);
+      // Retain the native handle on the caller's behalf, the same contract
+      // getNativeVector() honours for memory objects that have a MemObjRecord.
+      // Retaining the UR handle instead would leak it: nothing releases that
+      // reference, so the urMemRelease in ~SYCLMemObjT never drops the
+      // reference count to zero and the UR memory object, along with the UR
+      // context it keeps alive, is never freed.
+      if (MInteropContext->getBackend() == backend::opencl)
+        retainOpenCLMemObject(NativeHandle);
       Handles.push_back(NativeHandle);
     }
   }
@@ -90,7 +97,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     Handles.push_back(Handle);
 
     if (Platform.getBackend() == backend::opencl) {
-      __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(Handle));
+      retainOpenCLMemObject(Handle);
     }
   }
 

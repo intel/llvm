@@ -10,6 +10,7 @@
 
 // This test checks that multi-dimensional sycl::item can be used in ESIMD
 // kernels.
+#include <iostream>
 
 #include "esimd_test_utils.hpp"
 

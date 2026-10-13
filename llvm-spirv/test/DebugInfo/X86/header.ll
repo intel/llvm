@@ -19,7 +19,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: .file	"<stdin>"
 ; CHECK-NEXT: .text
 ; CHECK-NEXT: .globl	f
-; CHECK-NEXT: .p2align	4
+; CHECK-NEXT: {{.p2align 4|.prefalign       4, .Lfunc_end0, nop}}
 ; CHECK-NEXT: .type	f,@function
 ; CHECK-NEXT: f:                                      # @f
 

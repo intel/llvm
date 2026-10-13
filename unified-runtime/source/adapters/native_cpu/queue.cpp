@@ -90,8 +90,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
-
-  DIE_NO_IMPLEMENTATION;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t

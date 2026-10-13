@@ -1,9 +1,6 @@
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
-//
-// Test hangs on AMD
-// UNSUPPORTED: hip
 
 //==- hier_par_wgscope.cpp --- hierarchical parallelism test for WG scope---==//
 //

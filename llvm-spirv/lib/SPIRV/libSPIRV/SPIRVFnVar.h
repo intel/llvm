@@ -51,6 +51,7 @@ bool specializeFnVariants(SPIRVModule *BM, std::string &ErrMsg);
 class SPIRVConditionalEntryPointINTEL : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 5;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   SPIRVConditionalEntryPointINTEL(SPIRVModule *TheModule, SPIRVId Condition,
                                   SPIRVExecutionModelKind TheExecModel,
                                   SPIRVId TheId, const std::string &TheName,
@@ -249,6 +250,7 @@ public:
 
     return Res;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC4(Type, Id, Target, Features);
@@ -414,6 +416,7 @@ public:
 
     return Res;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC3(Type, Id, Capabilities);

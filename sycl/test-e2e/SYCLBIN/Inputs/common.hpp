@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>

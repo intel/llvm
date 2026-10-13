@@ -38,10 +38,11 @@ bool isJointMatrixAccess(Value *V);
 // it has been used.
 void getFunctionsOfUser(User *User, SmallVectorImpl<Function *> &Functions);
 
-// Compute MD5 hash for kernel metadata global as unique id.
-SmallString<128>
-computeKernelMetadataUniqueId(StringRef Prefix,
-                              SmallVectorImpl<uint8_t> &KernelNamesBytes);
+// Compute a unique id for the module.
+// The result is cached in the module as named metadata
+// ("device.sanitizer.hash") so it remains stable even if the module is modified
+// after the first call.
+SmallString<40> computeMetadataUniqueId(Module &M);
 
 bool hasESIMDKernel(Module &M);
 

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/spirv.hpp>
 #include <sycl/functional.hpp> // for maximum, minimum
 
@@ -15,18 +16,35 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace ext::oneapi {
 
-template <typename T = void> using plus = std::plus<T>;
-template <typename T = void> using multiplies = std::multiplies<T>;
-template <typename T = void> using bit_or = std::bit_or<T>;
-template <typename T = void> using bit_xor = std::bit_xor<T>;
-template <typename T = void> using bit_and = std::bit_and<T>;
-template <typename T = void> using maximum = sycl::maximum<T>;
-template <typename T = void> using minimum = sycl::minimum<T>;
-
+template <typename T = void>
+using plus __SYCL2020_DEPRECATED("Use sycl::plus<> instead") = std::plus<T>;
+template <typename T = void>
+using multiplies __SYCL2020_DEPRECATED("Use sycl::multiplies<> instead") =
+    std::multiplies<T>;
+template <typename T = void>
+using bit_or
+    __SYCL2020_DEPRECATED("Use sycl::bit_or<> instead") = std::bit_or<T>;
+template <typename T = void>
+using bit_xor
+    __SYCL2020_DEPRECATED("Use sycl::bit_xor<> instead") = std::bit_xor<T>;
+template <typename T = void>
+using bit_and
+    __SYCL2020_DEPRECATED("Use sycl::bit_and<> instead") = std::bit_and<T>;
+template <typename T = void>
+using maximum
+    __SYCL2020_DEPRECATED("Use sycl::maximum<> instead") = sycl::maximum<T>;
+template <typename T = void>
+using minimum
+    __SYCL2020_DEPRECATED("Use sycl::minimum<> instead") = sycl::minimum<T>;
 } // namespace ext::oneapi
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
+// TODO: The group operation helpers below are not extension-specific; consider
+// moving them to a non-extension header (e.g. sycl/functional.hpp).
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
 
@@ -62,7 +80,7 @@ struct GroupOpTag<T, std::enable_if_t<detail::is_genbool_v<T>>> {
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <__spv::GroupOperation O, typename Group, typename T>               \
-  static T calc(Group g, GroupTag, T x, BinaryOperation) {                     \
+  T calc(Group g, GroupTag, T x, BinaryOperation) {                            \
     return sycl::detail::spirv::Group##SPIRVOperation<O>(g, x);                \
   }
 
@@ -105,8 +123,7 @@ __SYCL_CALC_OVERLOAD(GroupOpFP, LogicalOr, sycl::logical_or<T>)
 
 template <__spv::GroupOperation O, typename Group, typename T,
           template <typename> class BinaryOperation>
-static T calc(Group g, typename GroupOpTag<T>::type, T x,
-              BinaryOperation<void>) {
+T calc(Group g, typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
   return calc<O>(g, typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
 }
 

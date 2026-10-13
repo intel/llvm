@@ -8,7 +8,7 @@
 
 using namespace sycl;
 
-template <typename T, access::mode M> class MName;
+template <typename T, access_mode M> class MName;
 
 int NumErrors = 0;
 

@@ -1,5 +1,4 @@
-libclc_configure_source_list(LISPIRV_NATIVE_CPU_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}
+libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   math/sqrt.cl
   math/clc_sqrt.cl
   math/fma.cl

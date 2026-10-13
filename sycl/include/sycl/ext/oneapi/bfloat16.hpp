@@ -11,9 +11,11 @@
 #include <sycl/aliases.hpp>
 #include <sycl/bit_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
 #include <sycl/half_type.hpp>
 
 #include <cstdint>
+#include <iosfwd> // for ostream, istream
 
 namespace sycl {
 inline namespace _V1 {
@@ -123,25 +125,13 @@ public:
   // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
   // for floating-point types.
 
-  // Stream Operator << and >>
-#ifdef __SYCL_DEVICE_ONLY__
-  // std::istream/std::ostream aren't usable on device, so don't provide a
-  // definition to save compile time by using lightweight `<iosfwd>`.
-  inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs);
-  inline friend std::istream &operator>>(std::istream &I, bfloat16 &rhs);
-#else
-  inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
-    O << static_cast<float>(rhs);
-    return O;
-  }
-
-  inline friend std::istream &operator>>(std::istream &I, bfloat16 &rhs) {
-    float ValFloat = 0.0f;
-    I >> ValFloat;
-    rhs = ValFloat;
-    return I;
-  }
-#endif
+  // Stream operators are defined out-of-line in the SYCL runtime. The header
+  // only carries forward declarations so that <ostream>/<istream> are not
+  // pulled into device compilation. Consumers that print bfloat16 values
+  // must include <iostream> (or <ostream>/<istream>) themselves.
+  __SYCL_EXPORT friend std::ostream &operator<<(std::ostream &O,
+                                                bfloat16 const &rhs);
+  __SYCL_EXPORT friend std::istream &operator>>(std::istream &I, bfloat16 &rhs);
 
 private:
   uint16_t value;

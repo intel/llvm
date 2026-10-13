@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 The Khronos Group Inc.
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Contribution guidelines
 
 ## If you have found a bug or would like to see a new feature
@@ -59,11 +64,22 @@ For local testing you can copy your spirv.hpp variant to
 there. See [README.md](README.md#configuring-spir-v-headers) for build
 instructions that should be employed with such modifications.
 
+### AI-Assisted Contributions
+
+By submitting a Contribution to this repository, you additionally represent
+that, to the extent any of Your Contributions were developed with the
+assistance of artificial intelligence tools or AI-generated code, You have
+exercised sufficient review, judgment, and creative direction over such tools
+and resulting material to reasonably consider it Your original creation, and
+You are not aware of any third-party license, intellectual property claim, or
+other restriction arising from such use that is associated with any part of
+Your Contribution or use thereof.
+
 ### Conditions to merge a PR
 
 In order to get your PR merged, the following conditions must be met:
 - If you are a first-time contributor, you have to sign the
-  [Contributor License Agreement]. Corresponding link and instructions will be
+  [Contributor License Agreement](https://cla-assistant.io/KhronosGroup/SPIRV-LLVM-Translator). Corresponding link and instructions will be
   automatically posted into your PR.
 - [GitHub CI testing] jobs must pass on your PR: this includes functional
   testing and checking for complying with coding standards.

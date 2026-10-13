@@ -6,7 +6,7 @@
 
 sycl::event submit(sycl::queue &Q, sycl::buffer<int> &B) {
   return Q.submit([&](sycl::handler &CGH) {
-    auto A = B.template get_access<sycl::access::mode::read_write>(CGH);
+    auto A = B.template get_access<sycl::access_mode::read_write>(CGH);
     CGH.host_task([=]() { (void)A; });
   });
 }

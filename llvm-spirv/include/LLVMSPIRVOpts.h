@@ -42,6 +42,7 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <map>
@@ -117,6 +118,29 @@ enum class DebugInfoEIS : uint32_t {
 };
 
 enum class BuiltinFormat : uint32_t { Function, Global };
+
+enum SPIRAddressSpace : uint32_t {
+  SPIRAS_Private,
+  SPIRAS_Global,
+  SPIRAS_Constant,
+  SPIRAS_Local,
+  SPIRAS_Generic,
+  SPIRAS_GlobalDevice,
+  SPIRAS_GlobalHost,
+  SPIRAS_Input,
+  SPIRAS_Output,
+  SPIRAS_CodeSectionINTEL,
+  SPIRAS_Count,
+};
+
+using AddrSpaceMap = std::array<uint32_t, SPIRAS_Count>;
+
+/// \brief What the translator does with a module it cannot accept.
+///
+/// Ignore leaves the failure to be reported through the return value and the
+/// error string of the entry point, typical for embedded uses. Abort and Exit
+/// terminate the process, typical for standalone tools.
+enum class SPIRVDbgErrorHandlingKinds { Abort, Exit, Ignore };
 
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
@@ -245,6 +269,28 @@ public:
     EmitFunctionPtrAddrSpace = Value;
   }
 
+  void setAddrSpaceMap(AddrSpaceMap Map) noexcept { ASMap = Map; }
+
+  const AddrSpaceMap *getAddrSpaceMap() const noexcept {
+    return ASMap ? &ASMap.value() : nullptr;
+  }
+
+  uint32_t mapAddrSpace(uint32_t SPIRAS) const noexcept {
+    if (ASMap && SPIRAS < SPIRAS_Count)
+      return (*ASMap)[SPIRAS];
+    return SPIRAS;
+  }
+
+  void setFunctionProgramAddrSpace(uint32_t AS) noexcept {
+    FunctionProgramAS = AS;
+  }
+
+  uint32_t getFunctionProgramAddrSpace() const noexcept {
+    if (FunctionProgramAS)
+      return *FunctionProgramAS;
+    return mapAddrSpace(SPIRAS_Private);
+  }
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }
@@ -252,6 +298,13 @@ public:
 
   void setUseLLVMTarget(bool Flag) noexcept { UseLLVMTarget = Flag; }
   bool getUseLLVMTarget() const noexcept { return UseLLVMTarget; }
+
+  void setSPIRVTargetTriple(std::string Triple) noexcept {
+    SPIRVTargetTriple = std::move(Triple);
+  }
+  llvm::StringRef getSPIRVTargetTriple() const noexcept {
+    return SPIRVTargetTriple;
+  }
 
   void setFnVarCategory(uint32_t Category) noexcept {
     FnVarCategory = Category;
@@ -299,6 +352,13 @@ public:
   // success, false on failure.
   bool validateFnVarOpts() const;
 
+  SPIRVDbgErrorHandlingKinds getErrorHandlingKind() const noexcept {
+    return ErrorHandling;
+  }
+  void setErrorHandlingKind(SPIRVDbgErrorHandlingKinds Kind) noexcept {
+    ErrorHandling = Kind;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -328,6 +388,9 @@ private:
   // SPIR-V
   std::optional<ArgList> SPIRVAllowUnknownIntrinsics{};
 
+  // What to do with a module the translator cannot accept.
+  SPIRVDbgErrorHandlingKinds ErrorHandling = SPIRVDbgErrorHandlingKinds::Exit;
+
   // Enable support for extra DIExpression opcodes not listed in the SPIR-V
   // DebugInfo specification.
   bool AllowExtraDIExpressions = false;
@@ -343,8 +406,19 @@ private:
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
 
   // Controls if CodeSectionINTEL can be emitted and consumed with a dedicated
-  // address space
+  // address space. This option overrides address space set in
+  // FunctionProgramAS for functions that have their address taken with
+  // SPIRAS_CodeSectionINTEL.
   bool EmitFunctionPtrAddrSpace = false;
+
+  // Optional per-target mapping from SPIRAddressSpace values to LLVM AS
+  // numbers.
+  std::optional<AddrSpaceMap> ASMap;
+
+  // Address space for function definitions. When set, overrides the address
+  // space map. Otherwise getFunctionProgramAddrSpace() falls back to
+  // SPIRAS_Private, which may be resolved using ASMap if set.
+  std::optional<uint32_t> FunctionProgramAS;
 
   bool PreserveAuxData = false;
 
@@ -361,6 +435,9 @@ private:
 
   // Convert LLVM to SPIR-V using the LLVM SPIR-V Backend target
   bool UseLLVMTarget = false;
+
+  // Override target triple during reverse-translation.
+  std::string SPIRVTargetTriple = "";
 };
 
 } // namespace SPIRV

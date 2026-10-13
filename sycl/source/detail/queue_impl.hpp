@@ -32,6 +32,7 @@
 #include <sycl/queue.hpp>
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -212,12 +213,15 @@ public:
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    // The discard_events property is incompatible with enable_profiling.
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     // The following commented section provides a guideline on how to use the
     // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
@@ -240,11 +244,12 @@ public:
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
     auto ImplPtr =
         std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
-    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr.get());
     return ImplPtr;
   }
 
   ~queue_impl() {
+    getDeviceImpl().unregisterQueue(this);
     try {
 #if XPTI_ENABLE_INSTRUMENTATION
       // The trace event created in the constructor should be active through the
@@ -270,13 +275,12 @@ public:
 
   /// \return an OpenCL interoperability queue handle.
 
-  cl_command_queue get() {
+  OpenCLCommandQueueT get() {
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue,
-                    ur::cast<cl_command_queue>(nativeHandle));
-    return ur::cast<cl_command_queue>(nativeHandle);
+    detail::retainOpenCLCommandQueue(nativeHandle);
+    return ur::cast<OpenCLCommandQueueT>(nativeHandle);
   }
 
   /// \return an associated SYCL context.
@@ -375,6 +379,18 @@ public:
                               CodeLoc, IsTopCodeLoc);
   }
 
+  /// Submits an already built kernel with an explicit argument list, without
+  /// creating a handler or a command group object.
+  ///
+  /// \param RangeView is the execution range.
+  /// \param KernelImpl is the kernel to launch.
+  /// \param Args are the kernel arguments, as bytes plus their kind.
+  void submit_kernel_obj_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const sycl::detail::KernelArgView> Args,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
                                          detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
@@ -382,6 +398,34 @@ public:
         submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc);
     return createSyclObjFromImpl<event>(std::move(EventImpl));
   }
+
+  void submit_barrier_direct_without_event(
+      sycl::span<const event> DepEvents, detail::CGType BarrierType,
+      const detail::code_location &CodeLoc,
+      const EventImplPtr &EventForReuse = nullptr) {
+    submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc, false,
+                               EventForReuse);
+  }
+
+  /// Submits an asynchronous USM device allocation to the queue, without
+  /// creating a handler or a command group object.
+  ///
+  /// \param Pool is the memory pool to allocate from, or nullptr to use the
+  ///        default pool of the queue's device.
+  /// \param Size is the number of bytes to allocate.
+  /// \param CodeLoc is the code location of the submit call.
+  ///
+  /// \return the allocated pointer.
+  void *submit_async_malloc_direct(ur_usm_pool_handle_t Pool, size_t Size,
+                                   const detail::code_location &CodeLoc);
+
+  /// Submits an asynchronous USM free to the queue, without creating a handler
+  /// or a command group object.
+  ///
+  /// \param Ptr is the pointer to be freed.
+  /// \param CodeLoc is the code location of the submit call.
+  void submit_async_free_direct(void *Ptr,
+                                const detail::code_location &CodeLoc);
 
   void submit_graph_direct_without_event(
       const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
@@ -428,7 +472,33 @@ public:
 
   EventImplPtr submit_barrier_scheduler_bypass(
       std::vector<detail::EventImplPtr> &BarrierDepEvents,
-      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType);
+      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
+      bool EventNeeded, const EventImplPtr &EventForReuse);
+
+  /// Completes the submission of an asynchronous allocation using the scheduler
+  /// bypass fast path. The allocation itself has already been enqueued to the
+  /// backend by the caller, as the pointer has to be returned immediately.
+  ///
+  /// \param UREvent is the event of the enqueued allocation, if one was
+  ///        requested.
+  /// \param DepEvents is the list of event dependencies of the allocation.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  ///
+  /// \return a SYCL event representing the allocation or nullptr.
+  EventImplPtr submit_async_alloc_scheduler_bypass(
+      ur_event_handle_t UREvent, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded);
+
+  /// Submits an asynchronous free using the scheduler bypass fast path.
+  ///
+  /// \param Ptr is the pointer to be freed.
+  /// \param DepEvents is the list of event dependencies of the free.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  ///
+  /// \return a SYCL event representing the free or nullptr.
+  EventImplPtr submit_async_free_scheduler_bypass(
+      void *Ptr, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -613,6 +683,8 @@ public:
 
   bool queue_empty() const;
 
+  void queue_flush() const;
+
   EventImplPtr memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                     bool IsDeviceImageScope, size_t NumBytes,
                                     size_t Offset,
@@ -644,6 +716,11 @@ public:
     setCommandGraphUnlocked(Graph);
   }
 
+  /// Put this queue into recording mode for \p Graph, acquiring both the
+  /// submission mutex and the graph mutex.
+  void
+  beginRecordingGraph(ext::oneapi::experimental::detail::graph_impl &Graph);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
     return MGraph.lock();
@@ -653,7 +730,22 @@ public:
 
   bool isNativeRecording() const;
 
+  struct NativeRecordingResult {
+    ur_exp_graph_handle_t CapturedGraph = nullptr;
+    bool RecordingActive = false;
+    ur_result_t Result = UR_RESULT_SUCCESS;
+  };
+
+  /// Start native graph capture on this queue. The caller must
+  /// already hold the submission mutex.
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
+
+  NativeRecordingResult endNativeRecording();
+
   ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  ext_oneapi_get_graph_impl() const;
 
   EventImplPtr submit_command_to_graph(
       ext::oneapi::experimental::detail::graph_impl &GraphImpl,
@@ -728,6 +820,19 @@ public:
   void waitForRuntimeLevelCmdsAndClear();
 
 protected:
+  /// Creates the event representing a command which has already been enqueued
+  /// to the backend through a scheduler bypass path.
+  ///
+  /// \param UREvent is the handle returned by the backend enqueue call.
+  /// \param DepEvents is the list of event dependencies of the command. They
+  /// are
+  ///        only adopted by the event of out-of-order queues, which have to
+  ///        keep them alive.
+  ///
+  /// \return the event representing the enqueued command.
+  EventImplPtr makeEnqueuedEvent(ur_event_handle_t UREvent,
+                                 std::vector<detail::EventImplPtr> &&DepEvents);
+
   EventImplPtr insertHelperBarrier();
 
   template <typename HandlerType = handler>
@@ -964,9 +1069,10 @@ protected:
   /// \param CodeLoc is the code location of the submit call
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
-  EventImplPtr submit_barrier_direct_impl(sycl::span<const event> DepEvents,
-                                          detail::CGType BarrierType,
-                                          const detail::code_location &CodeLoc);
+  EventImplPtr submit_barrier_direct_impl(
+      sycl::span<const event> DepEvents, detail::CGType BarrierType,
+      const detail::code_location &CodeLoc, bool CallerNeedsEvent = true,
+      const EventImplPtr &EventForReuse = nullptr);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.

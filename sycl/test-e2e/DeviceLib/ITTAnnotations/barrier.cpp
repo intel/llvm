@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 #include "sycl/detail/core.hpp"
+#include <sycl/group_barrier.hpp>
 #include <vector>
 
 using namespace sycl;
@@ -18,7 +19,7 @@ int main() {
     // Ensure that a simple kernel gets run when instrumented with
     // ITT start/finish annotations and ITT wg_barrier/wi_resume annotations.
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::read_write>(cgh);
+      auto acc = buf.get_access<access_mode::read_write>(cgh);
       local_accessor<int, 1> local_acc(local_range, cgh);
       cgh.parallel_for<class simple_barrier_kernel>(
           nd_range<1>(num_items, local_range), [=](nd_item<1> item) {
@@ -26,7 +27,7 @@ int main() {
             int pos = idx & 1;
             int opp = pos ^ 1;
             local_acc[pos] = acc[idx];
-            item.barrier(access::fence_space::local_space);
+            group_barrier(item.get_group());
             acc[idx] = local_acc[opp];
           });
     });

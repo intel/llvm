@@ -7,3 +7,4 @@
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/sub_group_prop.cpp"
+#include <algorithm>

@@ -239,6 +239,49 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
   }
 }
 
+ur_backend_t GetDeviceBackend(ur_device_handle_t Device) {
+  // There's no device level query for the backend, so go through the platform.
+  ur_platform_handle_t Platform{};
+  ur_result_t Result = getContext()->urDdiTable.Device.pfnGetInfo(
+      Device, UR_DEVICE_INFO_PLATFORM, sizeof(Platform), &Platform, nullptr);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "GetDeviceBackend: failed to query the device platform: {}",
+             Result);
+    return UR_BACKEND_UNKNOWN;
+  }
+
+  ur_backend_t Backend = UR_BACKEND_UNKNOWN;
+  Result = getContext()->urDdiTable.Platform.pfnGetInfo(
+      Platform, UR_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend, nullptr);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "GetDeviceBackend: failed to query the platform backend: {}",
+             Result);
+    return UR_BACKEND_UNKNOWN;
+  }
+
+  return Backend;
+}
+
+ur_result_t CheckDeviceBackendSupported(ur_device_handle_t Device,
+                                        DeviceType Type) {
+  // Shadow memory for GPU devices is reserved through the virtual memory API
+  // (urVirtualMemReserve), which only the Level Zero adapter implements. CPU
+  // devices mmap their shadow directly and work on any backend.
+  if (Type == DeviceType::CPU)
+    return UR_RESULT_SUCCESS;
+
+  if (GetDeviceBackend(Device) != UR_BACKEND_LEVEL_ZERO) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "Device sanitizers on GPU devices require the Level Zero backend, "
+             "select it with ONEAPI_DEVICE_SELECTOR=level_zero:*");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_device_handle_t GetParentDevice(ur_device_handle_t Device) {
   ur_device_handle_t ParentDevice{};
   [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
@@ -300,6 +343,32 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
       &Size, nullptr);
   assert(Res == UR_RESULT_SUCCESS);
   return Size;
+}
+
+ur_result_t GetProgramMetadataNames(ur_program_handle_t Program,
+                                    std::string_view Prefix,
+                                    std::vector<std::string> &MetadataNames) {
+  size_t KernelNamesSize = 0;
+  UR_CALL(getContext()->urDdiTable.Program.pfnGetInfo(
+      Program, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize));
+  std::vector<char> KernelNames(KernelNamesSize);
+  UR_CALL(getContext()->urDdiTable.Program.pfnGetInfo(
+      Program, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesSize,
+      KernelNames.data(), nullptr));
+
+  constexpr std::string_view ModuleIDPrefix = "__sanitizerModule_";
+  std::istringstream Stream(KernelNames.data());
+  std::string KernelName;
+  while (std::getline(Stream, KernelName, ';')) {
+    if (KernelName.compare(0, ModuleIDPrefix.size(), ModuleIDPrefix) == 0) {
+      // Extract everything after "__sanitizerModule_" (e.g. "<hash>") and
+      // prepend Prefix to form the metadata global name.
+      std::string_view Suffix(KernelName);
+      Suffix.remove_prefix(ModuleIDPrefix.size());
+      MetadataNames.push_back(std::string(Prefix) + std::string(Suffix));
+    }
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,

@@ -110,6 +110,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ReturnSizes);
   }
 
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS: {
+    int MaxX = 0, MaxY = 0, MaxZ = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, hDevice->get()));
+    assert(MaxX >= 0);
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, hDevice->get()));
+    assert(MaxY >= 0);
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, hDevice->get()));
+    assert(MaxZ >= 0);
+
+    return ReturnValue(multiplyWithOverflowCheck(static_cast<size_t>(MaxX),
+                                                 static_cast<size_t>(MaxY),
+                                                 static_cast<size_t>(MaxZ)));
+  }
+
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int MaxWorkGroupSize = 0;
     UR_CHECK_ERROR(cuDeviceGetAttribute(
@@ -565,8 +584,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    // The mandated minimum capability:
-    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    // The mandated minimum capability, plus flags that are accepted and
+    // honored (stored verbatim, no functional rejection) by urQueueCreate:
+    ur_queue_flags_t Capability =
+        UR_QUEUE_FLAG_PROFILING_ENABLE | UR_QUEUE_FLAG_DISCARD_EVENTS |
+        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -940,6 +962,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports recording timestamp events.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // CUDA supports enqueueing native work through the urNativeEnqueueExp
     return ReturnValue(static_cast<ur_bool_t>(true));
@@ -1081,6 +1106,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_IP_VERSION:
+  case UR_DEVICE_INFO_IGCA_TARGET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     unsigned long long ClocksEventReasons;
@@ -1154,6 +1181,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                         hDevice->get()));
     return ReturnValue(static_cast<ur_bool_t>(IPCSupported));
   }
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1170,6 +1199,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1200,13 +1231,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_LUID: {
-    // LUID is only available on Windows.
-    // Intel extension for device LUID. This returns the LUID as
-    // std::array<std::byte, 8>. For details about this extension,
+  case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // LUID and Device node mask are only available on Windows.
+    // Intel extension for device LUID and node mask. This returns the LUID as
+    // std::array<std::byte, 8> the node mask as uint32_t.
+    // For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
     std::array<char, 8> LUID{};
-    cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
+    uint32_t nodeMask = 0;
+    auto LuidResult = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    if (LuidResult == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(LuidResult);
 
     bool isAllZeros = true;
     for (char num : LUID) {
@@ -1215,29 +1254,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       }
     }
 
-    if (isAllZeros) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (nodeMask == 0 || isAllZeros) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    std::array<unsigned char, 8> Name{};
-    std::copy(LUID.begin(), LUID.end(), Name.begin());
-    return ReturnValue(Name.data(), 8);
-  }
-  case UR_DEVICE_INFO_NODE_MASK: {
-    // Device node mask is only available on Windows.
-    // Intel extension for device node mask. This returns the node mask as
-    // uint32_t. For details about this extension,
-    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    uint32_t nodeMask = 0;
-    cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
-
-    // If nodeMask has not changed, return unsupported.
-    if (nodeMask == 0) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (propName == UR_DEVICE_INFO_LUID) {
+      std::array<unsigned char, 8> Name{};
+      std::copy(LUID.begin(), LUID.end(), Name.begin());
+      return ReturnValue(Name.data(), 8);
+    } else {
+      return ReturnValue(nodeMask);
     }
-
-    return ReturnValue(nodeMask);
   }
+
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:

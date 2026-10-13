@@ -5,6 +5,7 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: target-amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 // XFAIL: spirv-backend && gpu && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/21314
 // RUN: %{build} -o %t.out

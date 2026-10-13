@@ -6,6 +6,11 @@
 // forward compatibility with future SYCL versions.
 //
 // UNSUPPORTED: true
+// UNSUPPORTED-INTENDED: It's not really clear what's the purpose of this test.
+// But I highly doubt that we will enable it one day, so marking as intended
+// instead of creating a tracker for it.
+
+#include <iostream>
 
 #include "helper.hpp"
 #include <complex>
@@ -22,8 +27,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
     buffer<T> buf(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      auto acc = buf.template get_access<access::mode::read_write>(cgh);
+      auto sgsizeacc = sgsizebuf.get_access<access_mode::read_write>(cgh);
+      auto acc = buf.template get_access<access_mode::read_write>(cgh);
       cgh.parallel_for(NdRange, [=](nd_item<1> NdItem) {
         auto sg = NdItem.get_sub_group();
         if (skip_init) {
@@ -79,8 +84,8 @@ int main() {
   // Test user-defined type
   // Use complex as a proxy for this
   using UDT = std::complex<float>;
-  check_op<UDT>(Queue, UDT(L, L), ext::oneapi::plus<UDT>(), false, G, L);
-  check_op<UDT>(Queue, UDT(0, 0), ext::oneapi::plus<UDT>(), true, G, L);
+  check_op<UDT>(Queue, UDT(L, L), plus<UDT>(), false, G, L);
+  check_op<UDT>(Queue, UDT(0, 0), plus<UDT>(), true, G, L);
 
   // Test user-defined operator
   auto UDOp = [=](const auto &lhs, const auto &rhs) { return lhs + rhs; };

@@ -36,8 +36,8 @@ target triple = "spirv64-unknown-unknown"
 
 ; CHECK-LLVM: %addr = alloca half
 ; CHECK-LLVM: %addr2 = alloca <2 x half>
-; CHECK-LLVM: %{{[a-z0-9]+}} = call spir_func half @_Z5fractDhPDh(half 0xH39C4, ptr %addr)
-; CHECK-LLVM: %{{[a-z0-9]+}} = call spir_func <2 x half> @_Z5fractDv2_DhPS_(<2 x half> <half 0xH39C4, half 0xH0000>, ptr %addr2)
+; CHECK-LLVM: %{{[a-z0-9]+}} = call spir_func half @_Z5fractDhPDh(half 7.207030e-01, ptr %addr)
+; CHECK-LLVM: %{{[a-z0-9]+}} = call spir_func <2 x half> @_Z5fractDv2_DhPS_(<2 x half> <half 7.207030e-01, half 0.000000e+00>, ptr %addr2)
 
 define spir_kernel void @test() {
 entry:

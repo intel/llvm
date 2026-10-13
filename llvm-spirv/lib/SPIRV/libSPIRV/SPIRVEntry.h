@@ -60,6 +60,7 @@ class SPIRVEncoder;
 class SPIRVDecoder;
 class SPIRVType;
 class SPIRVValue;
+class SPIRVDecorateGeneric;
 class SPIRVDecorate;
 class SPIRVDecorateId;
 class SPIRVForward;
@@ -319,6 +320,7 @@ public:
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorate const *> getDecorations(Decoration Kind) const;
   std::vector<SPIRVDecorate const *> getDecorations() const;
+  std::vector<SPIRVDecorateGeneric const *> getAllDecorations() const;
   std::set<SPIRVId> getDecorateId(Decoration Kind, size_t Index = 0) const;
   std::vector<SPIRVDecorateId const *> getDecorationIds(Decoration Kind) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
@@ -379,6 +381,10 @@ public:
   /// constructor, this function is called to allow the SPIRV entry to resize
   /// its variable sized member before decoding the remaining words.
   virtual void setWordCount(SPIRVWord TheWordCount);
+
+  /// Return the minimum valid WordCount (1, the OpCode). Other entries will
+  /// override to return their respective fixed word counts.
+  virtual SPIRVWord getFixedWordCount() const { return 1; }
 
   /// Create an empty SPIRV object by op code, e.g. OpTypeInt creates
   /// SPIRVTypeInt.
@@ -541,6 +547,7 @@ public:
 class SPIRVEntryPoint : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 4;
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
@@ -719,6 +726,8 @@ public:
     case ExecutionModeMaximumRegistersIdINTEL:
     case ExecutionModeNamedMaximumRegistersINTEL:
       return ExtensionID::SPV_INTEL_maximum_registers;
+    case ExecutionModeArithmeticPoisonKHR:
+      return ExtensionID::SPV_KHR_poison_freeze;
     default:
       return {};
     }
@@ -947,10 +956,16 @@ public:
       return ExtensionID::SPV_INTEL_function_variants;
     case internal::CapabilityBFloat16ArithmeticINTEL:
       return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
+    case CapabilityRoundedDivideSqrtINTEL:
+      return ExtensionID::SPV_INTEL_rounded_divide_sqrt;
     case internal::CapabilityDeviceBarrierINTEL:
       return ExtensionID::SPV_INTEL_device_barrier;
     case CapabilityFloatControls2:
       return ExtensionID::SPV_KHR_float_controls2;
+    case CapabilityInt64ImageEXT:
+      return ExtensionID::SPV_EXT_shader_image_int64;
+    case CapabilityLongVectorEXT:
+      return ExtensionID::SPV_EXT_long_vector;
     default:
       return {};
     }

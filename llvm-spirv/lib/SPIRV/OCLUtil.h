@@ -39,6 +39,7 @@
 #ifndef SPIRV_OCLUTIL_H
 #define SPIRV_OCLUTIL_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVInternal.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/IRBuilder.h"
@@ -477,8 +478,11 @@ unsigned transVecTypeHint(MDNode *Node);
 /// Decode SPIR-V encoding of vector type hint execution mode.
 Type *decodeVecTypeHint(LLVMContext &C, unsigned Code);
 
-SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode);
-SPIR::TypeAttributeEnum getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim);
+SPIRAddressSpace
+getOCLOpaqueTypeAddrSpace(Op OpCode, const SPIRV::AddrSpaceMap *Map = nullptr);
+SPIR::TypeAttributeEnum
+getOCLOpaqueTypeAddrSpace(SPIR::TypePrimitiveEnum Prim,
+                          const SPIRV::AddrSpaceMap *Map = nullptr);
 
 inline unsigned mapOCLMemSemanticToSPIRV(unsigned MemFenceFlag,
                                          OCLMemOrderKind Order) {
@@ -503,6 +507,12 @@ inline OCLMemOrderKind mapSPIRVMemOrderToOCL(unsigned Sema) {
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
+
+// Returns the storage-class memory-semantics bit mask derived from the pointer
+// address space. RecordedType is checked first; if it resolves to Generic, Ptr
+// is analyzed via use-def walk.
+unsigned getAtomicPointerMemorySemanticsMask(const Value *Ptr,
+                                             const Type *RecordedType);
 
 /// Check that the type is the sampler_t
 bool isSamplerTy(Type *Ty);

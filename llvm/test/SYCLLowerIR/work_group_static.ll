@@ -8,7 +8,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = linkonce_odr local_unnamed_addr addrspace(3) global ptr addrspace(3) poison
 
 ; Function Attrs: convergent norecurse
-; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0, ptr addrspace(3) noalias "sycl-implicit-local-arg" %[[IMPLICT_ARG:[a-zA-Z0-9]+]]{{.*}} !kernel_arg_addr_space ![[ADDR_SPACE_MD:[0-9]+]]
+; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0, ptr addrspace(3) noalias "sycl-implicit-local-arg" %[[IMPLICT_ARG:[a-zA-Z0-9]+]]{{.*}} #[[FULL_DYNAMIC_MEM_ATTRS:[0-9]+]] !kernel_arg_addr_space ![[ADDR_SPACE_MD:[0-9]+]]
 define weak_odr dso_local spir_kernel void @_ZTS7KernelA(ptr addrspace(1) %0) local_unnamed_addr #0 !kernel_arg_addr_space !5 {
 entry:
 ; CHECK: store ptr addrspace(3) %[[IMPLICT_ARG]], ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder_GV
@@ -22,7 +22,7 @@ entry:
 }
 
 ; Function Attrs: convergent norecurse
-; CHECK: @__sycl_kernel_B{{.*}} #[[ATTRS:[0-9]+]]
+; CHECK: @__sycl_kernel_B{{.*}} #[[DYNAMIC_MEM_ATTRS:[0-9]+]]
 define weak_odr dso_local spir_kernel void @__sycl_kernel_B(ptr addrspace(1) %0) local_unnamed_addr #1 !kernel_arg_addr_space !5 {
 entry:
   %1 = tail call spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64 128) #1
@@ -30,11 +30,28 @@ entry:
 }
 
 ; Function Attrs: convergent norecurse
-; CHECK: @__sycl_kernel_C{{.*}} #[[ATTRS]]
+; CHECK: @__sycl_kernel_C{{.*}} #[[DYNAMIC_MEM_ATTRS]]
 define weak_odr dso_local spir_kernel void @__sycl_kernel_C(ptr addrspace(1) %0) local_unnamed_addr #1 !kernel_arg_addr_space !5 {
 entry:
   %1 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 128, i64 4) #1
+  %2 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemoryIndirect() #1
   ret void
+}
+
+; CHECK-NOT: "sycl-work-group-scratch"
+; Function Attrs: convergent norecurse
+; CHECK: @__sycl_kernel_D{{.*}} #[[STATIC_MEM_ATTRS:[0-9]+]]
+define weak_odr dso_local spir_kernel void @__sycl_kernel_D(ptr addrspace(1) %0) local_unnamed_addr #1 !kernel_arg_addr_space !5 {
+entry:
+  %1 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 128, i64 4) #1
+  ret void
+}
+
+; Function Attrs: convergent
+define internal spir_func ptr addrspace(3) @__sycl_allocateLocalMemoryIndirect() {
+entry:
+  %1 = tail call spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64 128) #1
+  ret ptr addrspace(3) %1
 }
 
 ; Function Attrs: convergent
@@ -43,7 +60,9 @@ declare dso_local spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64, i6
 ; Function Attrs: convergent
 declare dso_local spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64) local_unnamed_addr #1
 
-; CHECK: #[[ATTRS]] = {{.*}} "sycl-work-group-static"
+; CHECK: #[[FULL_DYNAMIC_MEM_ATTRS]] = {{.*}} "sycl-work-group-scratch" "sycl-work-group-static"
+; CHECK: #[[DYNAMIC_MEM_ATTRS]] = {{.*}} "sycl-work-group-scratch" "sycl-work-group-static"
+; CHECK: #[[STATIC_MEM_ATTRS]] = {{.*}} "sycl-work-group-static" 
 attributes #0 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" "sycl-work-group-static"="1" }
 attributes #1 = { convergent norecurse }
 

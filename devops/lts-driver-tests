@@ -1,0 +1,6 @@
+# List of E2E tests to run against the nightly Intel LTS GPU driver job.
+Basic/built-ins.cpp
+Basic/buffer/buffer_dev_to_dev.cpp
+Scheduler/InOrderQueueDeps.cpp
+Reduction/reduction_deterministic.cpp
+USM/mixed.cpp
