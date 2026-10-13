@@ -29,7 +29,7 @@
 /// Import library input passed to clang-cl.
 // RUN: not %clang_cl -### --target=x86_64-pc-windows-msvc -fsycl \
 // RUN:   -fsycl-allow-device-image-dependencies -ccc-install-dir %t/bin \
-// RUN:   %s %t/dep.lib 2>&1 \
+// RUN:   --no-offload-new-driver %s %t/dep.lib 2>&1 \
 // RUN:   | FileCheck %s -DFILE=dep.lib
 
 // CHECK-NOT: PLEASE submit a bug report
