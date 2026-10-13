@@ -46,20 +46,21 @@ SYCL specification refer to that revision.
 This extension is implemented and fully supported by {dpcpp}.
 [NOTE]
 ====
-Although {dpcpp} supports this extension on all backends, it is currently used
-on Level Zero, CUDA, and HIP.
-Other backends ignore the properties defined in this specification.
+Although {dpcpp} supports this extension on all backends, the pre-defined
+priorities are currently used on Level Zero, CUDA, and HIP, and numeric
+priorities are currently used on Level Zero with the v2 adapter. Other
+backends ignore the properties defined in this specification.
 ====
 
 == Overview
 
-This extension defines additional queue properties that permit a backend,
-when supported, to create command queues with different levels of priority.
+This extension defines queue properties that permit a backend, when
+supported, to create command queues with different levels of priority.
 Priorities are hints from the programmer that certain command submissions
 to a device may execute before others of lesser priority.
 
 The extension defines a property for a numeric priority value and several
-pre-defined priority properties with fixed numeric values.
+pre-defined priority properties.
 
 == Specification
 
@@ -103,9 +104,18 @@ namespace sycl::ext::oneapi::property::queue {
 class priority {
 public:
   priority(int priority_value);
+
+  int get_priority() const;
 };
 
 } // namespace sycl::ext::oneapi::property::queue
+----
+
+'''
+
+[source,c++]
+----
+priority(int priority_value);
 ----
 
 _Effects:_ Specifies that the queue should be constructed with the specified
@@ -117,6 +127,15 @@ with the queue, `priority_value` will be clamped down or up to the lowest or
 highest priority in the range. Lower numbers imply greater priorities.
 If the property is not set for a queue, the default priority for that queue is
 assumed to be 0.
+
+'''
+
+[source,c++]
+----
+int get_priority() const;
+----
+
+_Returns:_ The `priority_value` this property was constructed with.
 
 === New queue properties for pre-defined priority values
 
@@ -153,11 +172,21 @@ public:
 _Effects:_ Specifies that the queue should be constructed with the specified
 pre-defined priority. The properties map to the numeric priority values in the
 following way: `priority_normal` has a priority value of 0, `priority_low` has
-a priority value of the lowest possible priority (highest numerical value) for
-the device as reported by the `priority_range` information descriptor, and
+the lowest possible priority for the device, which may be lower than the lowest
+priority reported by the `priority_range` information descriptor, and
 `priority_high` has a priority value of the highest possible priority (lowest
 numerical value) for the device as reported by the `priority_range` information
 descriptor.
+
+[_Note:_ Some devices support a low priority that has no numeric equivalent,
+for example devices whose `priority_range` is `{0, -1}`.
+_{endnote}_]
+
+=== Conflicting priorities
+
+It is illegal to specify more than one of the properties defined in this
+specification for the same queue. Doing so causes the `queue` constructor to
+throw a synchronous `exception` with the `errc::invalid` error code.
 
 === New device information descriptor
 
@@ -183,4 +212,5 @@ highestPriority}` for this device. The first element is the numerical value
 corresponding to the lowest (least urgent) queue priority supported by the
 device, and the second element is the numerical value corresponding to the
 highest (most urgent) queue priority supported by the device. Lower numerical
-values imply greater priorities.
+values imply greater priorities. The range always contains the default
+priority 0. Devices that don't support numeric priorities return `{0, 0}`.
