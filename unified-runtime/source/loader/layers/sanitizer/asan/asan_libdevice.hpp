@@ -57,6 +57,8 @@ constexpr uint32_t ASAN_MAX_SG_PRIVATE = 256;
 // 64KB, PVC and BMG are 128KB. Used by both the host (AllocLocalShadow) and the
 // device (MemToShadow_*), which must agree on the stride.
 constexpr uint32_t ASAN_SLM_SIZE = 128 * 1024;
+static_assert(ASAN_SLM_SIZE != 0 && (ASAN_SLM_SIZE & (ASAN_SLM_SIZE - 1)) == 0,
+              "ASAN_SLM_SIZE must be a power of two");
 
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
