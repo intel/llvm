@@ -61,16 +61,6 @@ enum class __SYCL_TYPE(aspect) aspect {
 class property_list {};
 
 namespace ext {
-namespace intel {
-namespace property {
-struct __SYCL_TYPE(buffer_location) buffer_location {
-  template <int> class instance {};
-};
-} // namespace property
-} // namespace intel
-} // namespace ext
-
-namespace ext {
 namespace oneapi {
 template <typename... properties>
 class __SYCL_TYPE(accessor_property_list) accessor_property_list {};

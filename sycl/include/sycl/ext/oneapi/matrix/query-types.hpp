@@ -8,8 +8,11 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/bfloat16.hpp>                    // for bfloat16
+#include <sycl/detail/info_desc_traits.hpp> // for info_class::device
+#include <sycl/ext/oneapi/bfloat16.hpp>     // for bfloat16
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for tf32
+
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -45,6 +48,18 @@ struct combination {
 };
 
 } // namespace ext::oneapi::experimental::matrix
+
+// Self-describing info-descriptor for the matrix_combinations query. Owned
+// by the matrix extension header so consumers that don't query matrices
+// don't pay for matrix-unified-utils transitively.
+namespace ext::oneapi::experimental::info::device {
+// RT-only: dispatched via explicit CASE in device_impl.hpp; no UR enum.
+struct matrix_combinations
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
+  using return_type =
+      std::vector<sycl::ext::oneapi::experimental::matrix::combination>;
+};
+} // namespace ext::oneapi::experimental::info::device
 
 // Type to matrix type string conversion used in compile-time
 namespace detail {

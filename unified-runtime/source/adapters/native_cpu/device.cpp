@@ -369,16 +369,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_IP_VERSION:
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
+  case UR_DEVICE_INFO_IGCA_TARGET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     // Currently for Native CPU fences are implemented using OCK
@@ -426,6 +431,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
 
+  case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
+    return ReturnValue(false);
+
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     return ReturnValue(false);
 
@@ -438,6 +446,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+    return ReturnValue(false);
+
+  case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -470,6 +481,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
     return ReturnValue(false);
+
+  case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     DIE_NO_IMPLEMENTATION;

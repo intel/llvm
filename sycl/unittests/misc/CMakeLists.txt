@@ -7,6 +7,7 @@ add_sycl_unittest(MiscTests SHARED
   OsUtils.cpp
   PropertyUtils.cpp
   DetailString.cpp
+  VariadicIterator.cpp
 )
 endif()
 add_subdirectory(LinkGraph)

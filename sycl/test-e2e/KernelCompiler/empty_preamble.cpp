@@ -22,7 +22,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 int main(int argc, char **argv) {
   std::string src = R"""(void foo() {}
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 

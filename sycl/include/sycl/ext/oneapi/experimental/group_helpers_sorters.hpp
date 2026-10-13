@@ -14,7 +14,7 @@
 #include <sycl/builtins.hpp>            // for min
 #include <sycl/exception.hpp>           // for sycl_category, exception
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/memory_enums.hpp> // for memory_scope
 #include <sycl/range.hpp>        // for range
 #include <sycl/sycl_span.hpp>    // for span

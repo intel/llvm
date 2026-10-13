@@ -1,3 +1,8 @@
+// TODO: Remove 'UNSUPPORTED' below once
+// https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
+// intel/llvm.
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78263
 // REQUIRES: aspect-fp64, windows
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -o %t1.out
@@ -58,7 +63,7 @@ double _Complex catanh(double _Complex z);
 }
 
 namespace s = sycl;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 bool approx_equal_cmplx_d(double _Complex x, double _Complex y) {
   return approx_equal_fp(__real__ x, __real__ y) &&

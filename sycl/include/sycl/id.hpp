@@ -11,7 +11,7 @@
 #include <sycl/detail/array.hpp>              // for array
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_ID_RANGE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED, __SYCL_A...
-#include <sycl/range.hpp>     // for range
+#include <sycl/range.hpp>                     // for range
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t, conditional_t
@@ -56,45 +56,46 @@ private:
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
 public:
-  id() = default;
+  id() noexcept = default;
 
   /* The following constructor is only available in the id struct
    * specialization where: Dimensions==1 */
-  template <int N = Dimensions> id(ParamTy<N, 1, size_t> dim0) : base(dim0) {}
+  template <int N = Dimensions>
+  id(ParamTy<N, 1, size_t> dim0) noexcept : base(dim0) {}
 
   template <int N = Dimensions>
-  id(ParamTy<N, 1, const range<Dimensions>> &range_size)
+  id(ParamTy<N, 1, const range<Dimensions>> &range_size) noexcept
       : base(range_size.get(0)) {}
 
   template <int N = Dimensions, bool with_offset = true>
-  id(ParamTy<N, 1, const item<Dimensions, with_offset>> &item)
+  id(ParamTy<N, 1, const item<Dimensions, with_offset>> &item) noexcept
       : base(item.get_id(0)) {}
 
   /* The following constructor is only available in the id struct
    * specialization where: Dimensions==2 */
   template <int N = Dimensions>
-  id(ParamTy<N, 2, size_t> dim0, size_t dim1) : base(dim0, dim1) {}
+  id(ParamTy<N, 2, size_t> dim0, size_t dim1) noexcept : base(dim0, dim1) {}
 
   template <int N = Dimensions>
-  id(ParamTy<N, 2, const range<Dimensions>> &range_size)
+  id(ParamTy<N, 2, const range<Dimensions>> &range_size) noexcept
       : base(range_size.get(0), range_size.get(1)) {}
 
   template <int N = Dimensions, bool with_offset = true>
-  id(ParamTy<N, 2, const item<Dimensions, with_offset>> &item)
+  id(ParamTy<N, 2, const item<Dimensions, with_offset>> &item) noexcept
       : base(item.get_id(0), item.get_id(1)) {}
 
   /* The following constructor is only available in the id struct
    * specialization where: Dimensions==3 */
   template <int N = Dimensions>
-  id(ParamTy<N, 3, size_t> dim0, size_t dim1, size_t dim2)
+  id(ParamTy<N, 3, size_t> dim0, size_t dim1, size_t dim2) noexcept
       : base(dim0, dim1, dim2) {}
 
   template <int N = Dimensions>
-  id(ParamTy<N, 3, const range<Dimensions>> &range_size)
+  id(ParamTy<N, 3, const range<Dimensions>> &range_size) noexcept
       : base(range_size.get(0), range_size.get(1), range_size.get(2)) {}
 
   template <int N = Dimensions, bool with_offset = true>
-  id(ParamTy<N, 3, const item<Dimensions, with_offset>> &item)
+  id(ParamTy<N, 3, const item<Dimensions, with_offset>> &item) noexcept
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
@@ -103,7 +104,8 @@ public:
    * conversion:
    * int a = id<1>(value); */
 
-  __SYCL_ALWAYS_INLINE operator EnableIfT<(Dimensions == 1), size_t>() const {
+  __SYCL_ALWAYS_INLINE
+  operator EnableIfT<(Dimensions == 1), size_t>() const noexcept {
     size_t Result = this->common_array[0];
     __SYCL_ASSUME_ID_RANGE(Result);
     return Result;
@@ -115,7 +117,7 @@ public:
   using detail::array<Dimensions>::operator==;
   // Needed for clang in C++20 mode as the above operator== would be ambigious
   // between regular/reversed call for "Id == Id" case.
-  bool operator==(const id<Dimensions> &rhs) const {
+  bool operator==(const id<Dimensions> &rhs) const noexcept {
     return this->detail::array<Dimensions>::operator==(rhs);
   }
 #if __cpp_impl_three_way_comparison < 201907
@@ -129,14 +131,14 @@ public:
    * will be "id op size_t"*/
 #define __SYCL_GEN_OPT(op)                                                     \
   template <typename T>                                                        \
-  EnableIfIntegral<T, bool> operator op(const T &rhs) const {                  \
+  EnableIfIntegral<T, bool> operator op(const T & rhs) const noexcept {        \
     if (this->common_array[0] != rhs)                                          \
       return false op true;                                                    \
     return true op true;                                                       \
   }                                                                            \
   template <typename T>                                                        \
-  friend EnableIfIntegral<T, bool> operator op(const T &lhs,                   \
-                                               const id<Dimensions> &rhs) {    \
+  friend EnableIfIntegral<T, bool> operator op(                                \
+      const T & lhs, const id<Dimensions> &rhs) noexcept {                     \
     if (lhs != rhs.common_array[0])                                            \
       return false op true;                                                    \
     return true op true;                                                       \
@@ -152,7 +154,7 @@ public:
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
   friend id<Dimensions> operator op(const id<Dimensions> &lhs,                 \
-                                    const id<Dimensions> &rhs) {               \
+                                    const id<Dimensions> &rhs) noexcept {      \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs.common_array[i];     \
@@ -166,7 +168,7 @@ public:
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
   friend EnableIfIntegral<T, id<Dimensions>> operator op(                      \
-      const id<Dimensions> &lhs, const T &rhs) {                               \
+      const id<Dimensions> &lhs, const T & rhs) noexcept {                     \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
@@ -175,7 +177,7 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   friend EnableIfIntegral<T, id<Dimensions>> operator op(                      \
-      const T &lhs, const id<Dimensions> &rhs) {                               \
+      const T & lhs, const id<Dimensions> &rhs) noexcept {                     \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
@@ -186,15 +188,15 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   friend id<Dimensions> operator op(const id<Dimensions> &lhs,                 \
-                                    const size_t &rhs) {                       \
+                                    const size_t & rhs) noexcept {             \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
     }                                                                          \
     return result;                                                             \
   }                                                                            \
-  friend id<Dimensions> operator op(const size_t &lhs,                         \
-                                    const id<Dimensions> &rhs) {               \
+  friend id<Dimensions> operator op(const size_t & lhs,                        \
+                                    const id<Dimensions> &rhs) noexcept {      \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
@@ -226,13 +228,14 @@ public:
 // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
 #define __SYCL_GEN_OPT(op)                                                     \
   friend id<Dimensions> &operator op(id<Dimensions> &lhs,                      \
-                                     const id<Dimensions> &rhs) {              \
+                                     const id<Dimensions> &rhs) noexcept {     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs.common_array[i];                              \
     }                                                                          \
     return lhs;                                                                \
   }                                                                            \
-  friend id<Dimensions> &operator op(id<Dimensions> &lhs, const size_t &rhs) { \
+  friend id<Dimensions> &operator op(id<Dimensions> &lhs,                      \
+                                     const size_t & rhs) noexcept {            \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs;                                              \
     }                                                                          \
@@ -254,7 +257,7 @@ public:
 
 // OP is unary +, -
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend id<Dimensions> operator op(const id<Dimensions> &rhs) {               \
+  friend id<Dimensions> operator op(const id<Dimensions> &rhs) noexcept {      \
     id<Dimensions> result;                                                     \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       result.common_array[i] = (op rhs.common_array[i]);                       \
@@ -269,7 +272,7 @@ public:
 
 // OP is prefix ++, --
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend id<Dimensions> &operator op(id<Dimensions> &rhs) {                    \
+  friend id<Dimensions> &operator op(id<Dimensions> &rhs) noexcept {           \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       op rhs.common_array[i];                                                  \
     }                                                                          \
@@ -283,7 +286,7 @@ public:
 
 // OP is postfix ++, --
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend id<Dimensions> operator op(id<Dimensions> &lhs, int) {                \
+  friend id<Dimensions> operator op(id<Dimensions> &lhs, int) noexcept {       \
     id<Dimensions> old_lhs;                                                    \
     for (int i = 0; i < Dimensions; ++i) {                                     \
       old_lhs.common_array[i] = lhs.common_array[i];                           \
@@ -301,24 +304,24 @@ public:
 namespace detail {
 template <int Dimensions>
 size_t getOffsetForId(range<Dimensions> Range, id<Dimensions> Id,
-                      id<Dimensions> Offset) {
+                      id<Dimensions> Offset) noexcept {
   size_t offset = 0;
   for (int i = 0; i < Dimensions; ++i)
     offset = offset * Range[i] + Offset[i] + Id[i];
   return offset;
 }
 
-inline id<1> getDelinearizedId(const range<1> &, size_t Index) {
+inline id<1> getDelinearizedId(const range<1> &, size_t Index) noexcept {
   return {Index};
 }
 
-inline id<2> getDelinearizedId(const range<2> &Range, size_t Index) {
+inline id<2> getDelinearizedId(const range<2> &Range, size_t Index) noexcept {
   size_t X = Index % Range[1];
   size_t Y = Index / Range[1];
   return {Y, X};
 }
 
-inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) {
+inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) noexcept {
   size_t D1D2 = Range[1] * Range[2];
   size_t Z = Index / D1D2;
   size_t ZRest = Index % D1D2;
@@ -331,9 +334,9 @@ inline id<3> getDelinearizedId(const range<3> &Range, size_t Index) {
 // C++ feature test macros are supported by all supported compilers
 // with the exception of MSVC 1914. It doesn't support deduction guides.
 #ifdef __cpp_deduction_guides
-id(size_t)->id<1>;
-id(size_t, size_t)->id<2>;
-id(size_t, size_t, size_t)->id<3>;
+id(size_t) -> id<1>;
+id(size_t, size_t) -> id<2>;
+id(size_t, size_t, size_t) -> id<3>;
 #endif
 } // namespace _V1
 } // namespace sycl

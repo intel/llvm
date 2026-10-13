@@ -41,6 +41,7 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 
 #include <cctype>
+#include <cstdlib>
 #include <cstring>
 #include <unordered_map>
 
@@ -449,6 +450,73 @@ public:
         // arg6: data to write (overloaded)
         {"scatter4_scaled",
          {"scatter4.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), a(4)}}},
+
+        // Typed (image) surface gather of up to 4 channels per pixel.
+        // arg0: i32 channel mask, constant
+        // arg1: vXi1 predicate (overloaded)
+        // arg2: i32 surface index
+        // arg3: vXi32 U pixel coordinates (overloaded)
+        // arg4: vXi32 V pixel coordinates
+        // arg5: vXi32 R pixel coordinates
+        // arg6: old value of the data read
+        {"gather4_typed",
+         {"gather4.typed", {t(2), ai1(0), aSI(1), a(2), a(3), a(4), u(-1)}}},
+
+        // Typed (image) surface scatter of up to 4 channels per pixel.
+        // arg0: i32 channel mask, constant
+        // arg1: vXi1 predicate (overloaded)
+        // arg2: i32 surface index
+        // arg3: vXi32 U pixel coordinates (overloaded)
+        // arg4: vXi32 V pixel coordinates
+        // arg5: vXi32 R pixel coordinates
+        // arg6: data to write (overloaded)
+        {"scatter4_typed",
+         {"scatter4.typed", {t(2), ai1(0), aSI(1), a(2), a(3), a(4), a(5)}}},
+
+        // Xe2+ LSC typed (image) surface gather of up to 4 channels per pixel.
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i8 L1 cache hint, constant
+        // arg2: i8 L2/L3 cache hint, constant
+        // arg3: i8 channel mask, constant
+        // arg4: i32 surface index
+        // arg5: vXi32 U pixel coordinates (overloaded)
+        // arg6: vXi32 V pixel coordinates
+        // arg7: vXi32 R pixel coordinates
+        // arg8: vXi32 LOD (mipmap level)
+        // arg9: pass-through values for the disabled pixels
+        {"lsc_load_merge_quad_typed_bti",
+         {"lsc.load.merge.quad.typed.bti",
+          {ai1(0), t8(3), t8(4), t8(2), aSI(1), a(2), a(3), a(4), a(5),
+           a(6)}}},
+
+        // Xe2+ LSC typed (image) surface scatter of up to 4 channels per pixel.
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i8 L1 cache hint, constant
+        // arg2: i8 L2/L3 cache hint, constant
+        // arg3: i8 channel mask, constant
+        // arg4: i32 surface index
+        // arg5: vXi32 U pixel coordinates (overloaded)
+        // arg6: vXi32 V pixel coordinates
+        // arg7: vXi32 R pixel coordinates
+        // arg8: vXi32 LOD (mipmap level)
+        // arg9: data to write (overloaded)
+        {"lsc_store_quad_typed_bti",
+         {"lsc.store.quad.typed.bti",
+          {ai1(0), t8(3), t8(4), t8(2), aSI(1), a(2), a(3), a(4), a(5), a(6)}}},
+
+        // Xe2+ LSC typed (image) surface prefetch of up to 4 channels per pixel.
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i8 L1 cache hint, constant
+        // arg2: i8 L2/L3 cache hint, constant
+        // arg3: i8 channel mask, constant
+        // arg4: i32 surface index
+        // arg5: vXi32 U pixel coordinates (overloaded)
+        // arg6: vXi32 V pixel coordinates
+        // arg7: vXi32 R pixel coordinates
+        // arg8: vXi32 LOD (mipmap level)
+        {"lsc_prefetch_quad_typed_bti",
+         {"lsc.prefetch.quad.typed.bti",
+          {ai1(0), t8(2), t8(3), t8(1), aSI(1), a(2), a(3), a(4), a(5)}}},
 
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 surface index
@@ -966,7 +1034,7 @@ static void translateBlockLoad(CallInst &CI, bool IsSLM) {
   auto DataType = CI.getType();
   if (IsSLM) {
     // Convert 'uint32_t' to 'addrspace(3)*' pointer.
-    auto PtrType = PointerType::get(DataType, 3);
+    auto PtrType = PointerType::get(CI.getContext(), 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
   }
 
@@ -987,8 +1055,7 @@ static void translateBlockStore(CallInst &CI, bool IsSLM) {
   auto Op1 = CI.getArgOperand(1);
   if (IsSLM) {
     // Convert 'uint32_t' to 'addrspace(3)*' pointer.
-    auto DataType = Op1->getType();
-    auto PtrType = PointerType::get(DataType, 3);
+    auto PtrType = PointerType::get(CI.getContext(), 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
   }
 
@@ -1017,9 +1084,9 @@ static void translateGatherLoad(CallInst &CI, bool IsSLM) {
   // is already 4-generic. Thus, simply use 4-generic for global and private
   // and let GPU BE deduce the actual address space from the use-def graph.
   unsigned AS = IsSLM ? 3 : 4;
-  auto ElemType = DataType->getScalarType();
   auto NumElems = (cast<VectorType>(DataType))->getElementCount();
-  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrType =
+      VectorType::get(PointerType::get(CI.getContext(), AS), NumElems);
   auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
 
   auto LI = Builder.CreateMaskedGather(DataType, VPtrOp, AlignValue, MaskOp,
@@ -1049,9 +1116,9 @@ static void translateScatterStore(CallInst &CI, bool IsSLM) {
   // is already 4-generic. Thus, simply use 4-generic for global and private
   // and let GPU BE deduce the actual address space from the use-def graph.
   unsigned AS = IsSLM ? 3 : 4;
-  auto ElemType = DataType->getScalarType();
   auto NumElems = (cast<VectorType>(DataType))->getElementCount();
-  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrType =
+      VectorType::get(PointerType::get(CI.getContext(), AS), NumElems);
   auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
 
   auto SI = Builder.CreateMaskedScatter(ValsOp, VPtrOp, AlignValue, MaskOp);
@@ -1232,7 +1299,7 @@ static bool translateVStore(CallInst &CI, SmallPtrSetImpl<Type *> &GVTS) {
 
 static bool translateFMADD(CallInst &CI) {
   IRBuilder<> Builder(&CI);
-  Instruction *FMAI = Builder.CreateIntrinsic(
+  Instruction *FMAI = Builder.CreateIntrinsicWithoutFolding(
       CI.getType(), Intrinsic::fma,
       {CI.getArgOperand(0), CI.getArgOperand(1), CI.getArgOperand(2)});
   FMAI->setDebugLoc(CI.getDebugLoc());
@@ -1982,12 +2049,16 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     if (NameNode->getKind() == id::Node::KLocalName)
       return false;
 
+    // OutputBuffer does not own its buffer - it must be freed by the caller.
     id::OutputBuffer NameBuf;
     NameNode->print(NameBuf);
     StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
-    return Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
-           Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    bool IsESIMDFunction =
+        Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+        Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    std::free(NameBuf.getBuffer());
+    return IsESIMDFunction;
   };
   bool NeedInline = false;
   for (auto &F : M) {
@@ -2105,6 +2176,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
 
   // Check validity of slm_init calls.
   checkSLMInit(M);
+
+  if (M.getContext().getDiagHandlerPtr()->HasErrors)
+    return PreservedAnalyses::all();
 
   // AlwaysInlinerPass is required for correctness.
   bool ForceInline = prepareForAlwaysInliner(M);

@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: linux || windows
-// UNSUPPORTED-TRACKER: VSRI-6896
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // clang-format off
@@ -35,7 +32,8 @@
     ./vsr_3d_test.bin --linear --type unorm8 16x16x16
 */
 // clang-format on
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
+#include <iostream>
 
 #include <optional>
 #include <string>
@@ -44,6 +42,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/image.hpp>
+#include <sycl/properties/queue_properties.hpp>
 
 // ---------------------------------------------------------
 // SYCL TYPE MAPPING HELPERS
@@ -119,7 +118,7 @@ int runTest(
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
   // Setup Vulkan
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, (uint32_t)height, (uint32_t)depth};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_3D, tiling);
@@ -138,7 +137,15 @@ int runTest(
   // SYCL Import and Verification
   namespace syclexp = sycl::ext::oneapi::experimental;
   try {
-    sycl::queue q;
+    // Bindless image interop requires an in-order queue (per spec). External
+    // semaphore ops additionally require immediate command lists; see
+    // sycl_ext_oneapi_bindless_images.asciidoc.
+    sycl::property_list qProps =
+        useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
+                                            sycl::ext::intel::property::queue::
+                                                immediate_command_list{}}
+                      : sycl::property_list{sycl::property::queue::in_order{}};
+    sycl::queue q{qProps};
 
     // Import Memory (Platform Specific)
 #ifdef _WIN32
@@ -178,10 +185,22 @@ int runTest(
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
 
+    // When the Vulkan image was created with LINEAR tiling, its row/slice
+    // strides are not guaranteed to match SYCL's tightly-packed default. Query
+    // Vulkan for the actual pitches and forward them to the image_descriptor
+    // so adapters that can honor a user-supplied pitch (e.g. L0) use the right
+    // strides. vkGetImageSubresourceLayout is only defined for LINEAR tiling;
+    // leave the pitches at 0 (tightly-packed) for OPTIMAL tiling.
+    size_t rowPitch = useLinear ? getRowPitch(vkCtx, imgRes.image) : 0;
+    size_t slicePitch = useLinear ? getSlicePitch(vkCtx, imgRes.image) : 0;
+
     // bindless image use (x,y,z) order,
     // differening from SYCL 2020 "fastest incrementing" convention.
-    syclexp::image_descriptor imgDesc(sycl::range<3>(width, height, depth),
-                                      channels, syclType);
+    syclexp::image_descriptor imgDesc(
+        sycl::range<3>(width, height, depth), channels, syclType,
+        syclexp::image_type::standard, /*num_levels=*/1, /*array_size=*/1,
+        /*num_samples=*/0, /*row_pitch=*/rowPitch,
+        /*slice_pitch=*/slicePitch);
 
     // Map external memory
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(

@@ -23,8 +23,12 @@ add_sycl_unittest(ExtensionsTests OBJECT
   LaunchQueries.cpp
   EventMode.cpp
   DeviceInfo.cpp
+  SyclLsArchitectureName.cpp
   RootGroup.cpp
   USMPrefetch.cpp
+  RegisterHostMemory.cpp
+  ReusableEvents.cpp
+  AsyncAlloc.cpp
 )
 
 add_subdirectory(BindlessImages)
@@ -36,3 +40,5 @@ add_subdirectory(FreeFunctionCommands)
 add_subdirectory(KernelQueries)
 add_subdirectory(InterProcessCommunication)
 add_subdirectory(DeviceIndex)
+add_subdirectory(fp8)
+add_subdirectory(fp4)

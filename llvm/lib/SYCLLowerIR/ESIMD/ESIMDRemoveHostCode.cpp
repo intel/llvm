@@ -22,6 +22,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/TargetParser/Triple.h"
 
+#include <cstdlib>
+
 using namespace llvm;
 using namespace llvm::esimd;
 namespace id = itanium_demangle;
@@ -47,11 +49,16 @@ PreservedAnalyses ESIMDRemoveHostCodePass::run(Module &M,
     if (!NameNode)
       continue;
 
+    // OutputBuffer does not own its buffer - it must be freed by the caller.
+    // Name points into that buffer, so the checks must happen before the free.
     id::OutputBuffer NameBuf;
     NameNode->print(NameBuf);
     StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
-    if (!Name.starts_with("sycl::_V1::ext::intel::esimd::") &&
-        !Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::"))
+    bool IsESIMDFunction =
+        Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+        Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+    std::free(NameBuf.getBuffer());
+    if (!IsESIMDFunction)
       continue;
     SmallVector<BasicBlock *> BBV;
     for (BasicBlock &BB : F) {

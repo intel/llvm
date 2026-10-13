@@ -153,6 +153,7 @@ public:
         : Diagnostic(SL, PD), Reason(R) {}
 
     PartialDiagnosticAt &getDiag() { return Diagnostic; }
+    const PartialDiagnosticAt &getDiag() const { return Diagnostic; }
     DeviceDiagnosticReason getReason() const { return Reason; }
 
   private:

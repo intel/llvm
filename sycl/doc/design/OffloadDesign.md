@@ -107,8 +107,9 @@ to be taken.
 For example, when an embedded device binary is of the `OFK_SYCL` kind and of
 the `spir64_gen` architecture triple, the resulting extracted binary is linked,
 post-link processed and converted to SPIR-V before being passed to `ocloc` to
-generate the final device binary.  Options passed via `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>` will
-be applied to the `ocloc` step as well.
+generate the final device binary. Backend and linker options are passed as
+`--device-linker=sycl:spir64_gen-unknown-unknown[/<arch>]=--ocloc-options=<arg>`
+and applied to `ocloc`. Unprefixed options are ignored.
 
 Binaries generated during the offload compilation will be 'bundled' together
 to create a conglomerate fat binary.  Depending on the type of binary, the
@@ -233,23 +234,71 @@ to create the image.
 
 To support the needed option passing triggered by use of the
 `-Xsycl-target-backend` option and implied options based on the optional
-device behaviors for AOT compilations for GPU and CPU, new command line interfaces
-are needed to pass along this information.
+device behaviors for AOT compilations for GPU and CPU, new command line
+interfaces are needed to pass along this information.
 
 | Target | Triple        | Offline Tool   | Option for Additional Args                                       |
 |--------|---------------|----------------|------------------------------------------------------------------|
-| CPU    | spir64_x86_64 | opencl-aot     | `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`     |
-| GPU    | spir64_gen    | ocloc          | `--device-compiler=sycl:spir64_gen-unknown-unknown=<arg>`        |
+| CPU    | spir64_x86_64 | opencl-aot     | `--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=<arg>` |
+| GPU    | spir64_gen    | ocloc          | `--device-linker=sycl:spir64_gen-unknown-unknown[/<arch>]=--ocloc-options=<arg>` |
 
 *Table: Ahead of Time Info*
 
-#### Format of the --device-compiler Option
-The `--device-compiler` option uses the format `--device-compiler=[<kind>:][<triple>=]<value>` where:
+### NoRDC Mode support
+
+For the Old Offload Model support of NoRDC Mode see [NonRelocatableDeviceCode.md](NonRelocatableDeviceCode.md).
+
+If `-fno-sycl-rdc` is specified, the compiler finalizes device code and performs
+offload processing on every module individually during compile time.
+
+With the new offload model, `-fno-sycl-rdc` is specified at the compile step:
+```
+clang++ --offload-new-driver -fsycl -fsycl-targets=T -fno-sycl-rdc input1.cpp -c -o object1.o
+clang++ --offload-new-driver -fsycl -fsycl-targets=T -fno-sycl-rdc input2.cpp -c -o object2.o
+clang++ --offload-new-driver -fsycl -fsycl-targets=T object1.o object2.o -o a.out
+```
+Only one SYCL offloading target is currently supported with `-fno-sycl-rdc`.
+
+`clang-linker-wrapper --no-sycl-rdc --emit-fatbin-only` is invoked per
+translation unit at compile time to finalize each TU's device code
+independently. It outputs a wrapper module in bitcode form that holds the
+device images and the registration descriptor expected by the SYCL runtime.
+The host compilation receives it with `-foffload-include-binary` and links it
+into the host module, so the device images are registered at program startup
+and the final link performs no SYCL device linking for these objects.
+
+#### Format of mapped device options
+The wrapper accepts `--device-compiler=[<kind>:][<triple>[/<arch>]=]<value>`
+and `--device-linker=[<kind>:][<triple>[/<arch>]=]<value>`. For SYCL SPIR JIT,
+`<value>` must start with `--jit-compiler-options=` or
+`--jit-linker-options=` respectively. For SYCL AOT, both backend and linker
+arguments use `--device-linker=` with `--ocloc-options=` (GPU) or
+`--opencl-aot-options=` (CPU). Each option token is passed separately;
+unprefixed options are ignored.
+
+The target selection components are:
 - `<kind>` : specifies the offloading kind (e.g., sycl, hip, openmp) and is optional.
 - `<triple>` : specifies the target triple (e.g., `spir64_gen-unknown-unknown`, `spir64_x86_64-unknown-unknown`) and is optional.
-- `<value>` : contains the arguments to be passed to the backend compiler.
+- `<arch>` : optional architecture qualifier appended to the triple after a `/`. Used for `spir64_gen`, where a single triple may back several GPU architectures.
+- `<value>` : a single option token for the selected tool. Multi-token option strings use multiple occurrences with the same key.
 
-In clang-linker-wrapper, the `<kind>` and `<triple>` are matched against the current compilation target. Only arguments that match both the offloading kind and target triple will be passed to the backend compiler. If `<kind>` is not specified, the arguments will match any offloading kind; if `<triple>` is not specified, the arguments will match any target triple; and if neither is specified, the arguments will be applied to all targets. 
+In clang-linker-wrapper, `<kind>`, `<triple>`, and `<arch>` select the device
+image. A short architecture name such as `spir64_gen` also matches a full
+target triple. Omitted filters match all values, but SYCL SPIR still requires
+the appropriate tool-specific prefix. A `/pvc` or `/skl` qualifier restricts
+an option to the corresponding device image.
+
+For example, to pass distinct options to PVC and SKL images:
+
+```
+--device-linker=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-options
+--device-linker=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-cl-mad-enable
+--device-linker=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-options
+--device-linker=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-cl-unsafe-math-optimizations
+```
+
+Each option token uses a separate `--device-linker` occurrence. For a single
+architecture, the `/arch` qualifier is optional.
 
 #### Other Supported Options
 To complete the support needed for the various targets using the
@@ -270,38 +319,28 @@ that may be useful for our usage.
 
 Compilation behaviors involving AOT for GPU involve an additional call to
 the OpenCL Offline compiler (OCLOC).  This call occurs after the post-link
-step performed by `sycl-post-link` and the SPIR-V translation step which is done
-by `llvm-spirv`.  Additional options passed by the user via the
-`-Xsycl-target-backend=spir64_gen <opts>` command as well as the implied
-options set via target options such as `-fsycl-targets=intel_gpu_skl`
-will be processed by a new options to the wrapper, `--gpu-tool-arg=<arg>`
+step performed by `sycl-post-link` and the SPIR-V translation step done by
+`llvm-spirv`. User options passed via `-Xsycl-target-backend` and
+`-Xsycl-target-linker` are forwarded as mapped
+`--device-linker=sycl:spir64_gen-unknown-unknown[/<arch>]=--ocloc-options=<arg>`
+tokens. With multiple AOT architectures, the `/arch` key routes options to the
+corresponding OCLOC invocation; the driver also supplies its `-device` setting.
 
-To support multiple target specifications, for instance:
-`-fsycl-targets=intel_gpu_skl,intel_gpu_pvc`, multiple `--gpu-tool-arg`
-options can be passed on the command line.  Each instance will be considered
-a separate OCLOC call passing along the `<args>` as options to the OCLOC call.
-The compiler driver will be responsible for putting together the full option
-list to be passed along.
+*Example:*
 
-> -fsycl -fsycl-targets=spir64_gen,intel_gpu_skl
--Xsycl-target-backend=spir64_gen "-device pvc -options -extraopt_pvc"
+> -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_skl
+-Xsycl-target-backend=intel_gpu_pvc "-options -extraopt_pvc"
 -Xsycl-target-backend=intel_gpu_skl "-options -extraopt_skl"
 
-*Example: spir64_gen enabling options*
+produces:
 
-> "--device-compiler=sycl:spir64_gen-unknown-unknown=-device pvc -options extraopt_pvc"
-"--device-compiler=sycl:spir64_gen-unknown-unknown=-options -extraopt_skl"
+> `--device-linker=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-options`
+`--device-linker=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-extraopt_pvc`
+`--device-linker=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-options`
+`--device-linker=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-extraopt_skl`
 
-*Example: clang-linker-wrapper options*
-
-Each OCLOC call will be represented as a separate device binary that is
-individually wrapped and linked into the final executable.
-
-Additionally, the syntax can be expanded to enable the ability to pass specific
-options to a specific device GPU target for spir64_gen.  The syntax will
-resemble `--device-compiler=sycl:spir64_gen-unknown-unknown=<arch> <arg>`.  This corresponds to the existing
-option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
-set of targets.
+Each `(triple, arch)` pair produces its own OCLOC call and device binary,
+which is individually wrapped and linked into the final executable.
 
 #### --offload-arch
 
@@ -432,7 +471,8 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 `sycl-post-link` and the SPIR-V translation step performed by `llvm-spirv`.
 Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
-option to the wrapper, `--device-compiler=sycl:spir64_x86_64-unknown-unknown=<arg>`
+option to the wrapper,
+`--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=<arg>`.
 
 Similar to SYCL offloading to Intel GPUs using `--offload-arch`, SYCL AOT for Intel CPUs
 will also leverage the `--offload-arch` option.

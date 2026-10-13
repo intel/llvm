@@ -25,7 +25,7 @@ int main() {
   auto Run = [&](int i) {
     std::string preamble = R"""(
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <sycl/ext/oneapi/kernel_properties.hpp>
 )""";
 
     std::string body = R"""(

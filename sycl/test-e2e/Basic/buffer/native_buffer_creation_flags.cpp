@@ -22,7 +22,7 @@ int main() {
     // buffer is created with the UR_MEM_FLAG_USE_HOST_POINTER flag.
     // CHECK: <--- urMemBufferCreate
     // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
-    auto BufAcc = Buf.get_access<access::mode::read>(Cgh);
+    auto BufAcc = Buf.get_access<access_mode::read>(Cgh);
     Cgh.single_task<Foo>([=]() { int A = BufAcc[0]; });
   });
 }

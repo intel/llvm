@@ -21,6 +21,7 @@ benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
     BenchmarkTag("UR", "Benchmark uses Unified Runtime API"),
     BenchmarkTag("L0", "Benchmark uses Level Zero API directly"),
+    BenchmarkTag("OFFLOAD", "Benchmark uses the LLVM Offload API directly"),
     BenchmarkTag("UMF", "Benchmark uses Unified Memory Framework directly"),
     BenchmarkTag("micro", "Microbenchmark focusing on a specific functionality"),
     BenchmarkTag("application", "Real application-based performance test"),

@@ -64,9 +64,9 @@ ur_result_t EnqueueMemCopyRectHelper(
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
                                                          Events.data(), Event));
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  getAsanInterceptor()
+      ->getContextInfo(GetContext(Queue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }

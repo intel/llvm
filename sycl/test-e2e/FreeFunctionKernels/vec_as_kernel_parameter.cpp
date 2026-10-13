@@ -10,6 +10,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include "helpers.hpp"
+#include <sycl/vector.hpp>
 
 static constexpr size_t VEC_SIZE = 3;
 

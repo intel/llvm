@@ -239,11 +239,9 @@ void printTestLabel(const RangeT &Range, bool ToCERR = false) {
 }
 
 template <typename BOp, typename T> constexpr bool isPreciseResultFP() {
-  return (std::is_floating_point_v<T> || std::is_same_v<T, sycl::half>)&&(
-      std::is_same_v<ext::oneapi::minimum<>, BOp> ||
-      std::is_same_v<ext::oneapi::minimum<T>, BOp> ||
-      std::is_same_v<ext::oneapi::maximum<>, BOp> ||
-      std::is_same_v<ext::oneapi::maximum<T>, BOp>);
+  return (std::is_floating_point_v<T> || std::is_same_v<T, sycl::half>) &&
+         (std::is_same_v<minimum<>, BOp> || std::is_same_v<minimum<T>, BOp> ||
+          std::is_same_v<maximum<>, BOp> || std::is_same_v<maximum<T>, BOp>);
 }
 
 template <typename BinaryOperation, typename T, typename RangeT>
@@ -375,7 +373,7 @@ int testInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
       }
     };
 
-    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto In = InBuf.template get_access<access_mode::read>(CGH);
     auto Redu = CreateReduction();
     if constexpr (IsRange)
       CGH.parallel_for<Name>(Range, Redu, [=](item<Dims> Id, auto &Sum) {
@@ -486,7 +484,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
        }
      };
 
-     auto In = InBuf.template get_access<access::mode::read>(CGH);
+     auto In = InBuf.template get_access<access_mode::read>(CGH);
      auto Redu = CreateReduction();
      CGH.parallel_for<TName<Name, class Test>>(
          Range, Redu, [=](item<Dims> Id, auto &Sum) {
@@ -500,7 +498,7 @@ int testUSMInner(queue &Q, OptionalIdentity<T, HasIdentity> Identity, T Init,
   if (AllocType == usm::alloc::device) {
     buffer<T, 1> Buf(&ComputedOut, range<1>(1));
     Q.submit([&](handler &CGH) {
-       auto OutAcc = Buf.template get_access<access::mode::discard_write>(CGH);
+       auto OutAcc = Buf.get_access(CGH, sycl::write_only, sycl::no_init);
        CGH.single_task<TName<Name, class Check>>(
            [=]() { OutAcc[0] = *ReduVarPtr; });
      }).wait();

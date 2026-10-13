@@ -64,6 +64,8 @@ struct ContextInfo {
   std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
       InternalQueueMap;
 
+  DeferredEventList DeferredEvents;
+
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
@@ -71,6 +73,7 @@ struct ContextInfo {
   }
 
   ~ContextInfo() {
+    DeferredEvents.releaseAll();
     InternalQueueMap.clear();
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRelease(Handle);

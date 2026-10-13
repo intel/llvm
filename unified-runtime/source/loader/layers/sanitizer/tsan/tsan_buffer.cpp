@@ -68,13 +68,11 @@ ur_result_t EnqueueMemCopyRectHelper(
     UR_CALL(getContext()->urDdiTable.Event.pfnWait(Events.size(), &Events[0]));
   }
 
-  if (Event) {
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
-                                                           &Events[0], Event));
-  }
-
-  for (const auto &E : Events)
-    UR_CALL(getContext()->urDdiTable.Event.pfnRelease(E));
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
+                                                         &Events[0], Event));
+  getTsanInterceptor()
+      ->getContextInfo(GetContext(Queue))
+      ->DeferredEvents.add(Events);
 
   return UR_RESULT_SUCCESS;
 }

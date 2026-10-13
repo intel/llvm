@@ -39,22 +39,21 @@ int main(int, char **argv) {
         Queue.get_device(),
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-    add_node(Graph, Queue, ([&](sycl::handler &CGH) {
-               CGH.set_arg(
-                   0, input_buffer.get_access<sycl::access::mode::read>(CGH));
-               CGH.set_arg(
-                   1, output_buffer.get_access<sycl::access::mode::write>(CGH));
-               CGH.parallel_for(sycl::range<1>{N}, kernel);
-             }));
+    add_node(
+        Graph, Queue, ([&](sycl::handler &CGH) {
+          CGH.set_arg(0, input_buffer.get_access<sycl::access_mode::read>(CGH));
+          CGH.set_arg(1,
+                      output_buffer.get_access<sycl::access_mode::write>(CGH));
+          CGH.parallel_for(sycl::range<1>{N}, kernel);
+        }));
 
-    add_node(Graph, Queue, ([&](sycl::handler &CGH) {
-               CGH.set_arg(
-                   0, input_buffer.get_access<sycl::access::mode::read>(CGH));
-               CGH.set_arg(
-                   1,
-                   output_buffer2.get_access<sycl::access::mode::write>(CGH));
-               CGH.parallel_for(sycl::range<1>{N}, kernel);
-             }));
+    add_node(
+        Graph, Queue, ([&](sycl::handler &CGH) {
+          CGH.set_arg(0, input_buffer.get_access<sycl::access_mode::read>(CGH));
+          CGH.set_arg(1,
+                      output_buffer2.get_access<sycl::access_mode::write>(CGH));
+          CGH.parallel_for(sycl::range<1>{N}, kernel);
+        }));
 
     auto GraphExec = Graph.finalize();
 

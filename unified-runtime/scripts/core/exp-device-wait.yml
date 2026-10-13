@@ -33,5 +33,4 @@ params:
       desc: "[in] handle of the device instance."
 returns:
     - $X_RESULT_ERROR_INVALID_DEVICE
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "`hDevice == nullptr`"
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE

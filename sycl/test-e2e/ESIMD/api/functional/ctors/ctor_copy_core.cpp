@@ -15,6 +15,7 @@
 //  - construct simd object with golden values calls copy constructor from
 //    constructed simd object
 //  - bitwise comparing expected and retrieved values
+#include <iostream>
 
 #include "ctor_copy.hpp"
 

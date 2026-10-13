@@ -97,6 +97,8 @@ public:
   bool checkBuiltinKernelWorkGroupSize(CallExpr *TheCall);
 
   bool checkBuiltinNDRangeAndBlock(CallExpr *TheCall);
+
+  void checkBuiltinReadImage(FunctionDecl *FDecl, CallExpr *Call);
 };
 
 } // namespace clang

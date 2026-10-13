@@ -24,7 +24,8 @@
 extern sycl::detail::SpinLock GlobalLock;
 
 void vPrintersInit() {
-  std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
+  const char *PrinterTypeEnv = std::getenv("SYCL_TRACE_PRINT_FORMAT");
+  std::string_view PrinterType = PrinterTypeEnv ? PrinterTypeEnv : "";
   // all types are the same now
   std::ignore = PrinterType;
 

@@ -21,6 +21,7 @@
 #include "X86Subtarget.h"
 #include "X86TargetMachine.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
+#include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/FastISel.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -248,9 +249,9 @@ bool X86FastISel::foldX86XALUIntrinsic(X86::CondCode &CC, const Instruction *I,
   switch (II->getIntrinsicID()) {
   default: return false;
   case Intrinsic::sadd_with_overflow:
-  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::ssub_with_overflow: TmpCC = X86::COND_O; break;
   case Intrinsic::smul_with_overflow:
-  case Intrinsic::umul_with_overflow: TmpCC = X86::COND_O; break;
+  case Intrinsic::umul_with_overflow:
   case Intrinsic::uadd_with_overflow:
   case Intrinsic::usub_with_overflow: TmpCC = X86::COND_B; break;
   }
@@ -760,7 +761,7 @@ bool X86FastISel::handleConstantAddresses(const Value *V, X86AddressMode &AM) {
 
       // Ok, we need to do a load from a stub.  If we've already loaded from
       // this stub, reuse the loaded pointer, otherwise emit the load now.
-      DenseMap<const Value *, Register>::iterator I = LocalValueMap.find(V);
+      auto I = LocalValueMap.find(V);
       Register LoadReg;
       if (I != LocalValueMap.end() && I->second) {
         LoadReg = I->second;
@@ -873,8 +874,7 @@ redo_gep:
   case Instruction::Alloca: {
     // Do static allocas.
     const AllocaInst *A = cast<AllocaInst>(V);
-    DenseMap<const AllocaInst *, int>::iterator SI =
-      FuncInfo.StaticAllocaMap.find(A);
+    auto SI = FuncInfo.StaticAllocaMap.find(A);
     if (SI != FuncInfo.StaticAllocaMap.end()) {
       AM.BaseType = X86AddressMode::FrameIndexBase;
       AM.Base.FrameIndex = SI->second;
@@ -2635,7 +2635,7 @@ bool X86FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
     return false;
   case Intrinsic::frameaddress: {
     MachineFunction *MF = FuncInfo.MF;
-    if (MF->getTarget().getMCAsmInfo()->usesWindowsCFI())
+    if (MF->getTarget().getMCAsmInfo().usesWindowsCFI())
       return false;
 
     Type *RetTy = II->getCalledFunction()->getReturnType();
@@ -2861,9 +2861,9 @@ bool X86FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
     case Intrinsic::usub_with_overflow:
       BaseOpc = ISD::SUB; CondCode = X86::COND_B; break;
     case Intrinsic::smul_with_overflow:
-      BaseOpc = X86ISD::SMUL; CondCode = X86::COND_O; break;
+      BaseOpc = X86ISD::SMUL; CondCode = X86::COND_B; break;
     case Intrinsic::umul_with_overflow:
-      BaseOpc = X86ISD::UMUL; CondCode = X86::COND_O; break;
+      BaseOpc = X86ISD::UMUL; CondCode = X86::COND_B; break;
     }
 
     Register LHSReg = getRegForValue(LHS);
@@ -3177,8 +3177,8 @@ static unsigned computeBytesPoppedByCalleeForSRet(const X86Subtarget *Subtarget,
     return 0;
 
   if (CB)
-    if (CB->arg_empty() || !CB->paramHasAttr(0, Attribute::StructRet) ||
-        CB->paramHasAttr(0, Attribute::InReg) || Subtarget->isTargetMCU())
+    if (CB->arg_empty() || !CB->hasStructRetAttr() ||
+        CB->hasABIParamAttr(0, Attribute::InReg) || Subtarget->isTargetMCU())
       return 0;
 
   return 4;
@@ -3208,18 +3208,22 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   // the value from FuncInfo.ValueMap.
   // However, i1 is promoted to i8 and return i8 defined by ABI, so FastISel can
   // lower it without switching to DAGISel.
-  MVT RetVT = MVT::Other;
-  if (!isTypeLegal(CLI.RetTy, RetVT) && !CLI.RetTy->isVoidTy()) {
-    if (RetVT == MVT::Other)
-      return false; // Unknown type, let DAG ISel handle it.
+  SmallVector<Type *> RetTys;
+  ComputeValueTypes(DL, CLI.RetTy, RetTys);
+  for (Type *RetTy : RetTys) {
+    MVT RetVT = MVT::Other;
+    if (!isTypeLegal(RetTy, RetVT)) {
+      if (RetVT == MVT::Other)
+        return false; // Unknown type, let DAG ISel handle it.
 
-    // RetVT is not MVT::Other, it must be simple now. It is something rely on
-    // the logic of isTypeLegal().
-    MVT ABIVT = TLI.getRegisterTypeForCallingConv(CLI.RetTy->getContext(),
-                                                  CLI.CallConv, RetVT);
-    MVT RegVT = TLI.getRegisterType(CLI.RetTy->getContext(), RetVT);
-    if (ABIVT != RegVT)
-      return false;
+      // RetVT is not MVT::Other, it must be simple now. It is something rely on
+      // the logic of isTypeLegal().
+      MVT ABIVT = TLI.getRegisterTypeForCallingConv(CLI.RetTy->getContext(),
+                                                    CLI.CallConv, RetVT);
+      MVT RegVT = TLI.getRegisterType(CLI.RetTy->getContext(), RetVT);
+      if (ABIVT != RegVT)
+        return false;
+    }
   }
 
   // Call / invoke instructions with NoCfCheck attribute require special
@@ -3325,8 +3329,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
 
       ResultReg = fastEmit_ri(VT, VT, ISD::AND, ResultReg, 1);
     } else {
-      if (!isTypeLegal(Val->getType(), VT) ||
-          (VT.isVector() && VT.getVectorElementType() == MVT::i1))
+      if (!isTypeLegal(Val->getType(), VT) || VT.isVectorOf(MVT::i1))
         return false;
       ResultReg = getRegForValue(Val);
     }
@@ -3747,15 +3750,9 @@ Register X86FastISel::X86MaterializeInt(const ConstantInt *CI, MVT VT) {
   case MVT::i8:  Opc = X86::MOV8ri;  break;
   case MVT::i16: Opc = X86::MOV16ri; break;
   case MVT::i32: Opc = X86::MOV32ri; break;
-  case MVT::i64: {
-    if (isUInt<32>(Imm))
-      Opc = X86::MOV32ri64;
-    else if (isInt<32>(Imm))
-      Opc = X86::MOV64ri32;
-    else
-      Opc = X86::MOV64ri;
+  case MVT::i64:
+    Opc = X86::getMOVriOpcode(/*Use64BitReg=*/true, Imm);
     break;
-  }
   }
   return fastEmitInst_i(Opc, TLI.getRegClassFor(VT), Imm);
 }

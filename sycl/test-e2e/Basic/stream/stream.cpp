@@ -1,6 +1,9 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+
+// REQUIRES-INTEL-DRIVER: lin: 39395
+
+// RUN: %{build} -fsycl-device-code-split=per_kernel -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
 
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
@@ -10,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 

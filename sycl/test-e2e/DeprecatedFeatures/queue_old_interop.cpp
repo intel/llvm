@@ -96,7 +96,7 @@ int main() {
 
   {
     default_selector Selector;
-    device Device = Selector.select_device();
+    device Device(Selector);
     context Context(Device);
     queue Queue(Context, Selector);
     assert(Context == Queue.get_context());

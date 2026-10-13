@@ -10,8 +10,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <stdlib.h>
-#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
 #include <vector>
@@ -42,7 +42,7 @@ template <class Ty> bool test(queue q, int inc) {
       std::cout << "Running on "
                 << q.get_device().get_info<::sycl::info::device::name>()
                 << "\n";
-      auto acc = buf.template get_access<access::mode::read_write>(cgh);
+      auto acc = buf.template get_access<access_mode::read_write>(cgh);
       cgh.single_task([=]() SYCL_ESIMD_KERNEL {
         simd<uint32_t, 1> offsets(0);
         simd<Ty, 1> vec = gather<Ty, 1>(acc, offsets);

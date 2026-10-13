@@ -10,7 +10,9 @@
 #include "command_list_cache.hpp"
 #include "context.hpp"
 
-#include "../device.hpp"
+#include "../common/device.hpp"
+
+namespace ur::level_zero::v2 {
 
 // UR copy of the deprecated
 // zex_intel_queue_copy_operations_offload_hint_exp_desc_t
@@ -40,25 +42,31 @@ typedef struct _ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t {
   static_cast<ze_structure_type_ext_t>(0x0003001B)
 #endif // ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
 
+} // namespace ur::level_zero::v2
+
+namespace ur::level_zero {
 template <>
 ze_structure_type_ext_t getZexStructureType<
-    ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
+    ur::level_zero::v2::
+        ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
   return UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
 }
+} // namespace ur::level_zero
 
-bool v2::immediate_command_list_descriptor_t::operator==(
+namespace ur::level_zero::v2 {
+
+bool immediate_command_list_descriptor_t::operator==(
     const immediate_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && IsInOrder == rhs.IsInOrder &&
          Mode == rhs.Mode && Priority == rhs.Priority && Index == rhs.Index;
 }
 
-bool v2::regular_command_list_descriptor_t::operator==(
+bool regular_command_list_descriptor_t::operator==(
     const regular_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && Ordinal == rhs.Ordinal &&
          IsInOrder == rhs.IsInOrder && Mutable == rhs.Mutable;
 }
 
-namespace v2 {
 inline size_t command_list_descriptor_hash_t::operator()(
     const command_list_descriptor_t &desc) const {
   if (auto ImmCmdDesc =
@@ -77,8 +85,6 @@ command_list_cache_t::command_list_cache_t(
     ze_context_handle_t ZeContext,
     supported_extensions_descriptor_t supportedExtensions)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{
-          supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
           supportedExtensions.ZeMutableCmdListExtentionSupported},
       ZeCopyOffloadQueueFlagSupported{
@@ -102,7 +108,8 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     requestedCopyOffload = false;
   }
 
-  if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
+  if (requestedCopyOffload && !ZeCopyOffloadQueueFlagSupported &&
+      !ZeCopyOffloadListFlagSupported) {
     UR_LOG(INFO,
            "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;
@@ -284,4 +291,4 @@ size_t command_list_cache_t::getNumRegularCommandLists() {
   return NumLists;
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

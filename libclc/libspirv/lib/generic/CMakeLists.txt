@@ -1,5 +1,4 @@
-libclc_configure_source_list(LISPIRV_GENERIC_SOURCES
-  ${CMAKE_CURRENT_SOURCE_DIR}
+libclc_add_sources(${LIBCLC_LIBSPIRV_TARGET} FILES
   subnormal_config.cl
   async/async_work_group_strided_copy.cl
   async/prefetch.cl

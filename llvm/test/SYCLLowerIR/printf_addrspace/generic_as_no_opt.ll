@@ -33,7 +33,7 @@ $_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_ = comdat any
 @.str.1 = private unnamed_addr addrspace(1) constant [15 x i8] c"String No. %i\0A\00", align 1
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() #0 comdat !kernel_arg_buffer_location !9 {
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() #0 comdat {
 entry:
   %0 = alloca %class.anon.0, align 1
   %1 = addrspacecast ptr %0 to ptr addrspace(4)
@@ -131,4 +131,3 @@ attributes #8 = { convergent }
 !6 = distinct !{!6, !7, !8}
 !7 = !{!"llvm.loop.mustprogress"}
 !8 = !{!"llvm.loop.unroll.enable"}
-!9 = !{}

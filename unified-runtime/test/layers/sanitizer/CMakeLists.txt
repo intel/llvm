@@ -18,6 +18,12 @@ endfunction()
 add_sanitizer_test(asan asan.cpp)
 add_sanitizer_test(sanitizer_options sanitizer_options.cpp)
 
+add_sanitizer_test(shared_layer shared_layer.cpp)
+target_include_directories(shared_layer-test PRIVATE
+    ${PROJECT_SOURCE_DIR}/source/loader/layers
+)
+target_link_libraries(shared_layer-test PRIVATE ${CMAKE_DL_LIBS})
+
 # add the source here in order to test for unexported functions
 add_test_source(sanitizer_options 
     ${PROJECT_SOURCE_DIR}/source/loader/layers/sanitizer/sanitizer_common/sanitizer_options.cpp

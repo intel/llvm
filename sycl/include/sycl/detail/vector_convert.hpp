@@ -688,9 +688,9 @@ inline NativeBFT ConvertFToBF16Vec(NativeFloatT vec) {
   EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtn, rd)      \
   EXPAND_BF16_ROUNDING_MODE(type, type_str, sycl::rounding_mode::rtz, rz)
 
-EXPAND_BF16_TYPE(uint, uint)
+EXPAND_BF16_TYPE(unsigned int, uint)
 EXPAND_BF16_TYPE(int, int)
-EXPAND_BF16_TYPE(ushort, ushort)
+EXPAND_BF16_TYPE(unsigned short, ushort)
 EXPAND_BF16_TYPE(short, short)
 EXPAND_BF16_TYPE(long, ll)
 EXPAND_BF16_TYPE(unsigned long long, ull)

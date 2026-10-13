@@ -32,11 +32,19 @@
 
 namespace sycl {
 inline namespace _V1 {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group;
+#else
+class sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 namespace ext {
 namespace oneapi {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated compatibility type for sycl::sub_group.
 struct sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group_mask;
+class bfloat16;
 namespace experimental {
 template <typename ParentGroup> class fragment;
 
@@ -44,6 +52,8 @@ template <int Dimensions> class root_group;
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+
+using bfloat16 = ext::oneapi::bfloat16;
 
 namespace detail {
 
@@ -82,9 +92,11 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
@@ -279,9 +291,11 @@ using WidenOpenCLTypeTo32_t = std::conditional_t<
 template <typename Group> struct GroupId {
   using type = size_t;
 };
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct GroupId<::sycl::sub_group> {
   using type = uint32_t;
 };
@@ -563,6 +577,17 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, bfloat16>, T>
+AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
@@ -591,6 +616,17 @@ inline typename std::enable_if_t<std::is_same_v<T, half>>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, bfloat16>>
+AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+            memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
@@ -635,6 +671,17 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+               memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
@@ -672,6 +719,17 @@ inline typename std::enable_if_t<std::is_same_v<half, T>, T>
 AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
@@ -745,6 +803,17 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMinEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
@@ -776,6 +845,17 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
 // Native shuffles map directly to a shuffle intrinsic:
 // - The Intel SPIR-V extension natively supports all arithmetic types.
 //   However, OpenCL extension natively supports float vectors,
@@ -786,30 +866,21 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 //   variants for all scalar types
 #ifndef __NVPTX__
 
-template <typename T>
-struct VecTypeIsProhibitedForNativeShuffle
-    : std::bool_constant<
-          (detail::get_vec_size<T>::size > 1) &&
-          check_type_in_v<vector_element_t<T>, double, long, long long,
-                          unsigned long, unsigned long long, half>> {};
-
-// Native shuffle is supported if T is scalar arithmetic type or vector type
-// with arithmetic element type which is not in prohibited list.
-// detail::is_arithmetic looks through pointer, marray and vec into the element
-// type, so we have to exclude marray and pointer types.
+// Note: Although SPIR-V supports vector shuffles, the OpenCL specification only
+//       allows scalars in the operations. As such, we scalarize those too, then
+//       expect vectorization from the device compiler if possible.
+// https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_cl_khr_subgroup_shuffle
 template <typename T>
 struct NativeShuffle
     : std::bool_constant<detail::is_arithmetic<T>::value &&
-                         !VecTypeIsProhibitedForNativeShuffle<T>::value &&
-                         !detail::is_marray_v<T> && !detail::is_pointer_v<T>> {
-};
+                         !detail::is_marray_v<T> && !detail::is_vec_v<T> &&
+                         !detail::is_pointer_v<T>> {};
 
 // Non-scalar shuffle (emulation via loop + scalar shuffle) is used if we have a
 // vector type for which native shuffle is not supported or for marray type.
 template <typename T>
 struct NonScalarShuffle
-    : std::bool_constant<!NativeShuffle<T>::value &&
-                         (detail::is_vec_v<T> || detail::is_marray_v<T>)> {};
+    : std::bool_constant<detail::is_marray_v<T> || detail::is_vec_v<T>> {};
 
 template <typename T>
 using EnableIfNativeShuffle = std::enable_if_t<NativeShuffle<T>::value, T>;
@@ -925,24 +996,8 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
   (void)g;
-  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = Shuffle(g, x[s], local_id);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
-    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffle(
-        group_scope<GroupT>::value, convertToOpenCLType(x), LocalId));
-  } else {
-    // Subgroup.
-    return convertFromOpenCLTypeFor<T>(
-        __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId));
-  }
+  return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffle(
+      group_scope<GroupT>::value, convertToOpenCLType(x), LocalId));
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
@@ -959,16 +1014,7 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 #ifndef __NVPTX__
   (void)g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = ShuffleXor(g, x[s], mask);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
+                    GroupT>) {
     // Since the masks are relative to the groups, we could either try to adjust
     // the mask or simply do the xor ourselves. Latter option is efficient,
     // general, and simple so we go with that.
@@ -978,8 +1024,9 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleXorINTEL(
-        convertToOpenCLType(x), static_cast<uint32_t>(mask.get(0))));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffleXor(
+        __spv::Scope::Subgroup, convertToOpenCLType(x),
+        static_cast<uint32_t>(mask.get(0))));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1005,16 +1052,7 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = ShuffleDown(g, x[s], delta);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
+                    GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
     // ID outside the group range is UB, so we just keep the current item ID
     // unchanged.
@@ -1025,8 +1063,8 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleDownINTEL(
-        convertToOpenCLType(x), convertToOpenCLType(x), delta));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffleDown(
+        __spv::Scope::Subgroup, convertToOpenCLType(x), delta));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1050,16 +1088,7 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT> &&
-                detail::is_vec<T>::value) {
-    // Temporary work-around due to a bug in IGC.
-    // TODO: Remove when IGC bug is fixed.
-    T result;
-    for (int s = 0; s < x.size(); ++s)
-      result[s] = ShuffleUp(g, x[s], delta);
-    return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
+                    GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
     // Underflow is UB, so we just keep the current item ID unchanged.
     if (TargetLocalId[0] >= delta)
@@ -1069,8 +1098,8 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return convertFromOpenCLTypeFor<T>(__spirv_SubgroupShuffleUpINTEL(
-        convertToOpenCLType(x), convertToOpenCLType(x), delta));
+    return convertFromOpenCLTypeFor<T>(__spirv_GroupNonUniformShuffleUp(
+        __spv::Scope::Subgroup, convertToOpenCLType(x), delta));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<

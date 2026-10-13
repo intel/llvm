@@ -17,6 +17,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/SYCLKernelInfo.h"
 #include "clang/AST/StmtSYCL.h"
+#include "clang/AST/SubobjectVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeOrdering.h"
@@ -36,6 +37,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -103,8 +105,7 @@ static bool isSyclAccessorType(QualType Ty) {
 
 // FIXME: Accessor property lists should be modified to use compile-time
 // properties. Once implemented, this function (and possibly all/most code
-// in SemaSYCL.cpp handling no_alias and buffer_location property) can be
-// removed.
+// in SemaSYCL.cpp handling no_alias property) can be removed.
 static bool isAccessorPropertyType(QualType Ty,
                                    SYCLTypeAttr::SYCLType TypeName) {
   if (const auto *RD = Ty->getAsCXXRecordDecl())
@@ -424,8 +425,23 @@ static bool isZeroSizedArray(SemaSYCL &S, QualType Ty) {
   return false;
 }
 
+static std::pair<const RecordDecl *, bool> needsDeepTypeCheck(SemaSYCL &S,
+                                                              QualType Ty) {
+  while (Ty->isAnyPointerType() || Ty->isArrayType() || Ty->isReferenceType()) {
+    // A zero-length array has no record to traverse, but the DFS below must
+    // still visit it to emit the required diagnostic.
+    if (isZeroSizedArray(S, Ty))
+      return {nullptr, true};
+    if (Ty->isArrayType())
+      Ty = QualType{Ty->getArrayElementTypeNoTypeQual(), 0};
+    else
+      Ty = Ty->getPointeeType();
+  }
+  return {Ty->getAsRecordDecl(), false};
+}
+
 static void checkSYCLType(SemaSYCL &S, QualType Ty, SourceRange Loc,
-                          llvm::DenseSet<QualType> Visited,
+                          llvm::DenseSet<QualType> &Visited,
                           SourceRange UsedAtLoc = SourceRange()) {
   // Not all variable types are supported inside SYCL kernels,
   // for example the quad type __float128 will cause errors in the
@@ -1989,36 +2005,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
                    Loc,
                    diag::err_sycl_invalid_accessor_property_list_template_param)
                << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
-      QualType PropTy = Prop->getAsType();
-      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::buffer_location) &&
-          checkBufferLocationType(PropTy, Loc))
-        return true;
     }
-    return false;
-  }
-
-  bool checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
-    const auto *PropDecl =
-        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    if (PropDecl->getTemplateArgs().size() != 1)
-      return SemaSYCLRef.Diag(Loc,
-                              diag::err_sycl_invalid_property_list_param_number)
-             << "buffer_location";
-
-    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral)
-      return SemaSYCLRef.Diag(
-                 Loc,
-                 diag::err_sycl_invalid_accessor_property_list_template_param)
-             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-
-    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    if (LocationID < 0)
-      return SemaSYCLRef.Diag(
-                 Loc,
-                 diag::err_sycl_invalid_accessor_property_list_template_param)
-             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-
     return false;
   }
 
@@ -2477,6 +2464,7 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
   // same type as field but global address space, because OpenCL requires it.
   // Function pointers should have program address space. This is set in
   // CodeGen.
+  Qualifiers PtrQuals = Ty.getQualifiers();
   QualType PointeeTy = Ty->getPointeeType();
   Qualifiers Quals = PointeeTy.getQualifiers();
   LangAS AS = Quals.getAddressSpace();
@@ -2487,7 +2475,8 @@ static QualType ModifyAddressSpace(SemaSYCL &SemaSYCLRef, QualType Ty) {
     Quals.setAddressSpace(LangAS::sycl_global);
   PointeeTy = SemaSYCLRef.getASTContext().getQualifiedType(
       PointeeTy.getUnqualifiedType(), Quals);
-  return SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  QualType PtrTy = SemaSYCLRef.getASTContext().getPointerType(PointeeTy);
+  return SemaSYCLRef.getASTContext().getQualifiedType(PtrTy, PtrQuals);
 }
 
 // This visitor is used to traverse a non-decomposed record/array to
@@ -2790,8 +2779,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       QualType PropTy = Prop->getAsType();
       if (isAccessorPropertyType(PropTy, SYCLTypeAttr::no_alias))
         handleNoAliasProperty(Param, PropTy, Loc);
-      if (isAccessorPropertyType(PropTy, SYCLTypeAttr::buffer_location))
-        handleBufferLocationProperty(Param, PropTy, Loc);
     }
   }
 
@@ -2799,26 +2786,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
     Param->addAttr(
         RestrictAttr::CreateImplicit(Ctx, nullptr, ParamIdx(1, Param), Loc));
-  }
-
-  // Obtain an integer value stored in a template parameter of buffer_location
-  // property to pass it to buffer_location kernel attribute
-  void handleBufferLocationProperty(ParmVarDecl *Param, QualType PropTy,
-                                    SourceLocation Loc) {
-    // If we have more than 1 buffer_location properties on a single
-    // accessor - emit an error
-    if (Param->hasAttr<SYCLIntelBufferLocationAttr>()) {
-      SemaSYCLRef.Diag(Loc, diag::err_sycl_compiletime_property_duplication)
-          << "buffer_location";
-      return;
-    }
-    ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    const auto *PropDecl =
-        cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    Param->addAttr(
-        SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
   }
 
   // Additional processing is required for accessor type.
@@ -3955,7 +3922,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
     InitListExpr *ILE = new (SemaSYCLRef.getASTContext())
         InitListExpr(SemaSYCLRef.getASTContext(), KernelCallerSrcLoc, {},
-                     KernelCallerSrcLoc);
+                     KernelCallerSrcLoc, /*isExplicit=*/false);
     ILE->reserveInits(SemaSYCLRef.getASTContext(), NumChildInits);
     ILE->setType(InitTy);
 
@@ -5316,6 +5283,83 @@ void SemaSYCL::CheckSYCLScopeAttr(CXXRecordDecl *Decl) {
     Decl->dropAttr<SYCLScopeAttr>();
 }
 
+// The free function kernel enqueue functions (nd_launch/single_task taking a
+// kernel_function_s) wrap the free function kernel in a helper kernel whose
+// name type is NdRangeFreeFunctionKernelWrapper<&Func, ...> or
+// SingleTaskFreeFunctionKernelWrapper<&Func, ...>. The wrapper's call operator
+// simply forwards to the free function kernel `Func`, which is where the
+// compile-time kernel properties (e.g. sub_group_size, work_group_size) live.
+// This returns `Func` when `KernelObjTy` is such a wrapper, and nullptr
+// otherwise.
+static FunctionDecl *getFreeFunctionKernelWrapperTarget(QualType KernelObjTy) {
+  const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+      KernelObjTy->getAsCXXRecordDecl());
+  if (!CTSD)
+    return nullptr;
+
+  StringRef Name = CTSD->getName();
+  if (Name != "NdRangeFreeFunctionKernelWrapper" &&
+      Name != "SingleTaskFreeFunctionKernelWrapper")
+    return nullptr;
+
+  // The first template argument is the pointer to the wrapped free function
+  // kernel.
+  const TemplateArgumentList &Args = CTSD->getTemplateArgs();
+  if (Args.size() == 0 || Args[0].getKind() != TemplateArgument::Declaration)
+    return nullptr;
+
+  return dyn_cast_or_null<FunctionDecl>(Args[0].getAsDecl());
+}
+
+// Given a free function kernel's add_ir_attributes_function attribute, build a
+// new attribute that keeps only the compile-time kernel *property* name/value
+// pairs (e.g. sycl-sub-group-size, sycl-work-group-size) and drops the
+// free-function-kernel-kind markers (sycl-nd-range-kernel /
+// sycl-single-task-kernel). The markers identify the original function as a
+// free function kernel; copying them onto the enqueue wrapper's kernel caller
+// would incorrectly make the wrapper itself look like a free function kernel.
+// Returns nullptr if there are no property pairs to copy.
+static SYCLAddIRAttributesFunctionAttr *
+buildFreeFunctionPropertyAttr(SemaSYCL &S,
+                              const SYCLAddIRAttributesFunctionAttr &A) {
+  ASTContext &Context = S.getASTContext();
+
+  // Property attributes coming from SYCL_EXT_ONEAPI_FUNCTION_PROPERTY do not
+  // use a filter list. If one is present, we cannot reliably rebuild the
+  // attribute, so bail out.
+  if (A.hasFilterList())
+    return nullptr;
+
+  size_t NumPairs = A.args_size() / 2;
+  Expr **Names = A.args_begin();
+  Expr **Values = A.args_begin() + NumPairs;
+
+  llvm::SmallVector<Expr *, 4> KeptNames;
+  llvm::SmallVector<Expr *, 4> KeptValues;
+  for (size_t I = 0; I < NumPairs; ++I) {
+    std::optional<std::string> PropName =
+        SYCLAddIRAttributesFunctionAttr::getValidAttributeNameAsString(Names[I],
+                                                                       Context);
+    // Keep pairs whose name cannot be evaluated as-is; only filter out the
+    // known free-function-kernel-kind markers. Comparing the optional directly
+    // yields false when the name could not be evaluated (nullopt).
+    if (PropName == "sycl-nd-range-kernel" ||
+        PropName == "sycl-single-task-kernel")
+      continue;
+    KeptNames.push_back(Names[I]);
+    KeptValues.push_back(Values[I]);
+  }
+
+  if (KeptNames.empty())
+    return nullptr;
+
+  llvm::SmallVector<Expr *, 8> NewArgs;
+  NewArgs.append(KeptNames.begin(), KeptNames.end());
+  NewArgs.append(KeptValues.begin(), KeptValues.end());
+  return SYCLAddIRAttributesFunctionAttr::Create(Context, NewArgs.data(),
+                                                 NewArgs.size(), A);
+}
+
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
 void SemaSYCL::copyDeviceKernelAttrs(CXXMethodDecl *CallOperator) {
@@ -5452,6 +5496,33 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
       copyDeviceKernelAttrs(CallOperator);
   }
 
+  // The free function kernel enqueue functions (e.g. nd_launch/single_task
+  // taking a kernel_function_s) submit a helper kernel that merely forwards to
+  // the free function kernel. Because the free function is called indirectly
+  // (through the wrapper's call operator rather than the kernel directly), its
+  // compile-time kernel properties (e.g. sub_group_size, work_group_size) are
+  // not propagated to the generated kernel by the usual mechanism in
+  // MarkDevices(). Copy the free function's property attributes onto the kernel
+  // caller so that SyclKernelDeclCreator applies them to the generated kernel
+  // entry point, matching the behavior of launching the free function kernel
+  // directly.
+  if (FunctionDecl *FreeFunc = getFreeFunctionKernelWrapperTarget(
+          calculateKernelNameType(KernelCallerFunc))) {
+    for (const auto *IRAttr :
+         FreeFunc->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+      SYCLAddIRAttributesFunctionAttr *PropAttr =
+          buildFreeFunctionPropertyAttr(*this, *IRAttr);
+      if (!PropAttr)
+        continue;
+      // Merge into any existing attribute on the kernel caller so that CodeGen,
+      // which reads a single SYCLAddIRAttributesFunctionAttr, sees all of the
+      // properties.
+      if (SYCLAddIRAttributesFunctionAttr *Merged =
+              mergeSYCLAddIRAttributesFunctionAttr(KernelCallerFunc, *PropAttr))
+        KernelCallerFunc->addAttr(Merged);
+    }
+  }
+
   bool IsSIMDKernel = isESIMDKernelType(CallOperator);
 
   SyclKernelArgsSizeChecker argsSizeChecker(*this, KernelObj->getLocation(),
@@ -5541,7 +5612,15 @@ void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
 
   SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
+  // A free function that is a template instantiation (or is declared inline)
+  // has vague linkage and may be emitted in multiple translation units. The
+  // generated kernel must have vague linkage too so the copies merge at device
+  // link time instead of colliding. Mark it implicitly inline in that case so
+  // it inherits the linkage of the free function it wraps.
+  GVALinkage GVAL = getASTContext().GetGVALinkageForFunction(FD);
+  bool IsInline =
+      FD->isInlined() || GVAL == GVA_DiscardableODR || GVAL == GVA_StrongODR;
+  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), IsInline,
                                     false /*IsSIMDKernel */, FD);
 
   FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
@@ -5930,13 +6009,25 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
 }
 
 void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
-                                      llvm::DenseSet<QualType> Visited,
                                       ValueDecl *DeclToCheck) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
+  const auto [RootRecord, HasZeroSizedArray] =
+      needsDeepTypeCheck(*this, DeclToCheck->getType());
+  if (!RootRecord && !HasZeroSizedArray)
+    return;
+  if (RootRecord && RootRecord->isCompleteDefinition() &&
+      DeepTypeCheckedRecords.contains(RootRecord))
+    return;
+
   // Emit notes only for the first discovered declaration of unsupported type
   // to avoid mess of notes. This flag is to track that error already happened.
   bool NeedToEmitNotes = true;
+  bool FoundError = false;
+  bool CanCacheResult = RootRecord && RootRecord->isCompleteDefinition();
+  llvm::SmallDenseSet<QualType, 8> Visited;
+  // Cache complete nested records after this whole traversal succeeds.
+  llvm::SmallDenseSet<CanonicalDeclPtr<const TagDecl>, 8> VisitedRecords;
 
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
     bool ErrorFound = false;
@@ -5979,6 +6070,10 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
 
     if (!Visited.insert(NextTy).second)
       continue;
+    // A dependent type can resolve differently when instantiated, so an
+    // error-free traversal cannot be reused for later instantiations.
+    if (NextTy->isDependentType())
+      CanCacheResult = false;
 
     auto EmitHistory = [&]() {
       // The first element is always nullptr.
@@ -5993,6 +6088,7 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
       if (NeedToEmitNotes)
         EmitHistory();
       NeedToEmitNotes = false;
+      FoundError = true;
     }
 
     // In case pointer/array/reference type is met get pointee type, then
@@ -6007,10 +6103,18 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
         if (NeedToEmitNotes)
           EmitHistory();
         NeedToEmitNotes = false;
+        FoundError = true;
       }
     }
 
     if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
+      // An incomplete record can acquire unsupported fields when completed.
+      if (!RecDecl->isCompleteDefinition())
+        CanCacheResult = false;
+      else if (DeepTypeCheckedRecords.contains(RecDecl))
+        continue;
+      else
+        VisitedRecords.insert(RecDecl);
       if (auto *NextFD = dyn_cast<FieldDecl>(Next))
         History.push_back(NextFD);
       // When nullptr is discovered, this means we've gone back up a level, so
@@ -6019,6 +6123,9 @@ void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
       llvm::append_range(StackForRecursion, RecDecl->fields());
     }
   } while (!StackForRecursion.empty());
+
+  if (CanCacheResult && !FoundError)
+    DeepTypeCheckedRecords.insert_range(VisitedRecords);
 }
 
 void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
@@ -6046,7 +6153,8 @@ void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   // Diagnose if this is an undefined function and it is not a builtin.
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
-  if (!Callee->isDefined() && !Callee->getBuiltinID() &&
+  if (!Callee->isInvalidDecl() && !Callee->isDefined() &&
+      !Callee->getBuiltinID() &&
       !Callee->isReplaceableGlobalAllocationFunction() &&
       !isSYCLUndefinedAllowed(Callee, SemaRef.getSourceManager())) {
     Diag(Loc, diag::err_sycl_restrict) << SemaSYCL::KernelCallUndefinedFunction;
@@ -6437,6 +6545,32 @@ public:
 
   void VisitTemplateArgument(const TemplateArgument &TA) {
     TA.print(Policy, OS, false /* IncludeType */);
+  }
+
+  void VisitDeclarationTemplateArgument(const TemplateArgument &TA) {
+    // A non-type template argument that refers to a function template
+    // specialization (e.g. a free function kernel pointer such as
+    // `&vec_add_kernel<int>`) is printed by TemplateArgument::print using only
+    // the function's qualified name, dropping its template arguments. This
+    // produces an ambiguous `<overloaded function type>` initializer in the
+    // integration header. Emit the template arguments explicitly so the
+    // resulting kernel name type names the exact specialization.
+    const ValueDecl *VD = TA.getAsDecl();
+    const auto *FD = dyn_cast<FunctionDecl>(VD);
+    const TemplateArgumentList *TAL =
+        FD ? FD->getTemplateSpecializationArgs() : nullptr;
+    if (!TAL) {
+      VisitTemplateArgument(TA);
+      return;
+    }
+
+    const QualType ParamType = TA.getParamTypeForDecl();
+    if (ParamType->isPointerType() || ParamType->isMemberPointerType())
+      OS << "&";
+    VD->printQualifiedName(OS, Policy);
+    OS << "<";
+    printTemplateArgs(TAL->asArray());
+    OS << ">";
   }
 
   void VisitTypeTemplateArgument(const TemplateArgument &TA) {
@@ -7412,95 +7546,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // mathematical error.
   O << "  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 }, \n";
   O << "};\n\n";
-
-  O << "// Specializations of KernelInfo for kernel function types:\n";
-  unsigned CurStart = 0;
-
-  for (const KernelDesc &K : KernelDescs) {
-    const size_t N = K.Params.size();
-    if (S.isFreeFunction(K.SyclKernel)) {
-      CurStart += N;
-      continue;
-    }
-    PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
-        S.getASTContext()
-            .getSourceManager()
-            .getExpansionRange(K.KernelLocation)
-            .getEnd());
-    if (K.IsUnnamedKernel) {
-      O << "template <> struct KernelInfoData<";
-      OutputStableNameInChars(O, K.StableName);
-      O << "> {\n";
-    } else {
-      O << "template <> struct KernelInfo<";
-      SYCLKernelNameTypePrinter Printer(O, Policy);
-      Printer.Visit(K.NameType);
-      O << "> {\n";
-    }
-
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getName() { return \"" << K.Name
-      << "\"; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const kernel_param_desc_t& ";
-    O << "getParamDesc(unsigned i) {\n";
-    O << "    return kernel_signatures[i+" << CurStart << "];\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
-      << "; }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFileName() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return \""
-      << std::string(PLoc.getFilename())
-             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
-    O << "\";\n";
-    O << "#else\n";
-    O << "    return \"\";\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr const char* getFunctionName() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return \"";
-    SYCLKernelNameTypePrinter Printer(O, Policy);
-    Printer.Visit(K.NameType);
-    O << "\";\n";
-    O << "#else\n";
-    O << "    return \"\";\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getLineNumber() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return " << PLoc.getLine() << ";\n";
-    O << "#else\n";
-    O << "    return 0;\n";
-    O << "#endif\n";
-    O << "  }\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr unsigned getColumnNumber() {\n";
-    O << "#ifndef NDEBUG\n";
-    O << "    return " << PLoc.getColumn() << ";\n";
-    O << "#else\n";
-    O << "    return 0;\n";
-    O << "#endif\n";
-    O << "  }\n";
-    StringRef ReturnType = (S.getASTContext().getTargetInfo().getInt64Type() ==
-                            TargetInfo::SignedLong)
-                               ? "long"
-                               : "long long";
-    O << "  // Returns the size of the kernel object in bytes.\n";
-    O << "  __SYCL_DLL_LOCAL\n";
-    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
-      << K.ObjSize << "; }\n";
-    O << "};\n";
-    CurStart += N;
-  }
-  O << "\n";
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
@@ -7729,11 +7774,109 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "static GlobalMapUpdater updater;\n";
     O << "} // namespace\n";
   }
+
+  O << "// Specializations of KernelInfo for kernel function types:\n";
+  O << "namespace sycl {\n";
+  O << "inline namespace _V1 {\n";
+  O << "namespace detail {\n";
+  unsigned CurStart = 0;
+
+  for (const KernelDesc &K : KernelDescs) {
+    const size_t N = K.Params.size();
+    if (S.isFreeFunction(K.SyclKernel)) {
+      CurStart += N;
+      continue;
+    }
+    PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
+        S.getASTContext()
+            .getSourceManager()
+            .getExpansionRange(K.KernelLocation)
+            .getEnd());
+    if (K.IsUnnamedKernel) {
+      O << "template <> struct KernelInfoData<";
+      OutputStableNameInChars(O, K.StableName);
+      O << "> {\n";
+    } else {
+      Policy.SuppressDefaultTemplateArgs = false;
+      Policy.EnforceDefaultTemplateArgs = true;
+      O << "template <> struct KernelInfo<";
+      SYCLKernelNameTypePrinter Printer(O, Policy);
+      Printer.Visit(K.NameType);
+      O << "> {\n";
+    }
+
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getName() { return \"" << K.Name
+      << "\"; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const kernel_param_desc_t& ";
+    O << "getParamDesc(unsigned i) {\n";
+    O << "    return kernel_signatures[i+" << CurStart << "];\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr bool isESIMD() { return " << K.IsESIMDKernel
+      << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFileName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \""
+      << std::string(PLoc.getFilename())
+             .substr(std::string(PLoc.getFilename()).find_last_of("/\\") + 1);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char* getFunctionName() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return \"";
+    SYCLKernelNameTypePrinter Printer(O, Policy);
+    Printer.Visit(K.NameType);
+    O << "\";\n";
+    O << "#else\n";
+    O << "    return \"\";\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getLineNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getLine() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getColumnNumber() {\n";
+    O << "#ifndef NDEBUG\n";
+    O << "    return " << PLoc.getColumn() << ";\n";
+    O << "#else\n";
+    O << "    return 0;\n";
+    O << "#endif\n";
+    O << "  }\n";
+    StringRef ReturnType = (S.getASTContext().getTargetInfo().getInt64Type() ==
+                            TargetInfo::SignedLong)
+                               ? "long"
+                               : "long long";
+    O << "  // Returns the size of the kernel object in bytes.\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr " << ReturnType << " getKernelSize() { return "
+      << K.ObjSize << "; }\n";
+    O << "};\n";
+    CurStart += N;
+  }
+  O << "\n";
+  O << "} // namespace detail\n";
+  O << "} // namespace _V1\n";
+  O << "} // namespace sycl\n";
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
   int IntHeaderFD = 0;
   std::error_code EC =
       llvm::sys::fs::openFileForWrite(IntHeaderName, IntHeaderFD);
@@ -7837,6 +7980,7 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
 bool SYCLIntegrationFooter::emit(StringRef IntHeaderName) {
   if (IntHeaderName.empty())
     return false;
+  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
   int IntHeaderFD = 0;
   std::error_code EC =
       llvm::sys::fs::openFileForWrite(IntHeaderName, IntHeaderFD);
@@ -7948,7 +8092,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
+    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This
     // can happen if it was a deduced type.
     if (!SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
         !SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
@@ -8596,6 +8740,109 @@ OutlinedFunctionDecl *BuildSYCLKernelEntryPointOutline(Sema &SemaRef,
   return OFD;
 }
 
+class KernelParamsChecker : public ConstSubobjectVisitor<KernelParamsChecker> {
+  SemaSYCL &SemaSYCLRef;
+  bool IsValid = true;
+  using ObjectAccess =
+      llvm::PointerUnion<const ParmVarDecl *, const CXXBaseSpecifier *,
+                         const FieldDecl *>;
+  SmallVector<ObjectAccess, 4> ObjectAccessPath;
+
+  void emitObjectAccessPathNotes() {
+    for (auto Parent : llvm::reverse(ObjectAccessPath)) {
+      if (auto *FD = Parent.dyn_cast<const FieldDecl *>()) {
+        const CXXRecordDecl *ParentRD = cast<CXXRecordDecl>(FD->getParent());
+        if (ParentRD->isLambda()) {
+          SemaSYCLRef.Diag(ParentRD->getLocation(), diag::note_within_capture)
+              << ParentRD->getCapture(FD->getFieldIndex())->getCapturedVar();
+        } else {
+          SemaSYCLRef.Diag(ParentRD->getLocation(),
+                           diag::note_within_field_of_type)
+              << ParentRD;
+        }
+      } else if (auto *BS = Parent.dyn_cast<const CXXBaseSpecifier *>()) {
+        CXXRecordDecl *RD = BS->getType()->getAsCXXRecordDecl();
+        assert(RD);
+        SemaSYCLRef.Diag(BS->getBeginLoc(), diag::note_within_base_of_type)
+            << RD;
+      } else {
+        auto *Param = cast<const ParmVarDecl *>(Parent);
+        SemaSYCLRef.Diag(Param->getBeginLoc(), diag::note_within_param_of_type)
+            << Param << Param->getType();
+      }
+    }
+  }
+
+public:
+  KernelParamsChecker(SemaSYCL &SR, SourceLocation Loc)
+      : ConstSubobjectVisitor<KernelParamsChecker>(SR.getASTContext()),
+        SemaSYCLRef(SR) {}
+
+  void checkParameter(const ParmVarDecl *PVD) {
+    ObjectAccessPath.push_back(PVD);
+    // Check the immediate type of the parameter.
+    if (checkType(PVD->getType())) {
+      // If type checking wasn't short circuited, visit subobjects to check
+      // them.
+      visit(PVD->getType());
+    }
+    ObjectAccessPath.pop_back();
+    assert(ObjectAccessPath.empty());
+  }
+
+  bool visitBaseSpecifierPre(const CXXBaseSpecifier *BS) {
+    ObjectAccessPath.push_back(BS);
+    return checkType(BS->getType());
+  }
+
+  bool visitFieldDeclPre(const FieldDecl *FD) {
+    ObjectAccessPath.push_back(FD);
+    return checkType(FD->getType());
+  }
+
+  // Returns true if subobjects should be visited and false otherwise.
+  bool checkType(QualType Ty) {
+    if (Ty->isReferenceType()) {
+      auto DirectParent = ObjectAccessPath.back();
+      // Reference cannot be a base, so just assume we came via a FieldDecl.
+      if (isa<const ParmVarDecl *>(DirectParent)) {
+        // If reference is a kernel parameter, there is nothing to do. We allow
+        // references in direct kernel parameters for better performance of the
+        // host code and we eliminate them when building actual kernel.
+        return true;
+      }
+
+      auto *DirectFieldParent = cast<const FieldDecl *>(DirectParent);
+      SemaSYCLRef.Diag(DirectFieldParent->getLocation(),
+                       diag::err_bad_kernel_param_type)
+          << DirectFieldParent->getType();
+      emitObjectAccessPathNotes();
+
+      // Don't visit the type of the reference since any further invalid
+      // kernel parameter types contained within the referenced type
+      // might not be relevant once the programmer addresses the
+      // invalid use of a reference.
+      IsValid = false;
+      return false;
+    }
+    return true;
+  }
+
+  void visitFieldDeclPost(const FieldDecl *FD) { ObjectAccessPath.pop_back(); }
+  void visitBaseSpecifierPost(const CXXBaseSpecifier *BS) {
+    ObjectAccessPath.pop_back();
+  }
+
+  bool isInvalid() { return !IsValid; }
+};
+
+bool verifyKernelParams(FunctionDecl *FD, SemaSYCL &SemaSYCLRef) {
+  KernelParamsChecker KAC(SemaSYCLRef, FD->getLocation());
+  for (auto Param : FD->parameters())
+    KAC.checkParameter(Param);
+  return KAC.isInvalid();
+}
+
 } // unnamed namespace
 
 StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
@@ -8621,6 +8868,8 @@ StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
       getASTContext().getSYCLKernelInfo(SKEPAttr->getKernelName());
   assert(declaresSameEntity(SKI.getKernelEntryPointDecl(), FD) &&
          "SYCL kernel name conflict");
+  if (verifyKernelParams(FD, *this))
+    return StmtError();
 
   // Build the outline of the synthesized device entry point function.
   OutlinedFunctionDecl *OFD =

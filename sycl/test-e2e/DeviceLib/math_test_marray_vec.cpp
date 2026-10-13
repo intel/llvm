@@ -5,6 +5,7 @@
 
 // tests sycl floating point math functions for sycl::vec and sycl::marray float
 // and double cases.
+#include <iostream>
 
 #include "math_test_marray_vec_common.hpp"
 

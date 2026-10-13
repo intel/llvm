@@ -250,6 +250,7 @@ public:
 class BuiltinCallHelper {
   ManglingRules Rules;
   std::function<std::string(llvm::StringRef)> NameMapFn;
+  const SPIRV::AddrSpaceMap *AddrSpaceMapper = nullptr;
 
 protected:
   llvm::Module *M = nullptr;
@@ -260,10 +261,14 @@ public:
   /// The Rules argument selects which name mangler to use for mangling.
   /// The NameMapFn function will map type names during demangling; it defaults
   /// to the identity function.
+  /// The AddrSpaceMapper, if non-null, is used to remap address spaces of
+  /// opaque OCL types (images, events, samplers, etc.) during mangling.
   explicit BuiltinCallHelper(
       ManglingRules Rules,
-      std::function<std::string(llvm::StringRef)> NameMapFn = nullptr)
-      : Rules(Rules), NameMapFn(std::move(NameMapFn)) {}
+      std::function<std::string(llvm::StringRef)> NameMapFn = nullptr,
+      const SPIRV::AddrSpaceMap *AddrSpaceMapper = nullptr)
+      : Rules(Rules), NameMapFn(std::move(NameMapFn)),
+        AddrSpaceMapper(AddrSpaceMapper) {}
 
   /// Initialize the module that will be operated on. This method must be called
   /// before future methods.

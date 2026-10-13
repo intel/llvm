@@ -21,7 +21,7 @@ int main() {
     // we need to cover that pattern here.
     sycl::buffer<int, 1> buf(v.data(), v.size());
     q.submit([&](sycl::handler &h) {
-       auto A = buf.get_access<sycl::access::mode::read_write>(h);
+       auto A = buf.get_access<sycl::access_mode::read_write>(h);
        h.parallel_for<class Test>(
            sycl::nd_range<1>(N + 1, 1),
            [=](sycl::nd_item<1> item) { A[item.get_global_id()] *= 2; });

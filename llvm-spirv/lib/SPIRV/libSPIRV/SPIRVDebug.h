@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVDEBUG_H
 #define SPIRV_LIBSPIRV_SPIRVDEBUG_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVUtil.h"
 
 #include <iostream>
@@ -54,8 +55,9 @@ namespace SPIRV {
 // Include source file and line number in error message.
 extern bool SPIRVDbgErrorMsgIncludesSourceInfo;
 
-// Enable assert or exit on error
-enum class SPIRVDbgErrorHandlingKinds { Abort, Exit, Ignore };
+// Enable assert or exit on error. Supplies the default for SPIRVErrorLog
+// instances created without TranslatorOpts, e.g. by the no-options
+// getSpecConstInfo overload.
 extern SPIRVDbgErrorHandlingKinds SPIRVDbgError;
 
 // Enable debug output.

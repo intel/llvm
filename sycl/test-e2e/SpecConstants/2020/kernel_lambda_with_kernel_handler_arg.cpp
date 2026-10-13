@@ -1,5 +1,5 @@
 // REQUIRES: cpu
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks all possible scenarios of running single_task, parallel_for
@@ -7,6 +7,7 @@
 // correctly with user's lambda with and without sycl::kernel_handler argument
 
 #include <sycl/detail/core.hpp>
+#include <sycl/h_item.hpp>
 
 #include <sycl/specialization_id.hpp>
 

@@ -1,6 +1,7 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/device_image_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
@@ -502,5 +503,144 @@ TEST(DynamicLinking, KernelBundleSpecConstsBuild) {
   runSpecConstChecksUnlinked(InputKB);
   sycl::kernel_bundle BuiltKB = sycl::build(InputKB);
   runSpecConstChecksLinked(BuiltKB);
+}
+
+// Extract the single object-state device image for the given kernel from an
+// object-state bundle. Native-AOT images with imported symbols are classified
+// by getBinImageState as bundle_state::object, so they are the images that
+// ProgramManager::build must accept with AllowUnresolvedSymbols set.
+static sycl::detail::device_image_plain
+getObjectImage(sycl::queue &Q, const sycl::kernel_id &KernelID) {
+  sycl::kernel_bundle ObjectKB =
+      sycl::get_kernel_bundle<sycl::bundle_state::object>(Q.get_context(),
+                                                          {KernelID});
+  auto It = std::find_if(ObjectKB.begin(), ObjectKB.end(), [&](auto Image) {
+    return Image.has_kernel(KernelID);
+  });
+  EXPECT_NE(It, ObjectKB.end());
+  return *It;
+}
+
+// ProgramManager::build with AllowUnresolvedSymbols builds a native-AOT object
+// image while keeping its imported references unresolved (ready for a later
+// dynamicLink). This is the path kernel_bundle_impl uses for AOT object
+// SYCLBINs. Verify the build succeeds and that the AllowUnresolvedSymbols bit
+// participates in the program-cache key, so an unresolved-symbols build and a
+// normal build of the same image do not collide.
+TEST(DynamicLinking, AOTObjectBuildAllowUnresolvedSymbols) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+  sycl::detail::device_impl &DevImpl =
+      *sycl::detail::getSyclObjImpl(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  auto &PM = sycl::detail::ProgramManager::getInstance();
+
+  // Build once with unresolved symbols allowed (the AOT-object-link path)...
+  sycl::detail::device_image_plain AOTImg = getObjectImage(
+      Q, sycl::get_kernel_id<DynamicLinkingTest::AOTCaseKernel>());
+  sycl::detail::device_image_plain Built =
+      PM.build(sycl::detail::DevImgPlainWithDeps{AOTImg},
+               sycl::detail::devices_range{DevImpl},
+               /*PropList=*/{}, /*AllowUnresolvedSymbols=*/true);
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(Built)->get_state(),
+            sycl::bundle_state::executable);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 1u);
+
+  // ...and again without. The AllowUnresolvedSymbols bit is part of the cache
+  // key, so this must trigger a second urProgramCreateWithBinary rather than
+  // hitting the cached unresolved-symbols entry.
+  sycl::detail::device_image_plain AOTImg2 = getObjectImage(
+      Q, sycl::get_kernel_id<DynamicLinkingTest::AOTCaseKernel>());
+  sycl::detail::device_image_plain Built2 =
+      PM.build(sycl::detail::DevImgPlainWithDeps{AOTImg2},
+               sycl::detail::devices_range{DevImpl},
+               /*PropList=*/{}, /*AllowUnresolvedSymbols=*/false);
+  EXPECT_EQ(sycl::detail::getSyclObjImpl(Built2)->get_state(),
+            sycl::bundle_state::executable);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 2u);
+}
+
+// When the adapter does not implement urProgramBuildExp, the
+// ALLOW_UNRESOLVED_SYMBOLS flag cannot be carried by the non-Exp build entry
+// point, so an AllowUnresolvedSymbols build must fail loudly with
+// feature_not_supported rather than silently drop the requested semantics.
+static ur_result_t redefined_urProgramBuildExpUnsupported(void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+TEST(DynamicLinking, AOTObjectBuildNoBuildExp) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+  mock::getCallbacks().set_replace_callback(
+      "urProgramBuildExp", redefined_urProgramBuildExpUnsupported);
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+  sycl::detail::device_impl &DevImpl =
+      *sycl::detail::getSyclObjImpl(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  auto &PM = sycl::detail::ProgramManager::getInstance();
+  sycl::detail::device_image_plain AOTImg = getObjectImage(
+      Q, sycl::get_kernel_id<DynamicLinkingTest::AOTCaseKernel>());
+
+  try {
+    PM.build(sycl::detail::DevImgPlainWithDeps{AOTImg},
+             sycl::detail::devices_range{DevImpl}, /*PropList=*/{},
+             /*AllowUnresolvedSymbols=*/true);
+    FAIL() << "Expected feature_not_supported exception";
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
+  }
+}
+
+// Same feature_not_supported guard, but on the link entry point rather than
+// the build entry point. When the image has dependencies, getBuiltURProgram
+// populates ProgramsToLink, so build() takes the compile-and-link path and
+// reaches urProgramLinkExp. If that returns UNSUPPORTED_FEATURE while
+// AllowUnresolvedSymbols is set, the non-Exp urProgramLink cannot carry the
+// flag, so build() must throw feature_not_supported rather than silently
+// dropping the requested semantics.
+static ur_result_t redefined_urProgramLinkExpUnsupported(void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+TEST(DynamicLinking, AOTObjectBuildNoLinkExp) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+  mock::getCallbacks().set_replace_callback(
+      "urProgramLinkExp", redefined_urProgramLinkExpUnsupported);
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+  sycl::detail::device_impl &DevImpl =
+      *sycl::detail::getSyclObjImpl(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  auto &PM = sycl::detail::ProgramManager::getInstance();
+  // A two-image bundle: the AOT image plus a dependency entry. Only the
+  // presence of a dependency matters here - it makes getBuiltURProgram
+  // populate ProgramsToLink, which forces build() down the compile-and-link
+  // path that reaches urProgramLinkExp. The same object image is reused as
+  // its own dependency to keep the test self-contained.
+  sycl::detail::device_image_plain MainImg = getObjectImage(
+      Q, sycl::get_kernel_id<DynamicLinkingTest::AOTCaseKernel>());
+  std::vector<sycl::detail::device_image_plain> ImgAndDep{MainImg, MainImg};
+
+  try {
+    PM.build(sycl::detail::DevImgPlainWithDeps{std::move(ImgAndDep)},
+             sycl::detail::devices_range{DevImpl}, /*PropList=*/{},
+             /*AllowUnresolvedSymbols=*/true);
+    FAIL() << "Expected feature_not_supported exception";
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
+  }
 }
 } // anonymous namespace

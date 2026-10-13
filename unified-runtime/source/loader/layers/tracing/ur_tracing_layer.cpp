@@ -31,9 +31,20 @@ constexpr auto STREAM_VER_MINOR = UR_MINOR_VERSION(UR_API_VERSION_CURRENT);
 // Unfortunately this doesn't match the semantics of XPTI, which can be
 // initialized and finalized exactly once. To workaround this, XPTI is globally
 // initialized on first use and finalized in the destructor.
+//
+// If the loader is linked statically, it's the SYCL's responsibility to
+// initialize and teardown XPTI.
 struct XptiContextManager {
-  XptiContextManager() { xptiFrameworkInitialize(); }
-  ~XptiContextManager() { xptiFrameworkFinalize(); }
+  XptiContextManager() {
+#if !UR_STATIC_LOADER
+    xptiFrameworkInitialize();
+#endif
+  }
+  ~XptiContextManager() {
+#if !UR_STATIC_LOADER
+    xptiFrameworkFinalize();
+#endif
+  }
 };
 
 static std::shared_ptr<XptiContextManager> xptiContextManagerGet() {

@@ -17,8 +17,8 @@ template <typename T> void check(queue &Queue) {
     buffer<T> syclbuf(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto syclacc = syclbuf.template get_access<access::mode::read_write>(cgh);
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
+      auto syclacc = syclbuf.template get_access<access_mode::read_write>(cgh);
+      auto sgsizeacc = sgsizebuf.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
         sycl::sub_group SG = NdItem.get_sub_group();
         /*Broadcast GID of element with SGLID == SGID % SGMLR*/

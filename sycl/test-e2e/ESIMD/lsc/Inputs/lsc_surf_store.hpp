@@ -73,7 +73,7 @@ bool test(uint32_t pmask = 0xffffffff) {
     buffer<T, 1> bufo(out.data(), out.size());
 
     auto e = q.submit([&](handler &cgh) {
-      auto acco = bufo.template get_access<access::mode::write>(cgh);
+      auto acco = bufo.template get_access<access_mode::write>(cgh);
       cgh.parallel_for<KernelID<case_num>>(
           Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             uint16_t globalID = ndi.get_global_id(0);

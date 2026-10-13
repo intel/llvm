@@ -120,7 +120,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
 
   // Create a dummy external semaphore and set the raw handle to some dummy.
   // The mock implementation should never access the handle, so this is safe.
-  int DummyInt1 = 0, DummyInt2 = 0;
+  int DummyInt1 = 0;
   syclexp::external_semaphore DummySemaphore{};
   DummySemaphore.raw_handle =
       reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt1);
@@ -131,8 +131,10 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
       *sycl::detail::getSyclObjImpl(Q));
   auto DummyEventImpl2 = sycl::detail::event_impl::create_device_event(
       *sycl::detail::getSyclObjImpl(Q));
-  DummyEventImpl1->setHandle(reinterpret_cast<ur_event_handle_t>(&DummyInt1));
-  DummyEventImpl2->setHandle(reinterpret_cast<ur_event_handle_t>(&DummyInt2));
+  // The runtime releases these handles when the events die, so they must be
+  // real dummy handles rather than arbitrary pointers.
+  DummyEventImpl1->setHandle(mock::createDummyHandle<ur_event_handle_t>());
+  DummyEventImpl2->setHandle(mock::createDummyHandle<ur_event_handle_t>());
   sycl::event DummyEvent1 =
       sycl::detail::createSyclObjFromImpl<sycl::event>(DummyEventImpl1);
   sycl::event DummyEvent2 =

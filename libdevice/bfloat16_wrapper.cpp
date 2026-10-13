@@ -40,18 +40,22 @@ void __devicelib_ConvertBF16ToFINTELVec1(const uint16_t *src, float *dst) {
   DEVICE_EXTERN_C_INLINE                                                       \
   void __devicelib_ConvertFToBF16INTELVec##size(const float *src,              \
                                                 uint16_t *dst) {               \
-    __ocl_vec_t<float, size> x =                                               \
-        *__builtin_bit_cast(const __ocl_vec_t<float, size> *, src);            \
+    __ocl_vec_t<float, size> x;                                                \
+    for (int i = 0; i < size; ++i)                                             \
+      x[i] = src[i];                                                           \
     __ocl_vec_t<uint16_t, size> y = __spirv_ConvertFToBF16INTEL(x);            \
-    *__builtin_bit_cast(__ocl_vec_t<uint16_t, size> *, dst) = y;               \
+    for (int i = 0; i < size; ++i)                                             \
+      dst[i] = y[i];                                                           \
   }                                                                            \
   DEVICE_EXTERN_C_INLINE                                                       \
   void __devicelib_ConvertBF16ToFINTELVec##size(const uint16_t *src,           \
                                                 float *dst) {                  \
-    __ocl_vec_t<uint16_t, size> x =                                            \
-        *__builtin_bit_cast(const __ocl_vec_t<uint16_t, size> *, src);         \
+    __ocl_vec_t<uint16_t, size> x;                                             \
+    for (int i = 0; i < size; ++i)                                             \
+      x[i] = src[i];                                                           \
     __ocl_vec_t<float, size> y = __spirv_ConvertBF16ToFINTEL(x);               \
-    *__builtin_bit_cast(__ocl_vec_t<float, size> *, dst) = y;                  \
+    for (int i = 0; i < size; ++i)                                             \
+      dst[i] = y[i];                                                           \
   }
 
 // clang-format off

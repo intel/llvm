@@ -18,6 +18,7 @@
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/Attributor.h"
+#include <cstdint>
 
 #define DEBUG_TYPE "amdgpu-attributor"
 
@@ -162,7 +163,8 @@ public:
     ADDR_SPACE_CAST_PRIVATE_TO_FLAT = 1 << 1,
     ADDR_SPACE_CAST_LOCAL_TO_FLAT = 1 << 2,
     ADDR_SPACE_CAST_BOTH_TO_FLAT =
-        ADDR_SPACE_CAST_PRIVATE_TO_FLAT | ADDR_SPACE_CAST_LOCAL_TO_FLAT
+        ADDR_SPACE_CAST_PRIVATE_TO_FLAT | ADDR_SPACE_CAST_LOCAL_TO_FLAT,
+    CS_WORST = DS_GLOBAL | ADDR_SPACE_CAST_BOTH_TO_FLAT,
   };
 
   /// Check if the subtarget has aperture regs.
@@ -195,11 +197,6 @@ public:
   getMaximumFlatWorkGroupRange(const Function &F) {
     const GCNSubtarget &ST = TM.getSubtarget<GCNSubtarget>(F);
     return {ST.getMinFlatWorkGroupSize(), ST.getMaxFlatWorkGroupSize()};
-  }
-
-  SmallVector<unsigned> getMaxNumWorkGroups(const Function &F) {
-    const GCNSubtarget &ST = TM.getSubtarget<GCNSubtarget>(F);
-    return ST.getMaxNumWorkGroups(F);
   }
 
   /// Get code object version.
@@ -245,26 +242,45 @@ private:
   }
 
   /// Get the constant access bitmap for \p C.
-  uint8_t getConstantAccess(const Constant *C,
-                            SmallPtrSetImpl<const Constant *> &Visited) {
-    auto It = ConstantStatus.find(C);
+  uint8_t getConstantAccess(const Constant *C) {
+    const auto &It = ConstantStatus.find(C);
     if (It != ConstantStatus.end())
-      return It->second;
+      return It->second.value();
+
+    SmallPtrSet<const Constant *, 8> Visited;
+    SmallVector<const Constant *> Worklist;
+    Worklist.push_back(C);
+    Visited.insert(C);
 
     uint8_t Result = 0;
-    if (isDSAddress(C))
-      Result = DS_GLOBAL;
+    while (Result != CS_WORST && !Worklist.empty()) {
+      const Constant *CurC = Worklist.pop_back_val();
 
-    if (const auto *CE = dyn_cast<ConstantExpr>(C))
-      Result |= visitConstExpr(CE);
-
-    for (const Use &U : C->operands()) {
-      const auto *OpC = dyn_cast<Constant>(U);
-      if (!OpC || !Visited.insert(OpC).second)
+      std::optional<uint8_t> &CurCResultOrNone = ConstantStatus[CurC];
+      if (CurCResultOrNone) {
+        Result |= CurCResultOrNone.value();
         continue;
+      }
+      uint8_t CurCResult = 0;
 
-      Result |= getConstantAccess(OpC, Visited);
+      if (isDSAddress(CurC))
+        CurCResult |= DS_GLOBAL;
+
+      if (const auto *CE = dyn_cast<ConstantExpr>(CurC))
+        CurCResult |= visitConstExpr(CE);
+
+      for (const Use &U : CurC->operands()) {
+        if (const auto *OpC = dyn_cast<Constant>(U)) {
+          if (Visited.insert(OpC).second)
+            Worklist.push_back(OpC);
+        }
+      }
+
+      CurCResultOrNone = CurCResult;
+      Result |= CurCResult;
     }
+
+    ConstantStatus[C] = Result;
     return Result;
   }
 
@@ -278,8 +294,7 @@ public:
     if (!IsNonEntryFunc && HasAperture)
       return false;
 
-    SmallPtrSet<const Constant *, 8> Visited;
-    uint8_t Access = getConstantAccess(C, Visited);
+    uint8_t Access = getConstantAccess(C);
 
     // We need to trap on DS globals in non-entry functions.
     if (IsNonEntryFunc && (Access & DS_GLOBAL))
@@ -289,14 +304,13 @@ public:
   }
 
   bool checkConstForAddrSpaceCastFromPrivate(const Constant *C) {
-    SmallPtrSet<const Constant *, 8> Visited;
-    uint8_t Access = getConstantAccess(C, Visited);
+    uint8_t Access = getConstantAccess(C);
     return Access & ADDR_SPACE_CAST_PRIVATE_TO_FLAT;
   }
 
 private:
   /// Used to determine if the Constant needs the queue pointer.
-  DenseMap<const Constant *, uint8_t> ConstantStatus;
+  DenseMap<const Constant *, std::optional<uint8_t>> ConstantStatus;
   const unsigned CodeObjectVersion;
 };
 
@@ -766,32 +780,7 @@ private:
       }
     }
 
-    // Finally check callees.
-
-    // This is called on each callee; false means callee shouldn't have
-    // no-flat-scratch-init.
-    auto CheckForNoFlatScratchInit = [&](Instruction &I) {
-      const auto &CB = cast<CallBase>(I);
-      const Function *Callee = CB.getCalledFunction();
-
-      // Callee == 0 for inline asm or indirect call with known callees.
-      // In the latter case, updateImpl() already checked the callees and we
-      // know their FLAT_SCRATCH_INIT bit is set.
-      // If function has indirect call with unknown callees, the bit is
-      // already removed in updateImpl() and execution won't reach here.
-      if (!Callee)
-        return true;
-
-      return Callee->getIntrinsicID() !=
-             Intrinsic::amdgcn_addrspacecast_nonnull;
-    };
-
-    UsedAssumedInformation = false;
-    // If any callee is false (i.e. need FlatScratchInit),
-    // checkForAllCallLikeInstructions returns false, in which case this
-    // function returns true.
-    return !A.checkForAllCallLikeInstructions(CheckForNoFlatScratchInit, *this,
-                                              UsedAssumedInformation);
+    return false;
   }
 };
 
@@ -1010,9 +999,8 @@ struct AAAMDMaxNumWorkgroups
 
   void initialize(Attributor &A) override {
     Function *F = getAssociatedFunction();
-    auto &InfoCache = static_cast<AMDGPUInformationCache &>(A.getInfoCache());
 
-    SmallVector<unsigned> MaxNumWorkgroups = InfoCache.getMaxNumWorkGroups(*F);
+    SmallVector<unsigned> MaxNumWorkgroups = AMDGPU::getMaxNumWorkGroups(*F);
 
     X.takeKnownMinimum(MaxNumWorkgroups[0]);
     Y.takeKnownMinimum(MaxNumWorkgroups[1]);
@@ -1295,8 +1283,13 @@ struct AAAMDGPUMinAGPRAlloc
     auto [MinNumAGPR, MaxNumAGPR] =
         AMDGPU::getIntegerPairAttribute(*F, "amdgpu-agpr-alloc", {~0u, ~0u},
                                         /*OnlyFirstRequired=*/true);
-    if (MinNumAGPR == 0)
+    if (MinNumAGPR == 0) {
       indicateOptimisticFixpoint();
+      return;
+    }
+
+    if (hasSanitizerAttributes(*F))
+      indicatePessimisticFixpoint();
   }
 
   const std::string getAsStr(Attributor *A) const override {

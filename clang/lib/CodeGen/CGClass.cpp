@@ -26,9 +26,11 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/CodeGenUtils/CodeGenUtils.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/SaveAndRestore.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 #include <optional>
 
@@ -1228,11 +1230,6 @@ public:
 
 } // end anonymous namespace
 
-static bool isInitializerOfDynamicClass(const CXXCtorInitializer *BaseInit) {
-  const Type *BaseType = BaseInit->getBaseClass();
-  return BaseType->castAsCXXRecordDecl()->isDynamicClass();
-}
-
 /// EmitCtorPrologue - This routine generates necessary code to initialize
 /// base classes and non-static data members belonging to this constructor.
 void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
@@ -1291,7 +1288,7 @@ void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
       SaveAndRestore ThisRAII(CXXThisValue);
       if (CGM.getCodeGenOpts().StrictVTablePointers &&
           CGM.getCodeGenOpts().OptimizationLevel > 0 &&
-          isInitializerOfDynamicClass(Initializer))
+          CodeGenUtils::isInitializerOfDynamicClass(Initializer))
         CXXThisValue = Builder.CreateLaunderInvariantGroup(LoadCXXThis());
       EmitBaseInitializer(*this, ClassDecl, Initializer);
     }
@@ -1309,7 +1306,7 @@ void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
     SaveAndRestore ThisRAII(CXXThisValue);
     if (CGM.getCodeGenOpts().StrictVTablePointers &&
         CGM.getCodeGenOpts().OptimizationLevel > 0 &&
-        isInitializerOfDynamicClass(Initializer))
+        CodeGenUtils::isInitializerOfDynamicClass(Initializer))
       CXXThisValue = Builder.CreateLaunderInvariantGroup(LoadCXXThis());
     EmitBaseInitializer(*this, ClassDecl, Initializer);
   }
@@ -1327,87 +1324,6 @@ void CodeGenFunction::EmitCtorPrologue(const CXXConstructorDecl *CD,
   }
 
   CM.finish();
-}
-
-static bool FieldHasTrivialDestructorBody(ASTContext &Context,
-                                          const FieldDecl *Field);
-
-static bool
-HasTrivialDestructorBody(ASTContext &Context,
-                         const CXXRecordDecl *BaseClassDecl,
-                         const CXXRecordDecl *MostDerivedClassDecl) {
-  // If the destructor is trivial we don't have to check anything else.
-  if (BaseClassDecl->hasTrivialDestructor())
-    return true;
-
-  if (!BaseClassDecl->getDestructor()->hasTrivialBody())
-    return false;
-
-  // Check fields.
-  for (const auto *Field : BaseClassDecl->fields())
-    if (!FieldHasTrivialDestructorBody(Context, Field))
-      return false;
-
-  // Check non-virtual bases.
-  for (const auto &I : BaseClassDecl->bases()) {
-    if (I.isVirtual())
-      continue;
-
-    const auto *NonVirtualBase = I.getType()->castAsCXXRecordDecl();
-    if (!HasTrivialDestructorBody(Context, NonVirtualBase,
-                                  MostDerivedClassDecl))
-      return false;
-  }
-
-  if (BaseClassDecl == MostDerivedClassDecl) {
-    // Check virtual bases.
-    for (const auto &I : BaseClassDecl->vbases()) {
-      const auto *VirtualBase = I.getType()->castAsCXXRecordDecl();
-      if (!HasTrivialDestructorBody(Context, VirtualBase, MostDerivedClassDecl))
-        return false;
-    }
-  }
-
-  return true;
-}
-
-static bool FieldHasTrivialDestructorBody(ASTContext &Context,
-                                          const FieldDecl *Field) {
-  QualType FieldBaseElementType = Context.getBaseElementType(Field->getType());
-
-  auto *FieldClassDecl = FieldBaseElementType->getAsCXXRecordDecl();
-  if (!FieldClassDecl)
-    return true;
-
-  // The destructor for an implicit anonymous union member is never invoked.
-  if (FieldClassDecl->isUnion() && FieldClassDecl->isAnonymousStructOrUnion())
-    return true;
-
-  return HasTrivialDestructorBody(Context, FieldClassDecl, FieldClassDecl);
-}
-
-/// CanSkipVTablePointerInitialization - Check whether we need to initialize
-/// any vtable pointers before calling this destructor.
-static bool CanSkipVTablePointerInitialization(CodeGenFunction &CGF,
-                                               const CXXDestructorDecl *Dtor) {
-  const CXXRecordDecl *ClassDecl = Dtor->getParent();
-  if (!ClassDecl->isDynamicClass())
-    return true;
-
-  // For a final class, the vtable pointer is known to already point to the
-  // class's vtable.
-  if (ClassDecl->isEffectivelyFinal())
-    return true;
-
-  if (!Dtor->hasTrivialBody())
-    return false;
-
-  // Check the fields.
-  for (const auto *Field : ClassDecl->fields())
-    if (!FieldHasTrivialDestructorBody(CGF.getContext(), Field))
-      return false;
-
-  return true;
 }
 
 static void EmitConditionalArrayDtorCall(const CXXDestructorDecl *DD,
@@ -1493,17 +1409,23 @@ static void EmitConditionalArrayDtorCall(const CXXDestructorDecl *DD,
       CGF.EmitBranchThroughCleanup(CGF.ReturnBlock);
 
       CGF.EmitBlock(GlobDelete);
+      // Use __global_delete wrapper instead of directly calling
+      // ::operator delete to match MSVC's behavior. See the doc comment on
+      // getOrCreateMSVCGlobalDeleteWrapper for details.
+      llvm::Constant *GlobalDeleteWrapper =
+          CGF.CGM.getOrCreateMSVCGlobalDeleteWrapper(
+              Dtor->getGlobalArrayOperatorDelete());
+      // For dllexport classes, emit forwarding bodies since the dtor is
+      // exported and another TU may not provide the forwarding body.
+      if (Dtor->hasAttr<DLLExportAttr>())
+        CGF.CGM.noteDirectGlobalDelete();
       CGF.EmitDeleteCall(Dtor->getGlobalArrayOperatorDelete(), allocatedPtr,
                          CGF.getContext().getCanonicalTagType(ClassDecl),
-                         numElements, cookieSize);
+                         numElements, cookieSize, GlobalDeleteWrapper);
     }
   } else {
     // No operators delete[] were found, so emit a trap.
-    llvm::CallInst *TrapCall = CGF.EmitTrapCall(llvm::Intrinsic::trap);
-    TrapCall->setDoesNotReturn();
-    TrapCall->setDoesNotThrow();
-    CGF.Builder.CreateUnreachable();
-    CGF.Builder.ClearInsertionPoint();
+    CGF.EmitTrapCallAndMakeUnreachable();
   }
 
   CGF.EmitBranchThroughCleanup(CGF.ReturnBlock);
@@ -1521,11 +1443,7 @@ void CodeGenFunction::EmitDestructorBody(FunctionArgList &Args) {
   // in fact emit references to them from other compilations, so emit them
   // as functions containing a trap instruction.
   if (DtorType != Dtor_Base && Dtor->getParent()->isAbstract()) {
-    llvm::CallInst *TrapCall = EmitTrapCall(llvm::Intrinsic::trap);
-    TrapCall->setDoesNotReturn();
-    TrapCall->setDoesNotThrow();
-    Builder.CreateUnreachable();
-    Builder.ClearInsertionPoint();
+    EmitTrapCallAndMakeUnreachable();
     return;
   }
 
@@ -1601,7 +1519,7 @@ void CodeGenFunction::EmitDestructorBody(FunctionArgList &Args) {
     EnterDtorCleanups(Dtor, Dtor_Base);
 
     // Initialize the vtable pointers before entering the body.
-    if (!CanSkipVTablePointerInitialization(*this, Dtor)) {
+    if (!CodeGenUtils::canSkipVTablePointerInitialization(getContext(), Dtor)) {
       // Insert the llvm.launder.invariant.group intrinsic before initializing
       // the vptrs to cancel any previous assumptions we might have made.
       if (CGM.getCodeGenOpts().StrictVTablePointers &&
@@ -1722,9 +1640,12 @@ void EmitConditionalDtorDeleteCall(CodeGenFunction &CGF,
   CGF.Builder.CreateCondBr(ShouldCallDelete, continueBB, callDeleteBB);
 
   CGF.EmitBlock(callDeleteBB);
-  auto EmitDeleteAndGoToEnd = [&](const FunctionDecl *DeleteOp) {
+  auto EmitDeleteAndGoToEnd = [&](const FunctionDecl *DeleteOp,
+                                  llvm::Constant *CalleeOverride = nullptr) {
     CGF.EmitDeleteCall(DeleteOp, LoadThisForDtorDelete(CGF, Dtor),
-                       Context.getCanonicalTagType(ClassDecl));
+                       Context.getCanonicalTagType(ClassDecl),
+                       /*NumElements=*/nullptr, /*CookieSize=*/CharUnits(),
+                       CalleeOverride);
     if (ReturnAfterDelete)
       CGF.EmitBranchThroughCleanup(CGF.ReturnBlock);
     else
@@ -1748,7 +1669,16 @@ void EmitConditionalDtorDeleteCall(CodeGenFunction &CGF,
     CGF.Builder.CreateCondBr(ShouldCallGlobDelete, ClassDelete, GlobDelete);
     CGF.EmitBlock(GlobDelete);
 
-    EmitDeleteAndGoToEnd(GlobOD);
+    // Use __global_delete wrapper instead of directly calling
+    // ::operator delete to match MSVC's behavior. See the doc comment on
+    // getOrCreateMSVCGlobalDeleteWrapper for details.
+    llvm::Constant *GlobalDeleteWrapper =
+        CGF.CGM.getOrCreateMSVCGlobalDeleteWrapper(GlobOD);
+    // For dllexport classes, emit forwarding bodies since the dtor is
+    // exported and another TU may not provide the forwarding body.
+    if (Dtor->hasAttr<DLLExportAttr>())
+      CGF.CGM.noteDirectGlobalDelete();
+    EmitDeleteAndGoToEnd(GlobOD, GlobalDeleteWrapper);
     CGF.EmitBlock(ClassDelete);
   }
   EmitDeleteAndGoToEnd(OD);
@@ -1797,7 +1727,7 @@ public:
 
 class DeclAsInlineDebugLocation {
   CGDebugInfo *DI;
-  llvm::MDNode *InlinedAt;
+  llvm::DILocation *InlinedAt;
   std::optional<ApplyDebugLocation> Location;
 
 public:
@@ -1959,7 +1889,7 @@ public:
     if (isEmptyFieldForLayout(Context, Field))
       return;
     unsigned FieldIndex = Field->getFieldIndex();
-    if (FieldHasTrivialDestructorBody(Context, Field)) {
+    if (CodeGenUtils::fieldHasTrivialDestructorBody(Context, Field)) {
       if (!StartIndex)
         StartIndex = FieldIndex;
     } else if (StartIndex) {
@@ -2283,7 +2213,7 @@ void CodeGenFunction::EmitCXXConstructorCall(
     assert(E->getNumArgs() == 1 && "unexpected argcount for trivial ctor");
 
     const Expr *Arg = E->getArg(0);
-    LValue Src = EmitLValue(Arg);
+    LValue Src = EmitCheckedLValue(Arg, TCK_Load);
     CanQualType DestTy = getContext().getCanonicalTagType(D->getParent());
     LValue Dest = MakeAddrLValue(This, DestTy);
     EmitAggregateCopyCtor(Dest, Src, ThisAVS.mayOverlap());
@@ -2317,8 +2247,8 @@ static bool canEmitDelegateCallArgs(CodeGenFunction &CGF,
         return false;
 
     // Likewise if they're inalloca.
-    const CGFunctionInfo &Info =
-        CGF.CGM.getTypes().arrangeCXXConstructorCall(Args, Ctor, Type, 0, 0);
+    const CGFunctionInfo &Info = CGF.CGM.getTypes().arrangeCXXConstructorCall(
+        Args, Ctor, Type, 0, 0, CGF.getCurrentFunctionDecl());
     if (Info.usesInAlloca())
       return false;
   }
@@ -2378,7 +2308,8 @@ void CodeGenFunction::EmitCXXConstructorCall(
   // Emit the call.
   llvm::Constant *CalleePtr = CGM.getAddrOfCXXStructor(GlobalDecl(D, Type));
   const CGFunctionInfo &Info = CGM.getTypes().arrangeCXXConstructorCall(
-      Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix, PassPrototypeArgs);
+      Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix,
+      getCurrentFunctionDecl(), PassPrototypeArgs);
   CGCallee Callee = CGCallee::forDirect(CalleePtr, GlobalDecl(D, Type));
   EmitCall(Info, Callee, ReturnValueSlot(), Args, CallOrInvoke, false, Loc);
 
@@ -2711,11 +2642,6 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
   // Finally, store the address point. Use the same LLVM types as the field to
   // support optimization.
   unsigned GlobalsAS = CGM.getDataLayout().getDefaultGlobalsAddressSpace();
-  unsigned ProgAS = CGM.getDataLayout().getProgramAddressSpace();
-  llvm::Type *VTablePtrTy =
-      llvm::FunctionType::get(CGM.Int32Ty, /*isVarArg=*/true)
-          ->getPointerTo(ProgAS)
-          ->getPointerTo(GlobalsAS);
   llvm::Type *PtrTy = llvm::PointerType::get(CGM.getLLVMContext(), GlobalsAS);
   // vtable field is derived from `this` pointer, therefore they should be in
   // the same addr space. Note that this might not be LLVM address space 0.
@@ -2727,7 +2653,7 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
         EmitPointerAuthSign(*AuthenticationInfo, VTableAddressPoint);
 
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
-  TBAAAccessInfo TBAAInfo = CGM.getTBAAVTablePtrAccessInfo(VTablePtrTy);
+  TBAAAccessInfo TBAAInfo = CGM.getTBAAVTablePtrAccessInfo(PtrTy);
   CGM.DecorateInstructionWithTBAA(Store, TBAAInfo);
   if (CGM.getCodeGenOpts().OptimizationLevel > 0 &&
       CGM.getCodeGenOpts().StrictVTablePointers)
@@ -3196,7 +3122,7 @@ void CodeGenFunction::EmitLambdaStaticInvokeBody(const CXXMethodDecl *MD) {
 
   CanQualType LambdaType = getContext().getCanonicalTagType(Lambda);
   CanQualType ThisType = getContext().getPointerType(LambdaType);
-  Address ThisPtr = CreateMemTemp(LambdaType, "unused.capture");
+  Address ThisPtr = CreateMemTempWithoutCast(LambdaType, "unused.capture");
   CallArgs.add(RValue::get(ThisPtr.emitRawPointer(*this)), ThisType);
 
   EmitLambdaDelegatingInvokeBody(MD, CallArgs);
@@ -3217,9 +3143,9 @@ void CodeGenFunction::EmitLambdaDelegatingInvokeBody(const CXXMethodDecl *MD,
     const TemplateArgumentList *TAL = MD->getTemplateSpecializationArgs();
     FunctionTemplateDecl *CallOpTemplate =
         CallOp->getDescribedFunctionTemplate();
-    void *InsertPos = nullptr;
+    llvm::FoldingSetInsertToken InsertToken;
     FunctionDecl *CorrespondingCallOpSpecialization =
-        CallOpTemplate->findSpecialization(TAL->asArray(), InsertPos);
+        CallOpTemplate->findSpecialization(TAL->asArray(), InsertToken);
     assert(CorrespondingCallOpSpecialization);
     CallOp = cast<CXXMethodDecl>(CorrespondingCallOpSpecialization);
   }
@@ -3271,7 +3197,7 @@ void CodeGenFunction::EmitLambdaInAllocaImplFn(
     ArgTypes.push_back(I->type);
   *ImplFnInfo = &CGM.getTypes().arrangeLLVMFunctionInfo(
       FnInfo.getReturnType(), FnInfoOpts::IsDelegateCall, ArgTypes,
-      FnInfo.getExtInfo(), {}, FnInfo.getRequiredArgs());
+      FnInfo.getExtInfo(), {}, FnInfo.getRequiredArgs(), CallOp);
 
   // Create mangled name as if this was a method named __impl. If for some
   // reason the name doesn't look as expected then just tack __impl to the

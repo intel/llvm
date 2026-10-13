@@ -370,6 +370,11 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
   std::cout << prefix;
+  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_IGCA_TARGET);
+  std::cout << prefix;
+  printDeviceInfo<ur_device_igca_feature_flags_t>(
+      hDevice, UR_DEVICE_INFO_IGCA_FEATURE_SET);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -467,6 +472,14 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
@@ -484,6 +497,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
   std::cout << prefix;

@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/ur.hpp>
 
 #include <memory>
 
@@ -64,10 +65,11 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
                             ? createCompileTimeKernelInfo(getName())
                             : createCompileTimeKernelInfo()) {
 
-  // Enable USM indirect access for interop and non-sycl-jit source kernels.
-  // sycl-jit kernels will enable this if needed through the regular kernel
-  // path.
-  if (MCreatedFromSource || MIsInterop)
+  // Enable USM indirect access for interop, SYCLBIN, and non-sycl-jit source
+  // kernels. sycl-jit kernels will enable this if needed through the regular
+  // kernel path.
+  if (MCreatedFromSource || MIsInterop ||
+      (MDeviceImageImpl->getOriginMask() & ImageOriginSYCLBIN))
     enableUSMIndirectAccess();
 }
 
@@ -116,10 +118,12 @@ bool kernel_impl::hasSYCLMetadata() const noexcept {
               sycl::ext::oneapi::experimental::source_language::sycl));
 }
 
-// TODO this is how kernel_impl::get_info<function_name> should behave instead.
 std::string_view kernel_impl::getName() const {
-  std::call_once(MNameInitFlag,
-                 [&]() { MName = get_info<info::kernel::function_name>(); });
+  std::call_once(MNameInitFlag, [&]() {
+    std::string Name = urGetInfoString<UrApiKind::urKernelGetInfo>(
+        *this, UR_KERNEL_INFO_FUNCTION_NAME);
+    MName = std::move(Name);
+  });
 
   return MName;
 }
@@ -138,7 +142,7 @@ bool kernel_impl::isBuiltInKernel(device_impl &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
     return false;
-  std::string KernelName = get_info<info::kernel::function_name>();
+  std::string_view KernelName = getName();
   return (std::any_of(
       BuiltInKernels.begin(), BuiltInKernels.end(),
       [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));

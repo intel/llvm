@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>

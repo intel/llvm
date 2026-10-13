@@ -9,6 +9,7 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
@@ -41,6 +42,10 @@ void event_impl::initContextIfNeeded() {
 
 event_impl::~event_impl() {
   try {
+    if (MIPCHandleData) {
+      getAdapter().call<UrApiKind::urIPCPutEventHandleExp>(
+          MContext->getHandleRef(), MIPCHandleData);
+    }
     auto Handle = this->getHandle();
     if (Handle)
       getAdapter().call<UrApiKind::urEventRelease>(Handle);
@@ -50,7 +55,23 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal(bool *Success) {
+  if (MState == HES_Discarded)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "waitInternal method cannot be used for a discarded event.");
+
   auto Handle = this->getHandle();
+  if (!MIsHostEvent && !Handle && MState != HES_Complete) {
+    // Enqueue deferred. Sleep until either the native handle appears (set by
+    // the eventual Cmd->enqueue via setHandle, which notifies cv) or the event
+    // is marked complete on its own.
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] {
+      return MState == HES_Complete || this->getHandle() != nullptr;
+    });
+    Handle = this->getHandle();
+  }
+
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
@@ -67,11 +88,6 @@ void event_impl::waitInternal(bool *Success) {
       if (Success != nullptr)
         *Success = true;
     }
-  } else if (MState == HES_Discarded) {
-    // Waiting for the discarded event is invalid
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
     std::unique_lock<std::mutex> lock(MMutex);
@@ -182,12 +198,115 @@ event_impl::event_impl(HostEventState State, private_tag) : MState(State) {
 
 void event_impl::setQueue(queue_impl &Queue) {
   MQueue = Queue.weak_from_this();
-  MIsProfilingEnabled = Queue.MIsProfilingEnabled;
+  // Inherit profiling from the queue only if not already enabled per-event,
+  // per-event profiling takes precedence over queue-level profiling.
+  MIsProfilingEnabled = MIsProfilingEnabled || Queue.MIsProfilingEnabled;
+}
 
-  // TODO After setting the queue, the event is no longer default
-  // constructed. Consider a design change which would allow
-  // for such a change regardless of the construction method.
+ur_event_handle_t event_impl::createDeviceUrEvent(device_impl &Device) {
+  assert(MContext && "createDeviceUrEvent requires a bound context");
+
+  ur_event_handle_t EventHandle = nullptr;
+  ur_exp_event_desc_t Desc = {};
+  Desc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_DESC;
+  if (MIsProfilingEnabled)
+    Desc.flags |= UR_EXP_EVENT_FLAG_ENABLE_PROFILING;
+  if (MIPCEnabled)
+    Desc.flags |= UR_EXP_EVENT_FLAG_IPC_EXP;
+
+  ur_exp_event_sync_mode_desc_t SyncDesc = {};
+  if (MLowPower) {
+    SyncDesc.stype = UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC;
+    SyncDesc.flags = UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    Desc.pNext = &SyncDesc;
+  }
+
+  ur_result_t Result =
+      getAdapter().call_nocheck<sycl::detail::UrApiKind::urEventCreateExp>(
+          MContext->getHandleRef(), Device.getHandleRef(), &Desc, &EventHandle);
+  if (Result != UR_RESULT_SUCCESS) {
+    throw sycl::exception(sycl::make_error_code(errc::runtime),
+                          "Failed to create an event.");
+  }
+  assert(EventHandle && "urEventCreateExp returned success with null event");
+  return EventHandle;
+}
+
+void event_impl::toDeviceEvent(queue_impl &Queue) {
+  assert(MIsDefaultConstructed);
+
+  initContextIfNeeded();
+
+  // get() may have already materialized the handle for an IPC event; reuse it.
+  if (getHandle() == nullptr)
+    setHandle(createDeviceUrEvent(Queue.getDeviceImpl()));
+
+  setQueue(Queue);
   MIsDefaultConstructed = false;
+}
+
+void event_impl::materializeIPCEvent() {
+  assert(MIPCEnabled && "materializeIPCEvent is only valid for IPC events");
+
+  if (getHandle() != nullptr)
+    return;
+
+  initContextIfNeeded();
+
+  // Any device in the context works; all support the IPC aspect.
+  device_impl &Device = MContext->getDevices().front();
+  setHandle(createDeviceUrEvent(Device));
+  // Leaves MIsDefaultConstructed set so a later signal still runs through
+  // getHandleReusable.
+}
+
+std::pair<void *, size_t> event_impl::getOrCreateIPCHandle() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  if (!MIPCHandleData) {
+    void *HandlePtr = nullptr;
+    size_t HandleSize = 0;
+    getAdapter().call<UrApiKind::urIPCGetEventHandleExp>(
+        getHandle(), &HandlePtr, &HandleSize);
+    MIPCHandleData = HandlePtr;
+    MIPCHandleDataSize = HandleSize;
+  }
+  return {MIPCHandleData, MIPCHandleDataSize};
+}
+
+ur_event_handle_t event_impl::getHandleReusable(queue_impl &Queue) {
+  initContextIfNeeded();
+
+  if (MContext->supportsReusableEvents()) {
+    if (MIsDefaultConstructed) {
+      // If the event was constructed (through make_event or a default
+      // constructor), but not enqueued for signaling yet, change the event
+      // state from default constructed to device event.
+      toDeviceEvent(Queue);
+    }
+  } else {
+    // IPC support implies reusable-event support.
+    assert(!MIPCEnabled &&
+           "IPC event on a context without reusable-events support");
+    // If the context does not support reusable events, then release the
+    // previous event and set the handle to nullptr, so UR can create a new
+    // event during command submission.
+    ur_event_handle_t CurrentHandle = getHandle();
+    if (CurrentHandle != nullptr) {
+      getAdapter().call<UrApiKind::urEventRelease>(CurrentHandle);
+      setHandle(nullptr);
+    }
+  }
+
+  return getHandle();
+}
+
+void event_impl::setHandleReusable(ur_event_handle_t Handle) {
+  // If reusable events are supported do nothing, as the UR handle is already
+  // set. If reusable events are not supported, set the handle of the new UR
+  // event.
+  if (!MContext->supportsReusableEvents()) {
+    setHandle(Handle);
+  }
 }
 
 void event_impl::initHostProfilingInfo() {
@@ -287,12 +406,23 @@ void event_impl::wait(bool *Success) {
 #endif
 
   auto EventHandle = getHandle();
+  bool ScanAuxiliaryResources = false;
   if (EventHandle)
     // presence of the native handle means the command has been enqueued, so no
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(*this, Success);
+    ScanAuxiliaryResources =
+        detail::Scheduler::getInstance().waitForEvent(*this, Success);
+
+  // Deferred resources are otherwise only released by later scheduler
+  // activity, i.e. possibly not before runtime shutdown. The check is
+  // lock-free so that wait() takes no lock when nothing is deferred.
+  auto SchedAccess = detail::GlobalHandler::getSchedulerAccess();
+  if (detail::Scheduler *Sched = SchedAccess.get()) {
+    if (Sched->hasDeferredResources())
+      Sched->releaseResourcesAfterWait(*this, ScanAuxiliaryResources);
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -317,7 +447,8 @@ void event_impl::checkProfilingPreconditions() const {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
         "Profiling information is unavailable as the queue associated with "
-        "the event does not have the 'enable_profiling' property.");
+        "the event does not have the 'enable_profiling' property or the "
+        "event was not created with the 'enable_profiling' property.");
   }
 }
 
@@ -326,9 +457,9 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (isProfilingTagEvent()) {
-    // For profiling tag events we rely on the submission time reported as
-    // the start time has undefined behavior.
-    return get_event_profiling_info<info::event_profiling::command_submit>(
+    // The empty tag command uses its completion timestamp for all three
+    // queries.
+    return get_event_profiling_info<info::event_profiling::command_end>(
         this->getHandle(), this->getAdapter());
   }
 
@@ -364,6 +495,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MIsHostEvent) {
     auto Handle = getHandle();
     if (Handle) {
+      if (isProfilingTagEvent())
+        return get_event_profiling_info<info::event_profiling::command_end>(
+            Handle, this->getAdapter());
       return get_event_profiling_info<info::event_profiling::command_start>(
           Handle, this->getAdapter());
     }
@@ -402,6 +536,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   return MHostProfilingInfo->getEndTime();
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
@@ -410,6 +545,7 @@ template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   }
   return 0;
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <>
 info::event_command_status
@@ -423,6 +559,15 @@ event_impl::get_info<info::event::command_execution_status>() {
     if (Handle)
       return get_event_info<info::event::command_execution_status>(
           Handle, this->getAdapter());
+    // Some commands complete without ever producing a native event (e.g. a
+    // barrier whose wait list turned out to be empty). Command::enqueue() marks
+    // such an event complete once it has been successfully enqueued, so trust
+    // that over the MCommand check below, which would otherwise keep reporting
+    // 'submitted' for an already finished command. A command that is still
+    // pending has not been completed that way and is still HES_NotComplete
+    // (makeEvent() sets that up), so this cannot mask unfinished work.
+    else if (MState.load() == HES_Complete)
+      return info::event_command_status::complete;
     // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
@@ -456,7 +601,7 @@ ur_native_handle_t event_impl::getNative() {
   ur_native_handle_t OutHandle;
   Adapter.call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
   if (MContext->getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
+    retainOpenCLEvent(OutHandle);
   return OutHandle;
 }
 
@@ -522,7 +667,8 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled && !MProfilingTagEvent)
+  // Tag events obtain command_submit from the adapter.
+  if (!MIsProfilingEnabled || MProfilingTagEvent)
     return;
 
   if (std::shared_ptr<queue_impl> Queue =

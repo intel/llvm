@@ -6,19 +6,19 @@
 // REQUIRES: system-linux
 
 // RUN: mkdir d e f && cp %s d/a.cpp && touch d/b.c
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o e/a.o 2>&1 | FileCheck %s --check-prefixes=SYCL-DEVICE-COMPILE,SYCL-HOST-COMPILE
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o e/a.o 2>&1 | FileCheck %s --check-prefixes=SYCL-DEVICE-COMPILE,SYCL-HOST-COMPILE
 // SYCL-DEVICE-COMPILE: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=e{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // SYCL-HOST-COMPILE: -cc1{{.*}} "-fsycl-is-host"{{.*}} "-ftime-trace=e{{/|\\\\}}a-host-x86_64-unknown-linux-gnu.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 
 // Verify that the Clang driver generates JSON time-trace output for compile-only
 // invocation and propagates the time-trace options, respecting the specified dump directory.
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=SYCL-DEVICE-DUMPDIR,SYCL-HOST-DUMPDIR
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=SYCL-DEVICE-DUMPDIR,SYCL-HOST-DUMPDIR
 // SYCL-DEVICE-DUMPDIR: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=f{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // SYCL-HOST-DUMPDIR: -cc1{{.*}} "-fsycl-is-host"{{.*}} "-ftime-trace=f{{/|\\\\}}a-host-x86_64-unknown-linux-gnu.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 
 // This test verifies that Clang driver correctly propagates time-trace related options
 // during a compile-and-link invocation and enables JSON time-trace output.
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o f/x -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=LINK-DEVICE,LINK-HOST
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -ftime-trace=e -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o f/x -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=LINK-DEVICE,LINK-HOST
 // LINK-DEVICE: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=e{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // LINK-HOST: -cc1{{.*}} "-fsycl-is-host"{{.*}} "-ftime-trace=e{{/|\\\\}}a-host-x86_64-unknown-linux-gnu.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 
@@ -45,12 +45,12 @@
 
 // Verify time tracing works with -fsycl-device-only (new driver model)
 // This test verifies device-only compilation generates the correct time-trace file
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-device-only -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o e/a.o 2>&1 | FileCheck %s --check-prefixes=DEVICE-ONLY-COMPILE
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-only -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -o e/a.o 2>&1 | FileCheck %s --check-prefixes=DEVICE-ONLY-COMPILE
 // DEVICE-ONLY-COMPILE: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=e{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // DEVICE-ONLY-COMPILE-NOT: "-fsycl-is-host"
 
 // Verify device-only compilation with -dumpdir (new driver model)
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-device-only -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=DEVICE-ONLY-DUMPDIR
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-only -c -ftime-trace -ftime-trace-granularity=0 -ftime-trace-verbose d/a.cpp -dumpdir f/ 2>&1 | FileCheck %s --check-prefixes=DEVICE-ONLY-DUMPDIR
 // DEVICE-ONLY-DUMPDIR: -cc1{{.*}} "-fsycl-is-device"{{.*}} "-ftime-trace=f{{/|\\\\}}a-sycl-spir64-unknown-unknown.json" "-ftime-trace-granularity=0" "-ftime-trace-verbose"
 // DEVICE-ONLY-DUMPDIR-NOT: "-fsycl-is-host"
 

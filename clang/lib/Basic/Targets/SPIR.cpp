@@ -14,7 +14,7 @@
 #include "AMDGPU.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/TargetBuiltins.h"
-#include "llvm/TargetParser/TargetParser.h"
+#include "llvm/TargetParser/AMDGPUTargetParser.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -89,6 +89,8 @@ void BaseSPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,
   DefineStd(Builder, "SPIRV", Opts);
   if (Opts.HLSL)
     DefineStd(Builder, "spirv", Opts);
+  if (getTriple().isVulkanOS())
+    Builder.defineMacro("__VULKAN__");
 }
 
 void SPIRVTargetInfo::getTargetDefines(const LangOptions &Opts,
@@ -108,7 +110,26 @@ void SPIRV64TargetInfo::getTargetDefines(const LangOptions &Opts,
   DefineStd(Builder, "SPIRV64", Opts);
 }
 
-static const AMDGPUTargetInfo AMDGPUTI(llvm::Triple("amdgcn-amd-amdhsa"), {});
+bool BaseSPIRTargetInfo::initFeatureMap(
+    llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags, StringRef CPU,
+    const std::vector<std::string> &FeaturesVec) const {
+  // When the host predefines _M_X64, MSVC STL headers use always_inline _mm_*
+  // intrinsics, which require sse/sse2 in the device feature set.
+  if (const TargetInfo *Host = getHostTarget()) {
+    const llvm::Triple &HT = Host->getTriple();
+    if (HT.isWindowsMSVCEnvironment() &&
+        (HT.getArch() == llvm::Triple::x86_64 || HT.isWindowsArm64EC())) {
+      Features["sse"] = true;
+      Features["sse2"] = true;
+    }
+  }
+  return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+}
+
+static const AMDGPUTargetInfo
+    AMDGPUTI(llvm::Triple(llvm::Triple::amdgpu, llvm::Triple::NoSubArch,
+                          llvm::Triple::AMD, llvm::Triple::AMDHSA),
+             {});
 
 ArrayRef<const char *> SPIRV64AMDGCNTargetInfo::getGCCRegNames() const {
   return AMDGPUTI.getGCCRegNames();
@@ -145,6 +166,9 @@ void SPIRV64AMDGCNTargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__AMD__");
   Builder.defineMacro("__AMDGPU__");
   Builder.defineMacro("__AMDGCN__");
+
+  if (Opts.AtomicIgnoreDenormalMode)
+    Builder.defineMacro("__AMDGCN_UNSAFE_FP_ATOMICS__");
 }
 
 void SPIRV64AMDGCNTargetInfo::setAuxTarget(const TargetInfo *Aux) {

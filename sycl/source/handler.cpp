@@ -35,7 +35,6 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
@@ -236,6 +235,12 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   UrDesc.height = ImgDesc.height;
   UrDesc.depth = ImgDesc.depth;
   UrDesc.arraySize = ImgDesc.array_size;
+
+  UrDesc.rowPitch = ImgDesc.row_pitch;
+  UrDesc.slicePitch = ImgDesc.slice_pitch;
+  UrDesc.numSamples = ImgDesc.num_samples;
+  UrDesc.numMipLevel = ImgDesc.num_levels;
+
   return UrDesc;
 }
 
@@ -305,8 +310,12 @@ static void fill_copy_args(
     impl->MDstImageDesc.depth = DestExtent[2];
   }
 
-  impl->MSrcImageDesc.rowPitch = SrcPitch;
-  impl->MDstImageDesc.rowPitch = DestPitch;
+  // Explicit pitch arg wins when non-zero; otherwise keep the descriptor's
+  // row_pitch already set by fill_image_desc().
+  if (SrcPitch != 0)
+    impl->MSrcImageDesc.rowPitch = SrcPitch;
+  if (DestPitch != 0)
+    impl->MDstImageDesc.rowPitch = DestPitch;
 }
 
 static void
@@ -320,8 +329,35 @@ fill_copy_args(detail::handler_impl *impl,
                sycl::range<3> DestExtent = {0, 0, 0},
                sycl::range<3> CopyExtent = {0, 0, 0}) {
 
-  size_t SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
-  size_t DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+  // The UR adapters interpret pSrcImageDesc->rowPitch / pDstImageDesc->rowPitch
+  // as the row stride of whichever side is host/USM memory (see e.g.
+  // unified-runtime/source/adapters/level_zero/image_common.cpp). Host memory
+  // is always tightly packed, so for MEM_TO_IMAGE / IMAGE_TO_MEM we must not
+  // let the image descriptor's row_pitch (a device stride) reach the memory
+  // side. Derive the host pitch from the caller-supplied extent when present,
+  // otherwise from the descriptor width.
+  auto TightHostPitch = [&](sycl::range<3> Extent) {
+    size_t W = Extent[0] != 0 ? Extent[0] : Desc.width;
+    return W * Desc.num_channels * get_channel_size(Desc);
+  };
+
+  size_t SrcPitch = 0;
+  size_t DestPitch = 0;
+  switch (ImageCopyInputTypes) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE:
+    SrcPitch = TightHostPitch(SrcExtent);
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM:
+    DestPitch = TightHostPitch(DestExtent);
+    break;
+  default:
+    // MEM_TO_MEM and IMAGE_TO_IMAGE do not reach this overload from the
+    // handler; preserve the pre-existing extent-driven derivation as a
+    // safe fallback.
+    SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
+    DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
+    break;
+  }
 
   fill_copy_args(impl, Desc, Desc, ImageCopyFlags, ImageCopyInputTypes,
                  SrcPitch, DestPitch, SrcOffset, SrcExtent, DestOffset,
@@ -363,6 +399,26 @@ fill_copy_args(detail::handler_impl *impl,
   fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
                  ImageCopyInputTypes, SrcPitch, DestPitch, SrcOffset, SrcExtent,
                  DestOffset, DestExtent, CopyExtent);
+}
+
+static std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+getNativeGraphImpl(queue_impl &Queue) {
+  ur_exp_graph_handle_t UrGraphHandle = nullptr;
+  Queue.getAdapter().call<UrApiKind::urQueueGetGraphExp>(Queue.getHandleRef(),
+                                                         &UrGraphHandle);
+  return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
+}
+
+bool handler_impl::canBypassScheduler() {
+  queue_impl *Queue = get_queue_or_null();
+  // Streams need no separate check: the accessors they create are requirements.
+  // TODO checking the size of the events vector and avoiding the call is more
+  // efficient here at this point
+  return Queue && !get_graph_or_null() && !MSubgraphNode &&
+         !Queue->hasCommandGraph() && CGData.MRequirements.empty() &&
+         (CGData.MEvents.empty() ||
+          Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                     Queue->getContextImpl()));
 }
 
 } // namespace detail
@@ -426,22 +482,13 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
 detail::EventImplPtr handler::finalize() {
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
-  ext::oneapi::experimental::detail::graph_impl *Graph =
-      impl->get_graph_or_null();
 
-  // TODO checking the size of the events vector and avoiding the call is more
-  // efficient here at this point
-  const bool KernelSchedulerBypass =
-      (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
-       !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
-       (impl->CGData.MEvents.size() == 0 ||
-        detail::Scheduler::areEventsSafeForSchedulerBypass(
-            impl->CGData.MEvents, Queue->getContextImpl())));
+  const bool SchedulerBypass = impl->canBypassScheduler();
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
-      (!KernelSchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
+      (!SchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
     impl->MKernelData.extractArgsAndReqsFromLambda();
   }
 
@@ -490,7 +537,12 @@ detail::EventImplPtr handler::finalize() {
           &detail::ProgramManager::getInstance().getDeviceKernelInfo(
               std::string_view(MKernelName)));
     }
-    assert(impl->MKernelData.getKernelName() == MKernelName);
+    // Free function kernels set the DeviceKernelInfo pointer directly (via
+    // setFreeFunctionKernelInfoRT) and intentionally leave MKernelName unset -
+    // the name is read from the pointer. Only check the invariant when
+    // MKernelName was populated (classic / kernel-object paths).
+    assert(std::string_view(MKernelName).empty() ||
+           impl->MKernelData.getKernelName() == MKernelName);
     if (!impl->MHasWorkGroupScratchSizeProperty &&
         impl->MKernelData.getDeviceKernelInfoPtr()
             ->getWorkGroupDynamicLocalMem())
@@ -560,7 +612,7 @@ detail::EventImplPtr handler::finalize() {
       }
     }
 
-    if (KernelSchedulerBypass) {
+    if (SchedulerBypass) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -572,6 +624,19 @@ detail::EventImplPtr handler::finalize() {
               MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
       return ResultEvent;
     }
+  }
+
+  // Asynchronous allocations and frees are single backend commands without any
+  // requirements, so they can bypass the scheduler as well. Note that the
+  // allocation itself has already been enqueued by async_malloc, because the
+  // pointer had to be returned to the user immediately.
+  if (SchedulerBypass) {
+    if (type == detail::CGType::AsyncAlloc)
+      return impl->get_queue().submit_async_alloc_scheduler_bypass(
+          impl->MAsyncAllocEvent, impl->CGData.MEvents, impl->MEventNeeded);
+    if (type == detail::CGType::AsyncFree)
+      return impl->get_queue().submit_async_free_scheduler_bypass(
+          impl->MFreePtr, impl->CGData.MEvents, impl->MEventNeeded);
   }
 
   std::unique_ptr<detail::CG> CommandGroup;
@@ -639,7 +704,8 @@ detail::EventImplPtr handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::EnqueueNativeCommand:
-  case detail::CGType::CodeplayHostTask: {
+  case detail::CGType::CodeplayHostTask:
+  case detail::CGType::NativeHostTask: {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
     CommandGroup.reset(
@@ -764,12 +830,31 @@ detail::EventImplPtr handler::finalize() {
   // Because command graph case is handled right above.
   assert(Queue);
 
-  // Native graph recording limitation
   if (type == detail::CGType::CodeplayHostTask && Queue->isNativeRecording()) {
-    throw sycl::exception(
-        make_error_code(errc::feature_not_supported),
-        "SYCL host_task is not supported in native recording mode. Use "
-        "zeCommandListAppendHostFunction as a workaround.");
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Only restricted host tasks may be captured in "
+                          "native recording mode. The restricted host tasks "
+                          "API needs to be used and support in the backend "
+                          "required on this device.");
+  }
+
+  // Host tasks in native recording mode are captured into the native graph
+  // rather than submitted to the scheduler.
+  if (type == detail::CGType::NativeHostTask && Queue->isNativeRecording()) {
+    auto GraphImpl = detail::getNativeGraphImpl(*Queue);
+    assert(GraphImpl && "Native graph handle expired while recording");
+
+    auto *HT = static_cast<detail::CGHostTask *>(CommandGroup.get());
+    // Store callback in the graph to manage its lifetime
+    auto *CallbackData = GraphImpl->addNativeHostTaskCallback(
+        std::make_unique<detail::EnqueueHostTaskData>(
+            detail::HandlerAccess::getHostTaskFunc(*HT->MHostTask)));
+
+    Queue->getAdapter().call<detail::UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<false>, CallbackData,
+        nullptr, 0, nullptr, nullptr);
+
+    return detail::event_impl::create_completed_host_event();
   }
   if (!CommandGroup->getRequirements().empty() && Queue->isNativeRecording()) {
     throw sycl::exception(
@@ -796,7 +881,7 @@ detail::EventImplPtr handler::finalize() {
   // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
       (type != detail::CGType::Kernel &&
-       type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
+       type != detail::CGType::CodeplayHostTask && SchedulerBypass &&
        !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -811,12 +896,26 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  // Like a dependency, a requirement added after an async alloc, which has
+  // already been enqueued, would have no effect, so it is disallowed.
+  if (getType() == detail::CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot add a requirement after an asynchronous "
+                          "allocation has already been executed!");
+  }
   if (getCommandGraph() &&
       static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
           ->needsWriteBack()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Accessors to buffers which have write_back enabled "
                           "are not allowed to be used in command graphs.");
+  }
+  // Check if the accessor is already associated.
+  if (auto Exists = std::find(impl->CGData.MAccStorage.begin(),
+                              impl->CGData.MAccStorage.end(), AccImpl);
+      Exists != impl->CGData.MAccStorage.end()) {
+    // No need to repeat the association.
+    return;
   }
   detail::Requirement *Req = AccImpl.get();
   if (Req->MAccessMode != sycl::access_mode::read) {
@@ -871,6 +970,11 @@ void handler::extractArgsAndReqs() {
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
+void handler::extractFreeFunctionArgsAndReqs() {
+  assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
+  impl->MKernelData.extractArgsAndReqs(/*IsKernelCreatedFromSource=*/false);
+}
+
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
@@ -900,7 +1004,7 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
     if (EventImpl->isHost()) {
       depends_on(EventImpl);
     }
-    impl->MEventsWaitWithBarrier.push_back(EventImpl);
+    impl->MEventsWaitWithBarrier.push_back(std::move(EventImpl));
   }
 }
 
@@ -1484,10 +1588,19 @@ void handler::depends_on(const std::vector<event> &Events) {
 }
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  // Async alloc calls the adapter immediately, when the command group function
+  // is executed. Any explicit/implicit dependencies are handled at that point,
+  // including in order queue deps. Adding a dependency afterwards would have no
+  // effect, so it is explicitly disallowed.
+  if (EventImpl && getType() == detail::CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot submit a dependency after an asynchronous "
+                          "allocation has already been executed!");
+  }
+
   registerEventDependency(EventImpl, impl->CGData.MEvents,
                           impl->get_queue_or_null(), impl->get_context(),
-                          impl->get_device(), getCommandGraph().get(),
-                          getType());
+                          impl->get_device(), getCommandGraph().get());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
@@ -1686,9 +1799,23 @@ void handler::SetHostTask(std::function<void()> Func) {
 void handler::SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func) {
   range<1> r(1);
   setNDRangeDescriptor(detail::nd_range_view(r));
-  impl->MHostTask.reset(
-      new detail::HostTask(std::move(Func), /*IsFromExtEnqueueFunctionsAPI=*/
-                           true));
+  impl->MHostTask.reset(new detail::HostTask(std::move(Func)));
+
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  if (Queue) {
+    detail::adapter_impl &Adapter = getContextImpl().getAdapter();
+    ur_bool_t NativeHostTaskSupport = false;
+
+    const ur_result_t Res = Adapter.call_nocheck<UrApiKind::urDeviceGetInfo>(
+        detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
+        UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
+        sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
+    if (Res == UR_RESULT_SUCCESS && NativeHostTaskSupport) {
+      setType(detail::CGType::NativeHostTask);
+      return;
+    }
+  }
+
   setType(detail::CGType::CodeplayHostTask);
 }
 

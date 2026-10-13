@@ -9,13 +9,12 @@
 #pragma once
 
 #include <sycl/access/access.hpp> // for mode, placeholder, target
-#include <sycl/buffer.hpp>        // for range
 #include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/id.hpp>
+#include <sycl/range.hpp> // for range
 
-#include <cstddef>  // for size_t
+#include <cstddef>  // for size_t, ptrdiff_t
 #include <iterator> // for random_access_iterator_tag
-#include <ostream>  // for operator<<, ostream, ptrdiff_t
 
 /// \file accessor_iterator.hpp
 /// The file contains implementation of accessor iterator class.
@@ -320,26 +319,6 @@ private:
     It.MLinearId = It.MEnd;
     return It;
   }
-
-public:
-#ifndef NDEBUG
-  // Could be useful for debugging, but not a part of the official API,
-  // therefore only available in builds with assertions enabled.
-  friend std::ostream &operator<<(std::ostream &os,
-                                  const accessor_iterator &it) {
-    os << "accessor_iterator {\n";
-    os << "\tMLinearId: " << it.MLinearId << "\n";
-    os << "\tMEnd: " << it.MEnd << "\n";
-    os << "\tMStaticOffset: " << it.MStaticOffset << "\n";
-    os << "\tMPerRowOffset: " << it.MPerRowOffset << "\n";
-    os << "\tMPerSliceOffset: " << it.MPerSliceOffset << "\n";
-    os << "\tMRowSize: " << it.MRowSize << "\n";
-    os << "\tMSliceSize: " << it.MSliceSize << "\n";
-    os << "\tMAccessorIsRanged: " << it.MAccessorIsRanged << "\n";
-    os << "}";
-    return os;
-  }
-#endif // NDEBUG
 };
 } // namespace detail
 } // namespace _V1

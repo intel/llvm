@@ -44,7 +44,8 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
     target_compile_definitions(${test_dirname}
-                               PRIVATE __SYCL_BUILD_SYCL_DLL)
+                               PRIVATE __SYCL_BUILD_SYCL_DLL
+                               $<$<BOOL:${UR_STATIC_LOADER}>:SYCL_UR_STATIC_LOADER>)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
@@ -147,8 +148,13 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
     target_compile_options(${test_dirname}
       PRIVATE
         -Wno-unused-parameter
-        -Wno-inconsistent-missing-override
     )
+    if (SYCL_CXX_SUPPORTS_INCONSISTENT_MISSING_OVERRIDE_FLAG)
+      target_compile_options(${test_dirname}
+        PRIVATE
+          -Wno-inconsistent-missing-override
+      )
+    endif()
   endif()
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 endfunction()

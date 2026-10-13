@@ -3,6 +3,7 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
 // RUN: %{run-unfiltered-devices} %t.out
 
+#include <CL/cl.h>
 #include <cassert>
 #include <exception>
 #include <sycl/detail/core.hpp>

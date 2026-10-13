@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <ostream>
 #include <string>
 #include <vector>
 
@@ -28,6 +27,9 @@ inline namespace _V1 {
 class device;
 
 namespace detail {
+
+class device_impl;
+class device_image_impl;
 
 // Representation of a SYCLBIN binary object. This is intended for use as an
 // image inside a OffloadBinary.
@@ -69,6 +71,108 @@ public:
   uint32_t Version;
   std::unique_ptr<PropertySetRegistry> GlobalMetadata;
   std::vector<AbstractModule> AbstractModules;
+
+  // Description of a single image to be packed into a SYCLBIN. Unlike the
+  // LLVMObject SYCLBIN writer (which reads bytes from files on disk), the
+  // runtime serializer always operates on in-memory bytes since kernel_bundles
+  // hold their device images in memory.
+  //
+  // Lifetime contract: SYCLBINDesc and the ImageDesc instances it owns are
+  // intended for **synchronous use** with SYCLBIN::write. The Bytes view
+  // borrows from external storage (typically RTDeviceBinaryImage payloads
+  // owned by the program manager / SYCLBINBinaries / DynRTDeviceBinaryImage)
+  // and must remain valid until SYCLBIN::write returns. Do not store a
+  // SYCLBINDesc beyond the call.
+  struct ImageDesc {
+    // Per-image metadata (e.g. the IR/native image property set, plus any
+    // forwarded property sets from the originating RTDeviceBinaryImage).
+    std::string Metadata;
+    // Raw image payload bytes. Non-owning view; see the lifetime contract on
+    // SYCLBINDesc above.
+    std::string_view Bytes;
+  };
+
+  // Description of a single abstract module: per-module metadata plus the
+  // collection of IR and native images it groups together.
+  struct AbstractModuleDesc {
+    std::string Metadata;
+    std::vector<ImageDesc> IRModules;
+    std::vector<ImageDesc> NativeDeviceCodeImages;
+  };
+
+  // Description of a full SYCLBIN-to-be: a global metadata blob plus all the
+  // abstract modules.
+  struct SYCLBINDesc {
+    std::string GlobalMetadata;
+    std::vector<AbstractModuleDesc> AbstractModules;
+  };
+
+  // Serialize \p Desc into a SYCLBIN binary blob. Throws sycl::exception on
+  // malformed input. \p Desc must outlive the call: ImageDesc::Bytes views are
+  // dereferenced during serialization (see SYCLBINDesc lifetime contract).
+  static std::vector<char> write(const SYCLBINDesc &Desc);
+
+  // Per-image input for serializeImages.
+  //
+  // The serializer composes the abstract-module property registry from two
+  // layers:
+  //
+  // 1. Raw forward pass: every property set carried on \p Image's static
+  //    sycl_device_binary_struct is forwarded verbatim into the registry,
+  //    excluding the SYCLBIN-reserved sets (which are reconstructed by the
+  //    serializer itself).
+  //
+  // 2. Runtime-overlay pass: a fixed table of category-specific overrides
+  //    edits the registry with information that lives on the runtime
+  //    \p DevImg / \p Devices instead of (or in addition to) the static
+  //    image. This catches everything the runtime has layered onto the
+  //    bundle since __sycl_register_lib registered the static image:
+  //    runtime-tracked kernel names, eliminated kernel arg masks, current
+  //    spec-constant values and descriptors, etc. Without this pass, a
+  //    kernel_bundle assembled in the normal -fsycl flow would round-trip
+  //    through ext_oneapi_get_content with empty / stale metadata for any
+  //    category whose authoritative source is the runtime view.
+  //
+  // \p NativeBinaries, when non-empty, supplies device-specific native
+  // binary bytes (one entry per device) extracted from a built UR program;
+  // in that case the abstract module emits one NativeDeviceCodeImage per
+  // entry rather than re-emitting \p Image's own bytes. Used for JIT-built
+  // executable bundles where the source image is SPIR-V/IR but the bundle's
+  // native payload only exists in a UR program.
+  //
+  // \p Devices is always populated with the bundle's associated devices for
+  // \p Image. When \p NativeBinaries is non-empty it matches it 1:1 (one
+  // device per native binary). When \p NativeBinaries is empty the
+  // serializer also uses \p Devices[0] as the fallback source for the
+  // per-image "arch" string when the source image carries no compile_target
+  // property.
+  //
+  // \p DevImg is the runtime view of this image. Used by the runtime-overlay
+  // pass; may be left null only when no runtime overlays apply (e.g. tests
+  // that drive serializeImages with synthetic inputs).
+  struct ImageInput {
+    const RTDeviceBinaryImage *Image = nullptr;
+    device_image_impl *DevImg = nullptr;
+    std::vector<std::vector<char>> NativeBinaries;
+    std::vector<device_impl *> Devices;
+  };
+
+  // Build and serialize a SYCLBIN representing the given runtime device images
+  // at the given bundle state. Each input becomes its own abstract module.
+  // Property sets carried on the source image are forwarded verbatim into the
+  // abstract module metadata so device-requirement-driven matching (e.g.
+  // `compile_target`) survives a round-trip.
+  //
+  // When ImageInput::NativeBinaries is non-empty, those bytes are emitted as
+  // NativeDeviceCodeImages (replacing what would otherwise be IR module
+  // serialization of the source image). Otherwise the source image's own
+  // bytes are emitted, mirroring its on-disk format (IR vs. native).
+  //
+  // The Image pointers and NativeBinaries storage must remain valid for the
+  // duration of the call: the intermediate SYCLBINDesc holds non-owning views
+  // into each input's binary payload (see ImageDesc::Bytes).
+  static std::vector<char>
+  serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State);
 
 private:
   struct alignas(8) FileHeaderType {

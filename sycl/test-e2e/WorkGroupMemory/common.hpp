@@ -3,10 +3,12 @@
 #include <cassert>
 #include <iostream>
 #include <sycl/atomic_ref.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/marray.hpp>
 #include <sycl/usm.hpp>
 #include <sycl/vector.hpp>

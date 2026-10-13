@@ -6,8 +6,10 @@
 // variable in its constructor, causing this test to fail, as retrieving
 // free memory information is expected not to work in this test.
 // For more context, see: https://github.com/oneapi-src/level-zero/issues/36.
+#include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/info/device.hpp>
 int main() {
   sycl::queue q;
   bool failed = false;

@@ -46,3 +46,12 @@
 ; CHECK-PARALLEL-JOBS-DAG: [[SECOND:.+2.tgt]]
 ; CHECK-PARALLEL-JOBS-DAG: [[THIRD:.+3.tgt]]
 ; CHECK-PARALLEL-JOBS-DAG: [[FOURTH:.+4.tgt]]
+
+; RUN: echo "%t1.tgt" > %t.fail.list
+; RUN: not llvm-foreach --in-replace="{}" --in-file-list=%t.fail.list -- false "{}" 2>&1 | FileCheck %s --check-prefix=CHECK-FAIL-CMD
+; CHECK-FAIL-CMD: llvm-foreach: command failed with error code: 1
+; CHECK-FAIL-CMD-NEXT: llvm-foreach: command: "false" "{{.+1\.tgt}}"
+
+; RUN: not llvm-foreach --in-replace="{}" --in-file-list=%t.fail.list -- llvm-foreach-command-does-not-exist "{}" 2>&1 | FileCheck %s --check-prefix=CHECK-NO-CMD
+; CHECK-NO-CMD: llvm-foreach: command failed:
+; CHECK-NO-CMD-NEXT: llvm-foreach: command: "llvm-foreach-command-does-not-exist" "{}"

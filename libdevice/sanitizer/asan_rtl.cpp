@@ -1029,4 +1029,70 @@ ASAN_MEMMOVE(1)
 ASAN_MEMMOVE(3)
 ASAN_MEMMOVE(4)
 
+static void Block2DCheck(uptr surface_base, uptr block_ptr, int element_size,
+                         int block_width, int block_height, int block_count,
+                         int surface_pitch, int coord_x, int coord_y,
+                         bool is_load, const char __SYCL_CONSTANT__ *file,
+                         uint32_t line, const char __SYCL_CONSTANT__ *func) {
+  // Per SPV_INTEL_2d_block_io spec:
+  //   element_size: bytes per element
+  //   block_width: elements per row
+  //   surface_pitch: bytes between rows
+  //   coord_x: element offset, coord_y: row offset
+  int row_width_bytes = block_width * element_size * block_count;
+  size_t block_size = (size_t)row_width_bytes * block_height;
+
+  {
+    DebugInfo debug{block_ptr, /*as=*/4, block_size, is_load, file, func, line};
+    if (auto poisoned_addr =
+            IsRegionPoisoned(block_ptr, 4, block_size, &debug)) {
+      ReportAccessError(poisoned_addr, 4, false, &debug);
+      return;
+    }
+  }
+
+  uptr start_addr = surface_base + (uptr)coord_y * surface_pitch +
+                    (uptr)coord_x * element_size;
+  for (int row = 0; row < block_height; row++) {
+    uptr row_addr = start_addr + (uptr)row * surface_pitch;
+    DebugInfo debug{row_addr, /*as=*/4, (size_t)row_width_bytes, !is_load, file,
+                    func,     line};
+    if (auto poisoned_addr =
+            IsRegionPoisoned(row_addr, 4, (size_t)row_width_bytes, &debug)) {
+      ReportAccessError(poisoned_addr, 4, false, &debug);
+      return;
+    }
+  }
+}
+
+DEVICE_EXTERN_C_NOINLINE void __asan_block2d_load_check(
+    __attribute__((address_space(4))) const char *src_base_ptr, char *dst_ptr,
+    int element_size, int block_width, int block_height, int block_count,
+    int surface_width, int surface_height, int surface_pitch, int coord_x,
+    int coord_y, const char __SYCL_CONSTANT__ *file, uint32_t line,
+    const char __SYCL_CONSTANT__ *func) {
+  if (!__AsanLaunchInfo)
+    return;
+  if (__spirv_BuiltInSubgroupLocalInvocationId() != 0)
+    return;
+  Block2DCheck((uptr)src_base_ptr, (uptr)dst_ptr, element_size, block_width,
+               block_height, block_count, surface_pitch, coord_x, coord_y,
+               /*is_load=*/true, file, line, func);
+}
+
+DEVICE_EXTERN_C_NOINLINE void __asan_block2d_store_check(
+    __attribute__((address_space(4))) const char *dst_base_ptr, char *src_ptr,
+    int element_size, int block_width, int block_height, int block_count,
+    int surface_width, int surface_height, int surface_pitch, int coord_x,
+    int coord_y, const char __SYCL_CONSTANT__ *file, uint32_t line,
+    const char __SYCL_CONSTANT__ *func) {
+  if (!__AsanLaunchInfo)
+    return;
+  if (__spirv_BuiltInSubgroupLocalInvocationId() != 0)
+    return;
+  Block2DCheck((uptr)dst_base_ptr, (uptr)src_ptr, element_size, block_width,
+               block_height, block_count, surface_pitch, coord_x, coord_y,
+               /*is_load=*/false, file, line, func);
+}
+
 #endif // __SPIR__ || __SPIRV__

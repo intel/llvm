@@ -178,3 +178,215 @@ TEST_F(CommandGraphTest, AsyncAllocInfiniteLoop) {
 
   Graph.end_recording(Queue);
 }
+
+// Regression test for the allocation reuse algorithm leaving the graph in a
+// dirty state. Fixed by https://github.com/intel/llvm/pull/23168
+//
+// When submitting an async alloc, we try to reuse a node in the graph if we've
+// submitted a previous allocation.
+//
+// There was a bug where the re-use check mutated the graph such that future
+// unrelated components like the cycle detector were tripped up
+TEST_F(CommandGraphTest, AsyncAllocFailedReuseSpuriousCycle) {
+  const size_t SmallSize = 1 << 16; // 64KB
+  const size_t BigSize = 1 << 17;   // 128KB
+
+  void *PtrA = nullptr;
+  void *PtrB = nullptr;
+  void *PtrC = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  // small malloc / free
+  auto MallocA = Queue.submit([&](handler &CGH) {
+    PtrA = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+  auto FreeA = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocA);
+    experimental::async_free(CGH, PtrA);
+  });
+
+  // we can't re-use the previous alloc because this request is too big
+  auto MallocB = Queue.submit([&](handler &CGH) {
+    PtrB = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+  auto FreeB = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocB);
+    experimental::async_free(CGH, PtrB);
+  });
+
+  auto K = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(FreeA);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  // big malloc / free
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(K);
+    PtrC = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+
+  Graph.end_recording(Queue);
+
+  experimental::node FreeBNode = experimental::node::get_node_from_event(FreeB);
+  experimental::node KNode = experimental::node::get_node_from_event(K);
+
+  EXPECT_NE(PtrB, nullptr);
+  EXPECT_NE(PtrC, nullptr);
+  EXPECT_NE(PtrC, PtrB);
+
+  // the graph shouldn't be in a weird state that tricks the cycle detector into
+  // hallucinating cycles
+  EXPECT_NO_THROW(Graph.make_edge(FreeBNode, KNode));
+}
+
+// Regression test for the allocation reuse algorithm leaving the graph in a
+// dirty state. Fixed by https://github.com/intel/llvm/pull/23168
+//
+// allocation reuse stopped working once the query returned false once
+TEST_F(CommandGraphTest, AsyncAllocFailedReuseLostReuse) {
+  const size_t SmallSize = 1 << 16; // 64KB
+  const size_t BigSize = 1 << 17;   // 128KB
+
+  void *PtrA = nullptr;
+  void *PtrB = nullptr;
+  void *PtrC = nullptr;
+  void *PtrD = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  auto MallocA = Queue.submit([&](handler &CGH) {
+    PtrA = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+  auto FreeA = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocA);
+    experimental::async_free(CGH, PtrA);
+  });
+
+  auto MallocB = Queue.submit([&](handler &CGH) {
+    PtrB = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocB);
+    experimental::async_free(CGH, PtrB);
+  });
+
+  auto K = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(FreeA);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(K);
+    PtrC = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+
+  // make sure that we reuse the alloc
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(K);
+    PtrD = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+
+  Graph.end_recording(Queue);
+
+  EXPECT_NE(PtrA, nullptr);
+  EXPECT_NE(PtrB, nullptr);
+  EXPECT_NE(PtrC, nullptr);
+
+  EXPECT_NE(PtrC, PtrB);
+  EXPECT_EQ(PtrD, PtrA);
+}
+
+// Regression test for a node being silently dropped from the command-buffer
+// schedule. When a host task partitions the graph, the topological sort per
+// partition only traverses edges internal to that partition, but it used to
+// wait for all predecessors (including cross-partition ones) to be visited
+// before scheduling a node. A node with a cross-partition predecessor could
+// therefore never reach its completion threshold and, along with everything
+// downstream of it, was omitted from the schedule and never enqueued.
+//
+// The topology below reproduces the issue with two in-order queues recording
+// into one graph and barriers creating the cross-queue edges:
+//
+//   Q2 chain:  BQ2a ---------> BQ2b --> BQ2c
+//              |               ^        |
+//              |[A]            |[B]     |[C]  (cross-queue barrier edges)
+//              v               |        v
+//   Q1 chain:  BQ1a --> HT --> BQ1b --> BQ1c --> K
+//
+// The host task HT splits the graph. BQ2a is pulled into HT's predecessor
+// partition, but its in-order successor BQ2b stays in the successor partition,
+// creating the cross-partition edge BQ2a -> BQ2b that lands on an interior
+// (non-root) node. Prior to the fix, BQ2b (and hence BQ2c, BQ1c and the kernel
+// K) were dropped from the schedule.
+TEST_F(CommandGraphTest, HostTaskPartitionCrossQueueBarrier) {
+  sycl::property_list InOrder{sycl::property::queue::in_order()};
+  sycl::queue Q1{Queue.get_context(), Dev, InOrder};
+  sycl::queue Q2{Queue.get_context(), Dev, InOrder};
+
+  experimental::command_graph<experimental::graph_state::modifiable> G{
+      Q1.get_context(), Q1.get_device()};
+
+  G.begin_recording({Q1, Q2});
+
+  // [A] pre-HT: Q2 -> Q1
+  {
+    sycl::event E = Q2.ext_oneapi_submit_barrier();
+    Q1.ext_oneapi_submit_barrier({E});
+  }
+
+  // Host task on Q1, which forces graph partitioning.
+  Q1.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
+
+  // [B] post-HT: Q1 -> Q2
+  {
+    sycl::event E = Q1.ext_oneapi_submit_barrier();
+    Q2.ext_oneapi_submit_barrier({E});
+  }
+
+  // [C] pre-K: Q2 -> Q1
+  {
+    sycl::event E = Q2.ext_oneapi_submit_barrier();
+    Q1.ext_oneapi_submit_barrier({E});
+  }
+
+  G.end_recording(Q2);
+
+  // Kernel K on Q1, downstream of the barrier chain. This is the node that was
+  // silently dropped prior to the fix.
+  auto KernelEvent = Q1.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+
+  G.end_recording();
+
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(G);
+  experimental::detail::node_impl &KernelNode =
+      GraphImpl.getNodeForEvent(getSyclObjImpl(KernelEvent));
+
+  auto GraphExec = G.finalize();
+  experimental::detail::exec_graph_impl &ExecGraphImpl =
+      *getSyclObjImpl(GraphExec);
+
+  // Every node that requires enqueue must appear in the schedule. The kernel is
+  // the node that was dropped; assert on it explicitly, and also check that no
+  // enqueue-requiring node is missing overall.
+  const auto &Schedule = ExecGraphImpl.getSchedule();
+
+  size_t NumEnqueuedNodesInGraph = 0;
+  for (experimental::detail::node_impl &Node : GraphImpl.nodes()) {
+    if (Node.requiresEnqueue())
+      ++NumEnqueuedNodesInGraph;
+  }
+
+  size_t NumEnqueuedNodesInSchedule = 0;
+  bool KernelFoundInSchedule = false;
+  for (experimental::detail::node_impl *Node : Schedule) {
+    if (Node->requiresEnqueue())
+      ++NumEnqueuedNodesInSchedule;
+    if (Node->isSimilar(KernelNode))
+      KernelFoundInSchedule = true;
+  }
+
+  ASSERT_TRUE(KernelFoundInSchedule);
+  ASSERT_EQ(NumEnqueuedNodesInSchedule, NumEnqueuedNodesInGraph);
+}

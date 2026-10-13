@@ -16,11 +16,10 @@
 #include "event_provider.hpp"
 #include "event_provider_normal.hpp"
 
+#include "../common.hpp"
 #include "../common/latency_tracker.hpp"
 
-#include "../common.hpp"
-
-namespace v2 {
+namespace ur::level_zero::v2 {
 static constexpr int EVENTS_BURST = 64;
 
 provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
@@ -44,6 +43,18 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
 
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
     desc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+  }
+
+  ZeStruct<ze_event_sync_mode_desc_t> eventSyncMode;
+  if (flags & EVENT_FLAGS_LOW_POWER) {
+    eventSyncMode.syncModeFlags = ZE_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    if (flags & EVENT_FLAGS_COUNTER) {
+      eventSyncMode.pNext = counterBasedExt.pNext;
+      counterBasedExt.pNext = &eventSyncMode;
+    } else {
+      eventSyncMode.pNext = desc.pNext;
+      desc.pNext = &eventSyncMode;
+    }
   }
 
   std::vector<ze_device_handle_t> devices;
@@ -118,4 +129,4 @@ raii::cache_borrowed_event provider_normal::allocate() {
 
 event_flags_t provider_normal::eventFlags() const { return flags; }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

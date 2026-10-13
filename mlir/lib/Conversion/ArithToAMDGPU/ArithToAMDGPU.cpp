@@ -16,7 +16,6 @@
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/Dialect/Vector/Transforms/VectorRewritePatterns.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
@@ -464,6 +463,11 @@ ScalingExtFRewritePattern::matchAndRewrite(arith::ScalingExtFOp op,
   if (outVecType && outVecType.isScalable())
     return failure();
 
+  if (isa<RankedTensorType>(out.getType()) ||
+      isa<RankedTensorType>(in.getType()) ||
+      isa<RankedTensorType>(scale.getType()))
+    return failure();
+
   Type scaleF32Type =
       scaleVecType ? VectorType::get(scaleVecType.getShape(), f32) : f32;
   if (scaleType.getIntOrFloatBitWidth() < 32)
@@ -575,6 +579,11 @@ ScalingTruncFRewritePattern::matchAndRewrite(arith::ScalingTruncFOp op,
   VectorType outVecType = dyn_cast<VectorType>(out.getType());
   VectorType scaleVecType = dyn_cast<VectorType>(scale.getType());
   if (outVecType && outVecType.isScalable())
+    return failure();
+
+  if (isa<RankedTensorType>(out.getType()) ||
+      isa<RankedTensorType>(in.getType()) ||
+      isa<RankedTensorType>(scale.getType()))
     return failure();
 
   Type scaleF32Type =

@@ -151,6 +151,8 @@ void preloadLibraries() {
   // unloaded prematurely. the Only trusted loader is the one that is loaded
   // from the system32 directory.
   LoadLibraryExW(L"ze_loader.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+  // Load the OpenCL ICD loader dynamic library, for the same reason as above.
+  LoadLibraryExW(L"OpenCL.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);

@@ -105,8 +105,9 @@ ur_result_t redefinedUrProgramCreate(void *pParams) {
 
 ur_result_t redefinedUrProgramCreateWithBinary(void *pParams) {
   auto params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
-  for (uint32_t i = 0; i < *params.pnumDevices; ++i)
-    redefinedUrProgramCreateCommon(*params.pppBinaries[i]);
+  // All numDevices entries of ppBinaries point to the same image, so only the
+  // first one needs to be tracked.
+  redefinedUrProgramCreateCommon(**params.pppBinaries);
   return UR_RESULT_SUCCESS;
 }
 

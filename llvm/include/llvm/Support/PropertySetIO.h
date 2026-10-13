@@ -183,7 +183,9 @@ private:
 
 /// Structure for specialization of DenseMap in PropertySetRegistry.
 struct PropertySetKeyInfo {
-  static unsigned getHashValue(const SmallString<16> &K) { return xxHash64(K); }
+  static unsigned getHashValue(const SmallString<16> &K) {
+    return xxHash64(reinterpret_cast<const uint8_t *>(K.data()), K.size());
+  }
 
   static SmallString<16> getEmptyKey() { return SmallString<16>(""); }
 
@@ -209,6 +211,8 @@ public:
       "SYCL/specialization constants";
   static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
       "SYCL/specialization constants default values";
+  static constexpr char SYCL_SPEC_CONSTANTS_SET_VALUES[] =
+      "SYCL/specialization constants set values";
   static constexpr char SYCL_DEVICELIB_METADATA[] = "SYCL/devicelib metadata";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";

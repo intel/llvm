@@ -17,28 +17,28 @@ using namespace clang;
 using namespace clang::targets;
 
 static const LangASMap NativeCPUASMap = {
-    0,  // Default
-    1,  // opencl_global
-    3,  // opencl_local
-    4,  // opencl_constant
-    0,  // opencl_private
-    0,  // opencl_generic
-    1,  // opencl_global_device
-    1,  // opencl_global_host
-    1,  // cuda_device
-    4,  // cuda_constant
-    3,  // cuda_shared
-    1,  // sycl_global
-    1,  // sycl_global_device
-    1,  // sycl_global_host
-    3,  // sycl_local
-    0,  // sycl_private
-    0,  // ptr32_sptr
-    0,  // ptr32_uptr
-    0,  // ptr64
-    0,  // hlsl_groupshared
-    0,  // hlsl_constant
-    20, // wasm_funcref
+    {LangAS::Default, 0},
+    {LangAS::opencl_global, 1},
+    {LangAS::opencl_local, 3},
+    {LangAS::opencl_constant, 4},
+    {LangAS::opencl_private, 0},
+    {LangAS::opencl_generic, 0},
+    {LangAS::opencl_global_device, 1},
+    {LangAS::opencl_global_host, 1},
+    {LangAS::cuda_device, 1},
+    {LangAS::cuda_constant, 4},
+    {LangAS::cuda_shared, 3},
+    {LangAS::sycl_global, 1},
+    {LangAS::sycl_global_device, 1},
+    {LangAS::sycl_global_host, 1},
+    {LangAS::sycl_local, 3},
+    {LangAS::sycl_private, 0},
+    {LangAS::ptr32_sptr, 0},
+    {LangAS::ptr32_uptr, 0},
+    {LangAS::ptr64, 0},
+    {LangAS::hlsl_groupshared, 0},
+    {LangAS::hlsl_constant, 0},
+    {LangAS::wasm_funcref, 20},
 };
 
 NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &Triple,

@@ -1,95 +1,95 @@
 // Test SYCL -ftarget-register-alloc-mode
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AUTO_AOT %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LARGE_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:small %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=SMALL_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:default %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEFAULT_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device 0x0BD5" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device 12.60.7" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=12.60.7
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -Xs "-device pvc,mtl-s" %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   -ftarget-register-alloc-mode=pvc:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AUTO_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   -ftarget-register-alloc-mode=pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LARGE_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   -ftarget-register-alloc-mode=pvc:small %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=SMALL_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   -ftarget-register-alloc-mode=pvc:default %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEFAULT_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_JIT %} %else %{ -check-prefix=AUTO_JIT %} %s
 
-// RUN: %clang -### -fsycl --offload-new-driver \
+// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:   -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_JIT %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver \
+// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_DEVICE %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver \
+// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_MODE %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver \
+// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
 
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device bdw" \
+// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xs "-device bdw" \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_PVC %s
 
 // TODO: Test fails on Windows due to improper temporary file creation given
 //       the -device * value.  Re-enable when this is fixed.
-// RUNx: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUNx: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xs "-device *" \
 // RUNx:          %s 2>&1 \
 // RUNx:   | FileCheck -check-prefix=NO_PVC %s
 
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
+// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xs "-device pvc:mtl-s" \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_PVC %s
 

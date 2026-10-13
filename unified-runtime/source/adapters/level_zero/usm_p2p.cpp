@@ -10,27 +10,35 @@
 #include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v1 {
 
-ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
-                                        ur_device_handle_t /*peerDevice*/) {
+ur_result_t urUsmP2PEnablePeerAccessExp(::ur_device_handle_t commandDevice,
+                                        ::ur_device_handle_t peerDevice) {
 
-  // L0 has peer devices enabled by default
+  UR_LOG(INFO,
+         "ignored enabling peer access from {} to memory of {}, because P2P is "
+         "always enabled in Level Zero V1 adapter",
+         (void *)commandDevice, (void *)peerDevice);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
-                                         ur_device_handle_t /*peerDevice*/) {
+ur_result_t urUsmP2PDisablePeerAccessExp(::ur_device_handle_t commandDevice,
+                                         ::ur_device_handle_t peerDevice) {
 
-  // L0 has peer devices enabled by default
+  UR_LOG(INFO,
+         "ignored disabling peer access from {} to memory of {}, because P2P "
+         "is always enabled in Level Zero V1 adapter",
+         (void *)commandDevice, (void *)peerDevice);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice,
-                                         ur_exp_peer_info_t propName,
-                                         size_t propSize, void *pPropValue,
-                                         size_t *pPropSizeRet) {
+ur_result_t
+urUsmP2PPeerAccessGetInfoExp(::ur_device_handle_t commandDeviceOpque,
+                             ::ur_device_handle_t peerDeviceOpque,
+                             ur_exp_peer_info_t propName, size_t propSize,
+                             void *pPropValue, size_t *pPropSizeRet) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
@@ -65,4 +73,4 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
 
   return ReturnValue(propertyValue);
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v1

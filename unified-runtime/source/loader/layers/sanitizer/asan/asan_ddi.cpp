@@ -29,31 +29,39 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   UR_CALL(getAsanInterceptor()->insertContext(Context, CI));
 
   if (numDevices > 0) {
-    auto DeviceType = GetDeviceType(Context, phDevices[0]);
-    auto ShadowMemory =
-        getAsanInterceptor()->getOrCreateShadowMemory(phDevices[0], DeviceType);
+    // All devices of a context must share a device type, so they all end up
+    // sharing the one shadow memory instance cached for that type.
+    auto ContextDeviceType = GetDeviceType(Context, phDevices[0]);
 
     for (uint32_t i = 0; i < numDevices; ++i) {
       auto hDevice = phDevices[i];
-      std::shared_ptr<DeviceInfo> DI;
-      UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
-      DI->Type = GetDeviceType(Context, hDevice);
-      if (DI->Type == DeviceType::UNKNOWN) {
+      // Reject unsupported devices before registering them, so that a rejected
+      // device is never left behind in the interceptor's device map, and before
+      // the shadow memory is created: it is cached per device type, so an
+      // unsupported device would otherwise be handed the shadow reserved for a
+      // Level Zero device of the same type.
+      auto Type = GetDeviceType(Context, hDevice);
+      if (Type == DeviceType::UNKNOWN) {
         UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
-      if (DI->Type != DeviceType) {
+      if (Type != ContextDeviceType) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Different device type in the same context");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
+      UR_CALL(CheckDeviceBackendSupported(hDevice, Type));
+
+      std::shared_ptr<DeviceInfo> DI;
+      UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
+      DI->Type = Type;
       UR_LOG_L(getContext()->logger, INFO,
                "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
                (void *)DI->Handle, ToString(DI->Type),
                DI->IsSupportSharedSystemUSM);
       UR_LOG_L(getContext()->logger, INFO, "Add {} into context {}",
                (void *)DI->Handle, (void *)Context);
-      DI->Shadow = ShadowMemory;
+      DI->Shadow = getAsanInterceptor()->getOrCreateShadowMemory(hDevice, Type);
       CI->DeviceList.emplace_back(hDevice);
     }
   }
@@ -1532,8 +1540,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 
   auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
   KernelInfo.ArgProps.resize(numArgs);
-  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
-              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+  // A kernel may take no arguments at all, in which case pArgs is null and the
+  // resized vector has not allocated, so both memcpy pointers are null. That is
+  // undefined behaviour even for a zero length.
+  if (numArgs)
+    std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+                numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {
@@ -1666,6 +1678,49 @@ __urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
   }
   UR_CALL(getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp(
       hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet));
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCOpenMemHandleExp");
+
+  UR_CALL(getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp(
+      hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
+
+  size_t MemSize;
+  UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
+      hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
+      nullptr));
+  UR_CALL(getAsanInterceptor()->registerIPCMemory(
+      hContext, hDevice, reinterpret_cast<uptr>(*ppMem), MemSize));
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCCloseMemHandleExp");
+
+  UR_CALL(getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp(hContext, pMem));
+  UR_CALL(
+      getAsanInterceptor()->unregisterIPCMemory(reinterpret_cast<uptr>(pMem)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1903,6 +1958,25 @@ ur_result_t urGetEnqueueExpProcAddrTable(
   return result;
 }
 
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetIPCExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnOpenMemHandleExp =
+      ur_sanitizer_layer::asan::urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp =
+      ur_sanitizer_layer::asan::urIPCCloseMemHandleExp;
+
+  return result;
+}
+
 template <class A, class B> struct NotSupportedApi;
 
 template <class MsgType, class R, class... A>
@@ -2046,9 +2120,6 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 } // namespace asan
 
 ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
-
-  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: ASAN");
-
   ur_result_t result =
       ur_sanitizer_layer::asan::urCheckVersion(UR_API_VERSION_CURRENT);
 
@@ -2118,6 +2189,11 @@ ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::asan::urGetMemoryExportExpProcAddrTable(
         &dditable->MemoryExportExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::asan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

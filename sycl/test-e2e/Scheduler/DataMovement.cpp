@@ -18,7 +18,7 @@
 
 #include "../helpers.hpp"
 
-using sycl_access_mode = sycl::access::mode;
+using sycl_access_mode = sycl::access_mode;
 
 template <typename T> class CustomAllocator {
 public:

@@ -14,7 +14,7 @@
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
-// CHECK-SPIRV: llvm-link{{.*}} "-only-needed"
+// CHECK-SPIRV: llvm-link{{.*}} "--only-needed"
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-user-wrappers.bc"
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-compiler-wrappers.bc"
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-stubs.bc"

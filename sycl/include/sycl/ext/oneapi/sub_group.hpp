@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Remove this header.
+
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
@@ -18,19 +21,17 @@ inline namespace _V1 {
 namespace ext::oneapi {
 struct __SYCL_DEPRECATED("use sycl::sub_group() instead") sub_group
     : sycl::sub_group {
-  // These two constructors are intended to keep the correctness of such code
-  // after the sub_group class migration from ext::oneapi to the sycl namespace:
+  // This converting constructor is intended to keep the correctness of such
+  // code after the sub_group class migration from ext::oneapi to the sycl
+  // namespace:
   // sycl::ext::oneapi::sub_group sg =
   //    sycl::ext::oneapi::experimental::this_sub_group();
   // ...
   // sycl::ext::oneapi::sub_group sg = item.get_sub_group();
-  // Note: this constructor is used for implicit conversion. Since the
-  // sub_group class doesn't have any members, just ignore the arg.
-  sub_group(const sycl::sub_group &sg) : sub_group() { (void)sg; }
-
-private:
-  sub_group() = default;
+  sub_group(const sycl::sub_group &sg) : sycl::sub_group(sg) {}
 };
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES

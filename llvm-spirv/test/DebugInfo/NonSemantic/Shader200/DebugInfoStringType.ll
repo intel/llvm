@@ -125,11 +125,11 @@ attributes #3 = { nocallback nofree nosync nounwind speculatable willreturn memo
 
 !2 = !DIGlobalVariableExpression(var: !3, expr: !DIExpression())
 !3 = distinct !DIGlobalVariable(name: "greeting", linkageName: "hello_world_$GREETING", scope: !4, file: !5, line: 3, type: !14, isLocal: true, isDefinition: true)
-!4 = distinct !DISubprogram(name: "hello_world", linkageName: "MAIN__", scope: !5, file: !5, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagMainSubprogram, unit: !8, retainedNodes: !13)
+!4 = distinct !DISubprogram(name: "hello_world", linkageName: "MAIN__", scope: !5, file: !5, line: 1, type: !6, scopeLine: 1, spFlags: DISPFlagDefinition | DISPFlagMainSubprogram, unit: !8, retainedNodes: !9)
 !5 = !DIFile(filename: "hello.f90", directory: "/dev/null")
 !6 = !DISubroutineType(types: !7)
 !7 = !{null}
-!8 = distinct !DICompileUnit(language: DW_LANG_Fortran95, file: !5, producer: "fortran", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, globals: !9, splitDebugInlining: false, nameTableKind: None)
+!8 = distinct !DICompileUnit(language: DW_LANG_Fortran95, file: !5, producer: "fortran", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, globals: !13, splitDebugInlining: false, nameTableKind: None)
 !9 = !{!2, !10}
 !10 = !DIGlobalVariableExpression(var: !11, expr: !DIExpression())
 !11 = distinct !DIGlobalVariable(name: "name", linkageName: "hello_world_$NAME", scope: !4, file: !5, line: 2, type: !12, isLocal: true, isDefinition: true)

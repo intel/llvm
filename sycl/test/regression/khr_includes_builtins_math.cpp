@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
 
-#include <sycl/khr/includes/builtins_math.hpp>
-#include <sycl/khr/includes/marray.hpp>
-#include <sycl/khr/includes/multi_ptr.hpp>
-#include <sycl/khr/includes/vec.hpp>
+#include <sycl/khr/split_headers/builtins_math.hpp>
+#include <sycl/khr/split_headers/marray.hpp>
+#include <sycl/khr/split_headers/multi_ptr.hpp>
+#include <sycl/khr/split_headers/vec.hpp>
 
 #include <type_traits>
 

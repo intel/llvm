@@ -1,0 +1,40 @@
+; REQUIRES: spirv-as
+
+; The translator must silently ignore any "NonSemantic.*" extended
+; instruction set it does not recognize, and any opcode unknown to it
+; inside a recognized non-semantic set. Neither case may cause a crash
+; or a hard error during reverse translation.
+
+; RUN: spirv-as %s --target-env spv1.0 -o %t.spv
+; RUN: llvm-spirv -r --spirv-preserve-auxdata %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+; Same module without --spirv-preserve-auxdata: the AuxData and unknown
+; non-semantic OpExtInst instructions must still be tolerated.
+; RUN: llvm-spirv -r %t.spv -o %t.noaux.rev.bc
+; RUN: llvm-dis %t.noaux.rev.bc -o - | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpExtension "SPV_KHR_non_semantic_info"
+       %aux  = OpExtInstImport "NonSemantic.AuxData"
+       %ukn  = OpExtInstImport "NonSemantic.UnknownVendor.Something"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn "f"
+               OpDecorate %fn LinkageAttributes "f" Export
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+        %u42 = OpConstant %uint 42
+       %ustr = OpString "some_attr"
+       %fnTy = OpTypeFunction %void
+        %nop1 = OpExtInst %void %aux 99 %fn %ustr
+        %nop2 = OpExtInst %void %ukn 1 %fn
+         %fn = OpFunction %void None %fnTy
+        %ent = OpLabel
+                OpReturn
+                OpFunctionEnd
+
+; CHECK-LABEL: define spir_func void @f()
+; CHECK-NEXT:    ret void
+; CHECK-NOT: "some_attr"

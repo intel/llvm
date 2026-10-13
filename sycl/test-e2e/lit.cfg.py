@@ -8,6 +8,7 @@ import subprocess
 import textwrap
 import shlex
 import shutil
+import json
 
 import lit.formats
 import lit.util
@@ -29,11 +30,16 @@ config.target_to_triple = {
     "target-nvidia": "nvptx64-nvidia-cuda",
     "target-amd": "amdgcn-amd-amdhsa",
     "target-native_cpu": "native_cpu",
+    "target-spir_gen": "spir64_gen",
+    "target-spir_x86_64": "spir64_x86_64",
 }
 config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
+
+# Triples for which the runtime can build/link a device image from IR at run time.
+JIT_CAPABLE_TRIPLES = {"spir64"}
 
 # The backend set by the user has precedence over backends set during the parsing of the sycl-ls output
 is_offload_preferred_backend_set = config.backend_to_target["offload"] != ""
@@ -151,6 +157,21 @@ if platform.system() == "Linux":
         "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
     )
 
+    # Expose a "hugepages" feature when the system has free HugeTLB pages, so
+    # tests that require explicit huge-page mappings (mmap(MAP_HUGETLB)) run
+    # only where they can actually get such pages and are UNSUPPORTED (rather
+    # than silently self-skipping) elsewhere. This is a runtime-only feature,
+    # so it must not be evaluated in build-only mode.
+    if config.test_mode != "build-only":
+        try:
+            with open("/proc/meminfo") as meminfo:
+                for line in meminfo:
+                    if line.startswith("HugePages_Free:") and int(line.split()[1]) > 0:
+                        config.available_features.add("hugepages")
+                        break
+        except OSError:
+            pass
+
 elif platform.system() == "Windows":
     config.available_features.add("windows")
     llvm_config.with_system_environment(
@@ -215,16 +236,13 @@ class test_env:
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
+config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
-    )
     config.substitutions.append(("%obj_ext", ".obj"))
     config.substitutions.append(
         ("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include)
     )
 elif platform.system() == "Linux":
-    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
     config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
@@ -279,6 +297,18 @@ def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
+
+
+def is_windows_unc_network_path(path):
+    if not path or platform.system() != "Windows":
+        return false
+    return path.startswith("//") or path.startswith(r"\\")
+
+
+def normalize_windows_network_path(path):
+    if is_windows_unc_network_path(path):
+        path = path.replace("/", r"\\")
+    return path
 
 
 def quote_path(path):
@@ -348,6 +378,8 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
+# For Windows, we need to normalize the path before quoting
+level_zero_win_lib = config.level_zero_libs_dir + "/ze_loader.lib"
 config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
@@ -369,16 +401,28 @@ level_zero_options = level_zero_options = (
     + config.level_zero_include
 )
 if cl_options:
+    if is_windows_unc_network_path(level_zero_win_lib):
+        level_zero_win_lib = normalize_windows_network_path(level_zero_win_lib)
     level_zero_options = (
         " "
         + (
-            config.level_zero_libs_dir + "/ze_loader.lib "
+            quote_path(level_zero_win_lib)
             if config.level_zero_libs_dir
             else "ze_loader.lib"
         )
         + " /I"
         + config.level_zero_include
     )
+
+if platform.system() == "Windows":
+    # On Windows, SYCL device compilation parses host-only headers (like L0)
+    # while also defining _WIN32 so that host code compiles correctly. The
+    # device target (spir64) does not support Windows calling conventions, so
+    # attributes like __stdcall inside #if _WIN32 guards in third-party headers
+    # produce -Wignored-attributes warnings that fail the build under -Werror.
+    # The warnings are correct but not actionable: the attributes come from a
+    # third-party header and are silently discarded by the compiler anyway.
+    level_zero_options += " -Wno-ignored-attributes"
 
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
@@ -462,6 +506,8 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
+# For Windows, we need to normalize the path before quoting
+cuda_win_lib = config.cuda_libs_dir + "/cuda.lib"
 config.cuda_libs_dir = quote_path(
     lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 )
@@ -479,9 +525,11 @@ cuda_options = (
     + config.cuda_include
 )
 if cl_options:
+    if is_windows_unc_network_path(cuda_win_lib):
+        cuda_win_lib = normalize_windows_network_path(cuda_win_lib)
     cuda_options = (
         " "
-        + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
+        + (quote_path(cuda_win_lib) if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
     )
@@ -515,6 +563,9 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
+
+# For Windows, we need to normalize the path before quoting
+hip_win_lib = config.hip_libs_dir + "/amdhip64.lib"
 config.hip_libs_dir = quote_path(
     lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
 )
@@ -532,13 +583,11 @@ hip_options = (
     + config.hip_include
 )
 if cl_options:
+    if is_windows_unc_network_path(hip_win_lib):
+        hip_win_lib = normalize_windows_network_path(hip_win_lib)
     hip_options = (
         " "
-        + (
-            config.hip_libs_dir + "/amdhip64.lib "
-            if config.hip_libs_dir
-            else "amdhip64.lib"
-        )
+        + (quote_path(hip_win_lib) if config.hip_libs_dir else "amdhip64.lib")
         + " /I"
         + config.hip_include
     )
@@ -560,12 +609,13 @@ llvm_config.with_system_environment("ROCM_PATH")
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    opencl_win_lib = config.opencl_libs_dir + "/OpenCL.lib"
     config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
     config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
-        config.substitutions.append(
-            ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
-        )
+        if is_windows_unc_network_path(opencl_win_lib):
+            opencl_win_lib = normalize_windows_network_path(opencl_win_lib)
+        config.substitutions.append(("%opencl_lib", " " + quote_path(opencl_win_lib)))
     else:
         config.substitutions.append(
             ("%opencl_lib", "-L" + config.opencl_libs_dir + " -lOpenCL")
@@ -686,6 +736,15 @@ with test_env():
     if "opencl:cpu" in sycl_ls_output:
         config.available_features.add("opencl-cpu-rt")
 
+    # Count physical GPU devices: each physical GPU produces one output line
+    # that contains ":gpu]". Add a feature when at least two are present so
+    # tests requiring multi-GPU hardware can be skipped on single-GPU machines.
+    # This is a runtime-only feature since it queries actual hardware.
+    if config.test_mode != "build-only":
+        gpu_device_lines = [l for l in sycl_ls_output.splitlines() if ":gpu]" in l]
+        if len(gpu_device_lines) >= 2:
+            config.available_features.add("two-or-more-gpu-devices")
+
     if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         devices = set()
         for line in sycl_ls_output.splitlines():
@@ -780,6 +839,28 @@ if "cuda:gpu" in config.sycl_devices:
     else:
         config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
         config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
+
+    # Detect CUDA version and add version-specific features for conditional test execution
+    cuda_version_json = os.path.join(os.environ["CUDA_PATH"], "version.json")
+    if os.path.exists(cuda_version_json):
+        try:
+            with open(cuda_version_json, "r") as f:
+                version_data = json.load(f)
+                cuda_version_str = version_data.get("cuda", {}).get("version", "")
+                if cuda_version_str:
+                    major = int(cuda_version_str.split(".")[0])
+                    MIN_CUDA_VERSION = 11  # Minimum CUDA version supported by SYCL
+
+                    for version in range(MIN_CUDA_VERSION, major + 1):
+                        config.available_features.add(f"cuda-ge-{version}")
+
+                    lit_config.note(
+                        f"CUDA {cuda_version_str}: added features cuda-ge-{MIN_CUDA_VERSION}..cuda-ge-{major}"
+                    )
+        except (json.JSONDecodeError, IOError, ValueError, KeyError) as e:
+            lit_config.warning(
+                f"Failed to parse CUDA version from {cuda_version_json}: {e}"
+            )
 
 config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 
@@ -966,6 +1047,25 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
 
+# "jit" means at least one of the built targets provides a JIT-capable image.
+if any(
+    config.target_to_triple.get(t) in JIT_CAPABLE_TRIPLES
+    for t in config.sycl_build_targets
+):
+    config.available_features.add("jit")
+
+# "spir-family" is true for a build target/device whose triple is any SPIR
+# triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for tests
+# that only care "is this a SPIR backend" not which triple specifically. Kept
+# per-target (not a global available_feature) so it doesn't leak onto
+# non-SPIR targets/devices when a build/run combines multiple triples.
+SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
+config.spir_family_targets = {
+    target
+    for target in config.sycl_build_targets
+    if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+}
+
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
     config.available_features.add("device-config-file")
@@ -1030,7 +1130,13 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            if sycl_device.endswith("gpu"):
+            if sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
+            else:
+                # Treat any non-CPU selector as a GPU candidate. Arch-pinned
+                # selectors like "level_zero:arch-intel_gpu_mtl_u" don't end
+                # in "gpu" but still need driver-version parsing for
+                # REQUIRES-INTEL-DRIVER to work.
                 lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
                 if lin:
                     intel_driver_ver["lin"] = int(lin.group(1))
@@ -1039,8 +1145,6 @@ for full_name, sycl_device in zip(
                 )
                 if win:
                     intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
-            elif sycl_device.endswith("cpu"):
-                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1173,6 +1277,8 @@ for full_name, sycl_device in zip(
     # Add corresponding target feature
     target = config.backend_to_target[be]
     features.add(target)
+    if target in config.spir_family_targets:
+        features.add("spir-family")
 
     if be == "hip":
         if not config.amd_arch:
@@ -1236,9 +1342,9 @@ try:
     import psutil
 
     if config.test_mode == "run-only":
-        lit_config.maxIndividualTestTime = 300
+        config.maxIndividualTestTime = 300
     else:
-        lit_config.maxIndividualTestTime = 600
+        config.maxIndividualTestTime = 600
 
 except ImportError:
     pass
