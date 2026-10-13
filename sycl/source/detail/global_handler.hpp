@@ -11,6 +11,8 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <unordered_map>
 
@@ -41,6 +43,22 @@ class ThreadPool;
 /// construction or destruction is generated anyway.
 class GlobalHandler {
 public:
+  class SchedulerAccess {
+  public:
+    SchedulerAccess() = default;
+    SchedulerAccess(const SchedulerAccess &) = delete;
+    SchedulerAccess &operator=(const SchedulerAccess &) = delete;
+    ~SchedulerAccess();
+
+    Scheduler *get() const noexcept { return MScheduler; }
+
+  private:
+    friend class GlobalHandler;
+    explicit SchedulerAccess(Scheduler *Sched) : MScheduler(Sched) {}
+
+    Scheduler *MScheduler = nullptr;
+  };
+
   static bool isInstanceAlive() { return RTGlobalObjHandler != nullptr; }
   /// \return a reference to a GlobalHandler singleton instance. The reference
   /// is valid as long as runtime library is loaded (i.e. until `DllMain` or
@@ -54,6 +72,10 @@ public:
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   bool isSchedulerAlive() const;
+  /// \return the Scheduler if it has been created, nullptr otherwise. Unlike
+  /// getScheduler(), takes no lock and never creates the Scheduler. The
+  /// returned access object keeps the Scheduler alive until it is destroyed.
+  static SchedulerAccess getSchedulerAccess() noexcept;
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
@@ -89,18 +111,28 @@ public:
 
   // Used in SYCL unit tests to reset the GlobalHandler instance.
   static void resetGlobalHandler() {
+    stopSchedulerAccess();
+    MSchedulerPtr.store(nullptr, std::memory_order_release);
+    MSchedulerAccessState.store(0, std::memory_order_release);
     RTGlobalObjHandler = new GlobalHandler();
   };
 
   // Used in SYCL unit tests to simulate runtime teardown; pair with
   // restoreGlobalHandler().
   static GlobalHandler *detachGlobalHandler() {
+    stopSchedulerAccess();
+    MSchedulerPtr.store(nullptr, std::memory_order_release);
     GlobalHandler *Old = RTGlobalObjHandler;
     RTGlobalObjHandler = nullptr;
     return Old;
   }
   static void restoreGlobalHandler(GlobalHandler *Handler) {
     RTGlobalObjHandler = Handler;
+    MSchedulerPtr.store(Handler && Handler->MScheduler.Inst
+                            ? Handler->MScheduler.Inst.get()
+                            : nullptr,
+                        std::memory_order_release);
+    MSchedulerAccessState.store(0, std::memory_order_release);
   }
 
 private:
@@ -124,7 +156,17 @@ private:
   template <typename T, typename... Types>
   T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
+  static void releaseSchedulerAccess() noexcept;
+  static void stopSchedulerAccess(bool WaitForAccess = true) noexcept;
+
   InstWithLock<Scheduler> MScheduler;
+  // Mirror of MScheduler.Inst for lock-free readers. Published with release
+  // semantics once the Scheduler is fully constructed and cleared before it is
+  // destroyed.
+  static std::atomic<Scheduler *> MSchedulerPtr;
+  // The high bit prevents new accesses during shutdown; the remaining bits
+  // count accesses that must finish before the Scheduler can be destroyed.
+  static std::atomic<uint64_t> MSchedulerAccessState;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;

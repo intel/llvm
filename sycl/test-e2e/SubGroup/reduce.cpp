@@ -4,9 +4,6 @@
 // UNSUPPORTED: linux && gpu && !hip && !cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20757
 
-// XFAIL: !arch-intel_gpu_mtl_h && windows && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
-
 //==--------------- reduce.cpp - SYCL sub_group reduce test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -418,6 +418,22 @@ ur_result_t urDeviceGetInfo(
              (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
+    // Level Zero has no direct query for 16-bit integer atomics, which is what
+    // aspect::ext_oneapi_atomic16 also covers (short/unsigned short), so
+    // fp16Flags of the float atomics extension is used as a proxy. Any non-zero
+    // bit (global/local load/store, add, min/max) is treated as sufficient;
+    // we assume devices reporting fp16 atomics also support 16-bit integer
+    // atomics.
+    // Only verified on CRI.
+    // TODO: Extend to other architectures once 16-bit atomics are supported
+    // there.
+    // TODO: cl_ext_float_atomics also covers fp32/fp64 atomics, so gating it on
+    // fp16Flags alone is misleading for other consumers of
+    // UR_DEVICE_INFO_EXTENSIONS. Replace this with a dedicated UR device info
+    // query for 16-bit atomics.
+    if (Device->isCRI() && Device->ZeDeviceFloatAtomicExtProperties->fp16Flags)
+      SupportedExtensions += ("cl_ext_float_atomics ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -2067,6 +2083,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceModuleProperties.Compute =
       [ZeDevice](ze_device_module_properties_t &Properties) {
         ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &Properties));
+      };
+
+  ZeDeviceFloatAtomicExtProperties.Compute =
+      [ZeDevice,
+       Platform = Platform](ze_float_atomic_ext_properties_t &Properties) {
+        if (!Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME))
+          return; // leave zero-initialized flags
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query float atomic "
+                 "properties, error code: {}",
+                 ZeResult);
       };
 
   ZeDeviceMemoryProperties.Compute =

@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22576
-
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem
 // RUN: %{run} %t.exe
