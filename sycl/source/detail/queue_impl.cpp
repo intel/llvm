@@ -8,6 +8,7 @@
 
 #include <detail/event_deps.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -1454,6 +1455,14 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     }
     for (const EventImplPtr &Event : StreamsServiceEvents)
       Event->wait();
+  }
+
+  {
+    auto SchedAccess = GlobalHandler::getSchedulerAccess();
+    if (Scheduler *Sched = SchedAccess.get()) {
+      if (Sched->hasDeferredResources())
+        Sched->releaseResources(BlockingT::NON_BLOCKING);
+    }
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
