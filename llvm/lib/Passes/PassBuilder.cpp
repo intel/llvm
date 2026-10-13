@@ -230,6 +230,7 @@
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/SYCLLowerIR/SYCLLegalizeNonStandardIntegers.h"
 #include "llvm/SYCLLowerIR/SYCLOptimizeBarriers.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
