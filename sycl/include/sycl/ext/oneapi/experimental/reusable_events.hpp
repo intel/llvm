@@ -23,6 +23,10 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+namespace detail {
+struct enqueue_event_props;
+} // namespace detail
+
 struct enable_profiling
     : detail::run_time_property_key<enable_profiling,
                                     detail::PropKind::EnableProfiling> {
@@ -78,6 +82,20 @@ uint32_t getMakeEventFlags(const PropertyListT &props) {
   }
   return Flags;
 }
+
+__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt,
+                                      uint32_t Flags);
+__SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
+                                       const std::vector<event> &evts,
+                                       uint32_t Flags);
+__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt,
+                                        uint32_t Flags);
+
+// No properties are implemented for the enqueue functions yet.
+template <typename PropertyListT>
+uint32_t getEnqueueEventFlags(const PropertyListT &) {
+  return 0;
+}
 } // namespace detail
 
 template <typename PropertyListT = empty_properties_t>
@@ -110,10 +128,49 @@ make_event(PropertyT prop) {
   return make_event(properties{prop});
 }
 
-__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt);
-__SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
-                                       const std::vector<event> &evts);
-__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt);
+template <typename PropertyListT = empty_properties_t>
+std::enable_if_t<
+    detail::all_are_properties_of_v<detail::enqueue_event_props, PropertyListT>>
+enqueue_wait_event(sycl::queue q, const event &evt, PropertyListT props = {}) {
+  detail::enqueue_wait_event(q, evt, detail::getEnqueueEventFlags(props));
+}
+
+template <typename PropertyT>
+std::enable_if_t<
+    is_property_key_of<PropertyT, detail::enqueue_event_props>::value>
+enqueue_wait_event(sycl::queue q, const event &evt, PropertyT prop) {
+  enqueue_wait_event(q, evt, properties{prop});
+}
+
+template <typename PropertyListT = empty_properties_t>
+std::enable_if_t<
+    detail::all_are_properties_of_v<detail::enqueue_event_props, PropertyListT>>
+enqueue_wait_events(sycl::queue q, const std::vector<event> &evts,
+                    PropertyListT props = {}) {
+  detail::enqueue_wait_events(q, evts, detail::getEnqueueEventFlags(props));
+}
+
+template <typename PropertyT>
+std::enable_if_t<
+    is_property_key_of<PropertyT, detail::enqueue_event_props>::value>
+enqueue_wait_events(sycl::queue q, const std::vector<event> &evts,
+                    PropertyT prop) {
+  enqueue_wait_events(q, evts, properties{prop});
+}
+
+template <typename PropertyListT = empty_properties_t>
+std::enable_if_t<
+    detail::all_are_properties_of_v<detail::enqueue_event_props, PropertyListT>>
+enqueue_signal_event(sycl::queue q, event &evt, PropertyListT props = {}) {
+  detail::enqueue_signal_event(q, evt, detail::getEnqueueEventFlags(props));
+}
+
+template <typename PropertyT>
+std::enable_if_t<
+    is_property_key_of<PropertyT, detail::enqueue_event_props>::value>
+enqueue_signal_event(sycl::queue q, event &evt, PropertyT prop) {
+  enqueue_signal_event(q, evt, properties{prop});
+}
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
