@@ -6,6 +6,7 @@
 //
 // RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
 // RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg2 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu_multi.o
 // RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code  -o %t_aot_cpu.o
 // RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
 // RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
@@ -347,6 +348,16 @@
 // CHK-FATBIN-ONLY-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
 // CHK-FATBIN-ONLY-NEXT: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.syclfb
 // CHK-FATBIN-ONLY-NOT: "{{.*}}/ld"
+
+// With several GPU architectures, all their images are wrapped into a single
+// wrapper module.
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.multi.syclfb %t_aot_gpu_multi.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-MULTI %s
+// CHK-FATBIN-ONLY-MULTI: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}, input: {{.*}}
+// CHK-FATBIN-ONLY-MULTI-NOT: offload-wrapper:
+// CHK-FATBIN-ONLY-MULTI: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.multi.syclfb
+// CHK-FATBIN-ONLY-MULTI-NOT: "{{.*}}/ld"
+// RUN: not clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.mixed.syclfb %t_aot_gpu.o %t_aot_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-MIXED %s
+// CHK-FATBIN-ONLY-MIXED: error: --no-sycl-rdc does not support multiple SYCL target triples
 
 // Verify list of commands when syclbin is used
 // RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s
