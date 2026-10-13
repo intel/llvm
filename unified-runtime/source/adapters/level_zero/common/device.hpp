@@ -69,6 +69,13 @@ struct ze_global_memsize {
   uint64_t value;
 };
 
+// Queue priority range reported by zeDeviceGetPriorityLevels.
+struct ze_queue_priority_range {
+  bool Supported;
+  int32_t Highest;
+  int32_t Lowest;
+};
+
 enum ur_ze_external_memory_desc_type {
   UR_ZE_EXTERNAL_OPAQUE_FD,
   UR_ZE_EXTERNAL_WIN32,
@@ -284,6 +291,7 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
       ZeDeviceCacheLinePropertiesExt;
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
+  ZeCache<struct ze_queue_priority_range> ZeQueuePriorityRange;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME

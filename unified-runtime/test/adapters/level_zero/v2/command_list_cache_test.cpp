@@ -97,7 +97,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsAreCachedPerPriorityLevel) {
-  if (!common_cast(device)->Platform->ZeQueuePriorityExt.Supported) {
+  if (!common_cast(device)->ZeQueuePriorityRange->Supported) {
     GTEST_SKIP() << "Queue priority levels are not supported.";
   }
 

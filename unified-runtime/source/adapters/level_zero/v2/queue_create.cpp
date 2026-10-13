@@ -107,7 +107,7 @@ ur_result_t urQueueCreate(::ur_context_handle_t hContextOpque,
   if (priorityLevel) {
     if (flags & (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH))
       return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
-    if (!hDevice->Platform->ZeQueuePriorityExt.Supported)
+    if (!hDevice->ZeQueuePriorityRange->Supported)
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

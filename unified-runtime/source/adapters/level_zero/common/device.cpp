@@ -2141,6 +2141,32 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
+  ZeQueuePriorityRange.Compute = [this,
+                                  ZeDevice](ze_queue_priority_range &Range) {
+    auto GetPriorityLevels =
+        Platform->ZeQueuePriorityExt.zeDeviceGetPriorityLevels;
+    if (!GetPriorityLevels)
+      return;
+    // The function is loaded directly from the driver, so it expects a driver
+    // handle rather than a loader handle.
+    ze_device_handle_t DriverDevice = nullptr;
+    if (ZE_CALL_NOCHECK(zelLoaderTranslateHandle,
+                        (ZEL_HANDLE_DEVICE, ZeDevice,
+                         reinterpret_cast<void **>(&DriverDevice))) !=
+            ZE_RESULT_SUCCESS ||
+        ZE_CALL_NOCHECK(GetPriorityLevels,
+                        (DriverDevice, &Range.Lowest, &Range.Highest)) !=
+            ZE_RESULT_SUCCESS)
+      return;
+    // The UR API guarantees that the range contains the default priority 0.
+    if (Range.Highest > 0 || Range.Lowest < 0) {
+      UR_LOG(WARN, "Ignoring queue priority range [{}, {}] without 0.",
+             Range.Highest, Range.Lowest);
+      return;
+    }
+    Range.Supported = true;
+  };
+
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
       [ZeDevice](

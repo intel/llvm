@@ -145,7 +145,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     if (ImmCmdDesc->PriorityLevel.has_value()) {
       // The driver reads both the priority and the deprecated copy offload
       // descriptors from the head of the pNext chain, so they can't be
-      // chained together. Omitting the offload descriptor disables the hint.
+      // chained together. Drop the offload descriptor: copy offload falls back
+      // to the driver default (disabled), which only matters if it was
+      // requested and ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT is unsupported.
       if (QueueDesc.pNext && requestedCopyOffload) {
         UR_LOG(INFO, "Copy offload is not supported together with a queue "
                      "priority level by the driver.");
@@ -158,7 +160,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
            "create command list ordinal: {}, type: immediate, "
            "device: {}, inOrder: {}, priorityLevel: {}",
            ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder,
-           ImmCmdDesc->PriorityLevel.value_or(0));
+           ImmCmdDesc->PriorityLevel
+               ? std::to_string(ImmCmdDesc->PriorityLevel.value())
+               : std::string("none"));
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
@@ -216,6 +220,10 @@ raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
     ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
     std::optional<uint32_t> Index, std::optional<int32_t> PriorityLevel) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getImmediateCommandList");
+
+  // The driver derives the queue priority class from the priority level and
+  // ignores Priority, so only the default class is consistent with a level.
+  assert(!PriorityLevel || Priority == ZE_COMMAND_QUEUE_PRIORITY_NORMAL);
 
   immediate_command_list_descriptor_t Desc;
   Desc.ZeDevice = ZeDevice;
