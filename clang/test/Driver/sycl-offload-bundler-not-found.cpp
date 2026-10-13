@@ -17,7 +17,7 @@
 /// Multiple object inputs for native_cpu.
 // RUN: not %clang -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:   -fsycl-targets=native_cpu -ccc-install-dir %t/bin \
-// RUN:   %t/obj1.o %t/obj2.o 2>&1 \
+// RUN:   --no-offload-new-driver %t/obj1.o %t/obj2.o 2>&1 \
 // RUN:   | FileCheck %s -DFILE=obj1.o
 
 /// Static archive input with the old offloading model.
