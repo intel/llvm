@@ -1320,6 +1320,20 @@ if not config.gpu_aot_target:
 lit_config.note("Intel GPU AOT target: {}".format(config.gpu_aot_target))
 config.substitutions.append(("%{gpu_aot_target}", config.gpu_aot_target))
 
+# Extra backend options for Intel GPU AOT compilation, passed for each target in
+# gpu_aot_target. The device is selected by gpu_aot_target instead.
+if "-device" in config.gpu_aot_target_opts.split():
+    lit_config.error(
+        "gpu_aot_target_opts must not contain -device; use gpu_aot_target to "
+        "select the Intel GPU AOT target(s)"
+    )
+config.gpu_aot_backend_opts = ""
+if config.gpu_aot_target_opts:
+    config.gpu_aot_backend_opts = " ".join(
+        "-Xsycl-target-backend={} '{}'".format(target, config.gpu_aot_target_opts)
+        for target in config.gpu_aot_target.split(",")
+    )
+
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))

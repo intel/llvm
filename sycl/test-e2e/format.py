@@ -345,12 +345,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if requires_cpu:
                 aot_options = "-fsycl-targets=spir64_x86_64"
             else:
-                aot_options = "-fsycl-targets=" + test.config.gpu_aot_target
+                aot_options = (
+                    "-fsycl-targets="
+                    + test.config.gpu_aot_target
+                    + " "
+                    + test.config.gpu_aot_backend_opts
+                )
         else:
             aot_options = ""
         substitutions.append(("%aot_options", aot_options))
 
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
+        if "target-spir_gen" in build_targets:
+            sycl_target_opts += " " + test.config.gpu_aot_backend_opts
         if "target-amd" in build_targets:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
