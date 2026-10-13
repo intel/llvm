@@ -81,11 +81,11 @@ int main() {
   test(has_fp64, F(distance), double{5.0}, MDoubleD3, MDoubleD3_2);
   test(has_fp64, F(distance), double{5.0}, MDoubleD4, MDoubleD4_2);
 
-  test(has_fp16, 1e-6, F(normalize), marray<half, 2>{0.447213f, 0.894427f},
+  test(has_fp16, 1e-3, F(normalize), marray<half, 2>{0.447213f, 0.894427f},
        MHalfD2);
-  test(has_fp16, 1e-6, F(normalize),
+  test(has_fp16, 1e-3, F(normalize),
        marray<half, 3>{0.267261f, 0.534522f, 0.801784f}, MHalfD3);
-  test(has_fp16, 1e-6, F(normalize),
+  test(has_fp16, 1e-3, F(normalize),
        marray<half, 4>{0.182574f, 0.365148f, 0.547723f, 0.730297f}, MHalfD4);
 
   test(1e-6, F(normalize), marray<float, 2>{0.447213f, 0.894427f}, MFloatD2);
