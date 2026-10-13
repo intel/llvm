@@ -12,6 +12,10 @@ For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 [![SYCL Post Commit](https://github.com/intel/llvm/actions/workflows/sycl-post-commit.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl-post-commit.yml)
 [![Generate Doxygen documentation](https://github.com/intel/llvm/actions/workflows/sycl-docs.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl-docs.yml)
+<a href="https://scan.coverity.com/projects/intel-llvm">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/31090/badge.svg"/>
+</a>
 
 The DPC++ is a LLVM-based compiler project that implements compiler and runtime
 support for the SYCL\* language. The project is hosted in the
