@@ -15,7 +15,7 @@
 using urLevelZeroFloatAtomicsExtTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroFloatAtomicsExtTest);
 
-TEST_P(urLevelZeroFloatAtomicsExtTest, Fp16AtomicMatchesFp16FlagsOnCRI) {
+TEST_P(urLevelZeroFloatAtomicsExtTest, Fp16AtomicMatchesFp16Flags) {
   // Query fp16 atomic support from UR.
   ur_bool_t fp16Atomic = false;
   ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_FP16_ATOMIC,
@@ -55,11 +55,14 @@ TEST_P(urLevelZeroFloatAtomicsExtTest, Fp16AtomicMatchesFp16FlagsOnCRI) {
               ZE_RESULT_SUCCESS);
   }
 
-  uint32_t ipVersion = 0;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IP_VERSION,
-                                 sizeof(ipVersion), &ipVersion, nullptr));
-  // Only CRI (and its steppings) reports fp16 atomic support.
-  const bool isCRI = (ipVersion & 0xffffc000) == 0x08c2c000;
+  constexpr ze_device_fp_atomic_ext_flags_t required =
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_LOAD_STORE |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_ADD |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_MIN_MAX |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_LOAD_STORE |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_ADD |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_MIN_MAX;
 
-  ASSERT_EQ(urReports, isCRI && driverHasExt && floatProps.fp16Flags != 0);
+  ASSERT_EQ(urReports,
+            driverHasExt && (floatProps.fp16Flags & required) == required);
 }

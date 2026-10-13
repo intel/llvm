@@ -492,7 +492,7 @@ etors:
     - name: IGCA_FEATURE_SET
       desc: "[$x_device_igca_feature_flags_t][optional-query] return the IGCA feature sets the Intel GPU implements"
     - name: FP16_ATOMIC
-      desc: "[$x_bool_t][optional-query] return true if the device supports all atomic operations on 16-bit FP values"
+      desc: "[$x_bool_t][optional-query] return true if the device supports global and local atomic load, store, add, min and max on IEEE 754 half-precision (fp16) values"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

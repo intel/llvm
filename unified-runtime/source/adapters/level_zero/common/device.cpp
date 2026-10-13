@@ -1134,13 +1134,16 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_FP16_ATOMIC: {
-    // Any non-zero fp16Flags of the float atomics extension is treated as full
-    // fp16 atomic support. Only verified on CRI.
-    // TODO: Extend to other architectures once fp16 atomics are supported
-    // there.
+    constexpr ze_device_fp_atomic_ext_flags_t Required =
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_MIN_MAX |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_MIN_MAX;
     return ReturnValue(static_cast<ur_bool_t>(
-        Device->isCRI() &&
-        Device->ZeDeviceFloatAtomicExtProperties->fp16Flags));
+        (Device->ZeDeviceFloatAtomicExtProperties->fp16Flags & Required) ==
+        Required));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
