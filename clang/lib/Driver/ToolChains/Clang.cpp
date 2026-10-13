@@ -11318,7 +11318,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
       ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
       ",+SPV_INTEL_long_composites"
-      ",+SPV_EXT_arithmetic_fence"
+      ",+SPV_INTEL_arithmetic_fence"
       ",+SPV_INTEL_global_variable_decorations"
       ",+SPV_INTEL_cache_controls"
       ",+SPV_KHR_shader_clock"

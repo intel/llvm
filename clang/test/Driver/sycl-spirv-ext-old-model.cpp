@@ -24,7 +24,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_long_composites
-// CHECK-DEFAULT-SAME:,+SPV_EXT_arithmetic_fence
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_global_variable_decorations
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_cache_controls
 // CHECK-DEFAULT-SAME:,+SPV_KHR_shader_clock

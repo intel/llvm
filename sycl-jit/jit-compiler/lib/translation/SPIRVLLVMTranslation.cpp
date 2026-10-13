@@ -39,7 +39,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
       SPIRV::ExtensionID::SPV_INTEL_variable_length_array,
       SPIRV::ExtensionID::SPV_INTEL_fp_fast_math_mode,
       SPIRV::ExtensionID::SPV_INTEL_long_composites,
-      SPIRV::ExtensionID::SPV_EXT_arithmetic_fence,
+      SPIRV::ExtensionID::SPV_INTEL_arithmetic_fence,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_decorations,
       SPIRV::ExtensionID::SPV_INTEL_cache_controls,
       SPIRV::ExtensionID::SPV_KHR_shader_clock,
