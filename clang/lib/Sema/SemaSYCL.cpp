@@ -7680,11 +7680,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       // contains information about the offset, size and parameter
       // kind of every field inside the struct at any nesting level
       // This facilitates setting the arguments in the runtime.
-      // We also define is_device_copyable trait to be true for this type to
-      // allow it being passed in device kernels.
+      // We also define detail::is_legal_kernel_parameter trait to be true for
+      // this type to allow it being passed in device kernels.
       O << "template <>\n";
       O << "struct "
-           "sycl::is_device_copyable<";
+           "sycl::detail::is_legal_kernel_parameter<";
       Policy.SuppressTagKeyword = true;
       type.print(O, Policy);
       O << ">: std::true_type {};\n";

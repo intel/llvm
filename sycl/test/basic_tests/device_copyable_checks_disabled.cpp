@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify=checks-on -Xclang -verify-ignore-unexpected=warning,note %s
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -DSYCL_DISABLE_DEVICE_COPYABLE_CHECKS -Xclang -verify=checks-off -Xclang -verify-ignore-unexpected=warning,note %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -fpreview-breaking-changes -Xclang -verify=checks-on -Xclang -verify-ignore-unexpected=warning,note %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -fpreview-breaking-changes -DSYCL_DISABLE_DEVICE_COPYABLE_CHECKS -Xclang -verify=checks-off -Xclang -verify-ignore-unexpected=warning,note %s
 
 // checks-off-no-diagnostics
 
@@ -17,7 +19,7 @@ static_assert(!sycl::is_device_copyable_v<NotDeviceCopyable>);
 
 int main() {
   NotDeviceCopyable Val;
-  // checks-on-error@*:* {{The specified type is not device copyable}}
+  // checks-on-error@*:* {{The specified type is not a legal kernel parameter}}
   sycl::queue{}.single_task([=] { (void)Val; });
 
   // checks-on-error@*:* {{a buffer must be device copyable}}

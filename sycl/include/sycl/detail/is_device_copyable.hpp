@@ -105,144 +105,219 @@ template <typename T>
 inline constexpr bool check_if_device_copyable_v =
     check_if_device_copyable<T>::value;
 
-#ifdef __SYCL_DEVICE_ONLY__
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename T, typename> struct CheckFieldsAreLegalKernelParameters;
-template <typename T, typename> struct CheckBasesAreLegalKernelParameters;
+// Deprecated sycl 1.2.1 rules for now
+template <typename T>
+inline constexpr bool deprecated_sycl121_device_copyable_v =
+    std::is_trivially_copy_constructible_v<T> &&
+    std::is_trivially_destructible_v<T>;
+
+template <typename T> struct is_legal_kernel_parameter;
 
 template <typename T>
-inline constexpr bool is_deprecated_device_copyable_v =
-    check_if_device_copyable_v<T> ||
-    (std::is_trivially_copy_constructible_v<T> &&
-     std::is_trivially_destructible_v<T>);
+inline constexpr bool is_legal_kernel_parameter_v =
+    is_legal_kernel_parameter<T>::value;
 
-template <typename T, unsigned... FieldIds>
-struct CheckFieldsAreLegalKernelParameters<T,
-                                           std::index_sequence<FieldIds...>> {
-  static_assert(((is_deprecated_device_copyable_v<
-                      decltype(__builtin_field_type(T, FieldIds))> &&
-                  ...)),
-                "The specified type is not device copyable");
-};
-
-template <typename T, unsigned... BaseIds>
-struct CheckBasesAreLegalKernelParameters<T, std::index_sequence<BaseIds...>> {
-  static_assert(((is_deprecated_device_copyable_v<
-                      decltype(__builtin_base_type(T, BaseIds))> &&
-                  ...)),
-                "The specified type is not device copyable");
-};
-#else
 template <typename T> struct is_sycl_accessor : std::false_type {};
 
 template <typename T>
 inline constexpr bool is_sycl_accessor_v = is_sycl_accessor<T>::value;
 
-template <typename T, typename = void> struct IsLegalKernelParameterBase {
-  static constexpr bool value =
-      check_if_device_copyable_v<T> || is_sycl_accessor_v<T>;
-};
-
-template <typename T, typename = void>
-struct IsLegalKernelParameter : IsLegalKernelParameterBase<T> {};
-
-template <typename T, typename> struct AreFieldsLegalKernelParameters;
-template <typename T, typename> struct AreBasesLegalKernelParameters;
-
-template <typename T, unsigned... FieldIds>
-struct AreFieldsLegalKernelParameters<T, std::index_sequence<FieldIds...>>
-    : std::bool_constant<(IsLegalKernelParameter<decltype(__builtin_field_type(
-                              T, FieldIds))>::value &&
-                          ...)> {};
-
-template <typename T, unsigned... BaseIds>
-struct AreBasesLegalKernelParameters<T, std::index_sequence<BaseIds...>>
-    : std::bool_constant<(IsLegalKernelParameter<decltype(__builtin_base_type(
-                              T, BaseIds))>::value &&
-                          ...)> {};
-
-template <typename T>
-struct IsLegalKernelParameter<
-    T, std::void_t<decltype(__builtin_num_fields(T) + __builtin_num_bases(T))>>
-    : std::bool_constant<
-          IsLegalKernelParameterBase<T>::value ||
-          (AreFieldsLegalKernelParameters<
-               T, std::make_index_sequence<__builtin_num_fields(T)>>::value &&
-           AreBasesLegalKernelParameters<
-               T, std::make_index_sequence<__builtin_num_bases(T)>>::value)> {};
-
-template <typename T, std::size_t N>
-struct IsLegalKernelParameter<T[N]> : IsLegalKernelParameter<T> {};
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-template <typename FuncT>
-struct CheckKernelParametersAreLegal
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-{
-  // All the captures of a lambda or functor of type FuncT passed to a kernel
-  // must be legal kernel parameters as defined by the SYCL-2020 specification.
-  // (Copied here)
-  //  - Any device copyable type is a legal parameter type.
-  //  - The following SYCL types are legal parameter types:
-  //    - accessor when templated with target::device;
-  //    - accessor when templated with any of the deprecated parameters:
-  //      target::global_buffer, target::constant_buffer, or target::local;
-  //    - local_accessor;
-  //    - unsampled_image_accessor when templated with image_target::device;
-  //    - sampled_image_accessor when templated with image_target::device;
-  //    - stream;
-  //    - id;
-  //    - range;
-  //    - marray<T, NumElements> when T is device copyable;
-  //    - vec<T, NumElements>.
-  // - An array of element types T is a legal parameter type if T is a legal
-  //   parameter type.
-  // - A class type S with a non-static member variable of type T is a legal
-  //   parameter type if T is a legal parameter type and if S would otherwise be
-  //   a legal parameter type aside from this member variable.
-  // - A class type S with a non-virtual base class of type T is a legal
-  //   parameter type if T is a legal parameter type and if S would otherwise be
-  //   a legal parameter type aside from this base class.
-  static_assert(IsLegalKernelParameter<FuncT>::value,
-                "The specified type is not a legal device parameter");
-};
-#else
-    // All the captures of a lambda or functor of type FuncT passed to a kernel
-    // must be is_device_copyable, which extends to bases and fields of FuncT.
-    // Fields are captures of lambda/functors and bases are possible base
-    // classes of functors also allowed by SYCL. The SYCL-2020 implementation
-    // must check each of the fields & bases of the type FuncT, only one level
-    // deep, which is enough to see if they are all device copyable by using the
-    // result of is_device_copyable returned for them. At this moment though the
-    // check also allowes using types for which (is_trivially_copy_constructible
-    // && is_trivially_destructible) returns true and (is_device_copyable)
-    // returns false. That is the deprecated behavior and is
-    // currently/temporarily supported only to not break older SYCL programs.
-    : CheckFieldsAreLegalKernelParameters<
-          FuncT, std::make_index_sequence<__builtin_num_fields(FuncT)>>,
-      CheckBasesAreLegalKernelParameters<
-          FuncT, std::make_index_sequence<__builtin_num_bases(FuncT)>> {
-};
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
+#ifdef __SYCL_DEVICE_ONLY__
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
+#endif
 
-// Below are two specializations for CheckKernelParametersAreLegal when a kernel
+namespace legal_kernel_parameters {
+// Some types are considered special SYCL types, such as SYCL accessors.
+// These types are accepted legal parameters even if they do not satisfy the
+// usual device copyability requirements.
+template <typename T>
+struct is_special_sycl_type
+    : std::bool_constant<is_sycl_accessor_v<std::remove_cv_t<T>>> {};
+
+template <typename T>
+inline constexpr bool is_special_sycl_type_v = is_special_sycl_type<T>::value;
+
+#ifdef __SYCL_DEVICE_ONLY__
+// We need to be able to check whether a record contains special SYCL types.
+template <typename T, typename = void>
+struct contains_special_sycl_types : is_special_sycl_type<T> {};
+
+template <typename T>
+inline constexpr bool contains_special_sycl_types_v =
+    contains_special_sycl_types<T>::value;
+
+template <typename T, typename> struct special_sycl_types_fields;
+template <typename T, unsigned... FieldIds>
+struct special_sycl_types_fields<T, std::index_sequence<FieldIds...>>
+    : std::bool_constant<(contains_special_sycl_types_v<
+                              decltype(__builtin_field_type(T, FieldIds))> ||
+                          ...)> {};
+
+template <typename... T>
+inline constexpr bool special_sycl_types_fields_v =
+    special_sycl_types_fields<T...>::value;
+
+template <typename T, typename> struct special_sycl_types_bases;
+template <typename T, unsigned... BaseIds>
+struct special_sycl_types_bases<T, std::index_sequence<BaseIds...>>
+    : std::bool_constant<(contains_special_sycl_types_v<
+                              decltype(__builtin_base_type(T, BaseIds))> ||
+                          ...)> {};
+
+template <typename... T>
+inline constexpr bool special_sycl_types_bases_v =
+    special_sycl_types_bases<T...>::value;
+
+template <typename T>
+struct contains_special_sycl_types<
+    T, std::void_t<decltype(__builtin_num_fields(T) + __builtin_num_bases(T))>>
+    : std::bool_constant<
+          is_special_sycl_type_v<T> ||
+          special_sycl_types_fields_v<
+              T, std::make_index_sequence<__builtin_num_fields(T)>> ||
+          special_sycl_types_bases_v<
+              T, std::make_index_sequence<__builtin_num_bases(T)>>> {};
+
+template <typename T, std::size_t N>
+struct contains_special_sycl_types<T[N]> : contains_special_sycl_types<T> {};
+
+// In the case where any fields or base is a special SYCL type, we need to check
+// whether ALL fields and bases are legal kernel parameters.
+// This catches cases where a record contains special SYCL types but not all of
+// its fields and bases are legal kernel parameters, but does not catch cases
+// where a record containing special SYCL types also contains illegal member
+// functions.
+template <typename T, typename = void>
+struct check_fields_and_bases : std::false_type {};
+
+template <typename T>
+inline constexpr bool check_fields_and_bases_v =
+    check_fields_and_bases<T>::value;
+
+template <typename T, typename> struct check_fields;
+template <typename T, unsigned... FieldIds>
+struct check_fields<T, std::index_sequence<FieldIds...>>
+    : std::bool_constant<((is_legal_kernel_parameter_v<std::remove_cv_t<
+                               decltype(__builtin_field_type(T, FieldIds))>>) &&
+                          ...)> {};
+
+template <typename... T>
+inline constexpr bool check_fields_v = check_fields<T...>::value;
+
+template <typename T, typename> struct check_bases;
+template <typename T, unsigned... BaseIds>
+struct check_bases<T, std::index_sequence<BaseIds...>>
+    : std::bool_constant<((is_legal_kernel_parameter_v<std::remove_cv_t<
+                               decltype(__builtin_base_type(T, BaseIds))>>) &&
+                          ...)> {};
+
+template <typename... T>
+inline constexpr bool check_bases_v = check_bases<T...>::value;
+
+template <typename T>
+struct check_fields_and_bases<
+    T, std::void_t<decltype(__builtin_num_fields(T) + __builtin_num_bases(T))>>
+    : std::bool_constant<
+          check_fields_v<T,
+                         std::make_index_sequence<__builtin_num_fields(T)>> &&
+          check_bases_v<T, std::make_index_sequence<__builtin_num_bases(T)>>> {
+};
+
+template <typename T, std::size_t N>
+struct check_fields_and_bases<T[N]> : check_fields_and_bases<T> {};
+
+template <typename T, typename> struct validate_fields;
+template <typename T, unsigned... FieldIds>
+struct validate_fields<T, std::index_sequence<FieldIds...>> {
+  static_assert(
+      ((is_legal_kernel_parameter_v<
+            std::remove_cv_t<decltype(__builtin_field_type(T, FieldIds))>> &&
+        ...)),
+      "The specified type is not a legal kernel parameter");
+};
+
+// Insert static assertions to validate fields and bases of a type at compile
+// time. Used by kernel_launch_helper.hpp when wrapping kernel functors
+template <typename T, typename> struct validate_bases;
+template <typename T, unsigned... BaseIds>
+struct validate_bases<T, std::index_sequence<BaseIds...>> {
+  static_assert(
+      ((is_legal_kernel_parameter_v<
+            std::remove_cv_t<decltype(__builtin_base_type(T, BaseIds))>> &&
+        ...)),
+      "The specified type is not a legal kernel parameter");
+};
+
+// All the captures of a lambda or functor of type FuncT passed to a kernel
+// must be legal kernel parameters.
+template <typename FuncT>
+struct validate_functor
+    : validate_fields<FuncT,
+                      std::make_index_sequence<__builtin_num_fields(FuncT)>>,
+      validate_bases<FuncT,
+                     std::make_index_sequence<__builtin_num_bases(FuncT)>> {};
+
+// Below are two specializations for validate_functor when a kernel
 // lambda is wrapped after range rounding optimization.
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct CheckKernelParametersAreLegal<
+struct validate_functor<
     RoundedRangeKernel<TransformedArgType, Dims, KernelType>>
-    : CheckKernelParametersAreLegal<KernelType> {};
+    : validate_functor<KernelType> {};
 
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct CheckKernelParametersAreLegal<
+struct validate_functor<
     RoundedRangeKernelWithKH<TransformedArgType, Dims, KernelType>>
-    : CheckKernelParametersAreLegal<KernelType> {};
+    : validate_functor<KernelType> {};
 
+#endif
+} // namespace legal_kernel_parameters
+
+// Is legal kernel parameter as defined by the SYCL-2020 specification.
+// (Copied here)
+//  - Any device copyable type is a legal parameter type.
+//  - The following SYCL types are legal parameter types:
+//    - accessor when templated with target::device;
+//    - accessor when templated with any of the deprecated parameters:
+//      target::global_buffer, target::constant_buffer, or target::local;
+//    - local_accessor;
+//    - unsampled_image_accessor when templated with image_target::device;
+//    - sampled_image_accessor when templated with image_target::device;
+//    - stream;
+//    - id;
+//    - range;
+//    - marray<T, NumElements> when T is device copyable;
+//    - vec<T, NumElements>.
+// - An array of element types T is a legal parameter type if T is a legal
+//   parameter type.
+// - A class type S with a non-static member variable of type T is a legal
+//   parameter type if T is a legal parameter type and if S would otherwise be
+//   a legal parameter type aside from this member variable.
+// - A class type S with a non-virtual base class of type T is a legal
+//   parameter type if T is a legal parameter type and if S would otherwise be
+//   a legal parameter type aside from this base class.
+template <typename T>
+struct is_legal_kernel_parameter
+#ifdef __SYCL_DEVICE_ONLY__
+    : std::bool_constant<
+          check_if_device_copyable_v<T> ||
+          legal_kernel_parameters::is_special_sycl_type_v<T> ||
+          (legal_kernel_parameters::contains_special_sycl_types_v<T> &&
+           legal_kernel_parameters::check_fields_and_bases_v<T>) ||
+          deprecated_sycl121_device_copyable_v<T>> {
+};
+
+#else
+    : std::bool_constant<check_if_device_copyable_v<T> ||
+                         legal_kernel_parameters::is_special_sycl_type_v<T> ||
+                         deprecated_sycl121_device_copyable_v<T>> {
+};
 #endif // __SYCL_DEVICE_ONLY__
+
+template <typename T, std::size_t N>
+struct is_legal_kernel_parameter<T[N]> : is_legal_kernel_parameter<T> {};
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

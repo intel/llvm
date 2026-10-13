@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 // RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl -fsyntax-only %s
+// RUN: %clangxx -fsycl -fsyntax-only -fpreview-breaking-changes %s
+// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl -fsyntax-only  -fpreview-breaking-changes %s
 
 #include <sycl/sycl.hpp>
 #include <variant>
@@ -123,8 +125,27 @@ int main() {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   static_assert(!sycl::is_device_copyable_v<
                 sycl::accessor<int, 1, sycl::access_mode::read_write>>);
+  static_assert(!std::is_trivially_copyable_v<sycl::local_accessor<int, 1>>);
+  static_assert(
+      !std::is_trivially_destructible_v<sycl::local_accessor<int, 1>>);
   static_assert(!sycl::is_device_copyable_v<sycl::local_accessor<int, 1>>);
   static_assert(!sycl::is_device_copyable_v<sycl::host_accessor<int, 1>>);
+  static_assert(!sycl::is_device_copyable_v<sycl::accessor<
+                    int, 1, sycl::access_mode::read, sycl::target::local>>);
+  static_assert(
+      !sycl::is_device_copyable_v<sycl::accessor<
+          sycl::float4, 1, sycl::access_mode::read, sycl::target::image>>);
+  static_assert(!sycl::is_device_copyable_v<
+                sycl::accessor<sycl::float4, 1, sycl::access_mode::read,
+                               sycl::target::image_array>>);
+  static_assert(!sycl::is_device_copyable_v<sycl::unsampled_image_accessor<
+                    sycl::float4, 1, sycl::access_mode::read>>);
+  static_assert(!sycl::is_device_copyable_v<
+                sycl::sampled_image_accessor<sycl::float4, 1>>);
+  static_assert(!sycl::is_device_copyable_v<sycl::host_unsampled_image_accessor<
+                    sycl::float4, 1, sycl::access_mode::read>>);
+  static_assert(!sycl::is_device_copyable_v<
+                sycl::host_sampled_image_accessor<sycl::float4, 1>>);
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   static_assert(sycl::is_device_copyable_v<sycl::image_sampler>);

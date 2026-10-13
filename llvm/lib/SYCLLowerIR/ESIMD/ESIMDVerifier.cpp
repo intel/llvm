@@ -44,6 +44,7 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::local_accessor<.+>::get_pointer",
     "^sycl::_V1::local_accessor<.+>::get_multi_ptr",
     "^sycl::_V1::local_accessor_base<.+>::local_accessor_base",
+    "^sycl::_V1::local_accessor_base<.+>::~local_accessor_base",
     "^sycl::_V1::local_accessor_base<.+>::__init_esimd",
     "^sycl::_V1::local_accessor_base<.+>::getQualifiedPtr",
     "^sycl::_V1::local_accessor_base<.+>::getSize",

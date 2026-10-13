@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsyntax-only -fsycl %s
+// RUN: %clangxx -fsyntax-only -fsycl -fpreview-breaking-changes %s
 
 // Verify that we can pass top-level special type parameters to free function
 // kernels.
@@ -7,10 +8,14 @@
 
 using namespace sycl;
 
+struct AccWrap {
+  accessor<int, 1> acc;
+};
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void foo(accessor<int, 1> acc, local_accessor<int, 1> lacc, sampler S,
-         ext::oneapi::experimental::annotated_ptr<int> ptr) {}
+         ext::oneapi::experimental::annotated_ptr<int> ptr, AccWrap aw) {}
 
 int main() {
   queue Q;
@@ -26,7 +31,8 @@ int main() {
                     sycl::filtering_mode::nearest);
     ext::oneapi::experimental::annotated_ptr<int> ptr;
     sycl::stream str(8192, 1024, h);
-    h.set_args(acc, lacc, S, str, ptr);
+    AccWrap aw;
+    h.set_args(acc, lacc, S, str, ptr, aw);
     h.parallel_for(nd_range{{1}, {1}}, Kernel);
   });
   return 0;
