@@ -7,6 +7,7 @@ add_sycl_unittest(QueueTests OBJECT
   ShortcutFunctions.cpp
   InOrderQueue.cpp
   InteropRetain.cpp
+  KhrProperties.cpp
   Properties.cpp
   Barrier.cpp
 )
