@@ -1,4 +1,5 @@
 // REQUIRES: hip
+// REQUIRES: hip-arch-gfx90a
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
 
 #include <sycl/sycl.hpp>
