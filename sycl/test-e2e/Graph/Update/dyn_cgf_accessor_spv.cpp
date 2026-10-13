@@ -41,8 +41,8 @@ int main(int, char **argv) {
 
   int PatternA = 42;
   int PatternB = 0xA;
-  // Accessor offset (sycl::id<1>) is an 8-byte int64_t expected by the kernel.
-  int64_t AccOffset = 0;
+  // Accessor offset argument expected by the kernels.
+  sycl::id<1> AccOffset{0};
 
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();

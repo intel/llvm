@@ -41,10 +41,10 @@ int main(int, char **argv) {
 
     Graph.add([&](handler &cgh) {
       auto Acc = BufA.get_access(cgh);
-      // The kernel requires two arguments; the second one is an accessor
-      // offset (sycl::id<1>), which is an 8-byte int64_t.
+      // The kernel requires two arguments; the second one is the accessor
+      // offset of type sycl::id<1>.
       cgh.set_arg(0, Acc);
-      cgh.set_arg(1, static_cast<int64_t>(0)); // offset
+      cgh.set_arg(1, sycl::id<1>{0}); // offset
       cgh.single_task(kernel);
     });
 
