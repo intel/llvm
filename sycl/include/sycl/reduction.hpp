@@ -2671,6 +2671,13 @@ void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
 }
 
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh);
+// Returns the maximum number of work-groups to be used by a reduction over a
+// range of NWorkItems work-items executed in work-groups of WGSize, where
+// ElemSize is the size of the biggest reduction element.
+__SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
+                                                     size_t NWorkItems,
+                                                     size_t WGSize,
+                                                     size_t ElemSize);
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename... RestT>
@@ -2697,13 +2704,6 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     }
   }();
 
-  uint32_t NumConcurrentWorkGroups =
-#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
-      __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
-#else
-      reduGetMaxNumConcurrentWorkGroups(CGH);
-#endif
-
   // TODO: currently the preferred work group size is determined for the given
   // queue/device, while it is safer to use queries to the kernel pre-compiled
   // for the device.
@@ -2714,7 +2714,24 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   size_t NWorkGroups = NWorkItems / WGSize;
   if (NWorkItems % WGSize)
     NWorkGroups++;
-  size_t MaxNWorkGroups = NumConcurrentWorkGroups;
+#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
+  size_t MaxNWorkGroups = __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
+#else
+  // The size of the biggest reduction element.
+  size_t ReduElemSize = 0;
+  std::apply(
+      [&](auto &...Reds) {
+        auto Update = [&](size_t Size) {
+          ReduElemSize = Size > ReduElemSize ? Size : ReduElemSize;
+        };
+        (Update(sizeof(
+             typename std::remove_reference_t<decltype(Reds)>::result_type)),
+         ...);
+      },
+      ReduTuple);
+  size_t MaxNWorkGroups =
+      reduGetMaxNumWorkGroupsForRange(CGH, NWorkItems, WGSize, ReduElemSize);
+#endif
   NWorkGroups = NWorkGroups < MaxNWorkGroups ? NWorkGroups : MaxNWorkGroups;
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
