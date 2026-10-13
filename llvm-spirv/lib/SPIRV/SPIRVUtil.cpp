@@ -1972,10 +1972,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::log10:
   case Intrinsic::log2:
   case Intrinsic::maximumnum:
-  case Intrinsic::maximum:
   case Intrinsic::maxnum:
   case Intrinsic::minimumnum:
-  case Intrinsic::minimum:
   case Intrinsic::minnum:
   case Intrinsic::nearbyint:
   case Intrinsic::pow:

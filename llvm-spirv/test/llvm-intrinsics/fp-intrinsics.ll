@@ -229,7 +229,10 @@ declare float @llvm.maxnum.f32(float, float)
 ; CHECK: Function
 ; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
 ; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
-; CHECK: ExtInst {{[0-9]+}} [[res:[0-9]+]] {{[0-9]+}} fmin [[x]] [[y]]
+; CHECK: ExtInst {{[0-9]+}} [[m:[0-9]+]] {{[0-9]+}} fmin [[x]] [[y]]
+; CHECK: ExtInst {{[0-9]+}} [[m_sign:[0-9]+]] {{[0-9]+}} copysign [[m]] {{[0-9]+}}
+; CHECK: Unordered {{[0-9]+}} [[uno:[0-9]+]] [[x]] [[y]]
+; CHECK: Select {{[0-9]+}} [[res:[0-9]+]] [[uno]] {{[0-9]+}} [[m_sign]]
 ; CHECK: ReturnValue [[res]]
 
 define spir_func float @TestMinimum(float %x, float %y) {
@@ -257,7 +260,10 @@ declare float @llvm.minimumnum.f32(float, float)
 ; CHECK: Function
 ; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
 ; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
-; CHECK: ExtInst {{[0-9]+}} [[res:[0-9]+]] {{[0-9]+}} fmax [[x]] [[y]]
+; CHECK: ExtInst {{[0-9]+}} [[m:[0-9]+]] {{[0-9]+}} fmax [[x]] [[y]]
+; CHECK: ExtInst {{[0-9]+}} [[m_sign:[0-9]+]] {{[0-9]+}} copysign [[m]] {{[0-9]+}}
+; CHECK: Unordered {{[0-9]+}} [[uno:[0-9]+]] [[x]] [[y]]
+; CHECK: Select {{[0-9]+}} [[res:[0-9]+]] [[uno]] {{[0-9]+}} [[m_sign]]
 ; CHECK: ReturnValue [[res]]
 
 define spir_func float @TestMaximum(float %x, float %y) {
