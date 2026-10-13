@@ -104,6 +104,11 @@ jobs:
     runs-on: [Windows, build]
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
+    env:
+      # Intel GPU architectures of the run-only E2E runners in
+      # sycl-windows-precommit.yml. Keep in sync when adding or removing one.
+      # Gen12 and older (gen12 runner) are not supported by Windows ocloc.
+      GPU_AOT_TARGET: intel_gpu_acm_g10,intel_gpu_bmg_g21
     steps:
     - name:  Detect hung tests
       if: always()
@@ -257,7 +262,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
-        extra_lit_opts: --param sycl_build_targets="spir"
+        extra_lit_opts: --param sycl_build_targets="spir" --param gpu_aot_target=${{ env.GPU_AOT_TARGET }}
         cxx: ${{ inputs.cxx }}
 
     - name: Build E2E tests with New Offload Model
@@ -272,7 +277,7 @@ jobs:
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.e2e_binaries_new_offload_model_artifact }}
-        extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True
+        extra_lit_opts: --param sycl_build_targets="spir" --param enable_new_offload_model=True --param gpu_aot_target=${{ env.GPU_AOT_TARGET }}
         cxx: ${{ inputs.cxx }}
 
     - name:  Detect hung tests
