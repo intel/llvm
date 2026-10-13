@@ -101,7 +101,7 @@ size_type count = dynamic_extent) const;
     // [span.obs], span observers
     constexpr size_type size() const noexcept;
     constexpr size_type size_bytes() const noexcept;
-    [[nodiscard]] constexpr bool empty() const noexcept;
+    constexpr bool empty() const noexcept;
 
     // [span.elem], span element access
     constexpr reference operator[](size_type idx) const;
@@ -303,8 +303,10 @@ public:
                       "size mismatch in span's constructor (ptr, ptr)");
   }
 
+  template <size_t _Sz,
+            std::enable_if_t<_Sz == _Extent, std::nullptr_t> = nullptr>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
-      element_type (&__arr)[_Extent]) noexcept
+      element_type (&__arr)[_Sz]) noexcept
       : __data{__arr} {}
 
   template <class _OtherElementType,
@@ -325,8 +327,8 @@ public:
       : __data{__arr.data()} {}
 
   // Constructor for compatible containers (non-const)
-  // This constructor is not consistent with std::span, and therefore the sycl
-  // spec
+  // This constructor is not consistent with std::span, and therefore the SYCL
+  // specification, but is provided to preserve previous behaviour.
   template <
       class _Container,
       std::enable_if_t<__is_span_compatible_container<_Container, _Tp>::value,
@@ -338,8 +340,8 @@ public:
   }
 
   // Constructor for compatible containers (const)
-  // This constructor is not consistent with std::span, and therefore the sycl
-  // spec
+  // This constructor is not consistent with std::span, and therefore the SYCL
+  // specification, but is provided to preserve previous behaviour.
   template <class _Container,
             std::enable_if_t<
                 __is_span_compatible_container<const _Container, _Tp>::value,
