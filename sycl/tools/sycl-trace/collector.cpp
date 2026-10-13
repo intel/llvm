@@ -11,8 +11,8 @@
 #include <dlfcn.h>
 #include <iostream>
 #include <mutex>
+#include <spinlock.hpp>
 #include <string>
-#include <sycl/detail/spinlock.hpp>
 
 sycl::detail::SpinLock GlobalLock;
 

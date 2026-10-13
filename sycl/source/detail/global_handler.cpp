@@ -21,8 +21,8 @@
 #include <detail/thread_pool.hpp>
 #include <detail/ur.hpp>
 #include <detail/xpti_registry.hpp>
+#include <spinlock.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/spinlock.hpp>
 
 #include <thread>
 #ifdef _WIN32
