@@ -47,11 +47,13 @@ struct urQueueCreatePriorityExpTest
     void *devPtr = nullptr;
     ASSERT_SUCCESS(
         urUSMDeviceAlloc(context, device, nullptr, nullptr, size, &devPtr));
+    // The queue may be out-of-order, so the copy must wait for the fill.
+    uur::raii::Event fillEvent;
     ASSERT_SUCCESS(urEnqueueUSMFill(hQueue, devPtr, sizeof(pattern), &pattern,
-                                    size, 0, nullptr, nullptr));
+                                    size, 0, nullptr, fillEvent.ptr()));
     std::vector<uint8_t> result(size, 0);
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(hQueue, true, result.data(), devPtr, size,
-                                      0, nullptr, nullptr));
+                                      1, fillEvent.ptr(), nullptr));
     ASSERT_SUCCESS(urUSMFree(context, devPtr));
 
     for (uint8_t value : result) {
