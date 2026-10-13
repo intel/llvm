@@ -2158,6 +2158,10 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                         (DriverDevice, &Range.Lowest, &Range.Highest)) !=
             ZE_RESULT_SUCCESS)
       return;
+    // A single level or an empty range means there are no levels to choose
+    // from.
+    if (Range.Highest >= Range.Lowest)
+      return;
     // The UR API guarantees that the range contains the default priority 0.
     if (Range.Highest > 0 || Range.Lowest < 0) {
       UR_LOG(WARN, "Ignoring queue priority range [{}, {}] without 0.",
