@@ -3,9 +3,10 @@ name: SYCL Release Branch Nightly
 on:
   workflow_dispatch:
     inputs:
-      add_build_date:
+      nightly_build:
         description: |
-          Adds the build date to the version. Set to 0 for release builds.
+          Set to 1 to add the build date to the version. Set to 0 for release
+          builds, which are configured with -DPRE_RELEASE=0 instead.
         default: '1'
 
 
@@ -19,11 +20,13 @@ jobs:
     steps:
     - id: get_info
       run: |
-        if [ "${{ inputs.add_build_date }}" = "1" ]; then
+        if [ "${{ inputs.nightly_build }}" = "1" ]; then
           date=$(date +'%Y-%m-%d')
           info="-DSYCL_BUILD_INFO=\"Nightly $date\""
-          echo "info=$info" >> $GITHUB_OUTPUT
+        else
+          info="-DPRE_RELEASE=0"
         fi
+        echo "info=$info" >> $GITHUB_OUTPUT
 
   ubuntu2204_build:
     needs: get_build_info
