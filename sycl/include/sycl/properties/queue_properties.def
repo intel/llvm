@@ -31,6 +31,7 @@ __SYCL_MANUALLY_DEFINED_PROP(property::queue::cuda, use_default_stream)
 
 // Contains data field, defined explicitly.
 __SYCL_MANUALLY_DEFINED_PROP(ext::intel::property::queue, compute_index)
+__SYCL_MANUALLY_DEFINED_PROP(ext::oneapi::property::queue, priority)
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 /// Inform the implementation that the application will not use events returned

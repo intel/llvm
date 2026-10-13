@@ -197,6 +197,7 @@
 ??$get_info_impl@Upreferred_vector_width_long_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Upreferred_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uprintf_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
+??$get_info_impl@Upriority_range@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$array@H$01@std@@XZ
 ??$get_info_impl@Uprofile@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uprofile@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uprofiling_timer_resolution@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ

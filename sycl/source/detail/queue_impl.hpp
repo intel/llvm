@@ -31,8 +31,10 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -541,26 +543,25 @@ public:
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
-    if (PropList
-            .has_property<ext::oneapi::property::queue::priority_normal>()) {
-      // Normal is the default priority, don't pass anything.
-      PrioritySeen = true;
-    }
-    if (PropList.has_property<ext::oneapi::property::queue::priority_low>()) {
-      if (PrioritySeen) {
+    auto CheckPriority = [&PrioritySeen]() {
+      if (PrioritySeen)
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
-      }
-      CreationFlags |= UR_QUEUE_FLAG_PRIORITY_LOW;
       PrioritySeen = true;
+    };
+    // The numeric priority is passed separately, see getPriorityLevel().
+    if (PropList.has_property<ext::oneapi::property::queue::priority>())
+      CheckPriority();
+    // Normal is the default priority, don't pass anything.
+    if (PropList.has_property<ext::oneapi::property::queue::priority_normal>())
+      CheckPriority();
+    if (PropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+      CheckPriority();
+      CreationFlags |= UR_QUEUE_FLAG_PRIORITY_LOW;
     }
     if (PropList.has_property<ext::oneapi::property::queue::priority_high>()) {
-      if (PrioritySeen) {
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Queue cannot be constructed with different priorities.");
-      }
+      CheckPriority();
       CreationFlags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
     }
     {
@@ -582,6 +583,26 @@ public:
     return CreationFlags;
   }
 
+  /// \return the numeric priority to pass to UR, or std::nullopt if the queue
+  /// uses the default priority or one of the UR priority flags.
+  std::optional<int> getPriorityLevel() const {
+    namespace prop = ext::oneapi::property::queue;
+    if (!has_property<prop::priority>() && !has_property<prop::priority_high>())
+      return std::nullopt;
+
+    // {0, 0} if the device doesn't support priority levels.
+    auto [Lowest, Highest] =
+        MDevice.get_info<ext::oneapi::info::device::priority_range>();
+    if (has_property<prop::priority>()) {
+      int Level = std::clamp(get_property<prop::priority>().get_priority(),
+                             Highest, Lowest);
+      return Level == 0 ? std::nullopt : std::optional<int>{Level};
+    }
+    // priority_low keeps UR_QUEUE_FLAG_PRIORITY_LOW: the priority range may
+    // not include priorities below the default one, while the flag does.
+    return Highest < 0 ? std::optional<int>{Highest} : std::nullopt;
+  }
+
   /// Creates UR queue.
   ///
   /// \param Order specifies whether the queue being constructed as in-order
@@ -600,6 +621,15 @@ public:
           get_property<ext::intel::property::queue::compute_index>()
               .get_index();
       Properties.pNext = &IndexProperties;
+    }
+    ur_exp_queue_priority_properties_t PriorityProperties = {
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, 0};
+    if (std::optional<int> Level = getPriorityLevel()) {
+      // A numeric priority replaces priority_high's UR flag.
+      Properties.flags &= ~UR_QUEUE_FLAG_PRIORITY_HIGH;
+      PriorityProperties.priority = *Level;
+      PriorityProperties.pNext = Properties.pNext;
+      Properties.pNext = &PriorityProperties;
     }
     getAdapter().call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
                                                 &Queue);

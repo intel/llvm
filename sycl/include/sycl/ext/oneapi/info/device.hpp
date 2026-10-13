@@ -11,6 +11,7 @@
 #include <sycl/detail/info_desc_traits.hpp>
 #include <unified-runtime/ur_api.h>
 
+#include <array>
 #include <cstddef>
 
 namespace sycl {
@@ -21,6 +22,11 @@ struct num_compute_units
     : sycl::detail::ur_traits_base<sycl::detail::info_class::device,
                                    UR_DEVICE_INFO_NUM_COMPUTE_UNITS> {
   using return_type = size_t;
+};
+
+struct priority_range
+    : sycl::detail::rt_traits_base<sycl::detail::info_class::device> {
+  using return_type = std::array<int, 2>;
 };
 
 } // namespace ext::oneapi::info::device

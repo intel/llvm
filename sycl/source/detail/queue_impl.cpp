@@ -1640,15 +1640,17 @@ void queue_impl::verifyProps(const property_list &Props) const {
       return false;
     }
   };
+  // Manually defined properties also include dataless deprecated aliases,
+  // whose kinds overlap with the kinds of properties with data.
   auto CheckPropertiesWithData = [](int PropertyKind) {
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
-  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
-    return true;
-    switch (PropertyKind) {
+  if constexpr (std::is_base_of_v<PropertyWithDataBase,                        \
+                                  NS_QUALIFIER::PROP_NAME>) {                  \
+    if (PropertyKind == NS_QUALIFIER::PROP_NAME::getKind())                    \
+      return true;                                                             \
+  }
 #include <sycl/properties/queue_properties.def>
-    default:
-      return false;
-    }
+    return false;
   };
   detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
                                                 CheckPropertiesWithData);
