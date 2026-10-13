@@ -665,6 +665,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_USM_HOST_ALLOC_REGISTER_PROPERTIES = 0x7000,
   /// ::ur_exp_event_desc_t
   UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
+  /// ::ur_exp_event_sync_mode_desc_t
+  UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC = 0x8001,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2442,6 +2444,12 @@ typedef enum ur_device_info_t {
   /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
   /// (virtual SIMD size) per hardware thread
   UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD = 139,
+  /// [uint32_t][optional-query] return the Intel GPU IGCA (Intel Graphics
+  /// Compute Architecture) target
+  UR_DEVICE_INFO_IGCA_TARGET = 140,
+  /// [::ur_device_igca_feature_flags_t][optional-query] return the IGCA
+  /// feature sets the Intel GPU implements
+  UR_DEVICE_INFO_IGCA_FEATURE_SET = 141,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -3168,6 +3176,25 @@ typedef enum ur_device_throttle_reasons_flag_t {
 } ur_device_throttle_reasons_flag_t;
 /// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
 #define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief IGCA (Intel Graphics Compute Architecture) feature sets a device
+///        implements.
+typedef uint32_t ur_device_igca_feature_flags_t;
+typedef enum ur_device_igca_feature_flag_t {
+  /// The device implements the IGCA render feature set, typically a client
+  /// GPU.
+  UR_DEVICE_IGCA_FEATURE_FLAG_RENDER = UR_BIT(0),
+  /// The device implements the IGCA compute feature set, typically a
+  /// datacenter GPU.
+  UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE = UR_BIT(1),
+  /// @cond
+  UR_DEVICE_IGCA_FEATURE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_device_igca_feature_flag_t;
+/// @brief Bit Mask for validating ur_device_igca_feature_flags_t
+#define UR_DEVICE_IGCA_FEATURE_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Kernel launch properties support
@@ -14034,6 +14061,37 @@ typedef struct ur_exp_event_desc_t {
   ur_exp_event_flags_t flags;
 
 } ur_exp_event_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Synchronization flags for events.
+typedef uint32_t ur_exp_event_sync_mode_flags_t;
+typedef enum ur_exp_event_sync_mode_flag_t {
+  /// When enabled, the driver optimizes event host synchronization calls,
+  /// to use CPU threads more efficiently.
+  UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT = UR_BIT(0),
+  /// @cond
+  UR_EXP_EVENT_SYNC_MODE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_event_sync_mode_flag_t;
+/// @brief Bit Mask for validating ur_exp_event_sync_mode_flags_t
+#define UR_EXP_EVENT_SYNC_MODE_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Optional extension descriptor for reusable event synchronization
+///        behavior. Chain this off ::ur_exp_event_desc_t::pNext when creating a
+///        reusable event to request a specific synchronization mode. Adapters
+///        that cannot honor the requested mode may ignore this structure.
+typedef struct ur_exp_event_sync_mode_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] combination of ::ur_exp_event_sync_mode_flags_t values.
+  ur_exp_event_sync_mode_flags_t flags;
+
+} ur_exp_event_sync_mode_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a reusable event object that can be passed to

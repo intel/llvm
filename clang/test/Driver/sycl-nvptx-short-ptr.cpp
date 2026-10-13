@@ -7,8 +7,8 @@
 // RUN: | FileCheck --check-prefix=CHECK-SHORT %s
 
 
-// CHECK-SHORT: "-mllvm" "--nvptx-short-ptr"
-// CHECK-SHORT: "-fcuda-short-ptr"
+// CHECK-SHORT: "-target-abi" "shortptr"
+// CHECK-SHORT-NOT: "-fcuda-short-ptr"
 
-// CHECK-DEFAULT-NOT: "--nvptx-short-ptr"
+// CHECK-DEFAULT-NOT: "-target-abi" "shortptr"
 // CHECK-DEFAULT-NOT: "-fcuda-short-ptr"

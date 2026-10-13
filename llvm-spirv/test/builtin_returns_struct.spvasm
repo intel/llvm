@@ -47,6 +47,6 @@
                OpFunctionEnd
 
 ; CHECK: %[[#Var:]] = alloca %structtype, align 8
-; CHECK: call spir_func void @_Z20__spirv_UMulExtendedii(ptr sret(%structtype) %[[#Var:]]
+; CHECK: call spir_func void @_Z20__spirv_UMulExtendedjj(ptr sret(%structtype) %[[#Var:]]
 ; CHECK: %[[#Load:]] = load %structtype, ptr %[[#Var]], align 4
 ; CHECK-2: extractvalue %structtype %[[#Load:]]

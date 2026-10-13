@@ -45,6 +45,18 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
     desc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
   }
 
+  ZeStruct<ze_event_sync_mode_desc_t> eventSyncMode;
+  if (flags & EVENT_FLAGS_LOW_POWER) {
+    eventSyncMode.syncModeFlags = ZE_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT;
+    if (flags & EVENT_FLAGS_COUNTER) {
+      eventSyncMode.pNext = counterBasedExt.pNext;
+      counterBasedExt.pNext = &eventSyncMode;
+    } else {
+      eventSyncMode.pNext = desc.pNext;
+      desc.pNext = &eventSyncMode;
+    }
+  }
+
   std::vector<ze_device_handle_t> devices;
   for (auto &d : context->getDevices()) {
     devices.push_back(d->ZeDevice);

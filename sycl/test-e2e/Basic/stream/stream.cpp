@@ -1,7 +1,8 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
-// XFAIL: linux && (gpu-intel-gen12 || gpu-intel-dg2 || arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21 || arch-intel_gpu_mtl_u)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22055
+
+// REQUIRES-INTEL-DRIVER: lin: 39395
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
 

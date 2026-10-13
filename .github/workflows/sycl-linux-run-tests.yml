@@ -143,6 +143,16 @@ on:
         type: string
         required: False
         default: ''
+      benchmark_liboffload_artifact:
+        description: Liboffload artifact to use for benchmarks.
+        type: string
+        required: False
+        default: ''
+      benchmark_liboffload_artifact_filename:
+        description: Filename of the liboffload artifact archive.
+        type: string
+        required: False
+        default: ''
 
       in_workflow_call_mode:
         description: |
@@ -387,6 +397,8 @@ jobs:
         runner: ${{ inputs.runner }}
         gdb_mode: ${{ inputs.benchmark_gdb_mode }}
         custom_cr: ${{ inputs.benchmark_custom_cr }}
+        liboffload_artifact: ${{ inputs.benchmark_liboffload_artifact }}
+        liboffload_artifact_filename: ${{ inputs.benchmark_liboffload_artifact_filename }}
 
     - name: Debug CI platform information
       if: always()

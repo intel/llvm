@@ -116,11 +116,13 @@ if (UR_UMF_REQUIRED)
   else()
     set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-    # commit d8763834d68f9545db30bea5d092edd78ad3d748
-    # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Mon Jul 27 15:32:41 2026 +0200
-    #     1.2.0 release
-    set(UMF_TAG v1.2.0)
+    # commit e8fd1d8431ce3c23f4b7d51711ffae9fb1966495
+    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
+    # Date:   Wed Oct 7 16:05:01 2026 +0200
+    # Use FetchContent for HWLOC sources (#1615)
+    #
+    # Note: This is 'v1.3.0-dev3-1'
+    set(UMF_TAG e8fd1d8431ce3c23f4b7d51711ffae9fb1966495)
 
     if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
       message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

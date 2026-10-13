@@ -2,7 +2,7 @@
 // using fp16 can be compiled AOT.
 
 // Don't run on Gen12 Windows as we don't use a driver that can AOT compile.
-// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, (!gpu-intel-gen12 || linux)
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, (!gpu-intel-gen12 || linux), target-spir
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -o %t.dg2.out %s
 
 // CPU AOT targets host isa, so we compile on the run system instead.

@@ -1,13 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
 //
-// We attach calls-indirectly attribute (and therefore device image property)
-// to construct kernels at compile step. At that stage we may not see virtual
-// function definitions and therefore we won't mark construct kernel as using
-// virtual functions and link operation at runtime will fail due to undefined
-// references to virtual functions from vtable.
-// XFAIL: run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15071
-//
 // This test covers a scenario where virtual functions defintion and their uses
 // are split into different translation units. In particular:
 // - use and construct kernesl are in the same translation unit
@@ -15,6 +7,11 @@
 //
 // RUN: %{build} %S/Inputs/vf.cpp -o %t.out %helper-includes
 // RUN: %{run} %t.out
+//
+// Vtable emission for classes with 'indirectly_callable' virtual functions
+// depends on the optimization level, so check -O0 explicitly as well.
+// RUN: %{build} %O0 %S/Inputs/vf.cpp -o %t-O0.out %helper-includes
+// RUN: %{run} %t-O0.out
 
 #include "Inputs/declarations.hpp"
 

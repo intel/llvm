@@ -392,6 +392,10 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 ur_result_t TsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                               ur_queue_handle_t Queue,
                                               LaunchInfo &LaunchInfo) {
+  if (hasZeroGlobalWorkSize(LaunchInfo.WorkDim, LaunchInfo.GlobalWorkSize)) {
+    return UR_RESULT_SUCCESS;
+  }
+
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(Queue));
@@ -415,6 +419,11 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
                                            ur_kernel_handle_t Kernel,
                                            LaunchInfo &LaunchInfo) {
   auto &KernelInfo = getKernelInfo(Kernel);
+
+  if (hasZeroGlobalWorkSize(LaunchInfo.WorkDim, LaunchInfo.GlobalWorkSize)) {
+    LaunchInfo.LocalWorkSize.assign(LaunchInfo.WorkDim, 1);
+    return UR_RESULT_SUCCESS;
+  }
 
   // Get suggested local work size if user doesn't determine it.
   if (LaunchInfo.LocalWorkSize.empty()) {

@@ -38,7 +38,7 @@ struct CommandListCacheTest : public uur::urContextTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
-  v2::supported_extensions_descriptor_t supportedExtensions(false, false, false,
+  v2::supported_extensions_descriptor_t supportedExtensions(false, false,
                                                             false);
   v2::command_list_cache_t cache(v2::v2_cast(context)->getZeHandle(),
                                  supportedExtensions);
@@ -96,7 +96,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
-  v2::supported_extensions_descriptor_t supportedExtensions(false, false, false,
+  v2::supported_extensions_descriptor_t supportedExtensions(false, false,
                                                             false);
   v2::command_list_cache_t cache(v2::v2_cast(context)->getZeHandle(),
                                  supportedExtensions);

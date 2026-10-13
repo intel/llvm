@@ -4,7 +4,7 @@
 
 /// ###########################################################################
 /// Test phase output with -ccc-print-phases
-// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -ccc-print-phases -c %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only --no-offloadlib -fno-sycl-instrument-device-code -ccc-print-phases -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
 
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -19,7 +19,7 @@
 /// ###########################################################################
 /// Test that device compile generates integration header/footer, and the host
 /// compiler consumes these.
-// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -### -c %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only --no-offloadlib -fno-sycl-instrument-device-code -### -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INT-HEADER %s
 
 // CHK-INT-HEADER: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
@@ -37,7 +37,7 @@
 
 /// ###########################################################################
 /// Test that no bundled output is created (only 2 invocations: device + host)
-// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -### -c %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only --no-offloadlib -fno-sycl-instrument-device-code -### -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-BUNDLER %s
 
 // CHK-NO-BUNDLER-NOT: clang-offload-bundler
@@ -45,7 +45,7 @@
 
 /// ###########################################################################
 /// Test with explicit target triple
-// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -fsycl-targets=spir64 -### -c %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only --no-offloadlib -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TARGET %s
 
 // CHK-TARGET: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
@@ -58,7 +58,7 @@
 
 /// ###########################################################################
 /// Test that linking works with host-only objects
-// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -### %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only --no-offloadlib -fno-sycl-instrument-device-code -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
 
 // CHK-LINK: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
@@ -71,7 +71,7 @@
 
 /// ###########################################################################
 /// Test with multiple source files
-// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only -### -c %s %s 2>&1 \
+// RUN: %clang -fsycl --target=x86_64-unknown-linux-gnu --offload-new-driver --offload-host-only --no-offloadlib -fno-sycl-instrument-device-code -### -c %s %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-MULTI %s
 
 // CHK-MULTI: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"

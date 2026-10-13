@@ -5332,6 +5332,15 @@ template <rgba_channel_mask M> static void validate_rgba_write_channel_mask() {
       (M == CM::ABGR || M == CM::BGR || M == CM::GR || M == CM::R) &&
       "Only ABGR, BGR, GR, R channel masks are valid in write operations");
 }
+
+template <typename T, int N, typename AccessorT>
+constexpr void check_rgba_typed_access() {
+  static_assert(sycl::detail::acc_properties::is_image_accessor_v<AccessorT>,
+                "Typed surface access requires an image accessor");
+  static_assert(N == 8 || N == 16 || N == 32,
+                "Unsupported value of N. Only 8, 16 or 32 are supported");
+  static_assert(sizeof(T) == 4, "Unsupported size of type T");
+}
 } // namespace detail
 
 /// @anchor usm_scatter_rgba
@@ -5537,6 +5546,7 @@ scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
                                           global_offset, mask);
 }
 #endif
+
 /// @} sycl_esimd_memory
 
 namespace detail {

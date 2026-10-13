@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Jul 01, 2026
-        return "2f1c59bd731477de9b99b95a37bad5ebc9dae922"
+        # Sep 14, 2026
+        return "32dcb8b6d0e3a4ad138cee7cbf1217ac78ba2fd1"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -95,8 +95,8 @@ class ComputeBench(Suite):
         if offload_enabled():
             extra_args += [
                 "-DBUILD_OL=ON",
-                f"-DOFFLOAD_INSTALL_DIR={Path(options.offload_prefix) / 'lib'}",
-                f"-DOFFLOAD_INCLUDE_DIR={Path(options.offload_prefix) / 'include' / 'offload'}",
+                f"-DLIBOFFLOAD_LIBRARY_DIR={options.offload_lib_dir}",
+                f"-DLIBOFFLOAD_INCLUDE_DIR={Path(options.offload_prefix) / 'include'}",
             ]
 
         if self._project is None:
@@ -168,6 +168,10 @@ class ComputeBench(Suite):
             measure_completion,
             use_events,
         ) in submit_kernel_params:
+            if runtime == RUNTIMES.OFFLOAD and not in_order_queue:
+                # The liboffload SubmitKernel implementation only supports
+                # in-order queues.
+                continue
             long_kernel_exec_time = (
                 long_kernel_exec_time_ioq
                 if in_order_queue
@@ -211,6 +215,9 @@ class ComputeBench(Suite):
             ):
                 # old adapter doesn't support graph mode for SYCL
                 continue
+            if runtime in SYCL_RUNTIMES:
+                # TODO: this benchmark fails with SIGABRT on SYCL; fix and re-enable!
+                continue
             benches.append(
                 GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
             )
@@ -244,6 +251,9 @@ class ComputeBench(Suite):
             # SYCL only supports graph mode, UR & L0 support both emulated
             # and non-emulated graph APIs.
             if runtime in SYCL_RUNTIMES:
+                # TODO: SubmitGraph benchmarks fail on SYCL with SIGSEGV
+                # or a simple 'ERROR' in parsing; fix and re-enable!
+                continue
                 emulate_graphs = [0]
             else:  # level-zero and unified-runtime
                 # SubmitGraph with L0 / UR graph segfaults on PVC
@@ -783,6 +793,9 @@ class ComputeBenchCoreSuite(ComputeBench):
             in_order_queue,
             profiler_type,
         ) in submit_kernel_params:
+            if runtime == RUNTIMES.OFFLOAD and not in_order_queue:
+                # liboffload doesn't support out-of-order queues.
+                continue
             core_benches.append(
                 SubmitKernel(
                     self,
@@ -895,11 +908,6 @@ class SubmitKernel(ComputeBenchmark):
         if offload_enabled():
             return SUBMIT_KERNEL_RUNTIMES.copy()
         return COMPUTE_BENCHMARK_RUNTIMES.copy()
-
-    def _extra_env_vars(self) -> dict:
-        if self._runtime == RUNTIMES.OFFLOAD and options.force_offload_plugin:
-            return {"FORCE_OFFLOAD_PLUGIN": options.force_offload_plugin}
-        return {}
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1320,6 +1328,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             f"--withGraphs={self._with_graphs}",
             "--withCopyOffload=1",
             "--immediateAppendCmdList=0",
+            "--UseNativeRecording=1",
         ]
 
 
@@ -1405,6 +1414,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--UseHostTasks={self._use_host_tasks}",
             f"--profilerType={self._profiler_type.value}",
             f"--EmulateGraphs={self._emulate_graphs}",
+            "--UseNativeRecording=1",
         ]
 
 

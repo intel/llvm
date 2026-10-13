@@ -50,12 +50,15 @@ For further details see here: <https://github.com/intel/llvm/blob/sycl/sycl/doc/
         
 ### 3.2 Through a programming API
         
-There is an extension that introduces a filtering device selection to SYCL described in
-[sycl\_ext\_oneapi\_filter\_selector](../supported/sycl_ext_oneapi_filter_selector.asciidoc).
-Similar to how ONEAPI_DEVICE_SELECTOR applies filtering to the entire process this device selector can be used to
-programmatically select the Level-Zero backend.
+A SYCL 2020 device selector callable can be used to programmatically select the Level-Zero backend,
+e.g. by returning a negative score for devices whose ```get_backend()``` is not ```sycl::backend::ext_oneapi_level_zero```:
+```C++
+sycl::queue Q([](const sycl::device &D) {
+  return D.get_backend() == sycl::backend::ext_oneapi_level_zero ? 1 : -1;
+});
+```
                 
-When neither the environment variable nor the filtering device selector are used, the implementation chooses
+When neither the environment variable nor a device selector are used, the implementation chooses
 the Level-Zero backend for GPU devices supported by the installed Level-Zero runtime.
 The serving backend for a SYCL platform can be queried with the ```get_backend()``` member function of ```sycl::platform```.
 

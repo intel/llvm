@@ -1,3 +1,5 @@
+// REQUIRES: jit
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG

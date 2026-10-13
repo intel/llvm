@@ -40,6 +40,7 @@ struct ur_context_handle_t_ : handle_base {
   static ur_result_t makeWithNative(native_type Ctx, uint32_t DevCount,
                                     const ur_device_handle_t *phDevices,
                                     ur_context_handle_t &Context);
+
   ~ur_context_handle_t_() noexcept {
     // If we're reasonably sure this context is about to be destroyed we should
     // clear the ext function pointer cache. This isn't foolproof sadly but it

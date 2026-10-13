@@ -16,10 +16,12 @@
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
 #include <umf/pools/pool_proxy.h>
+#include <umf/providers/provider_fixed_memory.h>
 #include <unified-runtime/ur_api.h>
 
 #include "logger/ur_logger.hpp"
 
+#include <algorithm>
 #include <array>
 #include <functional>
 #include <memory>
@@ -53,7 +55,7 @@ using provider_unique_handle_t =
     std::unique_ptr<umf_memory_provider_t,
                     std::function<void(umf_memory_provider_handle_t)>>;
 
-#define DEFINE_CHECK_OP(op)                                                    \
+#define DEFINE_CHECK_OP(op, default_return)                                    \
   template <typename T> class HAS_OP_##op {                                    \
     typedef char check_success;                                                \
     typedef long check_fail;                                                   \
@@ -67,24 +69,23 @@ using provider_unique_handle_t =
   template <typename T, typename... Args>                                      \
   static inline                                                                \
       typename std::enable_if<HAS_OP_##op<T>::value, umf_result_t>::type       \
-          CALL_OP_##op(T *t, Args &&...args) {                                 \
+      CALL_OP_##op(T *t, Args &&...args) {                                     \
     return t->op(std::forward<Args>(args)...);                                 \
   }                                                                            \
                                                                                \
-  static inline umf_result_t CALL_OP_##op(...) {                               \
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;                                     \
-  }
+  static inline umf_result_t CALL_OP_##op(...) { return default_return; }
 
-DEFINE_CHECK_OP(ext_purge_lazy)
-DEFINE_CHECK_OP(ext_purge_force)
-DEFINE_CHECK_OP(ext_allocation_merge)
-DEFINE_CHECK_OP(ext_allocation_split)
-DEFINE_CHECK_OP(ext_get_ipc_handle_size)
-DEFINE_CHECK_OP(ext_get_ipc_handle)
-DEFINE_CHECK_OP(ext_put_ipc_handle)
-DEFINE_CHECK_OP(ext_open_ipc_handle)
-DEFINE_CHECK_OP(ext_close_ipc_handle)
-DEFINE_CHECK_OP(ext_ctl)
+DEFINE_CHECK_OP(ext_purge_lazy, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_purge_force, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_allocation_merge, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_allocation_split, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_get_ipc_handle_size, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_get_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_put_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_open_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_close_ipc_handle, UMF_RESULT_ERROR_NOT_SUPPORTED)
+DEFINE_CHECK_OP(ext_ctl, UMF_RESULT_ERROR_INVALID_CTL_PATH)
+DEFINE_CHECK_OP(get_cache_line_size, UMF_RESULT_ERROR_NOT_SUPPORTED)
 
 #define UMF_ASSIGN_OP(ops, type, func, default_return)                         \
   ops.func = [](void *obj, auto... args) {                                     \
@@ -133,7 +134,7 @@ template <typename T, typename ArgsTuple>
 umf_memory_pool_ops_t poolMakeUniqueOps() {
   umf_memory_pool_ops_t ops = {};
 
-  ops.version = UMF_VERSION_CURRENT;
+  ops.version = UMF_POOL_OPS_VERSION_CURRENT;
   ops.initialize = [](umf_memory_provider_handle_t provider, const void *params,
                       void **obj) {
     try {
@@ -171,7 +172,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   umf_memory_provider_ops_t ops = {};
   auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
 
-  ops.version = UMF_VERSION_CURRENT;
+  ops.version = UMF_PROVIDER_OPS_VERSION_CURRENT;
   ops.initialize = [](const void *params, void **obj) {
     try {
       *obj = new T;
@@ -192,6 +193,7 @@ auto memoryProviderMakeUnique(Args &&...args) {
   UMF_ASSIGN_OP(ops, T, get_last_native_error, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_recommended_page_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_min_page_size, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, get_cache_line_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_name, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
@@ -203,7 +205,19 @@ auto memoryProviderMakeUnique(Args &&...args) {
   UMF_ASSIGN_OP_OPT(ops, T, ext_put_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_open_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP_OPT(ops, T, ext_close_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops, T, ext_ctl, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_ctl, UMF_RESULT_ERROR_INVALID_CTL_PATH);
+
+  // The runtime UMF may be older than the one we compiled against and would
+  // reject a newer ops version. There is no API to query it, so read it from a
+  // built-in provider and advertise the lower version: an older runtime then
+  // accepts the struct and ignores the newer optional ops.
+  const auto runtimeVersion = umfFixedMemoryProviderOps()->version;
+  if (UMF_MAJOR_VERSION(ops.version) != UMF_MAJOR_VERSION(runtimeVersion)) {
+    return std::pair<umf_result_t, provider_unique_handle_t>{
+        UMF_RESULT_ERROR_NOT_SUPPORTED,
+        provider_unique_handle_t(nullptr, &umfMemoryProviderDestroy)};
+  }
+  ops.version = std::min(ops.version, runtimeVersion);
 
   umf_memory_provider_handle_t hProvider = nullptr;
   auto ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);
@@ -218,6 +232,16 @@ template <typename T, typename... Args>
 auto poolMakeUnique(provider_unique_handle_t provider, Args &&...args) {
   auto argsTuple = std::make_tuple(std::forward<Args>(args)...);
   auto ops = detail::poolMakeUniqueOps<T, decltype(argsTuple)>();
+
+  // See memoryProviderMakeUnique(): advertise the lower of the compile-time and
+  // runtime ops versions, read here from a built-in pool.
+  const auto runtimeVersion = umfProxyPoolOps()->version;
+  if (UMF_MAJOR_VERSION(ops.version) != UMF_MAJOR_VERSION(runtimeVersion)) {
+    return std::pair<umf_result_t, pool_unique_handle_t>{
+        UMF_RESULT_ERROR_NOT_SUPPORTED,
+        pool_unique_handle_t(nullptr, umfPoolDestroy)};
+  }
+  ops.version = std::min(ops.version, runtimeVersion);
 
   umf_memory_pool_handle_t hPool = nullptr;
 

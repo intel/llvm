@@ -32,11 +32,19 @@
 
 namespace sycl {
 inline namespace _V1 {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group;
+#else
+class sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 namespace ext {
 namespace oneapi {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated compatibility type for sycl::sub_group.
 struct sub_group;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group_mask;
+class bfloat16;
 namespace experimental {
 template <typename ParentGroup> class fragment;
 
@@ -44,6 +52,8 @@ template <int Dimensions> class root_group;
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+
+using bfloat16 = ext::oneapi::bfloat16;
 
 namespace detail {
 
@@ -82,9 +92,11 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
@@ -279,9 +291,11 @@ using WidenOpenCLTypeTo32_t = std::conditional_t<
 template <typename Group> struct GroupId {
   using type = size_t;
 };
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct GroupId<::sycl::sub_group> {
   using type = uint32_t;
 };
@@ -563,6 +577,17 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, bfloat16>, T>
+AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
@@ -591,6 +616,17 @@ inline typename std::enable_if_t<std::is_same_v<T, half>>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, bfloat16>>
+AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+            memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
@@ -635,6 +671,17 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+               memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
@@ -672,6 +719,17 @@ inline typename std::enable_if_t<std::is_same_v<half, T>, T>
 AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
@@ -745,6 +803,17 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMinEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
@@ -771,6 +840,17 @@ inline typename std::enable_if_t<std::is_same_v<half, T>, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<bfloat16, T>, T>
+AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<__bf16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);

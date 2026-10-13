@@ -17,8 +17,35 @@
 #include "platform.hpp"
 #include "sampler.hpp"
 
+#include <string>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace ur::level_zero {
 namespace {
+
+#ifdef _WIN32
+// SYCL/UR carry NT object names as wide strings (LPCWSTR); L0's
+// ze_external_semaphore_win32_ext_desc_t::name is char* interpreted as UTF-8
+// by NEO. Convert at the adapter boundary. Returns empty on an empty or
+// invalid UTF-16 name.
+std::string wideToUtf8(const wchar_t *wideName) {
+  int len = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideName, -1,
+                                nullptr, 0, nullptr, nullptr);
+  if (len <= 1) {
+    return {};
+  }
+  std::string utf8(static_cast<size_t>(len), '\0');
+  if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideName, -1,
+                          utf8.data(), len, nullptr, nullptr) != len) {
+    return {};
+  }
+  utf8.pop_back();
+  return utf8;
+}
+#endif
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
@@ -292,6 +319,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
+  ze_srgb_ext_desc_t ZeSrgbDesc{};
+  ZeSrgbDesc.stype = ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
+  ZeSrgbDesc.pNext = nullptr;
+  ZeSrgbDesc.sRGB = true;
+
   ZeStruct<ze_image_bindless_exp_desc_t> BindlessDesc;
   BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &BindlessDesc;
@@ -303,8 +335,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         common_cast(hContext)->getPlatform()->ZeApiVersion;
     UR_CALL(ur::level_zero::ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc,
                                              ZeSamplerDesc));
-    BindlessDesc.pNext = &ZeSamplerDesc;
+    if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+      ZeSrgbDesc.pNext = static_cast<void *>(&ZeSamplerDesc);
+      BindlessDesc.pNext = &ZeSrgbDesc;
+    } else {
+      BindlessDesc.pNext = &ZeSamplerDesc;
+    }
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
+  } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+    BindlessDesc.pNext = &ZeSrgbDesc;
   }
 
   v2::raii::ze_image_handle_t ZeImage;
@@ -339,6 +378,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
     if (Sampled) {
       ZeSamplerDesc.pNext = &PitchedDesc;
+    } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
+      ZeSrgbDesc.pNext = &PitchedDesc;
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
@@ -550,6 +591,16 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
   }
 
+  // The Level Zero sRGB decode extension is only defined for 8-bit unorm,
+  // 4-channel images.
+  if (ImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA &&
+      (ZeImageFormatType != ZE_IMAGE_FORMAT_TYPE_UNORM ||
+       ZeImageFormatTypeSize != 8)) {
+    UR_LOG(ERR, "ur2zeImageDesc: SRGBA channel order requires an 8-bit unorm "
+                "channel type");
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
+
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
   switch (ImageFormat->channelOrder) {
@@ -612,7 +663,8 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   case UR_IMAGE_CHANNEL_ORDER_RGBX:
   case UR_IMAGE_CHANNEL_ORDER_BGRA:
   case UR_IMAGE_CHANNEL_ORDER_ARGB:
-  case UR_IMAGE_CHANNEL_ORDER_ABGR: {
+  case UR_IMAGE_CHANNEL_ORDER_ABGR:
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA: {
     switch (ZeImageFormatTypeSize) {
     case 8:
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
@@ -673,6 +725,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                     ZE_IMAGE_FORMAT_SWIZZLE_X, ZE_IMAGE_FORMAT_SWIZZLE_1};
     break;
   case UR_IMAGE_CHANNEL_ORDER_RGBA:
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA:
     ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
                     ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
                     ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
@@ -1126,10 +1179,16 @@ ur_result_t urBindlessImagesImageAllocateExp(
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
+  ze_srgb_ext_desc_t ZeSrgbDesc{};
+  ZeSrgbDesc.stype = ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
+  ZeSrgbDesc.pNext = nullptr;
+  ZeSrgbDesc.sRGB = true;
 
-  ze_image_bindless_exp_desc_t ZeImageBindlessDesc;
-  ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
-  ZeImageBindlessDesc.pNext = nullptr;
+  ZeStruct<ze_image_bindless_exp_desc_t> ZeImageBindlessDesc;
+  ZeImageBindlessDesc.pNext =
+      (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA)
+          ? static_cast<void *>(&ZeSrgbDesc)
+          : nullptr;
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
 
@@ -1350,7 +1409,18 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
           delete externalMemoryData;
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-        importWin32->name = Win32Name->name;
+        // L0's ze_external_memory_import_win32_handle_t::name is const void*
+        // and NEO consumes the wide string (LPCWSTR) as-is. Only the semaphore
+        // path (const char* name) needs the UTF-8 conversion.
+#ifdef _WIN32
+        externalMemoryData->win32NameStorage =
+            static_cast<const wchar_t *>(Win32Name->name);
+        importWin32->name = externalMemoryData->win32NameStorage.c_str();
+#else
+        delete importWin32;
+        delete externalMemoryData;
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
       }
 
       switch (memHandleType) {
@@ -1467,6 +1537,10 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
   ze_external_semaphore_win32_ext_desc_t Win32ExpDesc = {
       ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXT_DESC, nullptr, nullptr,
       nullptr};
+#ifdef _WIN32
+  // Backing storage for Win32ExpDesc.name; must outlive the L0 import call.
+  std::string Utf8NameStorage;
+#endif
   void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
   while (pNext != nullptr) {
     const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
@@ -1517,7 +1591,22 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
         if (Win32Name->name == nullptr) {
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
-        Win32ExpDesc.name = static_cast<const char *>(Win32Name->name);
+        // OPAQUE_WIN32 by name is a design non-goal: the export HANDLE is a
+        // file mapping wrapping a driver-private sync-object name; callers
+        // must resolve via HANDLE externally.
+        if (semHandleType == UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT) {
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        }
+#ifdef _WIN32
+        Utf8NameStorage =
+            wideToUtf8(static_cast<const wchar_t *>(Win32Name->name));
+        if (Utf8NameStorage.empty()) {
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.name = Utf8NameStorage.c_str();
+#else
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
         Win32ExpDesc.handle = nullptr;
       }
     }

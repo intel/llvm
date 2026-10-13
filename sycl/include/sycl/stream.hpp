@@ -813,13 +813,14 @@ inline void writeGroup(GlobalBufAccessorT &GlobalFlushBuf,
   unsigned Len = 0;
   Len += append(Buf, "group(");
   Len += append(Buf + Len, "id: ");
-  Len += ArrayToStr(Buf + Len, Group.get_id());
+  Len += ArrayToStr(Buf + Len, Group.get_group_id());
   Len += append(Buf + Len, ", global_range: ");
-  Len += ArrayToStr(Buf + Len, Group.get_global_range());
+  auto GroupRange = Group.get_group_range();
+  Len += ArrayToStr(Buf + Len, GroupRange * Group.get_max_local_range());
   Len += append(Buf + Len, ", local_range: ");
   Len += ArrayToStr(Buf + Len, Group.get_local_range());
   Len += append(Buf + Len, ", group_range: ");
-  Len += ArrayToStr(Buf + Len, Group.get_group_range());
+  Len += ArrayToStr(Buf + Len, GroupRange);
   Buf[Len++] = ')';
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }

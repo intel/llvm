@@ -767,6 +767,36 @@ urCommandBufferCreateExp(::ur_context_handle_t ContextOpque,
   ze_command_list_handle_t ZeCommandListResetEvents = nullptr;
   ze_command_list_handle_t ZeComputeCommandListTranslated = nullptr;
 
+  // The CopyFinishedEvent and ComputeFinishedEvent are needed only when using
+  // the ImmediateAppend Path.
+  ur_event_handle_t CopyFinishedEvent = nullptr;
+  ur_event_handle_t ComputeFinishedEvent = nullptr;
+  // The WaitEvent is needed only when using WaitEvent Path.
+  ur_event_handle_t WaitEvent = nullptr;
+  ur_event_handle_t AllResetEvent = nullptr;
+  ur_event_handle_t ExecutionFinishedEvent = nullptr;
+
+  // Release any resources created so far if we return early before ownership
+  // is transferred to the command-buffer object.
+  bool Committed = false;
+  OnScopeExit Rollback([&]() {
+    if (Committed)
+      return;
+    for (ze_command_list_handle_t ZeCommandList :
+         {ZeComputeCommandList, ZeCopyCommandList, ZeCommandListResetEvents}) {
+      if (ZeCommandList && checkL0LoaderTeardown()) {
+        ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
+      }
+    }
+    for (ur_event_handle_t Event :
+         {ExecutionFinishedEvent, WaitEvent, AllResetEvent, CopyFinishedEvent,
+          ComputeFinishedEvent}) {
+      if (Event) {
+        urEventReleaseInternal(Event);
+      }
+    }
+  });
+
   UR_CALL(createMainCommandList(Context, Device, IsInOrder, IsUpdatable, false,
                                 ZeComputeCommandList));
 
@@ -784,10 +814,6 @@ urCommandBufferCreateExp(::ur_context_handle_t ContextOpque,
              (ZEL_HANDLE_COMMAND_LIST, ZeComputeCommandList,
               (void **)&ZeComputeCommandListTranslated));
 
-  // The CopyFinishedEvent and ComputeFinishedEvent are needed only when using
-  // the ImmediateAppend Path.
-  ur_event_handle_t CopyFinishedEvent = nullptr;
-  ur_event_handle_t ComputeFinishedEvent = nullptr;
   if (ImmediateAppendPath) {
     if (Device->hasMainCopyEngine()) {
       UR_CALL(EventCreate(Context, nullptr /*Queue*/, false, false,
@@ -804,8 +830,6 @@ urCommandBufferCreateExp(::ur_context_handle_t ContextOpque,
     }
   }
 
-  // The WaitEvent is needed only when using WaitEvent Path.
-  ur_event_handle_t WaitEvent = nullptr;
   if (WaitEventPath) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &WaitEvent,
@@ -817,8 +841,6 @@ urCommandBufferCreateExp(::ur_context_handle_t ContextOpque,
   // used. Using counter-based events means that there is no need to reset any
   // events between executions. Counter-based events can only be enabled on the
   // ImmediateAppend Path.
-  ur_event_handle_t AllResetEvent = nullptr;
-  ur_event_handle_t ExecutionFinishedEvent = nullptr;
   if (!UseCounterBasedEvents) {
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         false /*HostVisible*/, &AllResetEvent,
@@ -848,8 +870,17 @@ urCommandBufferCreateExp(::ur_context_handle_t ContextOpque,
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+  // Ownership of the resources has been transferred to the command-buffer.
+  Committed = true;
 
-  UR_CALL(appendExecutionWaits(*CommandBuffer));
+  if (auto Result = appendExecutionWaits(*CommandBuffer);
+      Result != UR_RESULT_SUCCESS) {
+    auto CommandBufferImpl = v1_cast(*CommandBuffer);
+    CommandBufferImpl->cleanupCommandBufferResources();
+    delete CommandBufferImpl;
+    *CommandBuffer = nullptr;
+    return Result;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -1707,11 +1738,15 @@ ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
   // before completing the command-buffer execution, and then attach this
   // memory to the event returned to users to allow the profiling
   // engine to recover these timestamps.
-  command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
+  // Both allocations are owned locally until the query has been appended
+  // successfully, at which point ownership is transferred to ProfilingEvent,
+  // which frees them on release.
+  auto Profiling = std::make_unique<command_buffer_profiling_t>();
 
   Profiling->NumEvents = CommandBuffer->ZeEventsList.size();
-  Profiling->Timestamps =
-      new ze_kernel_timestamp_result_t[Profiling->NumEvents];
+  auto Timestamps =
+      std::make_unique<ze_kernel_timestamp_result_t[]>(Profiling->NumEvents);
+  Profiling->Timestamps = Timestamps.get();
 
   uint32_t NumWaitEvents = WaitEvent ? 1 : 0;
   ze_event_handle_t *ZeWaitEventList =
@@ -1723,7 +1758,8 @@ ur_result_t appendProfilingQueries(ur_exp_command_buffer_handle_t CommandBuffer,
               CommandBuffer->ZeEventsList.data(), (void *)Profiling->Timestamps,
               0, ZeSignalEvent, NumWaitEvents, ZeWaitEventList));
 
-  ProfilingEvent->CommandData = static_cast<void *>(Profiling);
+  Timestamps.release();
+  ProfilingEvent->CommandData = static_cast<void *>(Profiling.release());
 
   return UR_RESULT_SUCCESS;
 }

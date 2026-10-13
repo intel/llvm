@@ -1377,8 +1377,7 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   if (!checkGraphExtensionSupport(hContextInternal)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  if (!hContextInternal->getPlatform()
-           ->ZeGraphExt.zeCommandListEndGraphCaptureExp) {
+  if (!hContextInternal->getPlatform()->ZeGraphExt.hasEndGraphCapture()) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -1482,7 +1481,8 @@ ur_result_t ur_command_list_manager::appendHostTaskExp(
   }
 
   ZE2UR_CALL(hPlatform->ZeHostTaskExt.zeCommandListAppendHostFunction,
-             (getZeCommandList(), (void *)pfnHostTask, data,
+             (getZeCommandList(),
+              reinterpret_cast<ze_host_function_callback_t>(pfnHostTask), data,
               const_cast<void *>(reinterpret_cast<const void *>(pProperties)),
               getSignalEvent(phEvent, UR_COMMAND_HOST_TASK_EXP),
               waitListView.num, waitListView.handles));

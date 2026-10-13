@@ -432,11 +432,9 @@ ur::level_zero::v1::ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
         ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
-    ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
-        ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
-    eventSyncMode.syncModeFlags =
-        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
-        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+    ZeStruct<ze_event_sync_mode_desc_t> eventSyncMode;
+    eventSyncMode.syncModeFlags = ZE_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT |
+                                  ZE_EVENT_SYNC_MODE_FLAG_SIGNAL_INTERRUPT;
 
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
@@ -549,11 +547,9 @@ ur::level_zero::v1::ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
         ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
-    ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
-        ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
-    eventSyncMode.syncModeFlags =
-        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
-        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+    ZeStruct<ze_event_sync_mode_desc_t> eventSyncMode;
+    eventSyncMode.syncModeFlags = ZE_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT |
+                                  ZE_EVENT_SYNC_MODE_FLAG_SIGNAL_INTERRUPT;
 
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;

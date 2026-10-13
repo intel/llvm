@@ -167,8 +167,7 @@ public:
     bool operator()(const ProgramCacheKeyT &LHS,
                     const ProgramCacheKeyT &RHS) const {
       // Check equality of SerializedObj (Spec const)
-      return std::equal(LHS.first.first.begin(), LHS.first.first.end(),
-                        RHS.first.first.begin()) &&
+      return LHS.first.first == RHS.first.first &&
              // Check equality of imageId
              LHS.first.second == RHS.first.second &&
              // Check equality of devices

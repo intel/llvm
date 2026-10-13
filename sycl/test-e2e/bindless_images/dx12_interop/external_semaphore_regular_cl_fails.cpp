@@ -5,6 +5,9 @@
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe
 
+// XFAIL: windows && run-mode && !gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23249
+
 // Waiting on a DX12-fence external semaphore from a queue backed by a
 // regular (non-immediate) command list must throw sycl::exception.
 //

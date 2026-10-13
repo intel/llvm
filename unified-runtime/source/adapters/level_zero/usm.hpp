@@ -138,6 +138,9 @@ public:
   virtual umf_result_t get_recommended_page_size(size_t, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
+  virtual umf_result_t get_cache_line_size(size_t *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  };
   virtual umf_result_t ext_get_ipc_handle_size(size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   }
@@ -178,6 +181,7 @@ public:
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr) override;
   umf_result_t free(void *Ptr, size_t Size) override;
   umf_result_t get_min_page_size(const void *, size_t *) override;
+  umf_result_t get_cache_line_size(size_t *) override;
   // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
   umf_result_t get_name(const char **name) override {
     if (!name) {

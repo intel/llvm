@@ -289,7 +289,7 @@ void adjustAddressSpace(Function *F, uint32_t ArgNo, uint32_t ArgAddrSpace) {
           PointerType *NPT = PointerType::get(Arg->getContext(), ArgAddrSpace);
 
           auto *NewInstr = new AddrSpaceCastInst(ArgUse->getOperand(i), NPT);
-          NewInstr->insertBefore(Instr);
+          NewInstr->insertBefore(Instr->getIterator());
           NewInstr->setDebugLoc(Instr->getDebugLoc());
 
           ArgUse->setOperand(i, NewInstr);

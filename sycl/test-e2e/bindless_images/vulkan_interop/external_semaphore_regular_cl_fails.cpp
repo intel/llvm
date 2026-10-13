@@ -3,6 +3,12 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: vulkan && level_zero
 //
+// UNSUPPORTED: linux && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23242
+//
+// XFAIL: windows && run-mode && !gpu-intel-gen12
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23249
+//
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
 
@@ -22,7 +28,7 @@
 //      that explicitly opts into no_immediate_command_list, and
 //      expecting a sycl::exception.
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -31,7 +37,7 @@
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 int main() {
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkSemaphore vkSem = createExportableSemaphore(vkCtx);
 
   // Lawful queue: import the semaphore here.

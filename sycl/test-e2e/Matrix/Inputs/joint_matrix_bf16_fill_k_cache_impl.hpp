@@ -390,6 +390,9 @@ void test(size_t matrix_size_input) {
 
   matrix_rand<T>(matrix_size, matrix_size, A, T(1));
   matrix_rand<T>(matrix_size, matrix_size, B, T(1));
+  // matrix_multiply_ref accumulates into refC, so it must be zeroed first:
+  // USM allocations are not guaranteed to be zero initialized.
+  matrix_fill(matrix_size, matrix_size, refC, TResult(0));
 
   matrix_multiply_ref<T, T, TResult, 1>(
       A, B, refC, matrix_size, matrix_size, matrix_size

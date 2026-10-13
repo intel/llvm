@@ -670,11 +670,7 @@ llvm::DIFile *CGDebugInfo::createFile(
 }
 
 std::string CGDebugInfo::remapDIPath(StringRef Path) const {
-  SmallString<256> P = Path;
-  for (auto &[From, To] : llvm::reverse(CGM.getCodeGenOpts().DebugPrefixMap))
-    if (llvm::sys::path::replace_path_prefix(P, From, To))
-      break;
-  return P.str().str();
+  return CGM.getCodeGenOpts().remapDebugPathPrefix(Path);
 }
 
 unsigned CGDebugInfo::getLineNumber(SourceLocation Loc) {
@@ -1151,6 +1147,10 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
     return SingletonId;                                                        \
   }
 #include "clang/Basic/AMDGPUTypes.def"
+#define SPIRV_TYPE(Name, Id, SingletonId)                                      \
+  case BuiltinType::Id:                                                        \
+    return getOrCreateStructPtrType(Name, SingletonId);
+#include "clang/Basic/SPIRVTypes.def"
   case BuiltinType::UChar:
   case BuiltinType::Char_U:
     Encoding = llvm::dwarf::DW_ATE_unsigned_char;
@@ -1799,9 +1799,13 @@ llvm::DIType *CGDebugInfo::CreateType(const TypedefType *Ty,
                                 Flags, Annotations);
 }
 
-static unsigned getDwarfCC(CallingConv CC) {
+static unsigned getDwarfCC(CallingConv CC, const llvm::Triple &T) {
   switch (CC) {
   case CC_C:
+    // On SPIR/SPIR-V, CC_C is the target default calling convention and lowers
+    // to spir_func, so describe it that way.
+    if (T.isSPIROrSPIRV())
+      return llvm::dwarf::DW_CC_LLVM_SpirFunction;
     // Avoid emitting DW_AT_calling_convention if the C convention was used.
     return 0;
 
@@ -1827,7 +1831,7 @@ static unsigned getDwarfCC(CallingConv CC) {
     return llvm::dwarf::DW_CC_LLVM_AAPCS_VFP;
   case CC_IntelOclBicc:
     return llvm::dwarf::DW_CC_LLVM_IntelOclBicc;
-  case CC_SpirFunction:
+  case CC_NativeCPUFunction:
     return llvm::dwarf::DW_CC_LLVM_SpirFunction;
   case CC_DeviceKernel:
     return llvm::dwarf::DW_CC_LLVM_DeviceKernel;
@@ -1905,7 +1909,8 @@ llvm::DIType *CGDebugInfo::CreateType(const FunctionType *Ty,
 
   llvm::DITypeArray EltTypeArray = DBuilder.getOrCreateTypeArray(EltTys);
   llvm::DIType *F = DBuilder.createSubroutineType(
-      EltTypeArray, Flags, getDwarfCC(Ty->getCallConv()));
+      EltTypeArray, Flags,
+      getDwarfCC(Ty->getCallConv(), CGM.getTarget().getTriple()));
   return F;
 }
 
@@ -2390,8 +2395,9 @@ CGDebugInfo::getOrCreateInstanceMethodType(QualType ThisPtr,
 
   llvm::DITypeArray EltTypeArray = DBuilder.getOrCreateTypeArray(Elts);
 
-  return DBuilder.createSubroutineType(EltTypeArray, OriginalFunc->getFlags(),
-                                       getDwarfCC(Func->getCallConv()));
+  return DBuilder.createSubroutineType(
+      EltTypeArray, OriginalFunc->getFlags(),
+      getDwarfCC(Func->getCallConv(), CGM.getTarget().getTriple()));
 }
 
 /// isFunctionLocalClass - Return true if CXXRecordDecl is defined
@@ -2541,10 +2547,17 @@ llvm::DISubprogram *CGDebugInfo::CreateCXXMemberFunction(
     SPFlags |= llvm::DISubprogram::SPFlagOptimized;
 
   // In this debug mode, emit type info for a class when its constructor type
-  // info is emitted.
-  if (DebugKind == llvm::codegenoptions::DebugInfoConstructor)
-    if (const CXXConstructorDecl *CD = dyn_cast<CXXConstructorDecl>(Method))
-      completeUnusedClass(*CD->getParent());
+  // info is emitted. Delegating constructors are ignored because the target
+  // constructor's definition will emit the type info.
+  if (DebugKind == llvm::codegenoptions::DebugInfoConstructor) {
+    if (const auto *CD = dyn_cast<CXXConstructorDecl>(Method)) {
+      if (const auto *Def =
+              dyn_cast_or_null<CXXConstructorDecl>(CD->getDefinition());
+          Def && !Def->isDelegatingConstructor()) {
+        completeUnusedClass(*CD->getParent());
+      }
+    }
+  }
 
   llvm::DINodeArray TParamsArray = CollectFunctionTemplateParams(Method, Unit);
   llvm::DISubprogram *SP = DBuilder.createMethod(
@@ -3247,6 +3260,14 @@ static bool canUseCtorHoming(const CXXRecordDecl *RD) {
   for (const CXXConstructorDecl *Ctor : RD->ctors()) {
     if (Ctor->isCopyOrMoveConstructor())
       continue;
+    if (const FunctionDecl *Def = Ctor->getDefinition()) {
+      const auto *CtorDef = cast<CXXConstructorDecl>(Def);
+      // Ignore delegating constructors, the target constructor will either be
+      // a non-deleted custom constructor that enables homing, or could be a
+      // copy/move constructor, which does not enable homing.
+      if (CtorDef->isDelegatingConstructor())
+        continue;
+    }
     if (!Ctor->isDeleted())
       return true;
   }
@@ -3740,13 +3761,17 @@ llvm::DIType *CGDebugInfo::CreateTypeDefinition(const ObjCInterfaceType *Ty,
       Flags |= llvm::DINode::FlagBitField;
 
     llvm::MDNode *PropertyNode = nullptr;
+    ObjCPropertyDecl *SynthesizedProperty = nullptr;
+    llvm::DIFile *PUnit = nullptr;
+    unsigned PLine = 0;
     if (ObjCImplementationDecl *ImpD = ID->getImplementation()) {
       if (ObjCPropertyImplDecl *PImpD =
               ImpD->FindPropertyImplIvarDecl(Field->getIdentifier())) {
         if (ObjCPropertyDecl *PD = PImpD->getPropertyDecl()) {
+          SynthesizedProperty = PD;
           SourceLocation Loc = PD->getLocation();
-          llvm::DIFile *PUnit = getOrCreateFile(Loc);
-          unsigned PLine = getLineNumber(Loc);
+          PUnit = getOrCreateFile(Loc);
+          PLine = getLineNumber(Loc);
           ObjCMethodDecl *Getter = PImpD->getGetterMethodDecl();
           ObjCMethodDecl *Setter = PImpD->getSetterMethodDecl();
           PropertyNode = DBuilder.createObjCProperty(
@@ -3762,10 +3787,17 @@ llvm::DIType *CGDebugInfo::CreateTypeDefinition(const ObjCInterfaceType *Ty,
         }
       }
     }
-    FieldTy = DBuilder.createObjCIVar(FieldName, FieldDefUnit, FieldLine,
-                                      FieldSize, FieldAlign, FieldOffset, Flags,
-                                      FieldTy, PropertyNode);
-    EltTys.push_back(FieldTy);
+    auto *IvarTy = DBuilder.createObjCIVar(FieldName, FieldDefUnit, FieldLine,
+                                           FieldSize, FieldAlign, FieldOffset,
+                                           Flags, FieldTy, PropertyNode);
+    EltTys.push_back(IvarTy);
+
+    if (SynthesizedProperty) {
+      assert(PUnit && "SynthesizedProperty implies PUnit");
+      EltTys.push_back(DBuilder.createProperty(
+          SynthesizedProperty->getName(), PUnit, PLine,
+          getOrCreateType(SynthesizedProperty->getType(), PUnit), IvarTy));
+    }
   }
 
   llvm::DINodeArray Elements = DBuilder.getOrCreateArray(EltTys);
@@ -4638,6 +4670,14 @@ void CGDebugInfo::collectVarDeclProps(const VarDecl *VD, llvm::DIFile *&Unit,
     TemplateParameters = nullptr;
   }
 
+  // Get context for static locals (that are technically globals) the same way
+  // we do for "local" locals -- by using current lexical block.
+  if (VD->isStaticLocal()) {
+    assert(!LexicalBlockStack.empty() && "Region stack mismatch, stack empty!");
+    VDContext = LexicalBlockStack.back();
+    return;
+  }
+
   // Since we emit declarations (DW_AT_members) for static members, place the
   // definition of those static members in the namespace they were declared in
   // in the source code (the lexical decl context).
@@ -4908,8 +4948,9 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
       Elts.push_back(DBuilder.createUnspecifiedParameter());
 
     llvm::DITypeArray EltTypeArray = DBuilder.getOrCreateTypeArray(Elts);
-    return DBuilder.createSubroutineType(EltTypeArray, llvm::DINode::FlagZero,
-                                         getDwarfCC(CC));
+    return DBuilder.createSubroutineType(
+        EltTypeArray, llvm::DINode::FlagZero,
+        getDwarfCC(CC, CGM.getTarget().getTriple()));
   }
 
   // Handle variadic function types; they need an additional
@@ -4923,8 +4964,9 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
           EltTys.push_back(getOrCreateType(ParamType, F));
       EltTys.push_back(DBuilder.createUnspecifiedParameter());
       llvm::DITypeArray EltTypeArray = DBuilder.getOrCreateTypeArray(EltTys);
-      return DBuilder.createSubroutineType(EltTypeArray, llvm::DINode::FlagZero,
-                                           getDwarfCC(CC));
+      return DBuilder.createSubroutineType(
+          EltTypeArray, llvm::DINode::FlagZero,
+          getDwarfCC(CC, CGM.getTarget().getTriple()));
     }
 
   return cast<llvm::DISubroutineType>(getOrCreateType(FnType, F));
@@ -5159,13 +5201,18 @@ void CGDebugInfo::EmitFuncDeclForCallSite(llvm::CallBase *CallOrInvoke,
     return;
   if (Func->getSubprogram())
     return;
+  // If the function has a definition, it either already has a
+  // subprogram or it is a nodebug function.
+  if (!Func->isDeclaration())
+    return;
 
   const FunctionDecl *CalleeDecl =
       cast<FunctionDecl>(CalleeGlobalDecl.getDecl());
 
   // Do not emit a declaration subprogram for a function with nodebug
-  // attribute, or if call site info isn't required.
-  if (CalleeDecl->hasAttr<NoDebugAttr>() ||
+  // attribute, or if call site info isn't required.  The attribute
+  // could be on a later redeclaration than the one the call resolves to.
+  if (CalleeDecl->getMostRecentDecl()->hasAttr<NoDebugAttr>() ||
       noSystemDebugInfo(CalleeDecl, CGM) ||
       getCallSiteRelatedAttrs() == llvm::DINode::FlagZero)
     return;

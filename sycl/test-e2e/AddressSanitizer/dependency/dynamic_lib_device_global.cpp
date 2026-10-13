@@ -1,7 +1,7 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{build} %device_asan_flags -O0 -g -fPIC -shared -fsycl-allow-device-image-dependencies -DBUILD_LIB -o %t.dir/libdevice_oob.so
-// RUN: %{build} %device_asan_flags -O0 -g -fsycl-allow-device-image-dependencies -o %t.out -L%t.dir -ldevice_oob -Wl,-rpath=%t.dir
+// RUN: %{run-aux} %{build} %device_asan_flags -O0 -g -fsycl-allow-device-image-dependencies -o %t.out -L%t.dir -ldevice_oob -Wl,-rpath=%t.dir
 // RUN: %{run} not --crash %t.out 2>&1 | FileCheck %s
 #include <sycl/detail/core.hpp>
 

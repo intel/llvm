@@ -389,7 +389,7 @@ __SYCL_DEVICE float nearbyint(float x) { return __builtin_nearbyintf(x); }
 // Floating-point manipulation functions
 using ::frexp;
 using ::frexpf;
-__SYCL_DEVICE double frexp(float x, int *exp) {
+__SYCL_DEVICE float frexp(float x, int *exp) {
   return __spirv_ocl_frexp(x, exp);
 }
 template <typename T> __SYCL_DEVICE __sycl_promote_t<T> frexp(T x, int *exp) {

@@ -188,8 +188,15 @@ public:
   /// Returns raw interoperability event handle.
   ur_event_handle_t getHandle() const { return MEvent.load(); }
 
-  /// Set event handle for this event object.
-  void setHandle(const ur_event_handle_t &UREvent) { MEvent.store(UREvent); }
+  /// Set event handle for this event object. Wakes any thread waiting in
+  /// waitInternal that entered before a handle was available.
+  void setHandle(const ur_event_handle_t &UREvent) {
+    MEvent.store(UREvent);
+    if (UREvent != nullptr) {
+      std::lock_guard<std::mutex> lock(MMutex);
+      cv.notify_all();
+    }
+  }
 
   /// Returns context that is associated with this event.
   context_impl &getContextImpl();
@@ -371,6 +378,8 @@ public:
 
   void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
 
+  void setLowPower(bool Value) { MLowPower = Value; }
+
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.
   void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
@@ -428,6 +437,7 @@ protected:
   Command *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   bool MIsProfilingEnabled = false;
+  bool MLowPower = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;

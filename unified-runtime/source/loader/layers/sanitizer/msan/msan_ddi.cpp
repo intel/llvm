@@ -29,13 +29,18 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   UR_CALL(getMsanInterceptor()->insertContext(Context, CI));
   for (uint32_t i = 0; i < numDevices; ++i) {
     auto hDevice = phDevices[i];
-    std::shared_ptr<DeviceInfo> DI;
-    UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
-    DI->Type = GetDeviceType(Context, hDevice);
-    if (DI->Type == DeviceType::UNKNOWN) {
+    // Reject unsupported devices before registering them: the interceptor
+    // teardown expects every device it knows about to have shadow memory.
+    auto Type = GetDeviceType(Context, hDevice);
+    if (Type == DeviceType::UNKNOWN) {
       UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
+    UR_CALL(CheckDeviceBackendSupported(hDevice, Type));
+
+    std::shared_ptr<DeviceInfo> DI;
+    UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
+    DI->Type = Type;
     UR_LOG_L(getContext()->logger, INFO,
              "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
              (void *)DI->Handle, ToString(DI->Type),
@@ -1723,8 +1728,12 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
   KernelInfo.ArgProps.resize(numArgs);
-  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
-              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+  // A kernel may take no arguments at all, in which case pArgs is null and the
+  // resized vector has not allocated, so both memcpy pointers are null. That is
+  // undefined behaviour even for a zero length.
+  if (numArgs)
+    std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+                numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {

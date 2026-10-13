@@ -54,6 +54,26 @@
 // CHK-FSYCL-IS-DEVICE: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc"
 // CHK-FSYCL-IS-HOST: "-cc1"{{.*}} "-fsycl-is-host"
 
+/// Check that SYCL compilation defaults to relocatable device code (-fgpu-rdc
+/// is passed to both the device and the host -cc1 invocation) and that
+/// -fno-gpu-rdc disables it.
+// RUN: %clang -### -fsycl -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-SYCL-RDC,CHK-SYCL-RDC-HOST %s
+// RUN: %clang -### -fsycl -fgpu-rdc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-SYCL-RDC,CHK-SYCL-RDC-HOST %s
+// RUN: %clang -### -fsycl -fno-gpu-rdc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-NORDC %s
+// CHK-SYCL-RDC: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-fgpu-rdc"
+// CHK-SYCL-RDC-HOST: "-cc1"{{.*}} "-fsycl-is-host" {{.*}} "-fgpu-rdc"
+// CHK-SYCL-NORDC-NOT: "-fgpu-rdc"
+
+/// Conversely, RDC mode embeds unlinked device code via -fembed-offload-object.
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fgpu-rdc %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-RDC-EMBED %s \
+// RUN:     --implicit-check-not='"-foffload-include-binary"' \
+// RUN:     --implicit-check-not='"--emit-fatbin-only"'
+// CHK-RDC-EMBED: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fembed-offload-object=
+
 // Check that --allow-partial-linkage and --create-library are not passed to
 // clang-linker-wrapper for SYCL (they are spirv-link flags, not clang-sycl-linker flags).
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
@@ -92,9 +112,28 @@
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-UNUSED %s
 // CHK-SPLIT-UNUSED: warning: argument unused during compilation: '-fsycl-device-image-split=kernel'
 
+/// CUDA/ROCm device-compiler paths must not be forwarded unscoped to SPIR.
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl --cuda-path=/tmp/cuda --rocm-path=/tmp/rocm %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FOREIGN-PATHS %s
+// CHK-NO-FOREIGN-PATHS: clang-linker-wrapper
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=--cuda-path=
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=--rocm-path=
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=spir64-unknown-unknown=--cuda-path=
+// CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=spir64-unknown-unknown=--rocm-path=
+
+// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SCOPED-CUDA-PATH %s
+// CHK-SCOPED-CUDA-PATH: clang-linker-wrapper
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=--cuda-path=
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=spir64-unknown-unknown=--cuda-path=
+// CHK-SCOPED-CUDA-PATH-SAME: "--device-compiler=nvptx64-nvidia-cuda=--cuda-path={{[^"]+}}"
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=nvptx64-nvidia-cuda=--cuda-path=
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=--cuda-path=
+// CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=spir64-unknown-unknown=--cuda-path=
+
 /// Check for option incompatibility with -fsycl
 // RUN: not %clang -### -fsycl -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
-// RUN: not %clang --sysroot=%S/Inputs/SYCL -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
+// RUN: not %clang -### -fsycl -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
 // CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'

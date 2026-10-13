@@ -88,12 +88,14 @@ SmallString<0> sycl_post_link::convertESIMDOptionsToString(
     const sycl_post_link::ESIMDProcessingOptions &Options) {
   return formatv(
              "esimd.split_mode: {0}, esimd.EmitOnlyKernelsAsEntryPoints: {1}, "
-             "esimd.AllowDeviceImageDependencies: {2}, esimd.LowerESIMD: {3}, "
-             "esimd.SplitESIMD: {4}, esimd.OptLevel: {5}, "
-             "esimd.ForceDisableESIMDOpt: {6}",
+             "esimd.AllowDeviceImageDependencies: {2}, "
+             "esimd.SuppressUndefinedFuncWarnings: {3}, esimd.LowerESIMD: {4}, "
+             "esimd.SplitESIMD: {5}, esimd.OptLevel: {6}, "
+             "esimd.ForceDisableESIMDOpt: {7}",
              module_split::convertSplitModeToString(Options.SplitMode),
              Options.EmitOnlyKernelsAsEntryPoints,
-             Options.AllowDeviceImageDependencies, Options.LowerESIMD,
+             Options.AllowDeviceImageDependencies,
+             Options.SuppressUndefinedFuncWarnings, Options.LowerESIMD,
              Options.SplitESIMD, Options.OptLevel, Options.ForceDisableESIMDOpt)
       .sstr<0>();
 }
@@ -133,7 +135,8 @@ llvm::sycl_post_link::handleESIMD(
     bool &SplitOccurred) {
   SmallVector<std::unique_ptr<ModuleDesc>, 2> Result =
       splitByESIMD(std::move(MDesc), Options.EmitOnlyKernelsAsEntryPoints,
-                   Options.AllowDeviceImageDependencies);
+                   Options.AllowDeviceImageDependencies,
+                   Options.SuppressUndefinedFuncWarnings);
 
   assert(Result.size() <= 2 &&
          "Split modules aren't expected to be more than 2.");

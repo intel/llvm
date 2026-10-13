@@ -30,6 +30,7 @@ compiler and runtime.
 | `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
 | `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
 | `SYCL_GRAPH_FORCE_NATIVE_RECORDING` | '1' or '0' | When set to '1', forces every `command_graph` to use native recording as if `property::graph::enable_native_recording` was passed in its property list. When unset or set to any other value, native recording is enabled only when that property is set explicitly. Default is disabled. |
+| `SYCL_LAUNCH_BLOCKING` | '1' or '0' | When set to '1', makes the device commands of a submission synchronous. See [below](#sycl_launch_blocking). Default is '0'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -113,6 +114,26 @@ A list of devices and their driver version following the pattern:
 `BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`.
 Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no
 fixed order of properties in the pattern.
+
+### `SYCL_LAUNCH_BLOCKING`
+
+When set to `1`, a command submitted to a `sycl::queue` does not return until the
+device work it enqueued has completed, so a device fault is reported at the
+submission that caused it rather than at the next wait. Analogous to CUDA's
+`CUDA_LAUNCH_BLOCKING=1`. This is intended for debugging purposes only as it
+serializes the application.
+Default is `0`.
+
+The wait has no deadline, so a program hangs with this option enabled if the work
+it enqueued can only complete through host progress that happens after the submission
+returns, for example a kernel spinning on a host-written flag.
+
+Commands that enqueue no device work of their own are not made synchronous:
+markers and barriers, timestamp recording, host tasks (including Level Zero 
+native host tasks) and any command recorded into a graph instead of executed.
+A command whose dependencies are not yet satisfied is enqueued later, by the
+runtime thread that satisfies them, so it is that enqueue that blocks and not
+the submission that returned earlier.
 
 ## `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE`
 
@@ -210,7 +231,7 @@ variables in production code.</span>
 | `SYCL_PROGRAM_APPEND_COMPILE_OPTIONS` | String of valid compile options | Append to the end of compile options for all programs. |
 | `SYCL_PROGRAM_APPEND_LINK_OPTIONS` | String of valid link options | Append to the end of link options for all programs. |
 | `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `sycl::runtime_error` exception is thrown. The image is assumed to have been created using the `-fno-sycl-dead-args-optimization` option. |
-| `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
+| `SYCL_DUMP_IMAGES` | Integer | Dump device image binaries to file. `2` dumps only the device images that are actually used at runtime, reporting each dump to `stderr`. `0` disables dumping. Any other value dumps all device images loaded into the SYCL runtime. Each image is dumped at most once. The default is unset, i.e. no images are dumped. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
 | `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
 | `SYCL_CACHE_TRACE` | Described [below](#sycl_cache_trace-options). | Enable tracing for different SYCL and `kernel_compiler` caches. |
 | `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE` | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |

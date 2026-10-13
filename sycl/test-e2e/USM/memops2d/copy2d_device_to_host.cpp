@@ -13,6 +13,9 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10157
 
+// UNSUPPORTED: linux && gpu-intel-dg2 && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23392
+
 #include "copy2d_common.hpp"
 
 int main() { return test<Alloc::Device, Alloc::Host>(); }

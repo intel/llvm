@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: linux && run-mode
+// XFAIL: run-mode && !(windows && gpu-intel-gen12)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/22789
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

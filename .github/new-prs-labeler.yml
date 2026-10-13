@@ -935,7 +935,6 @@ backend:SPIR-V:
       - llvm/test/CodeGen/SPIRV/**
       - llvm/test/Frontend/HLSL/**
       - llvm/docs/SPIRVUsage.rst
-      - llvm/tools/spirv-tools/**
 
 mlgo:
   - changed-files:

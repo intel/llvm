@@ -179,6 +179,124 @@ TEST_F(CommandGraphTest, AsyncAllocInfiniteLoop) {
   Graph.end_recording(Queue);
 }
 
+// Regression test for the allocation reuse algorithm leaving the graph in a
+// dirty state. Fixed by https://github.com/intel/llvm/pull/23168
+//
+// When submitting an async alloc, we try to reuse a node in the graph if we've
+// submitted a previous allocation.
+//
+// There was a bug where the re-use check mutated the graph such that future
+// unrelated components like the cycle detector were tripped up
+TEST_F(CommandGraphTest, AsyncAllocFailedReuseSpuriousCycle) {
+  const size_t SmallSize = 1 << 16; // 64KB
+  const size_t BigSize = 1 << 17;   // 128KB
+
+  void *PtrA = nullptr;
+  void *PtrB = nullptr;
+  void *PtrC = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  // small malloc / free
+  auto MallocA = Queue.submit([&](handler &CGH) {
+    PtrA = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+  auto FreeA = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocA);
+    experimental::async_free(CGH, PtrA);
+  });
+
+  // we can't re-use the previous alloc because this request is too big
+  auto MallocB = Queue.submit([&](handler &CGH) {
+    PtrB = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+  auto FreeB = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocB);
+    experimental::async_free(CGH, PtrB);
+  });
+
+  auto K = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(FreeA);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  // big malloc / free
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(K);
+    PtrC = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+
+  Graph.end_recording(Queue);
+
+  experimental::node FreeBNode = experimental::node::get_node_from_event(FreeB);
+  experimental::node KNode = experimental::node::get_node_from_event(K);
+
+  EXPECT_NE(PtrB, nullptr);
+  EXPECT_NE(PtrC, nullptr);
+  EXPECT_NE(PtrC, PtrB);
+
+  // the graph shouldn't be in a weird state that tricks the cycle detector into
+  // hallucinating cycles
+  EXPECT_NO_THROW(Graph.make_edge(FreeBNode, KNode));
+}
+
+// Regression test for the allocation reuse algorithm leaving the graph in a
+// dirty state. Fixed by https://github.com/intel/llvm/pull/23168
+//
+// allocation reuse stopped working once the query returned false once
+TEST_F(CommandGraphTest, AsyncAllocFailedReuseLostReuse) {
+  const size_t SmallSize = 1 << 16; // 64KB
+  const size_t BigSize = 1 << 17;   // 128KB
+
+  void *PtrA = nullptr;
+  void *PtrB = nullptr;
+  void *PtrC = nullptr;
+  void *PtrD = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  auto MallocA = Queue.submit([&](handler &CGH) {
+    PtrA = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+  auto FreeA = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocA);
+    experimental::async_free(CGH, PtrA);
+  });
+
+  auto MallocB = Queue.submit([&](handler &CGH) {
+    PtrB = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(MallocB);
+    experimental::async_free(CGH, PtrB);
+  });
+
+  auto K = Queue.submit([&](handler &CGH) {
+    CGH.depends_on(FreeA);
+    CGH.single_task<TestKernel>([]() {});
+  });
+
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(K);
+    PtrC = experimental::async_malloc(CGH, usm::alloc::device, BigSize);
+  });
+
+  // make sure that we reuse the alloc
+  Queue.submit([&](handler &CGH) {
+    CGH.depends_on(K);
+    PtrD = experimental::async_malloc(CGH, usm::alloc::device, SmallSize);
+  });
+
+  Graph.end_recording(Queue);
+
+  EXPECT_NE(PtrA, nullptr);
+  EXPECT_NE(PtrB, nullptr);
+  EXPECT_NE(PtrC, nullptr);
+
+  EXPECT_NE(PtrC, PtrB);
+  EXPECT_EQ(PtrD, PtrA);
+}
+
 // Regression test for a node being silently dropped from the command-buffer
 // schedule. When a host task partitions the graph, the topological sort per
 // partition only traverses edges internal to that partition, but it used to

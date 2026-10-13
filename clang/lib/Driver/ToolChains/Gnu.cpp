@@ -244,6 +244,7 @@ void tools::gnutools::StaticLibTool::ConstructJob(
   ArgStringList CmdArgs;
   // Create and insert file members with a deterministic index.
   CmdArgs.push_back("rcsD");
+  Args.AddAllArgValues(CmdArgs, options::OPT_Xstatic_lib_tool);
   CmdArgs.push_back(Output.getFilename());
 
   for (const auto &II : Inputs) {
@@ -462,15 +463,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      // TODO: Incoming file from the unbundling of the AOCX archive is
-      // represented as an object. The file should be considered as a filelist
-      // file to correspond with the '@' addition.
-      bool IsAOCXFile = false;
-      if (II.isFilename())
-        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
-
-      if (II.getType() == types::TY_Tempfilelist ||
-          (IsAOCXFile && II.getType() == types::TY_Object)) {
+      if (II.getType() == types::TY_Tempfilelist) {
         // Take the unbundled list file and pass it in with '@'.
         const char *ArgFile =
             C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
@@ -594,6 +587,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         // FIXME: Does this really make sense for all GNU toolchains?
         WantPthread = true;
 
+      addLLVMOffloadingRuntime(C, CmdArgs, ToolChain, Args);
       AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
 
       // LLVM support for atomics on 32-bit SPARC V8+ is incomplete, so
@@ -616,6 +610,24 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       if (!Args.hasArg(options::OPT_nolibc))
         CmdArgs.push_back("-lc");
+
+      // musl does not provide __stack_chk_fail_local, but GCC emits calls
+      // to it in PIC/PIE code on some targets (32-bit x86, PowerPC). musl
+      // distributions ship the symbol in libssp_nonshared.a and make GCC
+      // link it when stack protection is on; match that if the library
+      // exists.
+      if (ToolChain.getTriple().isMusl()) {
+        bool WantsSSP = ToolChain.GetDefaultStackProtectorLevel(
+                            /*KernelOrKext=*/false) != LangOptions::SSPOff;
+        if (Arg *A = Args.getLastArg(options::OPT_fno_stack_protector,
+                                     options::OPT_fstack_protector,
+                                     options::OPT_fstack_protector_all,
+                                     options::OPT_fstack_protector_strong))
+          WantsSSP = !A->getOption().matches(options::OPT_fno_stack_protector);
+        if (WantsSSP &&
+            ToolChain.GetFilePath("libssp_nonshared.a") != "libssp_nonshared.a")
+          CmdArgs.push_back("-lssp_nonshared");
+      }
 
       // Add IAMCU specific libs, if needed.
       if (IsIAMCU)

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -111,12 +112,12 @@ bool DiscardFilters;
 std::vector<std::string> FilterEnvVars;
 
 // Trivial custom selector that selects a device of the given type.
-class custom_selector : public device_selector {
+class custom_selector {
   info::device_type MType;
 
 public:
   custom_selector(info::device_type Type) : MType(Type) {}
-  int operator()(const device &Dev) const override {
+  int operator()(const device &Dev) const {
     return Dev.get_info<info::device::device_type>() == MType ? 1 : -1;
   }
 };
@@ -206,7 +207,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
   auto DeviceDriverVersion = Device.get_info<info::device::driver_version>();
 
   if (Verbose) {
-    std::cout << Prepend << "Type              : " << getDeviceTypeName(Device)
+    std::string DeviceTypeName = getDeviceTypeName(Device);
+    std::cout << Prepend << "Type              : " << DeviceTypeName
               << std::endl;
     std::cout << Prepend << "Version           : " << DeviceVersion
               << std::endl;
@@ -255,15 +257,17 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     auto Arch = Device.get_info<syclex::info::device::architecture>();
     auto CanonicalArch = getCanonicalArchitectureName(Arch);
     std::cout << Prepend << "Architecture: " << CanonicalArch << std::endl;
-    std::cout << Prepend << "GPU Family: " << getGPUFamily(Arch) << std::endl;
+    if (DeviceTypeName == "gpu")
+      std::cout << Prepend << "GPU Family: " << getGPUFamily(Arch) << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;
   }
 }
 
-static void printSelectorChoice(const device_selector &Selector,
-                                const std::string &Prepend) {
+static void
+printSelectorChoice(const std::function<int(const device &)> &Selector,
+                    const std::string &Prepend) {
   try {
     const auto &Device = device(Selector);
     std::string DeviceTypeName = getDeviceTypeName(Device);
@@ -540,10 +544,10 @@ int main(int argc, char **argv) {
     verbose = false;
 
     // Print built-in device selectors choice
-    printSelectorChoice(default_selector(), "default_selector()      : ");
-    printSelectorChoice(accelerator_selector(), "accelerator_selector()  : ");
-    printSelectorChoice(cpu_selector(), "cpu_selector()          : ");
-    printSelectorChoice(gpu_selector(), "gpu_selector()          : ");
+    printSelectorChoice(default_selector_v, "default_selector_v      : ");
+    printSelectorChoice(accelerator_selector_v, "accelerator_selector_v  : ");
+    printSelectorChoice(cpu_selector_v, "cpu_selector_v          : ");
+    printSelectorChoice(gpu_selector_v, "gpu_selector_v          : ");
 
     // Print trivial custom selectors choice
     printSelectorChoice(custom_selector(info::device_type::gpu),

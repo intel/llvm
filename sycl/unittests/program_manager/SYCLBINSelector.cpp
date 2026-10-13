@@ -22,6 +22,9 @@
 //      act as the provider side of a cross-library link (#22509 bug 1).
 //   3. Native-AOT image surfaced for an executable-state request (baseline
 //      preferred-native path).
+//   4. Native image with no symbols at all -> classified executable, still
+//      surfaced for an object-state request, as it is the object-state content
+//      of the SYCLBIN it was loaded from.
 //
 //===----------------------------------------------------------------------===//
 
@@ -158,6 +161,35 @@ TEST(SYCLBINSelector, ExportOnlyLibrarySurfacedForObject) {
             bundle_state::executable);
   EXPECT_FALSE(Selected[0]->getExportedSymbols().empty());
   EXPECT_TRUE(Selected[0]->getImportedSymbols().empty());
+}
+
+// Branch 4: a native image with neither imported nor exported symbols
+// classifies as executable, but it is the object-state content of the SYCLBIN
+// it was loaded from, so an object-state request must surface it. The loader
+// has already rejected a request whose state differs from the SYCLBIN's own
+// declared state, and it presents the image as object (see ReconcileState),
+// so the intrinsic classification must not veto the selection here.
+// The same situation arises for a target the backend still JIT-compiles, whose
+// images classify as input rather than executable.
+TEST(SYCLBINSelector, NativeWithoutSymbolsSurfacedForObject) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  NativeImageHolder Holder{"SYCLBINSelectorPlain",
+                           /*ExportedSymbols=*/{},
+                           /*ImportedSymbols=*/{}};
+  std::vector<char> Bytes =
+      serializeNativeSYCLBIN(Holder.image(), Dev, bundle_state::object);
+
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+  std::vector<const detail::RTDeviceBinaryImage *> Selected =
+      Binaries.getBestCompatibleImages(Dev, bundle_state::object);
+
+  ASSERT_EQ(Selected.size(), 1u)
+      << "Native image without symbols must be surfaced for an object request "
+         "even though it classifies as executable";
+  EXPECT_EQ(detail::ProgramManager::getBinImageState(Selected[0]),
+            bundle_state::executable);
 }
 
 // Baseline: an executable-state request surfaces the native image via the

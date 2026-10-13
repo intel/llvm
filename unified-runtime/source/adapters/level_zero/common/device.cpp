@@ -225,6 +225,46 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  constexpr const char *ExtensionName =
+      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
+#else
+  std::ignore = Platform;
+  return false;
+#endif
+}
+
+static std::optional<uint64_t>
+getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  if (!supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+    return std::nullopt;
+  }
+
+  ZeStruct<ze_device_properties_t> DeviceProperties;
+  ZeStruct<ze_device_usablemem_size_ext_properties_t> UsableMemProperties;
+  DeviceProperties.pNext = &UsableMemProperties;
+
+  auto ZeResult = ZE_CALL_NOCHECK(zeDeviceGetProperties,
+                                  (Device->ZeDevice, &DeviceProperties));
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    return std::nullopt;
+  }
+
+  return UsableMemProperties.currUsableMemSize;
+#else
+  std::ignore = Device;
+  return std::nullopt;
+#endif
+}
+
 // Return the Sysman device handle and correpsonding data for the given UR
 // device.
 static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
@@ -378,6 +418,22 @@ ur_result_t urDeviceGetInfo(
              (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
+    // Level Zero has no direct query for 16-bit integer atomics, which is what
+    // aspect::ext_oneapi_atomic16 also covers (short/unsigned short), so
+    // fp16Flags of the float atomics extension is used as a proxy. Any non-zero
+    // bit (global/local load/store, add, min/max) is treated as sufficient;
+    // we assume devices reporting fp16 atomics also support 16-bit integer
+    // atomics.
+    // Only verified on CRI.
+    // TODO: Extend to other architectures once 16-bit atomics are supported
+    // there.
+    // TODO: cl_ext_float_atomics also covers fp32/fp64 atomics, so gating it on
+    // fp16Flags alone is misleading for other consumers of
+    // UR_DEVICE_INFO_EXTENSIONS. Replace this with a dedicated UR device info
+    // query for 16-bit atomics.
+    if (Device->isCRI() && Device->ZeDeviceFloatAtomicExtProperties->fp16Flags)
+      SupportedExtensions += ("cl_ext_float_atomics ");
+
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -392,6 +448,18 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+    if (Device->Platform->ZeDriverEuCountExtensionFound) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_eu_count_ext_t EuCountDesc = {};
+      EuCountDesc.stype = ZE_STRUCTURE_TYPE_EU_COUNT_EXT;
+      DeviceProp.pNext = (void *)&EuCountDesc;
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      if (EuCountDesc.numTotalEUs > 0) {
+        return ReturnValue(uint32_t{EuCountDesc.numTotalEUs});
+      }
+    }
+
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
         Device->ZeDeviceProperties->numSubslicesPerSlice *
@@ -874,6 +942,30 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
+    if (!ParamValue && pSize) {
+      if (supportsDeviceUsableMemSizeExtension(Device->Platform)) {
+        return ReturnValue(uint64_t{0});
+      }
+
+      auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
+      (void)ZesDeviceData;
+      if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+      }
+
+      // Verify the query actually works so the enumeration isn't falsely
+      // advertised as supported.
+      uint32_t MemCount = 0;
+      if (ZE_CALL_NOCHECK(zesDeviceEnumMemoryModules,
+                          (ZesDevice, &MemCount, nullptr)) !=
+              ZE_RESULT_SUCCESS ||
+          MemCount == 0) {
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      }
+
+      return ReturnValue(uint64_t{0});
+    }
+
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
     uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
@@ -881,6 +973,10 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
+
+    if (auto CoreUsableMemSize = getDeviceUsableMemSizeFromCore(Device)) {
+      return ReturnValue(std::min(GlobalMemSize, *CoreUsableMemSize));
+    }
 
     auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
@@ -1036,9 +1132,14 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_SRGB:
     return ReturnValue(ur_bool_t{false});
 
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     ur_queue_flags_t queue_flags = 0;
+    return ReturnValue(queue_flags);
+  }
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
+    ur_queue_flags_t queue_flags = UR_QUEUE_FLAG_DISCARD_EVENTS |
+                                   UR_QUEUE_FLAG_SUBMISSION_BATCHED |
+                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
@@ -1403,12 +1504,18 @@ ur_result_t urDeviceGetInfo(
     int32_t Speed = -1;
     for (auto Fan : ZeFanHandles) {
       int32_t CurSpeed;
-      auto result = ze2urResult(ZE_CALL_NOCHECK(
-          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed)));
-      if (result != UR_RESULT_SUCCESS)
-        return result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+      // Some drivers/KMDs report an enumerated fan as unreadable via
+      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, others via
+      // ZE_RESULT_ERROR_NOT_AVAILABLE. Treat both as "unsupported" so the
+      // query is reported consistently instead of surfacing an unrelated
+      // UR error (e.g. UR_RESULT_ERROR_INVALID_OPERATION).
+      ze_result_t ZeResult = ZE_CALL_NOCHECK(
+          zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
+      if (ZeResult != ZE_RESULT_SUCCESS)
+        return (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+                ZeResult == ZE_RESULT_ERROR_NOT_AVAILABLE)
                    ? UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
-                   : result;
+                   : ze2urResult(ZeResult);
       Speed = std::max(Speed, CurSpeed);
     }
     return ReturnValue(Speed);
@@ -1525,6 +1632,11 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     return ReturnValue(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
+  // TODO: Level Zero does not report IGCA yet. Report the queries as
+  // unsupported until an extension to zeDeviceGetProperties exposes it.
+  case UR_DEVICE_INFO_IGCA_TARGET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1971,6 +2083,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceModuleProperties.Compute =
       [ZeDevice](ze_device_module_properties_t &Properties) {
         ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &Properties));
+      };
+
+  ZeDeviceFloatAtomicExtProperties.Compute =
+      [ZeDevice,
+       Platform = Platform](ze_float_atomic_ext_properties_t &Properties) {
+        if (!Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME))
+          return; // leave zero-initialized flags
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query float atomic "
+                 "properties, error code: {}",
+                 ZeResult);
       };
 
   ZeDeviceMemoryProperties.Compute =

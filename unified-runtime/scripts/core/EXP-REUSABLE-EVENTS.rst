@@ -40,12 +40,15 @@ Enums
     * ${X}_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP
 * ${x}_structure_type_t
     * ${X}_STRUCTURE_TYPE_EXP_EVENT_DESC
+    * ${X}_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC
 
 Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * ${x}_exp_event_flags_t
 * ${x}_exp_event_desc_t
+* ${x}_exp_event_sync_mode_flags_t
+* ${x}_exp_event_sync_mode_desc_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,11 +59,16 @@ Functions
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft          |
-+-----------+------------------------+
++-----------+-----------------------------------------------+
+| Revision  | Changes                                       |
++===========+===============================================+
+| 1.0       | Initial Draft                                 |
++-----------+-----------------------------------------------+
+| 1.1       | Add ``${x}_exp_event_sync_mode_desc_t`` and   |
+|           | ``${x}_exp_event_sync_mode_flags_t`` for      |
+|           | adjusting event synchronization modes on      |
+|           | reusable events.                              |
++-----------+-----------------------------------------------+
 
 
 Support

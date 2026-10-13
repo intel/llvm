@@ -205,6 +205,19 @@
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
 
+/// Each TU's host compile should get the macro once, even when TUs share an invocation.
+// RUN: touch %t_file1.cpp
+// RUN: touch %t_file2.cpp
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -c -### %t_file1.cpp %t_file2.cpp 2>&1 | \
+// RUN:   grep "fsycl-is-host" | \
+// RUN:   FileCheck %s --check-prefix=CHK-PVC-HOST-MACRO-ONCE
+// CHK-PVC-HOST-MACRO-ONCE: "-fsycl-is-host"
+// CHK-PVC-HOST-MACRO-ONCE-SAME: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-HOST-MACRO-ONCE-NOT: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-HOST-MACRO-ONCE: "-fsycl-is-host"
+// CHK-PVC-HOST-MACRO-ONCE-SAME: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-HOST-MACRO-ONCE-NOT: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
@@ -269,6 +282,7 @@
 // RUN:   -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:   --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   grep -v "fsycl-is-host" | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"

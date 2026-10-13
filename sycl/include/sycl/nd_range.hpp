@@ -29,6 +29,8 @@ template <int Dimensions = 1> class nd_range {
 public:
   static constexpr int dimensions = Dimensions;
 
+  nd_range() = default;
+
 private:
   range<Dimensions> globalSize;
   range<Dimensions> localSize;
@@ -62,11 +64,6 @@ public:
   nd_range(nd_range<Dimensions> &&rhs) = default;
   nd_range<Dimensions> &operator=(const nd_range<Dimensions> &rhs) = default;
   nd_range<Dimensions> &operator=(nd_range<Dimensions> &&rhs) = default;
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  nd_range() = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
   ~nd_range() = default;
 
   // Common hidden friend functions for by-value semantics

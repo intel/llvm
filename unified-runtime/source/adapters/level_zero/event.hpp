@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <list>
 #include <map>
@@ -15,6 +16,7 @@
 #include <optional>
 #include <stdarg.h>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -101,6 +103,11 @@ struct ur_ze_event_list_t {
   // structure fields making it look empty.
   ur_result_t collectEventsForReleaseAndDestroyUrZeEventList(
       std::list<ur_event_handle_t> &EventsToBeReleased);
+
+  // Release all the events in this object's UrEventList and destroy
+  // ur_ze_event_list_t data structure fields making it look empty. Used to
+  // drop a list that was never handed over to an event, e.g. on error paths.
+  void releaseAndDestroyUrZeEventList();
 
   // Had to create custom assignment operator because the mutex is
   // not assignment copyable. Just field by field copy of the other
@@ -213,8 +220,10 @@ struct ur_event_handle_t_ : ur_object_t {
   // Queue where the batched command was executed.
   ze_command_queue_handle_t ZeBatchedQueue = {nullptr};
 
-  // Indicates within creation of proxy event.
-  bool IsCreatingHostProxyEvent = {false};
+  // Thread that is creating the host-visible proxy event while holding Mutex.
+  // Lets that thread re-enter CleanupCompletedEvent without self-deadlocking;
+  // all other threads still have to acquire Mutex.
+  std::atomic<std::thread::id> HostProxyCreatorThread{};
 
   // The GPU-written global timestamp for a timestamp-recording event. Set to a
   // non-zero adjusted value once the end-timestamp has been fetched from the

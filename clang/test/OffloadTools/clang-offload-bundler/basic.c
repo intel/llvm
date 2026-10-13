@@ -364,9 +364,7 @@
 // RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple -input=%t.bundle3.bc -check-section
 // RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu -input=%t.bundle3.bc -check-section
 // RUN: clang-offload-bundler -type=bc -targets=openmp-x86_64-pc-linux-gnu -input=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux -input=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux -input=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux -input=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=sycl-spir64-unknown-unknown -input=%t.bundle3.bc -check-section
 
 //
 // Check archive bundle.

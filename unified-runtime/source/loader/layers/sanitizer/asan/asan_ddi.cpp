@@ -29,31 +29,39 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   UR_CALL(getAsanInterceptor()->insertContext(Context, CI));
 
   if (numDevices > 0) {
-    auto DeviceType = GetDeviceType(Context, phDevices[0]);
-    auto ShadowMemory =
-        getAsanInterceptor()->getOrCreateShadowMemory(phDevices[0], DeviceType);
+    // All devices of a context must share a device type, so they all end up
+    // sharing the one shadow memory instance cached for that type.
+    auto ContextDeviceType = GetDeviceType(Context, phDevices[0]);
 
     for (uint32_t i = 0; i < numDevices; ++i) {
       auto hDevice = phDevices[i];
-      std::shared_ptr<DeviceInfo> DI;
-      UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
-      DI->Type = GetDeviceType(Context, hDevice);
-      if (DI->Type == DeviceType::UNKNOWN) {
+      // Reject unsupported devices before registering them, so that a rejected
+      // device is never left behind in the interceptor's device map, and before
+      // the shadow memory is created: it is cached per device type, so an
+      // unsupported device would otherwise be handed the shadow reserved for a
+      // Level Zero device of the same type.
+      auto Type = GetDeviceType(Context, hDevice);
+      if (Type == DeviceType::UNKNOWN) {
         UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
-      if (DI->Type != DeviceType) {
+      if (Type != ContextDeviceType) {
         UR_LOG_L(getContext()->logger, ERR,
                  "Different device type in the same context");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
+      UR_CALL(CheckDeviceBackendSupported(hDevice, Type));
+
+      std::shared_ptr<DeviceInfo> DI;
+      UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
+      DI->Type = Type;
       UR_LOG_L(getContext()->logger, INFO,
                "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
                (void *)DI->Handle, ToString(DI->Type),
                DI->IsSupportSharedSystemUSM);
       UR_LOG_L(getContext()->logger, INFO, "Add {} into context {}",
                (void *)DI->Handle, (void *)Context);
-      DI->Shadow = ShadowMemory;
+      DI->Shadow = getAsanInterceptor()->getOrCreateShadowMemory(hDevice, Type);
       CI->DeviceList.emplace_back(hDevice);
     }
   }
@@ -1532,8 +1540,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 
   auto &KernelInfo = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
   KernelInfo.ArgProps.resize(numArgs);
-  std::memcpy(KernelInfo.ArgProps.data(), pArgs,
-              numArgs * sizeof(ur_exp_kernel_arg_properties_t));
+  // A kernel may take no arguments at all, in which case pArgs is null and the
+  // resized vector has not allocated, so both memcpy pointers are null. That is
+  // undefined behaviour even for a zero length.
+  if (numArgs)
+    std::memcpy(KernelInfo.ArgProps.data(), pArgs,
+                numArgs * sizeof(ur_exp_kernel_arg_properties_t));
 
   for (uint32_t ArgPropIndex = 0; ArgPropIndex < numArgs; ArgPropIndex++) {
     switch (pArgs[ArgPropIndex].type) {

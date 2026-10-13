@@ -366,17 +366,21 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
                Dev.get_info<info::device::vendor_id>() == 0x8086;
       });
   if (!CompileOptsEnv) {
+    // Frontend options may be repeated (e.g. once from the image metadata and
+    // once from clang-linker-wrapper), so map every occurrence.
     static const char *TargetCompileFast = "-ftarget-compile-fast";
     if (auto Pos = CompileOpts.find(TargetCompileFast);
         Pos != std::string::npos) {
       const char *BackendOption = nullptr;
       if (IsIntelGPU)
         PlatformImpl.getBackendOption(TargetCompileFast, &BackendOption);
+      std::string_view Replacement =
+          (IsIntelGPU && BackendOption) ? BackendOption : "";
       auto OptLen = strlen(TargetCompileFast);
-      if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
-        CompileOpts.replace(Pos, OptLen, BackendOption);
-      else
-        CompileOpts.erase(Pos, OptLen);
+      do {
+        CompileOpts.replace(Pos, OptLen, Replacement);
+        Pos = CompileOpts.find(TargetCompileFast, Pos + Replacement.size());
+      } while (Pos != std::string::npos);
     }
     static const std::string TargetRegisterAllocMode =
         "-ftarget-register-alloc-mode=";
@@ -414,7 +418,11 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       if (auto Pos = CompileOpts.find(Opt); Pos != std::string::npos) {
         const char *BackendOption = nullptr;
         PlatformImpl.getBackendOption(std::string(Opt).c_str(), &BackendOption);
-        CompileOpts.replace(Pos, Opt.length(), BackendOption);
+        std::string_view Replacement = BackendOption ? BackendOption : "";
+        do {
+          CompileOpts.replace(Pos, Opt.length(), Replacement);
+          Pos = CompileOpts.find(Opt, Pos + Replacement.size());
+        } while (Pos != std::string::npos);
       }
     }
   }
@@ -876,6 +884,25 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
   std::string CompileOpts;
   std::string LinkOpts;
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+
+  if (SYCLConfig<SYCL_DUMP_IMAGES>::dumpUsedOnly() && !m_UseSpvFile) {
+    std::lock_guard<std::mutex> Lock(m_DumpedImagesMutex);
+    for (const RTDeviceBinaryImage *BinImg : ImgWithDeps) {
+      auto It = m_DumpedImages.find(BinImg);
+      if (It != m_DumpedImages.end()) {
+        std::cerr << "SYCL_DUMP_IMAGES: device image already dumped to \""
+                  << It->second << "\"\n";
+        continue;
+      }
+      CheckAndDecompressImage(BinImg);
+      It = m_DumpedImages
+               .emplace(BinImg, dumpImage(*BinImg, ++m_DumpedImagesSeqID))
+               .first;
+      std::cerr << "SYCL_DUMP_IMAGES: dumped device image to \"" << It->second
+                << "\"\n";
+    }
+  }
+
   auto BuildF = [this, &ImgWithDeps, &DevImgWithDeps, &ContextImpl, &Devs,
                  &CompileOpts, &LinkOpts, &SpecConsts, AllowUnresolvedSymbols] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
@@ -1594,11 +1621,17 @@ void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
     }
 }
 
+static exception getNoKernelException(std::string_view KernelName) {
+  return exception(make_error_code(errc::runtime),
+                   "No kernel named " + std::string(KernelName) + " was found");
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throw getNoKernelException(Info.Name);
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
 }
@@ -1607,7 +1640,8 @@ DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throw getNoKernelException(KernelName);
   return It->second;
 }
 
@@ -1673,7 +1707,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
                               bool RegisterImgExports,
                               RTDeviceBinaryImage **OutImage,
                               std::vector<kernel_id> *OutKernelIDs) {
-  const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
   const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
   // Treat the image as empty one
@@ -1777,7 +1810,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       m_VFSet2BinImage[SetName].insert(Img.get());
   }
 
-  if (DumpImages) {
+  if (SYCLConfig<SYCL_DUMP_IMAGES>::dumpAll() && !m_UseSpvFile) {
     const bool NeedsSequenceID =
         std::any_of(m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
                     [&](auto &CurrentImg) {
@@ -1786,7 +1819,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
     // Check if image is compressed, and decompress it before dumping.
     CheckAndDecompressImage(Img.get());
-
     dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
   }
 
@@ -1966,6 +1998,13 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Drop reverse mapping
     m_BinImg2KernelIDs.erase(Img);
 
+    // Drop the record of this image having been dumped, the pointer used as
+    // its key is about to become dangling.
+    {
+      std::lock_guard<std::mutex> DumpedImagesGuard(m_DumpedImagesMutex);
+      m_DumpedImages.erase(Img);
+    }
+
     // Unregister exported symbol -> Img pair (needs to happen after the ID
     // unmap loop)
     for (const sycl_device_binary_property &ESProp :
@@ -1984,8 +2023,8 @@ void ProgramManager::debugPrintBinaryImages() const {
   }
 }
 
-void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
-                               uint32_t SequenceID) const {
+std::string ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
+                                      uint32_t SequenceID) const {
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
   const sycl_device_binary_struct &RawImg = Img.getRawData();
@@ -2010,6 +2049,7 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   }
   Img.dump(F);
   F.close();
+  return Fname;
 }
 
 const KernelArgMask *

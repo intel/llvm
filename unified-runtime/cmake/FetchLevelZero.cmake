@@ -13,9 +13,15 @@ find_package(PkgConfig QUIET)
 # just try to search for the path.
 if(NOT UR_FORCE_FETCH_LEVEL_ZERO)
   if(PkgConfig_FOUND)
-    pkg_check_modules(level-zero level-zero>=1.32.0)
+    pkg_check_modules(level-zero level-zero>=1.34.0)
     if(level-zero_FOUND)
       set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
+      # Level Zero publishes two include dirs: level-zero.pc gives
+      # -I${includedir}/level_zero and, via `Requires: libze_loader`,
+      # libze_loader.pc gives -I${includedir}. Keep them separate from
+      # LEVEL_ZERO_INCLUDE_DIR, which must stay a single directory that
+      # directly contains ze_api.h (consumers append /ze_api.h to it).
+      set(LEVEL_ZERO_EXTRA_INCLUDE_DIRS "${level-zero_INCLUDE_DIRS}")
       set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
       set(LEVEL_ZERO_LIB_NAME "${level-zero_LIBRARIES}")
       message(STATUS "Level Zero Adapter: Using preinstalled level zero loader at ${level-zero_LINK_LIBRARIES}")
@@ -54,7 +60,7 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
   # Remember to update the pkg_check_modules minimum version above when updating the
   # clone tag
-  set(UR_LEVEL_ZERO_LOADER_TAG v1.32.0)
+  set(UR_LEVEL_ZERO_LOADER_TAG v1.34.0)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
@@ -126,6 +132,7 @@ target_link_libraries(LevelZeroLoader
 add_library(LevelZeroLoader-Headers INTERFACE)
 target_include_directories(LevelZeroLoader-Headers
     INTERFACE "$<BUILD_INTERFACE:${LEVEL_ZERO_INCLUDE_DIR}>"
+              "$<BUILD_INTERFACE:${LEVEL_ZERO_EXTRA_INCLUDE_DIRS}>"
               "$<INSTALL_INTERFACE:${LEVEL_ZERO_TARGET_INCLUDE_DIR}>"
 )
 find_path(L0_COMPUTE_RUNTIME_HEADERS
