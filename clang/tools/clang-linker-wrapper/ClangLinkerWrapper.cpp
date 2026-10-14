@@ -3386,10 +3386,12 @@ Error emitExtractCommands(
   return Error::success();
 }
 
-/// See comments in collectSYCLRegisterLibSymbols.
-static Error
-collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer,
-                                        ArrayRef<OffloadFile> Binaries) {
+/// Extract the offload binaries embedded in the single host object \p Buffer
+/// into \p Binaries. If any were found, also record the object's undefined
+/// __sycl_registerlib_<unique_identifier> references in SYCLRegisterLibFuncMap
+/// for the triple and arch of each of those binaries.
+static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
+    MemoryBufferRef Buffer, llvm::SmallVectorImpl<OffloadFile> &Binaries) {
   LLVMContext Context;
   static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
   llvm::file_magic Magic = identify_magic(Buffer.getBuffer());
@@ -3397,11 +3399,22 @@ collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer,
       SymbolicFile::createSymbolicFile(Buffer, Magic, &Context,
                                        /*InitContent=*/Magic !=
                                            llvm::file_magic::bitcode);
+  size_t OldNumBinaries = Binaries.size();
+  if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
+    // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
+    // which is not in OffloadBinary format. Consume the parse error and
+    // fall through to the SYCL bundled objects extraction path.
+    consumeError(std::move(Err));
+  }
   if (!ObjOrErr) {
     // Not something we can read symbols from; ignore it.
     consumeError(ObjOrErr.takeError());
     return Error::success();
   }
+  // An object without device code has no device image to define its
+  // references.
+  if (OldNumBinaries == Binaries.size())
+    return Error::success();
   SmallSet<std::string, 4> FuncNames;
   for (const BasicSymbolRef &Sym : (*ObjOrErr)->symbols()) {
     Expected<uint32_t> FlagsOrErr = Sym.getFlags();
@@ -3417,11 +3430,8 @@ collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer,
       FuncNames.insert(Name);
   }
   if (!FuncNames.empty()) {
-    for (const auto &Binary : Binaries) {
-      // Only use the binaries embedded in this object.
-      if (Binary.getBinary()->getMemoryBufferRef().getBufferIdentifier() !=
-          Buffer.getBufferIdentifier())
-        continue;
+    for (size_t Idx = OldNumBinaries; Idx < Binaries.size(); Idx++) {
+      const OffloadFile &Binary = Binaries[Idx];
       std::string Triple = Binary.getBinary()->getTriple().str();
       std::string Arch = Binary.getBinary()->getArch().str();
       if (Arch == "generic")
@@ -3433,20 +3443,20 @@ collectSYCLRegisterLibSymbolsFromObject(MemoryBufferRef Buffer,
   return Error::success();
 }
 
-/// Scan the host input in \p Buffer for
-/// undefined symbols named __sycl_registerlib_<unique_identifier> and record
-/// them in the global SYCLRegisterLibFuncMap. Each such reference is satisfied
-/// by defining the symbol in the generated SYCL device-image wrapper object.
-/// The references may live in bare object inputs or in members of a static
-/// archive.
-/// \p Binaries are the offload binaries already extracted from \p Buffer.
-static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer,
-                                           ArrayRef<OffloadFile> Binaries) {
+/// Extract the offload binaries embedded in the host input \p Buffer into
+/// \p Binaries, like extractOffloadBinaries. For each host object, or each
+/// member of a static archive, that carries device code, also record its
+/// undefined __sycl_registerlib_<unique_identifier> references in the global
+/// SYCLRegisterLibFuncMap. Each such reference is satisfied by defining the
+/// symbol in the generated SYCL device-image wrapper object.
+static Error extractOffloadBinariesAndRegisterLibSymbols(
+    MemoryBufferRef Buffer, llvm::SmallVectorImpl<OffloadFile> &Binaries) {
   switch (identify_magic(Buffer.getBuffer())) {
   case file_magic::elf_relocatable:
   case file_magic::coff_object:
   case file_magic::bitcode:
-    if (Error Err = collectSYCLRegisterLibSymbolsFromObject(Buffer, Binaries))
+    if (Error Err = extractOffloadBinariesAndRegisterLibSymbolsFromObject(
+            Buffer, Binaries))
       return Err;
     break;
   case file_magic::archive: {
@@ -3459,8 +3469,8 @@ static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer,
       Expected<MemoryBufferRef> ChildBufOrErr = Child.getMemoryBufferRef();
       if (!ChildBufOrErr)
         return ChildBufOrErr.takeError();
-      if (Error E =
-              collectSYCLRegisterLibSymbolsFromObject(*ChildBufOrErr, Binaries))
+      if (Error E = extractOffloadBinariesAndRegisterLibSymbolsFromObject(
+              *ChildBufOrErr, Binaries))
         return E;
     }
     if (Err)
@@ -3468,6 +3478,13 @@ static Error collectSYCLRegisterLibSymbols(MemoryBufferRef Buffer,
     break;
   }
   default:
+    // No host symbols to scan, only extract the device code.
+    if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
+      // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
+      // which is not in OffloadBinary format. Consume the parse error and
+      // fall through to the SYCL bundled objects extraction path.
+      consumeError(std::move(Err));
+    }
     break;
   }
   return Error::success();
@@ -3551,13 +3568,8 @@ getDeviceInput(const ArgList &Args) {
       continue;
     SmallVector<OffloadFile> Binaries;
     size_t OldSize = Binaries.size();
-    if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
-      // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
-      // which is not in OffloadBinary format. Consume the parse error and
-      // fall through to the SYCL bundled objects extraction path.
-      consumeError(std::move(Err));
-    }
-    if (Error Err = collectSYCLRegisterLibSymbols(Buffer, Binaries))
+    if (Error Err =
+            extractOffloadBinariesAndRegisterLibSymbols(Buffer, Binaries))
       return std::move(Err);
     if (Binaries.size() == OldSize) {
       if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
