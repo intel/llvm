@@ -1,3 +1,4 @@
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: arch-intel_gpu_pvc

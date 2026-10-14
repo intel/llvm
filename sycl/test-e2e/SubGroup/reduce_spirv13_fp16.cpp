@@ -4,12 +4,6 @@
 // UNSUPPORTED: arch-intel_gpu_pvc
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20361
 
-<<<<<<< HEAD
-// XFAIL: !arch-intel_gpu_mtl_u && windows && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
-
-=======
->>>>>>> 2cfc704464c3 ([SYCL][E2E] Re-enable tests passing on new Win Gen12 driver (#23412))
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
