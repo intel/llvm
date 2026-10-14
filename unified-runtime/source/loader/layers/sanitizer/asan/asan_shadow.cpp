@@ -250,9 +250,18 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
 ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uint32_t NumWG, uptr &Begin,
                                               uptr &End) {
+  // The device indexes the local shadow with a stride of ASAN_SLM_SIZE, so the
+  // host must allocate with the same stride. A device with more local memory
+  // than that cannot be shadowed correctly.
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
+  if (LocalMemorySize > ASAN_SLM_SIZE) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "Local memory size ({}) is larger than ASAN_SLM_SIZE ({})",
+             LocalMemorySize, (size_t)ASAN_SLM_SIZE);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   const size_t RequiredShadowSize =
-      (std::min(ASAN_MAX_WG_LOCAL, NumWG) * LocalMemorySize) >>
+      (std::min(ASAN_MAX_WG_LOCAL, NumWG) * (size_t)ASAN_SLM_SIZE) >>
       ASAN_SHADOW_SCALE;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {
