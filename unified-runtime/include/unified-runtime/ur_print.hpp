@@ -624,6 +624,9 @@ operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_image_user_pitch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_program_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_queue_priority_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_exp_usm_host_alloc_register_flag_t value);
 inline std::ostream &operator<<(
@@ -1642,6 +1645,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC";
     break;
+  case UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -2014,6 +2020,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC: {
     const ur_exp_event_sync_mode_desc_t *pstruct =
         (const ur_exp_event_sync_mode_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES: {
+    const ur_exp_queue_priority_properties_t *pstruct =
+        (const ur_exp_queue_priority_properties_t *)ptr;
     printPtr(os, pstruct);
   } break;
   default:
@@ -3462,6 +3474,15 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+    os << "UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP";
+    break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP:
+    os << "UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5889,6 +5910,45 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
          << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -12725,6 +12785,32 @@ inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_queue_priority_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_queue_priority_properties_t params) {
+  os << "(struct ur_exp_queue_priority_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".priority = ";
+
+  os << (params.priority);
+
+  os << "}";
+  return os;
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_usm_host_alloc_register_flag_t type
 /// @returns

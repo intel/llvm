@@ -501,6 +501,13 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
