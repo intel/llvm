@@ -6,6 +6,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <iterator>
+#include <string>
+#include <utility>
+#include <vector>
+
 // Check that an AOT image built for one GPU architecture only makes devices of
 // that architecture preferred by the default device selector.
 
