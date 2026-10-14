@@ -44,10 +44,10 @@ int main(int, char **argv) {
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.require(InputParam);
-    // the kernel requires two arguments, the second one is an offset which is
-    // set to 0 here
+    // The kernel requires two arguments; the second one is the accessor
+    // offset of type sycl::id<1>.
     cgh.set_arg(0, InputParam);
-    cgh.set_arg(1, 0); // offset
+    cgh.set_arg(1, sycl::id<1>{0}); // offset
     cgh.single_task(kernel);
   });
 
