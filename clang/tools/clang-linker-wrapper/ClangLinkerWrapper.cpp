@@ -1137,18 +1137,20 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
 /// \p Args encompasses all arguments required for linking and wrapping device
 /// code.
 static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  const std::string Arch(Args.getLastArgValue(OPT_arch_EQ));
-  bool IsGPUAOT = Triple.isSPIROrSPIRV() &&
-                  Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+  // getLinkerArgs passes an empty arch for device images with no arch
+  // specified, but we need it to be "generic" for the areTargetsCompatible
+  // call.
+  StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
+  OffloadFile::TargetID Target(Args.getLastArgValue(OPT_triple_EQ),
+                               Arch.empty() ? "generic" : Arch);
   // We need to keep track of the triple and arch because we may not use all
   // device images passed to the tool and we don't want to force unused objects
-  // to be linked in.
-  auto It = SYCLRegisterLibFuncMap.find(std::make_pair(Triple.str(), Arch));
-  if (It == SYCLRegisterLibFuncMap.end())
-    return;
-  auto DefineFuncs = [&](auto &&Range) {
-    for (const std::string &Name : Range) {
+  // to be linked in. Define the symbols for every device image that can be
+  // linked into this target, using the same check as getDeviceInput.
+  for (const auto &[Key, Names] : SYCLRegisterLibFuncMap) {
+    if (!object::areTargetsCompatible(Key, Target))
+      continue;
+    for (const std::string &Name : Names) {
       if (M.getFunction(Name))
         continue;
       llvm::FunctionType *FTy = llvm::FunctionType::get(
@@ -1165,22 +1167,6 @@ static void defineRegisterLibFuncs(Module &M, const ArgList &Args) {
         Fn->setComdat(C);
       }
     }
-  };
-  // There is a special case when the current target being linked in spir64_gen
-  // with non-empty arch. We need to consider the cases where there are other
-  // device objects with spir64_gen triple with empty (generic) arch because
-  // this is considered a compatible target with spir64_gen non-empty arch and
-  // will be linked together with it. In this case, we need to also define
-  // symbols from the empty-arch device objects.
-  auto GenericArchIt =
-      SYCLRegisterLibFuncMap.find(std::make_pair(Triple.str(), std::string()));
-  if (!IsGPUAOT || GenericArchIt == SYCLRegisterLibFuncMap.end() ||
-      GenericArchIt->second.empty()) {
-    DefineFuncs(It->second);
-  } else {
-    // Just iterate over both sets, duplcates are handled in DefineFuncs.
-    DefineFuncs(
-        llvm::concat<const std::string>(It->second, GenericArchIt->second));
   }
 }
 
@@ -3434,8 +3420,6 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
       const OffloadFile &Binary = Binaries[Idx];
       std::string Triple = Binary.getBinary()->getTriple().str();
       std::string Arch = Binary.getBinary()->getArch().str();
-      if (Arch == "generic")
-        Arch = "";
       SYCLRegisterLibFuncMap[{Triple, Arch}].insert(FuncNames.begin(),
                                                     FuncNames.end());
     }

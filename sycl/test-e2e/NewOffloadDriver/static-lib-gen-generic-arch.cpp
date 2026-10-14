@@ -23,6 +23,24 @@
 // RUN: %clangxx -fsycl %{ond} -fsycl-targets=intel_gpu_bmg_g21 %t.main.o %t.a -o %t.exe
 // RUN: %{run} %t.exe
 
+// Also test the opposite case.
+
+// RUN: %clangxx -fsycl %{ond} -fsycl-targets=intel_gpu_bmg_g21 -c %S/Inputs/static-lib-registerlib-gen-generic.cpp -o %t.opp.gen.o
+// RUN: rm -f %t.opp.a
+// RUN: llvm-ar crv %t.opp.a %t.opp.gen.o
+
+// Notice no device is specified in the below compile command.
+// RUN: %clangxx -fsycl %{ond} -fsycl-targets=spir64_gen -c %s -o %t.opp.main.o
+
+// The device is only given at link time, so the object file's device code
+// still has no arch and the bmg archive member is linked together with it.
+// The device must be given with -Xsycl-target-backend: the device code is
+// linked for the arch recorded in the object file, which is generic, and
+// -fsycl-targets=intel_gpu_bmg_g21 at link time would not pass a device to
+// ocloc for it.
+// RUN: %clangxx -fsycl %{ond} -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device bmg-g21" %t.opp.main.o %t.opp.a -o %t.opp.exe
+// RUN: %{run} %t.opp.exe
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
