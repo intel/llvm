@@ -531,9 +531,8 @@ virtual member is devirtualized. `declcall` is ill-formed if the operand is not
 a call expression, names a constructor, destructor, or builtin function, or does
 not select a function at compile time.
 
-`declcall` implements P2825, which is not yet standardized. It is enabled as a
-native feature under `-fsycl`; otherwise it is a Clang extension diagnosed by
-`-Wdeclcall-extension`.
+`declcall` implements P2825, which is not yet standardized. It is only available
+in SYCL mode (`-fsycl`); elsewhere `declcall` is an ordinary identifier.
 
 % FIXME: This should list all the keyword extensions
 

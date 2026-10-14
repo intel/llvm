@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++2c -triple x86_64-unknown-linux-gnu -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -std=c++2c -triple x86_64-pc-windows-msvc -emit-llvm %s -o /dev/null
+// RUN: %clang_cc1 -fsycl-is-host -std=c++2c -triple x86_64-unknown-linux-gnu -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-host -std=c++2c -triple x86_64-pc-windows-msvc -emit-llvm %s -o /dev/null
 
 int f(int);
 int g(int);

@@ -26,7 +26,7 @@
 // RUN: echo "    header \"second.h\""    >> %t/Inputs/module.modulemap
 // RUN: echo "}"                          >> %t/Inputs/module.modulemap
 // Run test
-// RUN: %clang_cc1 -triple x86_64-linux-gnu -x c++ -std=c++2c -Wno-declcall-extension \
+// RUN: %clang_cc1 -fsycl-is-host -triple x86_64-linux-gnu -x c++ -std=c++2c \
 // RUN:   -fmodules -fimplicit-module-maps -fmodules-cache-path=%t/cache \
 // RUN:   -I%t/Inputs -verify %s
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++2c -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-host -std=c++2c -ast-dump %s | FileCheck %s
 
 int f(int);
 int f(char);

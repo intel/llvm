@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++2c -triple x86_64-unknown-linux-gnu -emit-pch -o %t %s
-// RUN: %clang_cc1 -std=c++2c -triple x86_64-unknown-linux-gnu -include-pch %t -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-host -std=c++2c -triple x86_64-unknown-linux-gnu -emit-pch -o %t %s
+// RUN: %clang_cc1 -fsycl-is-host -std=c++2c -triple x86_64-unknown-linux-gnu -include-pch %t -emit-llvm %s -o - | FileCheck %s
 
 // Check that the devirtualized flag of a declcall expression survives
 // serialization. The declcall is written into the PCH and re-evaluated in the
