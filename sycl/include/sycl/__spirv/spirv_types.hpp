@@ -130,7 +130,13 @@ enum class MatrixOperands : uint32_t {
   MatrixAAndBTF32ComponentsINTEL = 0x20,
   MatrixAAndBBFloat16ComponentsINTEL = 0x40,
   MatrixCBFloat16ComponentsINTEL = 0x80,
-  MatrixResultBFloat16ComponentsINTEL = 0x100
+  MatrixResultBFloat16ComponentsINTEL = 0x100,
+  MatrixABFloat8ComponentsINTEL = 0x400,
+  MatrixBBFloat8ComponentsINTEL = 0x800,
+  MatrixAHFloat8ComponentsINTEL = 0x1000,
+  MatrixBHFloat8ComponentsINTEL = 0x2000,
+  MatrixAFP4S1E2M1ComponentsINTEL = 0x10000,
+  MatrixBFP4S1E2M1ComponentsINTEL = 0x20000
 };
 
 template <typename T, Scope::Flag S = Scope::Flag::Subgroup, std::size_t R = 1,
