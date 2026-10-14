@@ -2,8 +2,9 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
 
-// UNSUPPORTED: windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22576
+// DX12 semaphore signaling hangs on drivers before NEO build 38362; the Win
+// Gen12 runner is still on 34728. https://github.com/intel/llvm/issues/23404
+// REQUIRES-INTEL-DRIVER: lin: 38362
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe --no-sem

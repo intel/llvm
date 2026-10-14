@@ -15,6 +15,22 @@
 // RUN:   -sycl-post-link-options=-properties --linker-path=/usr/bin/ld \
 // RUN:   %t.o -o %t.out 2>&1 | FileCheck %s
 
+// With --emit-fatbin-only (-fno-sycl-rdc compile step) the same wrapper module
+// is written to the output as bitcode for the host compilation to link in.
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   -sycl-post-link-options=-split=auto -sycl-post-link-options=-symbols \
+// RUN:   -sycl-post-link-options=-properties --linker-path=/usr/bin/ld \
+// RUN:   %t.o -o %t.syclfb
+// RUN: llvm-dis %t.syclfb -o - | FileCheck %s --check-prefix=NORDC
+// NORDC-DAG: @SYCL_PropSetName.1 = internal unnamed_addr constant [22 x i8] c"SYCL/kernel param opt\00"
+// NORDC-DAG: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
+// NORDC-DAG: @llvm.global_ctors = {{.*}} { i32 1, ptr @sycl.descriptor_reg, ptr null }]
+//     NORDC: define internal void @sycl.descriptor_reg() section ".text.startup" {
+// NORDC-NEXT: entry:
+// NORDC-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
+
 // With thin LTO, sycl-post-link emits a two-column [Code|Properties] table.
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
