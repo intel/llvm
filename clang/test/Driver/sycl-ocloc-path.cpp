@@ -87,7 +87,7 @@
 /// Check that --ocloc-path= does not warn as unused when no AOT compilation
 /// for Intel GPU is being performed.
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64 --ocloc-path=/my/ocloc/dir \
-// RUN:     --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:     %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-UNUSED %s
 // CHK-OCLOC-PATH-UNUSED-NOT: warning: argument unused during compilation
 

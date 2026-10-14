@@ -48,7 +48,7 @@
 
 /// test llvm-link behavior for special user input whose filename resembles SYCL device library
 // RUN: touch libsycl-crt.o
-// RUN: %clangxx -fsycl --no-offload-new-driver libsycl-crt.o --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver libsycl-crt.o -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_USER_ONLY_NEEDED
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "--only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"

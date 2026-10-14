@@ -58,10 +58,10 @@
 
 /// Check compilation phases, only device compile should be performed
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -fsyclbin \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -ccc-print-phases 2>&1 \
+// RUN:   --offload-new-driver %s -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PHASES
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsyclbin \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -ccc-print-phases 2>&1 \
+// RUN:   --offload-new-driver %s -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "{{.*}}", c++, (device-sycl)
 // CHECK_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
@@ -135,10 +135,10 @@
 /// case, so the driver emits an error and redirects users to
 /// -fsyclbin=executable.
 // RUN: not %clangxx -fsyclbin=object -fno-sycl-allow-device-image-dependencies \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
 // RUN: not %clangxx -fsyclbin=input -fno-sycl-allow-device-image-dependencies \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
 // CHECK_DEPS_CONFLICT: error: invalid argument '-fno-sycl-allow-device-image-dependencies' not allowed with '-fsyclbin={{input|object}}'
 

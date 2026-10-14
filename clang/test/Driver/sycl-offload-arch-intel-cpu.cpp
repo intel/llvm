@@ -70,9 +70,9 @@
 
 // Tests for handling a incorrect architecture.
 //
-// RUN: not %clangxx --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl --offload-arch=badArch %s -### 2>&1 \
+// RUN: not %clangxx --offload-new-driver -fsycl --offload-arch=badArch %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD-ARCH %s
-// RUN: not %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl --offload-arch=badArch %s -### 2>&1 \
+// RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch=badArch %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD-ARCH %s
 
 // BAD-ARCH: error: unsupported offload gpu architecture: badArch

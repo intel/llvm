@@ -67,15 +67,15 @@
 // RUN:   -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_JIT %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: not %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_DEVICE %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: not %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_MODE %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: not %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
 
@@ -85,7 +85,7 @@
 
 // TODO: Test fails on Windows due to improper temporary file creation given
 //       the -device * value.  Re-enable when this is fixed.
-// RUNx: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUNx: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xs "-device *" \
 // RUNx:          %s 2>&1 \
 // RUNx:   | FileCheck -check-prefix=NO_PVC %s
 

@@ -3,11 +3,11 @@
 // Verify that -save-offload-code passes the option to
 // clang-linker-wrapper in the new offload model.
 
-// clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu -save-offload-code=/user/input/path %s -### 2>&1 \
+// clang -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu
+// RUN: %clang -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu -save-offload-code=/user/input/path %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-save-offload-code-NEW-OFFLOAD
 
-// clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown
+// clang -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL  -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-offload-code=/user/input/path %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-save-offload-code-NEW-OFFLOAD
 
