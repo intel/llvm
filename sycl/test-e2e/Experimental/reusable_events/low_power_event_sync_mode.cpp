@@ -1,7 +1,11 @@
-// REQUIRES: level_zero_v2_adapter, usm
+// REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+// Test make_event with event_mode{event_mode_enum::low_power}. The hint is only
+// honored by the Level Zero V2 adapter, other backends must silently ignore it,
+// so the test runs everywhere.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/reusable_events.hpp>

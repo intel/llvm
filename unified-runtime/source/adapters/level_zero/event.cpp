@@ -1761,6 +1761,9 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         TmpListLength += 1;
 
         if (QueueLock.has_value()) {
+          // Drop the event lock first so CurQueue is not locked while an
+          // event lock is held (queue locks are taken before event locks).
+          Lock.unlock();
           QueueLock.reset();
           CurQueue->Mutex.lock();
           CurQueueUnlocked = false;

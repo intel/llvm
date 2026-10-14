@@ -118,7 +118,7 @@ if(SYCL_TEST_E2E_STANDALONE)
   endif()
   set(SYCL_LIBDIR_BASENAME_FULL "${CMPLR_LIBS_DIR}")
 else()
-  set(SYCL_LIBDIR_BASENAME_FULL "${DPCPP_ROOT_DIR}/${CLANG_INSTALL_LIBDIR_BASENAME}")
+  set(SYCL_LIBDIR_BASENAME_FULL "${DPCPP_ROOT_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
 endif()
 
 # Extract out only the libdir folder name, don't use the full path so we can

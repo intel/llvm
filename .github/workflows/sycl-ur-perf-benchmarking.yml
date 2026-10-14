@@ -196,7 +196,7 @@ jobs:
   build_liboffload_dispatch:
     name: '[Dispatch] Build liboffload'
     needs: [ sanitize_inputs_dispatch ]
-    uses: ./.github/workflows/offload-build.yml
+    uses: ./.github/workflows/sycl-offload-build.yml
     with:
       build_ur_adapter: false
 
@@ -256,7 +256,7 @@ jobs:
   build_liboffload_nightly:
     name: '[Nightly] Build liboffload'
     if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'schedule' || inputs.trigger_nightly == 'true') }}
-    uses: ./.github/workflows/offload-build.yml
+    uses: ./.github/workflows/sycl-offload-build.yml
     with:
       build_ur_adapter: false
 
@@ -321,7 +321,7 @@ jobs:
   build_liboffload_test:
     name: '[PR] Build liboffload'
     if: ${{ github.repository == 'intel/llvm' && (github.event_name == 'pull_request' && inputs.trigger_nightly != 'true') }}
-    uses: ./.github/workflows/offload-build.yml
+    uses: ./.github/workflows/sycl-offload-build.yml
     with:
       build_ur_adapter: false
 

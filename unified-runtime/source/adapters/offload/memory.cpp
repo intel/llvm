@@ -31,11 +31,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   void *Ptr = nullptr;
   auto HostPtr = pProperties ? pProperties->pHost : nullptr;
   auto OffloadDevice = hContext->Device->OffloadDevice;
+  auto OffloadContext = hContext->OffloadContext;
   auto AllocMode = BufferMem::AllocMode::Default;
 
   if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
     OL_RETURN_ON_ERR(
-        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_HOST, size, &HostPtr));
+        olMemAllocHost(OffloadContext, OffloadDevice, size, &HostPtr));
 
     // TODO: We (probably) need something like cuMemHostGetDevicePointer
     // for this to work everywhere. For now assume the managed host pointer is
@@ -43,8 +44,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     Ptr = HostPtr;
     AllocMode = BufferMem::AllocMode::AllocHostPtr;
   } else {
-    OL_RETURN_ON_ERR(
-        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_DEVICE, size, &Ptr));
+    OL_RETURN_ON_ERR(olMemAlloc(OffloadContext, OffloadDevice,
+                                OL_ALLOC_TYPE_DEVICE, size, &Ptr));
     if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
       AllocMode = BufferMem::AllocMode::CopyIn;
     }
@@ -80,7 +81,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     if (!BufferImpl->Parent) {
       // TODO: Handle registered host memory
       if (hMem->IsNativeHandleOwned) {
-        OL_RETURN_ON_ERR(olMemFree(BufferImpl->Ptr));
+        OL_RETURN_ON_ERR(
+            olMemFree(hMem->Context->OffloadContext, BufferImpl->Ptr));
       }
     } else {
       return urMemRelease(BufferImpl->Parent);
@@ -155,22 +157,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
     const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
   void *Ptr = reinterpret_cast<void *>(hNativeMem);
-  ol_device_handle_t Device;
-  OL_RETURN_ON_ERR(
-      olGetMemInfo(Ptr, OL_MEM_INFO_DEVICE, sizeof(Device), &Device));
+  auto OffloadContext = hContext->OffloadContext;
+
+  ol_alloc_type_t Type;
+  auto TypeResult =
+      olGetMemInfo(OffloadContext, Ptr, OL_MEM_INFO_TYPE, sizeof(Type), &Type);
+  if (TypeResult && TypeResult->Code == OL_ERRC_NOT_FOUND) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  OL_RETURN_ON_ERR(TypeResult);
+
+  ol_device_handle_t Device = nullptr;
+  if (Type != OL_ALLOC_TYPE_HOST) {
+    OL_RETURN_ON_ERR(olGetMemInfo(OffloadContext, Ptr, OL_MEM_INFO_DEVICE,
+                                  sizeof(Device), &Device));
+  }
+
   void *Base;
-  OL_RETURN_ON_ERR(olGetMemInfo(Ptr, OL_MEM_INFO_BASE, sizeof(Base), &Base));
+  OL_RETURN_ON_ERR(
+      olGetMemInfo(OffloadContext, Ptr, OL_MEM_INFO_BASE, sizeof(Base), &Base));
 
   // Check that this pointer is valid
-  if (Base != Ptr || Device != hContext->Device->OffloadDevice) {
+  if (Base != Ptr || (Type != OL_ALLOC_TYPE_HOST &&
+                      Device != hContext->Device->OffloadDevice)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   size_t Size;
-  OL_RETURN_ON_ERR(olGetMemInfo(Ptr, OL_MEM_INFO_SIZE, sizeof(Size), &Size));
-
-  ol_alloc_type_t Type;
-  OL_RETURN_ON_ERR(olGetMemInfo(Ptr, OL_MEM_INFO_TYPE, sizeof(Type), &Type));
+  OL_RETURN_ON_ERR(
+      olGetMemInfo(OffloadContext, Ptr, OL_MEM_INFO_SIZE, sizeof(Size), &Size));
 
   *phMem = new ur_mem_handle_t_{/*Context=*/hContext,
                                 /*Parent=*/nullptr,
@@ -180,7 +195,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
                                      ? BufferMem::AllocMode::AllocHostPtr
                                      : BufferMem::AllocMode::Default),
                                 /*Ptr=*/Ptr,
-                                /*HostPtr=*/nullptr,
+                                /*HostPtr=*/
+                                Type == OL_ALLOC_TYPE_HOST ? Ptr : nullptr,
                                 /*Size=*/Size};
   (*phMem)->IsNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
