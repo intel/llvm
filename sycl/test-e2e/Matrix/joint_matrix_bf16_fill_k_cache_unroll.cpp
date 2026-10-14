@@ -8,7 +8,9 @@
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
+// The default iteration count does not finish on the CRI simulator,
+// CMPLRLLVM-75924, so run fewer iterations there.
+// RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI %if arch-intel_gpu_cri %{ -DTESTITERATIONS=11 %}
 // RUN: %{run} %t.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,

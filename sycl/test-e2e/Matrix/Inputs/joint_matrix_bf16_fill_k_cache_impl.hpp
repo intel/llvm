@@ -18,10 +18,17 @@
 #include "slm_utils.hpp"
 #endif
 
-// number of test iterations
-constexpr unsigned int testIterations = 100;
+// number of test iterations, has to exceed recordThresh below. The CRI
+// simulator is too slow to run the default count within the test timeout, so
+// the tests build a smaller one there.
+#ifndef TESTITERATIONS
+#define TESTITERATIONS 100
+#endif
+constexpr unsigned int testIterations = TESTITERATIONS;
 // start recording time after X iterations
 constexpr unsigned int recordThresh = 10;
+static_assert(testIterations > recordThresh,
+              "the recorded iteration count would be zero");
 
 #ifndef MATRIX_SIZE
 #define MATRIX_SIZE 256
