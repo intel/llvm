@@ -10,6 +10,7 @@
 
 /// The new offloading model embeds the finalized device image.
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:   --offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-rdc -c %s 2>&1 \
+// RUN:   --offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-rdc \
+// RUN:   -ccc-install-dir %S/Inputs/SYCL/bin -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NEW %s
 // CHK-NEW: "-fsycl-is-host"{{.*}} "-foffload-include-binary"

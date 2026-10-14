@@ -38,10 +38,10 @@
 /// Check that --ocloc-path= is forwarded to the clang-linker-wrapper for the
 /// new offloading model.
 // RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
-// RUN:     --sysroot=%S/Inputs/SYCL --ocloc-path=/my/ocloc/dir %s 2>&1 \
+// RUN:     -ccc-install-dir %S/Inputs/SYCL/bin --ocloc-path=/my/ocloc/dir %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-NEW %s
 // RUN:   %clang -### -fsycl --offload-new-driver \
-// RUN:     -fsycl-targets=intel_gpu_pvc --sysroot=%S/Inputs/SYCL \
+// RUN:     -fsycl-targets=intel_gpu_pvc -ccc-install-dir %S/Inputs/SYCL/bin \
 // RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-NEW %s
 // CHK-OCLOC-PATH-NEW: clang-linker-wrapper{{.*}} "--ocloc-path=/my/ocloc/dir"
@@ -87,7 +87,7 @@
 /// Check that --ocloc-path= does not warn as unused when no AOT compilation
 /// for Intel GPU is being performed.
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64 --ocloc-path=/my/ocloc/dir \
-// RUN:     --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:     %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-UNUSED %s
 // CHK-OCLOC-PATH-UNUSED-NOT: warning: argument unused during compilation
 
@@ -98,7 +98,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-OLD %s
 // CHK-OCLOC-PATH-SPACES-OLD: "/my/ocloc dir/with spaces{{[/\\]+}}ocloc{{(\.exe)?}}" "-output"
 // RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
-// RUN:     --sysroot=%S/Inputs/SYCL --ocloc-path="/my/ocloc dir/with spaces" %s 2>&1 \
+// RUN:     -ccc-install-dir %S/Inputs/SYCL/bin --ocloc-path="/my/ocloc dir/with spaces" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-NEW %s
 // CHK-OCLOC-PATH-SPACES-NEW: clang-linker-wrapper{{.*}} "--ocloc-path=/my/ocloc dir/with spaces"
 // RUN:   %clangxx -### --target=spirv64 --sycl-link \

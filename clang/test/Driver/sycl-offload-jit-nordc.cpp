@@ -34,7 +34,7 @@
 
 /// Multiple device triples are supported in RDC mode.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fgpu-rdc \
-// RUN:   -fsycl-targets=spir64,spir64_x86_64 -c %s 2>&1 \
+// RUN:   -ccc-install-dir %S/Inputs/SYCL/bin -fsycl-targets=spir64,spir64_x86_64 -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RDC-MULTI-TRIPLE %s
 // CHK-RDC-MULTI-TRIPLE-NOT: error:
 // CHK-RDC-MULTI-TRIPLE-DAG: "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"
@@ -42,7 +42,7 @@
 
 /// A single target repeated is one target.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc \
-// RUN:   -fsycl-targets=spir64,spir64 -c %s 2>&1 \
+// RUN:   -ccc-install-dir %S/Inputs/SYCL/bin -fsycl-targets=spir64,spir64 -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NORDC-DUP-TRIPLE %s
 // CHK-NORDC-DUP-TRIPLE-NOT: error:
 // CHK-NORDC-DUP-TRIPLE: clang-linker-wrapper{{.*}} "--emit-fatbin-only"
@@ -50,7 +50,8 @@
 /// Check that in non-RDC mode clang-linker-wrapper finalizes the packaged
 /// device images into a fat binary rather than a host object, and that the
 /// binary is included into the host compilation via -foffload-include-binary.
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc -c %s 2>&1 \
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc \
+// RUN:   -c -ccc-install-dir %S/Inputs/SYCL/bin %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NORDC-INCLUDE %s \
 // RUN:     --implicit-check-not='"-fembed-offload-object='
 // CHK-NORDC-INCLUDE: clang-linker-wrapper{{.*}} "--linker-path={{.*}}llvm-link" "--emit-fatbin-only" "-o" "[[FB:.*]].syclfb"
@@ -59,7 +60,8 @@
 /// -v reaches the wrapper. Unlike LLORG, intel/llvm does not forward -v to the
 /// SYCL device compiler options: those become ocloc/JIT backend options, which
 /// must not receive generic Clang flags (intel/llvm#23281).
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc -v -c %s 2>&1 \
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc \
+// RUN:   -ccc-install-dir %S/Inputs/SYCL/bin -v -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NORDC-VERBOSE %s
 // CHK-NORDC-VERBOSE: clang-linker-wrapper{{.*}} "--wrapper-verbose"
 // CHK-NORDC-VERBOSE-SAME: "--emit-fatbin-only"
@@ -69,17 +71,17 @@
 /// finalized device image is expected; the device link is unaffected and the
 /// binary is still included at compile time.
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc \
-// RUN:   -flto -c %s 2>&1 | FileCheck -check-prefix=CHK-NORDC-LTO %s \
+// RUN:   -flto -c -ccc-install-dir %S/Inputs/SYCL/bin %s 2>&1 | FileCheck -check-prefix=CHK-NORDC-LTO %s \
 // RUN:     --implicit-check-not=llvm-lto
 // RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc \
-// RUN:   -flto %s 2>&1 | FileCheck -check-prefix=CHK-NORDC-LTO %s \
+// RUN:   -flto -ccc-install-dir %S/Inputs/SYCL/bin %s 2>&1 | FileCheck -check-prefix=CHK-NORDC-LTO %s \
 // RUN:     --implicit-check-not=llvm-lto
 // CHK-NORDC-LTO: clang-linker-wrapper{{.*}} "--linker-path={{.*}}llvm-link" "--emit-fatbin-only"
 // CHK-NORDC-LTO: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-foffload-include-binary"
 
 /// In non-RDC mode the split does happen while compiling.
 // RUN: %clang -### -c --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-gpu-rdc \
-// RUN:   -fsycl-device-image-split=kernel %s 2>&1 \
+// RUN:   -fsycl-device-image-split=kernel -ccc-install-dir %S/Inputs/SYCL/bin %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-KERNEL %s \
 // RUN:     --implicit-check-not='argument unused during compilation'
 // CHK-SPLIT-KERNEL: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=kernel"

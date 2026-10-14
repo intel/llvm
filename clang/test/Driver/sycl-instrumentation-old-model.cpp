@@ -7,10 +7,10 @@
 // FIXME: Force linux targets to allow for the libraries to be found.  Dummy
 // inputs for --sysroot should be updated to work better for Windows.
 
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-instrument-device-code -ccc-install-dir %S/Inputs/SYCL/bin -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV,CHECK-HOST %s
 // -fno-sycl-device-lib mustn't affect the linkage of ITT libraries
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL --no-offloadlib -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-instrument-device-code -ccc-install-dir %S/Inputs/SYCL/bin --no-offloadlib -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
@@ -24,7 +24,7 @@
 // offloading, we still link ITT annotations libraries to ensure ABI
 // compatibility with previous release.
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64 -### \
-// RUN:   --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:   -ccc-install-dir %S/Inputs/SYCL/bin %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-ITT-LINK-ONLY %s
 
 // CHECK-ITT-LINK-ONLY-NOT: "-fsycl-instrument-device-code"
@@ -32,13 +32,13 @@
 
 // Verify that ITT annotations are not pulled in for non-SPIR-V targets as
 // well as when device code instrumentation is explicitly turned off.
-// RUN: %clangxx -fsycl --no-offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx -fsycl --no-offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl --no-offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx -fsycl --no-offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin \
 // RUN:   -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl --no-offload-new-driver --sysroot=%s/Inputs/SYCL \
+// RUN: %clangxx -fsycl --no-offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code \
 // RUN:   -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s

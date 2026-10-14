@@ -1,9 +1,9 @@
 /// Perform several driver tests for SYCL offloading for JIT
 
 /// Check the phases graph with -fsycl. Use of -fsycl enables offload
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -- %s 2>&1 \
+// RUN: %clang_cl --offload-new-driver -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES-NEXT: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -21,7 +21,7 @@
 
 /// Check expected default values for device compilation when using -fsycl as
 /// well as llvm-offload-binary inputs.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -c --target=x86_64-unknown-linux-gnu %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### -fsycl -c --target=x86_64-unknown-linux-gnu %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEVICE-TRIPLE %s
 // CHK-DEVICE-TRIPLE: "-cc1"{{.*}} "-triple" "spir64-unknown-unknown"
 // CHK-DEVICE-TRIPLE-SAME: "-aux-triple" "x86_64-unknown-linux-gnu"
@@ -31,7 +31,7 @@
 
 // Check if path to libsycl.so is passed to clang-linker-wrapper tool by default for SYCL compilation.
 // The test also checks if SYCL header include paths are added to the SYCL host and device compilation.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHECK-LSYCL,CHECK-SYCL-HEADERS-HOST,CHECK-SYCL-HEADERS-DEVICE %s
 // CHECK-SYCL-HEADERS-DEVICE: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-SYCL-HEADERS-HOST: "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
@@ -43,13 +43,13 @@
 
 /// Check -fsycl-is-device is passed when compiling for the device.
 /// Check -fsycl-is-host is passed when compiling for host.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -c %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-IS-DEVICE,CHK-FSYCL-IS-HOST %s
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -fsycl-device-only %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### -fsycl -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
-// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -### -fsycl -c -- %s 2>&1 \
+// RUN: %clang_cl --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### -fsycl -c -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-IS-DEVICE,CHK-FSYCL-IS-HOST %s
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### -fsycl -fsycl-host-only %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### -fsycl -fsycl-host-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-HOST %s
 // CHK-FSYCL-IS-DEVICE: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc"
 // CHK-FSYCL-IS-HOST: "-cc1"{{.*}} "-fsycl-is-host"
@@ -83,27 +83,27 @@
 
 /// Check -fsycl-device-image-split= is forwarded to clang-sycl-linker as the
 /// corresponding --module-split-mode= value.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=kernel %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=kernel %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-KERNEL %s
 // CHK-SPLIT-KERNEL: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=kernel"
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=translation_unit %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=translation_unit %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-TU %s
 // CHK-SPLIT-TU: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=translation_unit"
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=link_unit %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=link_unit %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-LU %s
 // CHK-SPLIT-LU: clang-linker-wrapper{{.*}}"--device-linker=spir64-unknown-unknown=--module-split-mode=link_unit"
 
 /// Check the bare -fsycl-device-image-split flag aliases to 'translation_unit'.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-TU %s
 
 /// Check that without -fsycl-device-image-split, no --module-split-mode= is passed.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-SPLIT %s
 // CHK-NO-SPLIT-NOT: --module-split-mode=
 
 /// Check an invalid -fsycl-device-image-split= value is diagnosed.
-// RUN: not %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
+// RUN: not %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-INVALID %s
 // CHK-SPLIT-INVALID: error: invalid value 'bogus' in '-fsycl-device-image-split='
 
@@ -113,7 +113,7 @@
 // CHK-SPLIT-UNUSED: warning: argument unused during compilation: '-fsycl-device-image-split=kernel'
 
 /// CUDA/ROCm device-compiler paths must not be forwarded unscoped to SPIR.
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl --cuda-path=/tmp/cuda --rocm-path=/tmp/rocm %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl --cuda-path=/tmp/cuda --rocm-path=/tmp/rocm %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FOREIGN-PATHS %s
 // CHK-NO-FOREIGN-PATHS: clang-linker-wrapper
 // CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=--cuda-path=
@@ -121,7 +121,7 @@
 // CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=spir64-unknown-unknown=--cuda-path=
 // CHK-NO-FOREIGN-PATHS-NOT: --device-compiler=spir64-unknown-unknown=--rocm-path=
 
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SCOPED-CUDA-PATH %s
 // CHK-SCOPED-CUDA-PATH: clang-linker-wrapper
 // CHK-SCOPED-CUDA-PATH-NOT: --device-compiler=--cuda-path=
