@@ -3424,11 +3424,10 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
 }
 
 /// Extract the offload binaries embedded in the host input \p Buffer into
-/// \p Binaries, like extractOffloadBinaries. For each host object, or each
-/// member of a static archive, that carries device code, also record its
+/// \p Binaries. For each host object, or each
+/// member of a static archive, that contains device code, also record its
 /// undefined __sycl_registerlib_<unique_identifier> references in the global
-/// SYCLRegisterLibFuncMap. Each such reference is satisfied by defining the
-/// symbol in the generated SYCL device-image wrapper object.
+/// SYCLRegisterLibFuncMap.
 static Error extractOffloadBinariesAndRegisterLibSymbols(
     MemoryBufferRef Buffer, llvm::SmallVectorImpl<OffloadFile> &Binaries) {
   switch (identify_magic(Buffer.getBuffer())) {
@@ -3458,7 +3457,6 @@ static Error extractOffloadBinariesAndRegisterLibSymbols(
     break;
   }
   default:
-    // No host symbols to scan, only extract the device code.
     if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
       // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
       // which is not in OffloadBinary format. Consume the parse error and
