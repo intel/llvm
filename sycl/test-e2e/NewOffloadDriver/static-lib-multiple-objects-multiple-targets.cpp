@@ -9,7 +9,7 @@
 // the new offloading model and gcc for the final host link. The archive holds
 // three translation units, each pre-linked with -fsycl-link for a single
 // distinct target (spir64 / intel_gpu_dg2 / intel_gpu_bmg_g21), so each
-// contributes its own __sycl_registerlib_<unique_identifer>.
+// contributes its own __sycl_registerlib_<unique_identifier>.
 //
 // The Windows counterpart is
 // static-lib-multiple-objects-multiple-targets-win.cpp.

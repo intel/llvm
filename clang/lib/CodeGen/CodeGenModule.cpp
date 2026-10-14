@@ -1293,8 +1293,8 @@ void CodeGenModule::Release() {
         AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
     } else if (LangOpts.OffloadingNewDriver &&
                !CodeGenOpts.OffloadObjects.empty()) {
-      // Only add registration functions if there has been a device compile (so
-      // OffloadObjects is not empty).
+      // Only emit the registerlib reference if there has been a device compile
+      // (so OffloadObjects is not empty).
       AddGlobalCtor(createSYCLRegisterLibFunc());
     }
   }

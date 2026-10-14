@@ -3411,14 +3411,14 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
     if (*FlagsOrErr & SymbolRef::SF_Undefined)
       FuncNames.insert(Name);
   }
-  if (!FuncNames.empty()) {
-    for (size_t Idx = OldNumBinaries; Idx < Binaries.size(); Idx++) {
-      const OffloadFile &Binary = Binaries[Idx];
-      std::string Triple = Binary.getBinary()->getTriple().str();
-      std::string Arch = Binary.getBinary()->getArch().str();
-      SYCLRegisterLibFuncMap[{Triple, Arch}].insert(FuncNames.begin(),
-                                                    FuncNames.end());
-    }
+  if (FuncNames.empty())
+    return Error::success();
+  for (size_t Idx = OldNumBinaries; Idx < Binaries.size(); Idx++) {
+    const OffloadFile &Binary = Binaries[Idx];
+    std::string Triple = Binary.getBinary()->getTriple().str();
+    std::string Arch = Binary.getBinary()->getArch().str();
+    SYCLRegisterLibFuncMap[{Triple, Arch}].insert(FuncNames.begin(),
+                                                  FuncNames.end());
   }
   return Error::success();
 }
