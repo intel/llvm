@@ -57,6 +57,8 @@ public:
 
   std::size_t capacity() const { return MCapacity; }
 
+  void setCapacity(std::size_t Capacity) { MCapacity = Capacity; }
+
   bool empty() const { return MValues.empty(); };
 
   bool full() const { return MValues.size() == MCapacity; };
@@ -91,7 +93,7 @@ private:
   // and deallocations are a concern, switching to an array/vector might be a
   // worthwhile optimization.
   std::deque<T> MValues;
-  const std::size_t MCapacity;
+  std::size_t MCapacity;
 };
 
 } // namespace detail

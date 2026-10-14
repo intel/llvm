@@ -56,9 +56,14 @@ public:
   using iterator = IteratorT<false>;
   using const_iterator = IteratorT<true>;
 
+  /// The generic commands capacity is doubled when exceeded, up to
+  /// MaxGenericCommandsCapacity. Only then the oldest generic command becomes
+  /// a dependency of the new one.
   LeavesCollection(MemObjRecord *Record, std::size_t GenericCommandsCapacity,
-                   AllocateDependencyF AllocateDependency)
+                   AllocateDependencyF AllocateDependency,
+                   std::size_t MaxGenericCommandsCapacity)
       : MRecord{Record}, MGenericCommands{GenericCommandsCapacity},
+        MMaxGenericCommandsCapacity{MaxGenericCommandsCapacity},
         MAllocateDependency{std::move(AllocateDependency)} {}
 
   iterator begin() {
@@ -121,6 +126,7 @@ private:
 
   MemObjRecord *MRecord;
   GenericCommandsT MGenericCommands;
+  std::size_t MMaxGenericCommandsCapacity;
   HostAccessorCommandsT MHostAccessorCommands;
   HostAccessorCommandsXRefT MHostAccessorCommandsXRef;
 

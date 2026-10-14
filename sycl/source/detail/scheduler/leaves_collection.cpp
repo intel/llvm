@@ -113,6 +113,14 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
 
 bool LeavesCollection::addGenericCommand(Command *Cmd,
                                          EnqueueListT &ToEnqueue) {
+  if (MGenericCommands.full() &&
+      MGenericCommands.capacity() < MMaxGenericCommandsCapacity) {
+    // Grow instead of making the new command depend on the oldest one, which
+    // would serialize otherwise independent commands (e.g. read-only ones).
+    MGenericCommands.setCapacity(
+        std::min(2 * MGenericCommands.capacity(), MMaxGenericCommandsCapacity));
+  }
+
   if (MGenericCommands.full()) {
     Command *OldLeaf = MGenericCommands.front();
 

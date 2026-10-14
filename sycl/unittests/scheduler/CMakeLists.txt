@@ -22,5 +22,6 @@ add_sycl_unittest(SchedulerTests OBJECT
     AccessorDefaultCtor.cpp
     HostTaskAndBarrier.cpp
     BarrierDependencies.cpp
+    ReadOnlyLeafEviction.cpp
     NdRangeViewUsage.cpp
 )
