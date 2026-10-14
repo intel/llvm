@@ -18,7 +18,7 @@
 // XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: GSD-10112
 
-// XFAIL: windows && intel_gpu_lnl_m && O0
+// XFAIL: windows && arch-intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111
 
 // RUN: %{build} -o %t.out

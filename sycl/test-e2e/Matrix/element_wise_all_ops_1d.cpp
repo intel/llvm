@@ -10,7 +10,7 @@
 // REQUIRES: aspect-ext_intel_matrix, gpu
 // REQUIRES-INTEL-DRIVER: lin: 30049
 
-// XFAIL: windows && intel_gpu_lnl_m && O0
+// XFAIL: windows && arch-intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111
 
 // RUN: %{build} -o %t.out
