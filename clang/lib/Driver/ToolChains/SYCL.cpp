@@ -556,8 +556,7 @@ static void addSYCLDeviceSanitizerLibs(
     // Resolve intel_gpu_* so that every alias of a device (e.g.
     // intel_gpu_12_60_7 for pvc) selects the same library.
     StringRef GenDevice = SYCL::gen::resolveGenDevice(SYCLTargetStr);
-    std::string Temp;
-    if (!GenDevice.empty() && checkPVCDevice(GenDevice.str(), Temp))
+    if (GenDevice == "pvc")
       return AOT_PVC;
 
     if (GenDevice == "dg2" || GenDevice.starts_with("acm_g"))
