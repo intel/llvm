@@ -377,8 +377,8 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
   if (sycl::isinf(__x.imag()))
     return complex<_Tp>(sycl::copysign(__x.imag(), __x.real()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
-  // asinh is odd: evaluate on the right half-plane, where sqrt(x^2+1) ~ +x and
-  // the sum cannot cancel, then take the signs from the original argument.
+  // For real(x) < 0, x + sqrt(x^2+1) cancels; use asinh(x) = -asinh(-x),
+  // with the copysign calls below restoring the signs.
   const complex<_Tp> __xr = sycl::signbit(__x.real()) ? -__x : __x;
   complex<_Tp> __z = log(__xr + sqrt(cplx::detail::__sqr(__xr) + _Tp(1)));
   return complex<_Tp>(sycl::copysign(__z.real(), __x.real()),
@@ -415,8 +415,8 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
   if (sycl::isinf(__x.imag()))
     return complex<_Tp>(sycl::fabs(__x.imag()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
-  // acosh(x) = acosh(-x) + i*copysign(pi, imag(x)) for real(x) < 0; evaluating
-  // on the right half-plane keeps x + sqrt(x^2-1) from cancelling.
+  // For real(x) < 0, x + sqrt(x^2-1) cancels; use
+  // acosh(x) = acosh(-x) + i*copysign(pi, imag(x)).
   const bool __refl = sycl::signbit(__x.real());
   const complex<_Tp> __xr = __refl ? -__x : __x;
   complex<_Tp> __z = log(__xr + sqrt(cplx::detail::__sqr(__xr) - _Tp(1)));
@@ -560,9 +560,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
   if (__x.real() == 0 && (__x.imag() == 0 || sycl::isnan(__x.imag())))
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
-  // acos(x) = pi - acos(-x) for real(x) < 0; evaluating on the right
-  // half-plane keeps x + sqrt(x^2-1) from cancelling.  Im(acos) keeps the
-  // sign opposite to imag(x) either way.
+  // For real(x) < 0, x + sqrt(x^2-1) cancels; use acos(x) = pi - acos(-x).
   const bool __refl = sycl::signbit(__x.real());
   const complex<_Tp> __xr = __refl ? -__x : __x;
   complex<_Tp> __z = log(__xr + sqrt(cplx::detail::__sqr(__xr) - _Tp(1)));

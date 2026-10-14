@@ -604,7 +604,7 @@ __SYCL_DEVICE_C
 float __complex__ cacosf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
-  const float __pi(static_cast<float>(sycl::detail::numbers::pi));
+  constexpr float __pi = static_cast<float>(sycl::detail::numbers::pi);
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return __SYCL_CMPLXF(z_imag, z_real);
@@ -626,9 +626,7 @@ float __complex__ cacosf(float __complex__ z) {
     return __SYCL_CMPLXF(__pi / 2.0f, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return __SYCL_CMPLXF(__pi / 2.0f, -z_imag);
-  // acos(z) = pi - acos(-z) for real(z) < 0; evaluating on the right
-  // half-plane keeps z + sqrt(z^2-1) from cancelling.  Im(acos) keeps the
-  // sign opposite to imag(z) either way.
+  // For real(z) < 0, z + sqrt(z^2-1) cancels; use acos(z) = pi - acos(-z).
   const bool refl = __spirv_SignBitSet(z_real);
   float __complex__ zr = refl ? -z : z;
   float __complex__ w = clogf(zr + csqrtf(__sqrf(zr) - 1.0f));
@@ -643,7 +641,7 @@ __SYCL_DEVICE_C
 double __complex__ cacos(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
-  const double __pi(sycl::detail::numbers::pi);
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return __SYCL_CMPLX(z_imag, z_real);
@@ -665,9 +663,7 @@ double __complex__ cacos(double __complex__ z) {
     return __SYCL_CMPLX(__pi / 2.0, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return __SYCL_CMPLX(__pi / 2.0, -z_imag);
-  // acos(z) = pi - acos(-z) for real(z) < 0; evaluating on the right
-  // half-plane keeps z + sqrt(z^2-1) from cancelling.  Im(acos) keeps the
-  // sign opposite to imag(z) either way.
+  // For real(z) < 0, z + sqrt(z^2-1) cancels; use acos(z) = pi - acos(-z).
   const bool refl = __spirv_SignBitSet(z_real);
   double __complex__ zr = refl ? -z : z;
   double __complex__ w = clog(zr + csqrt(__sqr(zr) - 1.0));
@@ -683,7 +679,7 @@ __SYCL_DEVICE_C
 float __complex__ casinhf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
-  const float __pi(static_cast<float>(sycl::detail::numbers::pi));
+  constexpr float __pi = static_cast<float>(sycl::detail::numbers::pi);
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return z;
@@ -701,8 +697,8 @@ float __complex__ casinhf(float __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLXF(__spirv_ocl_copysign(z_imag, z_real),
                          __spirv_ocl_copysign(__pi / 2.0f, z_imag));
-  // asinh is odd: evaluate on the right half-plane, where sqrt(z^2+1) ~ +z and
-  // the sum cannot cancel, then take the signs from the original argument.
+  // For real(z) < 0, z + sqrt(z^2+1) cancels; use asinh(z) = -asinh(-z),
+  // with the copysign calls below restoring the signs.
   float __complex__ zr = __spirv_SignBitSet(z_real) ? -z : z;
   float __complex__ w = clogf(zr + csqrtf(__sqrf(zr) + 1.0f));
   return __SYCL_CMPLXF(__spirv_ocl_copysign(crealf(w), z_real),
@@ -712,7 +708,7 @@ __SYCL_DEVICE_C
 double __complex__ casinh(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
-  const double __pi(sycl::detail::numbers::pi);
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return z;
@@ -730,8 +726,8 @@ double __complex__ casinh(double __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLX(__spirv_ocl_copysign(z_imag, z_real),
                         __spirv_ocl_copysign(__pi / 2.0, z_imag));
-  // asinh is odd: evaluate on the right half-plane, where sqrt(z^2+1) ~ +z and
-  // the sum cannot cancel, then take the signs from the original argument.
+  // For real(z) < 0, z + sqrt(z^2+1) cancels; use asinh(z) = -asinh(-z),
+  // with the copysign calls below restoring the signs.
   double __complex__ zr = __spirv_SignBitSet(z_real) ? -z : z;
   double __complex__ w = clog(zr + csqrt(__sqr(zr) + 1.0));
   return __SYCL_CMPLX(__spirv_ocl_copysign(creal(w), z_real),
@@ -753,7 +749,7 @@ __SYCL_DEVICE_C
 float __complex__ cacoshf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
-  const float __pi(static_cast<float>(sycl::detail::numbers::pi));
+  constexpr float __pi = static_cast<float>(sycl::detail::numbers::pi);
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return __SYCL_CMPLXF(__spirv_ocl_fabs(z_real), z_imag);
@@ -777,8 +773,8 @@ float __complex__ cacoshf(float __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLXF(__spirv_ocl_fabs(z_imag),
                          __spirv_ocl_copysign(__pi / 2.0f, z_imag));
-  // acosh(z) = acosh(-z) + i*copysign(pi, imag(z)) for real(z) < 0; evaluating
-  // on the right half-plane keeps z + sqrt(z^2-1) from cancelling.
+  // For real(z) < 0, z + sqrt(z^2-1) cancels; use
+  // acosh(z) = acosh(-z) + i*copysign(pi, imag(z)).
   const bool refl = __spirv_SignBitSet(z_real);
   float __complex__ zr = refl ? -z : z;
   float __complex__ w = clogf(zr + csqrtf(__sqrf(zr) - 1.0f));
@@ -792,7 +788,7 @@ __SYCL_DEVICE_C
 double __complex__ cacosh(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
-  const double __pi(sycl::detail::numbers::pi);
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return __SYCL_CMPLX(__spirv_ocl_fabs(z_real), z_imag);
@@ -815,8 +811,8 @@ double __complex__ cacosh(double __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLX(__spirv_ocl_fabs(z_imag),
                         __spirv_ocl_copysign(__pi / 2.0, z_imag));
-  // acosh(z) = acosh(-z) + i*copysign(pi, imag(z)) for real(z) < 0; evaluating
-  // on the right half-plane keeps z + sqrt(z^2-1) from cancelling.
+  // For real(z) < 0, z + sqrt(z^2-1) cancels; use
+  // acosh(z) = acosh(-z) + i*copysign(pi, imag(z)).
   const bool refl = __spirv_SignBitSet(z_real);
   double __complex__ zr = refl ? -z : z;
   double __complex__ w = clog(zr + csqrt(__sqr(zr) - 1.0));
@@ -831,7 +827,7 @@ __SYCL_DEVICE_C
 float __complex__ catanhf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
-  const float __pi(static_cast<float>(sycl::detail::numbers::pi));
+  constexpr float __pi = static_cast<float>(sycl::detail::numbers::pi);
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLXF(__spirv_ocl_copysign(0.0f, z_real),
                          __spirv_ocl_copysign(__pi / 2.0f, z_imag));
@@ -861,7 +857,7 @@ __SYCL_DEVICE_C
 double __complex__ catanh(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
-  const double __pi(sycl::detail::numbers::pi);
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_imag))
     return __SYCL_CMPLX(__spirv_ocl_copysign(0.0, z_real),
                         __spirv_ocl_copysign(__pi / 2.0, z_imag));

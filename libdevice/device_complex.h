@@ -10,17 +10,7 @@
 
 #include "device.h"
 
-#if __cplusplus >= 202002L && __has_include(<version>)
-#include <version> // defines __cpp_lib_math_constants
-#endif
-// Correctly rounded pi for the inverse trig/hyperbolic functions; the
-// atan2(+0, -0) idiom from libc++ is 1 ulp low for float on Intel GPUs.
-#if __cpp_lib_math_constants
-#include <numbers>
-#define __DEVICELIB_PI std::numbers::pi_v<double>
-#else
-#define __DEVICELIB_PI 3.14159265358979323846
-#endif
+#include <sycl/detail/numbers.hpp>
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
