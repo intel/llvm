@@ -16,6 +16,8 @@
 #include "queue_immediate_in_order.hpp"
 #include "unified-runtime/ur_api.h"
 
+#include <algorithm>
+
 static const bool ForceBatched = getenv_tobool("UR_L0_V2_FORCE_BATCHED");
 
 namespace ur::level_zero::v2 {
@@ -107,8 +109,12 @@ ur_result_t urQueueCreate(::ur_context_handle_t hContextOpque,
   if (priorityLevel) {
     if (flags & (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH))
       return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
-    if (!hDevice->ZeQueuePriorityRange->Supported)
+    const auto &Range = hDevice->ZeQueuePriorityRange.get();
+    if (!Range.Supported)
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    // Clamp here rather than relying on the driver, so that values mapping to
+    // the same priority also share cached command lists.
+    priorityLevel = std::clamp(*priorityLevel, Range.Highest, Range.Lowest);
   }
 
   if (isBatched) {

@@ -18,9 +18,11 @@
 #include "uur/utils.h"
 
 #include <gtest/gtest.h>
+#include <limits>
 #include <map>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 // The adapter types this test exercises live in `ur::level_zero::v2`; bring the
@@ -284,6 +286,41 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
     } else {
       ASSERT_EQ(clCache.getNumRegularCommandLists(), 0);
     }
+  }
+}
+
+TEST_P(CommandListCacheTest, OutOfRangePriorityLevelsAreClamped) {
+  const auto &Range = common_cast(device)->ZeQueuePriorityRange.get();
+  if (!Range.Supported) {
+    GTEST_SKIP() << "Queue priority levels are not supported.";
+  }
+
+  auto &clCache = v2::v2_cast(context)->getCommandListCache();
+  auto createQueue = [&](int32_t Priority, uur::raii::Queue &Queue) {
+    ur_exp_queue_priority_properties_t PriorityProps{
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, Priority};
+    ur_queue_properties_t QueueProps{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                     &PriorityProps,
+                                     UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+    ASSERT_EQ(urQueueCreate(context, device, &QueueProps, Queue.ptr()),
+              UR_RESULT_SUCCESS);
+  };
+
+  // A queue with an out-of-range priority returns its command lists to the
+  // cache, and a queue with the clamped priority must reuse all of them.
+  for (auto [OutOfRange, Clamped] :
+       {std::pair{std::numeric_limits<int32_t>::min(), Range.Highest},
+        std::pair{std::numeric_limits<int32_t>::max(), Range.Lowest}}) {
+    const size_t NumCached = clCache.getNumImmediateCommandLists();
+    {
+      uur::raii::Queue Queue;
+      ASSERT_NO_FATAL_FAILURE(createQueue(OutOfRange, Queue));
+    }
+    ASSERT_GT(clCache.getNumImmediateCommandLists(), NumCached);
+
+    uur::raii::Queue Queue;
+    ASSERT_NO_FATAL_FAILURE(createQueue(Clamped, Queue));
+    ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached);
   }
 }
 
