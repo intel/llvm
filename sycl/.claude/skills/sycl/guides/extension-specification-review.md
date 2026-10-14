@@ -1,5 +1,5 @@
 ---
-description: Reviews a SYCL extension specification (new or updated) the way the DPC++ specification reviewers do. Use when the user asks to review, critique or check a SYCL extension spec, an extension PR, or a draft of one.
+description: Reviews a SYCL extension specification the way DPC++ specification reviewers do. Use when reviewing a PR that changes or adds a new SYCL specification extension (in sycl/sycl/doc/extensions/ folder).
 ---
 
 ## How to run a review
