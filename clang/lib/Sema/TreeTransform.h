@@ -15415,7 +15415,7 @@ TreeTransform<Derived>::TransformCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
 
   if (!getDerived().AlwaysRebuild() && Field == E->getField() &&
       E->getUsedContext() == SemaRef.CurContext &&
-      InitRes.get() == E->getRewrittenExpr())
+      InitRes.get() == E->getExpr())
     return E;
 
   return getDerived().RebuildCXXDefaultInitExpr(E->getExprLoc(), Field,
