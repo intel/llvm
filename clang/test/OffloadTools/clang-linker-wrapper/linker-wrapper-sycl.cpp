@@ -357,7 +357,7 @@
 // CHK-FATBIN-ONLY-MULTI: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.multi.syclfb
 // CHK-FATBIN-ONLY-MULTI-NOT: "{{.*}}/ld"
 // RUN: not clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.mixed.syclfb %t_aot_gpu.o %t_aot_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-MIXED %s
-// CHK-FATBIN-ONLY-MIXED: error: --no-sycl-rdc does not support multiple SYCL target triples
+// CHK-FATBIN-ONLY-MIXED: error: --no-sycl-rdc does not support multiple SYCL target triples ('{{.*}}' and '{{.*}}')
 
 // Verify list of commands when syclbin is used
 // RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s

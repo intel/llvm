@@ -2963,6 +2963,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   std::vector<std::vector<module_split::SplitModule>> NoRDCModules(
       LinkerInputFiles.size());
   std::string NoRDCTriple;
+  std::mutex NoRDCMtx;
 
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
@@ -3072,11 +3073,16 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         // -fno-sycl-rdc compile step: the modules are wrapped once all inputs
         // are processed.
         StringRef Triple = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-        std::scoped_lock<std::mutex> Guard(ImageMtx);
+        if (Triple.empty())
+          return createStringError(
+              "-triple argument is missing for --no-sycl-rdc");
+        size_t GroupIdx = &Input - LinkerInputFiles.data();
+        std::scoped_lock<std::mutex> Guard(NoRDCMtx);
         if (!NoRDCTriple.empty() && NoRDCTriple != Triple)
           return createStringError(
-              "--no-sycl-rdc does not support multiple SYCL target triples");
-        NoRDCModules[&Input - LinkerInputFiles.data()] = std::move(Modules);
+              "--no-sycl-rdc does not support multiple SYCL target triples ('" +
+              NoRDCTriple + "' and '" + Triple + "')");
+        NoRDCModules[GroupIdx] = std::move(Modules);
         NoRDCTriple = Triple.str();
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -3151,7 +3157,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
     return std::move(Err);
 
   // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the host
-  // compilation links it in via -foffload-include-binary.
+  // compilation links it in via -foffload-include-binary. The per-input
+  // arguments only differ from Args in the triple, which is passed explicitly.
   if (!NoRDCTriple.empty()) {
     std::vector<module_split::SplitModule> Modules;
     for (std::vector<module_split::SplitModule> &GroupModules : NoRDCModules)
