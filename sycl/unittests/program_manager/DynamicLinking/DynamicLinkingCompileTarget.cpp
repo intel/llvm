@@ -1,5 +1,7 @@
 #include <sycl/sycl.hpp>
 
+#include <detail/program_manager/program_manager.hpp>
+
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
@@ -137,4 +139,43 @@ TEST(DynamicLinking, AheadOfTimeKernelBundleForDevice) {
       CapturedLinkingData.LinkedProgramsContains({PVC_PRG, PVC_PRG_DEP}));
   EXPECT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
             PVC_PRG * PVC_PRG_DEP);
+}
+
+// Images are also picked from a given set, e.g. for device_global accesses.
+// The selection by the backend only sees the image targets, which are the same
+// for all images here, so make it pick the TGLLP image whenever it is offered.
+std::vector<const sycl::detail::RTDeviceBinaryImage *> OfferedImgs;
+ur_result_t redefinedDeviceSelectBinary(void *pParams) {
+  auto Params = *static_cast<ur_device_select_binary_params_t *>(pParams);
+  **Params.ppSelectedBinary = 0;
+  for (uint32_t I = 0; I < *Params.pNumBinaries; ++I)
+    if (OfferedImgs.size() == *Params.pNumBinaries &&
+        *OfferedImgs[I]->getRawData().BinaryStart == TGLLP_PRG)
+      **Params.ppSelectedBinary = I;
+  return UR_RESULT_SUCCESS;
+}
+
+TEST(DynamicLinking, AheadOfTimeImageFromSetForDevice) {
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfo);
+
+  sycl::queue Q(sycl::platform().get_devices()[0]);
+  auto &PM = sycl::detail::ProgramManager::getInstance();
+  std::set<const sycl::detail::RTDeviceBinaryImage *> KernelImgs =
+      PM.getRawDeviceImages({sycl::get_kernel_id<
+          DynamicLinkingCompileTargetTest::MultiArchKernel>()});
+  ASSERT_EQ(KernelImgs.size(), 2u);
+
+  std::unordered_set<const sycl::detail::RTDeviceBinaryImage *> ImgSet(
+      KernelImgs.begin(), KernelImgs.end());
+  // The images offered to the backend if none are filtered out.
+  OfferedImgs.assign(ImgSet.begin(), ImgSet.end());
+  mock::getCallbacks().set_replace_callback("urDeviceSelectBinary",
+                                            &redefinedDeviceSelectBinary);
+
+  const sycl::detail::RTDeviceBinaryImage &Img =
+      PM.getDeviceImage(ImgSet, *sycl::detail::getSyclObjImpl(Q.get_context()),
+                        *sycl::detail::getSyclObjImpl(Q.get_device()));
+  EXPECT_EQ(*Img.getRawData().BinaryStart, PVC_PRG);
 }
