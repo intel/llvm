@@ -1300,7 +1300,7 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
       std::string Opt = (Spelling + Val).str();
       std::string Replacement = (Spelling + "intel_gpu_<arch>").str();
       if (D.getUseNewOffloadingDriver())
-        D.Diag(diag::err_drv_sycl_spir64_gen_new_driver) << Opt << Replacement;
+        D.Diag(diag::err_drv_not_supported_new_model) << Opt << Replacement;
       else
         D.Diag(diag::warn_drv_deprecated_option_release)
             << Opt << /*HasReplacement=*/true << Replacement;
