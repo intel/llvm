@@ -4343,9 +4343,10 @@ public:
   }
 };
 
-/// Represents a C++26 declcall expression (P2825).
+/// Represents a declcall expression (P2825), a Clang extension.
 ///
-/// An object which gives you member function pointer or function pointer
+/// Yields a pointer, or pointer to member, to the function that overload
+/// resolution selects for the operand call expression.
 class CXXDeclcallExpr : public Expr {
   friend class ASTStmtReader;
 

@@ -1813,15 +1813,6 @@ void TextNodeDumper::VisitCXXUnresolvedConstructExpr(
     OS << " list";
 }
 
-void TextNodeDumper::VisitCXXNoexceptExpr(const CXXNoexceptExpr *Node) {
-  if (Node->isValueDependent())
-    OS << " noexcept(<dependent>)";
-  else if (Node->getValue())
-    OS << " noexcept(true)";
-  else
-    OS << " noexcept(false)";
-}
-
 void TextNodeDumper::VisitCXXConstructExpr(const CXXConstructExpr *Node) {
   CXXConstructorDecl *Ctor = Node->getConstructor();
   dumpType(Ctor->getType());
