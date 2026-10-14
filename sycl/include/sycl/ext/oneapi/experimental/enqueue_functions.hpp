@@ -271,8 +271,9 @@ inline constexpr bool is_arg_list_sequence_v =
 #endif
 
 // Rejects an argument list passed as a sequence before C++20, where a trivially
-// copyable one would otherwise bind as a single kernel argument.
-template <typename... ArgsT> void diagnoseArgListSequence() {
+// copyable one would otherwise bind as a single kernel argument. `LaunchT`
+// separates the instantiations, so each launch function reports the error.
+template <typename LaunchT, typename... ArgsT> void diagnoseArgListSequence() {
 #if !__cpp_lib_span
   static_assert(!is_arg_list_sequence_v<ArgsT...>,
                 "Passing the arguments of a sycl::kernel as a sequence "
@@ -351,18 +352,62 @@ void single_task(queue Q, const KernelType &KernelObj,
   }
 }
 
+#if __cpp_lib_span
+inline void single_task(handler &CGH, const kernel &KernelObj,
+                        std::span<const raw_kernel_arg> Args);
+#endif
+
 template <typename... ArgsT>
 void single_task(handler &CGH, const kernel &KernelObj, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.single_task(KernelObj);
+  detail::diagnoseArgListSequence<void, ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    single_task(CGH, KernelObj,
+                std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.single_task(KernelObj);
+  }
 }
+
+#if __cpp_lib_span
+inline void single_task(queue Q, const kernel &KernelObj,
+                        std::span<const raw_kernel_arg> Args,
+                        const sycl::detail::code_location &CodeLoc =
+                            sycl::detail::code_location::current());
+#endif
 
 template <typename... ArgsT>
 void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    single_task(CGH, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  detail::diagnoseArgListSequence<void, ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    single_task(std::move(Q), KernelObj,
+                std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      single_task(CGH, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
+
+#if __cpp_lib_span
+inline void single_task(handler &CGH, const kernel &KernelObj,
+                        std::span<const raw_kernel_arg> Args) {
+  detail::setRawKernelArgs(CGH, Args);
+  CGH.single_task(KernelObj);
+}
+
+inline void single_task(queue Q, const kernel &KernelObj,
+                        std::span<const raw_kernel_arg> Args,
+                        const sycl::detail::code_location &CodeLoc) {
+  submit(
+      std::move(Q), [&](handler &CGH) { single_task(CGH, KernelObj, Args); },
+      CodeLoc);
+}
+#endif // __cpp_lib_span
 
 // Free function kernel single_task enqueue functions. These enqueue the free
 // function kernel `Func` directly instead of wrapping `Func` in a helper
@@ -527,40 +572,150 @@ void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
   }
 }
 
+#if __cpp_lib_span
+template <int Dimensions>
+void parallel_for(handler &CGH, range<Dimensions> Range,
+                  const kernel &KernelObj,
+                  std::span<const raw_kernel_arg> Args);
+#endif
+
 template <int Dimensions, typename... ArgsT>
 void parallel_for(handler &CGH, range<Dimensions> Range,
                   const kernel &KernelObj, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(Range, KernelObj);
+  detail::diagnoseArgListSequence<range<Dimensions>, ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    parallel_for(CGH, Range, KernelObj,
+                 std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.parallel_for(Range, KernelObj);
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions>
+void parallel_for(queue Q, range<Dimensions> Range, const kernel &KernelObj,
+                  std::span<const raw_kernel_arg> Args,
+                  const sycl::detail::code_location &CodeLoc =
+                      sycl::detail::code_location::current());
+#endif
 
 template <int Dimensions, typename... ArgsT>
 void parallel_for(queue Q, range<Dimensions> Range, const kernel &KernelObj,
                   ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    parallel_for(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  detail::diagnoseArgListSequence<range<Dimensions>, ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    parallel_for(std::move(Q), Range, KernelObj,
+                 std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      parallel_for(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions>
+void parallel_for(handler &CGH, range<Dimensions> Range,
+                  const kernel &KernelObj,
+                  std::span<const raw_kernel_arg> Args) {
+  detail::setRawKernelArgs(CGH, Args);
+  CGH.parallel_for(Range, KernelObj);
+}
+
+template <int Dimensions>
+void parallel_for(queue Q, range<Dimensions> Range, const kernel &KernelObj,
+                  std::span<const raw_kernel_arg> Args,
+                  const sycl::detail::code_location &CodeLoc) {
+  submit(
+      std::move(Q),
+      [&](handler &CGH) { parallel_for(CGH, Range, KernelObj, Args); },
+      CodeLoc);
+}
+#endif // __cpp_lib_span
+
+#if __cpp_lib_span
+template <int Dimensions, typename Properties>
+void parallel_for(handler &CGH,
+                  launch_config<range<Dimensions>, Properties> Config,
+                  const kernel &KernelObj,
+                  std::span<const raw_kernel_arg> Args);
+#endif
 
 template <int Dimensions, typename Properties, typename... ArgsT>
 void parallel_for(handler &CGH,
                   launch_config<range<Dimensions>, Properties> Config,
                   const kernel &KernelObj, ArgsT &&...Args) {
-  ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  sycl::detail::HandlerAccess::parallelForImpl(
-      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
+  detail::diagnoseArgListSequence<launch_config<range<Dimensions>, Properties>,
+                                  ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    parallel_for(CGH, Config, KernelObj,
+                 std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
+                                                          Properties>
+        ConfigAccess(Config);
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    sycl::detail::HandlerAccess::parallelForImpl(
+        CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions, typename Properties>
+void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
+                  const kernel &KernelObj, std::span<const raw_kernel_arg> Args,
+                  const sycl::detail::code_location &CodeLoc =
+                      sycl::detail::code_location::current());
+#endif
 
 template <int Dimensions, typename Properties, typename... ArgsT>
 void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
                   const kernel &KernelObj, ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    parallel_for(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  detail::diagnoseArgListSequence<launch_config<range<Dimensions>, Properties>,
+                                  ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    parallel_for(std::move(Q), Config, KernelObj,
+                 std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      parallel_for(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions, typename Properties>
+void parallel_for(handler &CGH,
+                  launch_config<range<Dimensions>, Properties> Config,
+                  const kernel &KernelObj,
+                  std::span<const raw_kernel_arg> Args) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  detail::setRawKernelArgs(CGH, Args);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
+}
+
+template <int Dimensions, typename Properties>
+void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
+                  const kernel &KernelObj, std::span<const raw_kernel_arg> Args,
+                  const sycl::detail::code_location &CodeLoc) {
+  submit(
+      std::move(Q),
+      [&](handler &CGH) { parallel_for(CGH, Config, KernelObj, Args); },
+      CodeLoc);
+}
+#endif // __cpp_lib_span
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
@@ -640,7 +795,7 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
 template <int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                const kernel &KernelObj, ArgsT &&...Args) {
-  detail::diagnoseArgListSequence<ArgsT...>();
+  detail::diagnoseArgListSequence<nd_range<Dimensions>, ArgsT...>();
   if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
 #if __cpp_lib_span
     nd_launch(CGH, Range, KernelObj,
@@ -663,7 +818,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
-  detail::diagnoseArgListSequence<ArgsT...>();
+  detail::diagnoseArgListSequence<nd_range<Dimensions>, ArgsT...>();
   // A sequence of raw_kernel_arg goes to the std::span overload.
   // The handler-less path only takes arguments that can be bound directly,
   // anything else goes through the handler overload above.
@@ -709,25 +864,81 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
 }
 #endif // __cpp_lib_span
 
+#if __cpp_lib_span
+template <int Dimensions, typename Properties>
+void nd_launch(handler &CGH,
+               launch_config<nd_range<Dimensions>, Properties> Config,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args);
+#endif
+
 template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
                const kernel &KernelObj, ArgsT &&...Args) {
-  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  sycl::detail::HandlerAccess::parallelForImpl(
-      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
+  detail::diagnoseArgListSequence<
+      launch_config<nd_range<Dimensions>, Properties>, ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    nd_launch(CGH, Config, KernelObj,
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                          Properties>
+        ConfigAccess(Config);
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    sycl::detail::HandlerAccess::parallelForImpl(
+        CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions, typename Properties>
+void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc =
+                   sycl::detail::code_location::current());
+#endif
 
 template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const kernel &KernelObj, ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  detail::diagnoseArgListSequence<
+      launch_config<nd_range<Dimensions>, Properties>, ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    nd_launch(std::move(Q), Config, KernelObj,
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch(CGH, Config, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions, typename Properties>
+void nd_launch(handler &CGH,
+               launch_config<nd_range<Dimensions>, Properties> Config,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args) {
+  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                        Properties>
+      ConfigAccess(Config);
+  detail::setRawKernelArgs(CGH, Args);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
+}
+
+template <int Dimensions, typename Properties>
+void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc) {
+  submit(
+      std::move(Q),
+      [&](handler &CGH) { nd_launch(CGH, Config, KernelObj, Args); }, CodeLoc);
+}
+#endif // __cpp_lib_span
 
 // Free function kernel nd_launch enqueue functions. These enqueue the free
 // function kernel `Func` directly instead of wrapping `Func` in a helper

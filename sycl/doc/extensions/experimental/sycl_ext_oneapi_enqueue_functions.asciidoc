@@ -176,6 +176,10 @@ implementation supports.
 |2
 |Adds the `nd_launch` overloads that take a `sycl::nd_range` and the
  arguments of a `sycl::kernel` as a `std::span` of `raw_kernel_arg`.
+
+|3
+|Adds the same overloads for `single_task`, `parallel_for` and `nd_launch`
+ with a `launch_config`.
 |===
 
 
@@ -310,18 +314,48 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename Args...>
+template <typename... Args>
 void single_task(sycl::queue q, const sycl::kernel& k, Args&&... args);
 
-template <typename Args...>
+template <typename... Args>
 void single_task(sycl::handler &h, const sycl::kernel& k, Args&&... args);
 
 }
 ----
 !====
+_Constraints_: `+sizeof...(Args)+` is not one, or the single argument in
+`args` is not convertible to `std::span<const raw_kernel_arg>`.
+
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler` as
 a single task. The arguments in `args` are passed to the kernel in the same
 order.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void single_task(sycl::queue q, const sycl::kernel& k, // Requires C++20
+                 std::span<const raw_kernel_arg> args);
+
+void single_task(sycl::handler &h, const sycl::kernel& k, // Requires C++20
+                 std::span<const raw_kernel_arg> args);
+
+}
+----
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler` as
+a single task. The element `args[i]` is passed to the kernel as the argument at
+index `i`, as if it had been passed to `set_arg`. The sequence referenced by
+`args` need only remain valid until the function returns.
+
+[_Note:_ An element that represents a pointer argument has to be constructed
+with the `pointer_arg` overload of `raw_kernel_arg`, as described in
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+_end note_]
 
 |====
 
@@ -406,6 +440,9 @@ void parallel_for(sycl::handler &h, sycl::range<Dimensions> r,
 }
 ----
 !====
+_Constraints_: `+sizeof...(Args)+` is not one, or the single argument in
+`args` is not convertible to `std::span<const raw_kernel_arg>`.
+
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the number of work-items specified by a `sycl::range`.
 The arguments in `args` are passed to the kernel in the same order.
@@ -418,23 +455,92 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template <int Dimensions> // Requires C++20
+void parallel_for(sycl::queue q, sycl::range<Dimensions> r,
+                  const sycl::kernel& k,
+                  std::span<const raw_kernel_arg> args);
+
+template <int Dimensions> // Requires C++20
+void parallel_for(sycl::handler &h, sycl::range<Dimensions> r,
+                  const sycl::kernel& k,
+                  std::span<const raw_kernel_arg> args);
+
+}
+----
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a `sycl::range`.
+The element `args[i]` is passed to the kernel as the argument at index `i`, as
+if it had been passed to `set_arg`. The sequence referenced by `args` need only
+remain valid until the function returns.
+
+[_Note:_ An element that represents a pointer argument has to be constructed
+with the `pointer_arg` overload of `raw_kernel_arg`, as described in
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+_end note_]
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
 template <int Dimensions, typename Properties, typename... Args>
 void parallel_for(sycl::queue q,
                   launch_config<sycl::range<Dimensions>, Properties> c,
-                  const sycl::kernel& k, Args&& args...);
+                  const sycl::kernel& k, Args&&... args);
 
 template <int Dimensions, typename Properties, typename... Args>
 void parallel_for(sycl::handler &h,
                   launch_config<sycl::range<Dimensions>, Properties> c,
-                  const sycl::kernel& k, Args&& args...);
+                  const sycl::kernel& k, Args&&... args);
+
+}
+----
+!====
+_Constraints_: `+sizeof...(Args)+` is not one, or the single argument in
+`args` is not convertible to `std::span<const raw_kernel_arg>`.
+
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the launch configuration specified by a
+`launch_config`. The arguments in `args` are passed to the kernel in the same
+order.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <int Dimensions, typename Properties> // Requires C++20
+void parallel_for(sycl::queue q,
+                  launch_config<sycl::range<Dimensions>, Properties> c,
+                  const sycl::kernel& k,
+                  std::span<const raw_kernel_arg> args);
+
+template <int Dimensions, typename Properties> // Requires C++20
+void parallel_for(sycl::handler &h,
+                  launch_config<sycl::range<Dimensions>, Properties> c,
+                  const sycl::kernel& k,
+                  std::span<const raw_kernel_arg> args);
 
 }
 ----
 !====
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the launch configuration specified by a
-`launch_config`. The arguments in `args` are passed to the kernel in the same
-order.
+`launch_config`. The element `args[i]` is passed to the kernel as the argument
+at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
+`args` need only remain valid until the function returns.
+
+[_Note:_ An element that represents a pointer argument has to be constructed
+with the `pointer_arg` overload of `raw_kernel_arg`, as described in
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+_end note_]
 
 |====
 
@@ -570,20 +676,55 @@ namespace sycl::ext::oneapi::experimental {
 template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::queue q,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
-               const sycl::kernel& k, Args&& args...);
+               const sycl::kernel& k, Args&&... args);
 
 template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::handler &h,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
-               const sycl::kernel& k, Args&& args...);
+               const sycl::kernel& k, Args&&... args);
+
+}
+----
+!====
+_Constraints_: `+sizeof...(Args)+` is not one, or the single argument in
+`args` is not convertible to `std::span<const raw_kernel_arg>`.
+
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the launch configuration specified by a
+`launch_config`. The arguments in `args` are passed to the kernel in the same
+order.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <int Dimensions, typename Properties> // Requires C++20
+void nd_launch(sycl::queue q,
+               launch_config<sycl::nd_range<Dimensions>, Properties> c,
+               const sycl::kernel& k, std::span<const raw_kernel_arg> args);
+
+template <int Dimensions, typename Properties> // Requires C++20
+void nd_launch(sycl::handler &h,
+               launch_config<sycl::nd_range<Dimensions>, Properties> c,
+               const sycl::kernel& k, std::span<const raw_kernel_arg> args);
 
 }
 ----
 !====
 _Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
 as a basic kernel, using the launch configuration specified by a
-`launch_config`. The arguments in `args` are passed to the kernel in the same
-order.
+`launch_config`. The element `args[i]` is passed to the kernel as the argument
+at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
+`args` need only remain valid until the function returns.
+
+[_Note:_ An element that represents a pointer argument has to be constructed
+with the `pointer_arg` overload of `raw_kernel_arg`, as described in
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+_end note_]
 
 |====
 
