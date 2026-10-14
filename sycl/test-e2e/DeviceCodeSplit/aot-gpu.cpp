@@ -1,4 +1,4 @@
-// REQUIRES: ocloc, gpu, spir-family
+// REQUIRES: ocloc, gpu, spir-family, !gpu-intel-gen12
 //
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \
 // RUN:   %aot_options -I %S/Inputs -o %t.out \
