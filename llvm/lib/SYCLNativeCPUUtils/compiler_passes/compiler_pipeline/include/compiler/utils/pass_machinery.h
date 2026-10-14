@@ -27,6 +27,7 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
+#include <llvm/Support/VirtualFileSystem.h>
 
 namespace llvm {
 class TargetMachine;
@@ -48,7 +49,9 @@ class PassMachinery {
 public:
   PassMachinery(llvm::LLVMContext &Ctx, llvm::TargetMachine *TM,
                 bool VerifyEach = false,
-                DebugLogging debugLogLevel = DebugLogging::None);
+                DebugLogging debugLogLevel = DebugLogging::None,
+                llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS =
+                    llvm::vfs::getRealFileSystem());
 
   virtual ~PassMachinery();
 
@@ -108,6 +111,8 @@ public:
 protected:
   /// @brief TargetMachine to be used for passes. May be nullptr.
   llvm::TargetMachine *TM;
+  /// @brief File system used by the PassBuilder. Must be declared before PB.
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
   // Note: the order here is important! They must be destructed in this order.
   /// @brief Holds state for Loop analyses.
   llvm::LoopAnalysisManager LAM;
