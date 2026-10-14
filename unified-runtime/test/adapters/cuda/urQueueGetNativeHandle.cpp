@@ -63,7 +63,7 @@ TEST_P(urCudaQueueGetNativeHandleTest, SyncWithDefaultStreamAlone) {
       urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
   unsigned int Flags = 0;
   ASSERT_SUCCESS_CUDA(cuStreamGetFlags(Stream, &Flags));
-  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_NON_BLOCKING));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_DEFAULT));
 }
 
 TEST_P(urCudaQueueGetNativeHandleTest, UseDefaultStreamCombinedWithPriority) {
@@ -96,7 +96,7 @@ TEST_P(urCudaQueueGetNativeHandleTest,
       urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
   unsigned int Flags = 0;
   ASSERT_SUCCESS_CUDA(cuStreamGetFlags(Stream, &Flags));
-  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_NON_BLOCKING));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(CU_STREAM_DEFAULT));
 }
 
 TEST_P(urCudaQueueGetNativeHandleTest, InteropGuard) {

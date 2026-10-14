@@ -76,7 +76,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       if (URFlags & UR_QUEUE_FLAG_USE_DEFAULT_STREAM) {
         Flags = CU_STREAM_DEFAULT;
       } else if (URFlags & UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM) {
-        Flags = CU_STREAM_NON_BLOCKING;
+        Flags = CU_STREAM_DEFAULT;
       }
 
       if (URFlags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {

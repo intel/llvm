@@ -35,7 +35,7 @@ TEST_P(urHipQueueGetNativeHandleTest, SyncWithDefaultStreamAlone) {
       urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
   unsigned int Flags = 0;
   ASSERT_SUCCESS_HIP(hipStreamGetFlags(Stream, &Flags));
-  ASSERT_EQ(Flags, static_cast<unsigned int>(hipStreamNonBlocking));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(hipStreamDefault));
 }
 
 TEST_P(urHipQueueGetNativeHandleTest, UseDefaultStreamCombinedWithPriority) {
@@ -68,5 +68,5 @@ TEST_P(urHipQueueGetNativeHandleTest,
       urQueueGetNativeHandle(queue, nullptr, (ur_native_handle_t *)&Stream));
   unsigned int Flags = 0;
   ASSERT_SUCCESS_HIP(hipStreamGetFlags(Stream, &Flags));
-  ASSERT_EQ(Flags, static_cast<unsigned int>(hipStreamNonBlocking));
+  ASSERT_EQ(Flags, static_cast<unsigned int>(hipStreamDefault));
 }
