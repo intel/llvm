@@ -3378,13 +3378,6 @@ Error emitExtractCommands(
 /// for the triple and arch of each of those binaries.
 static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
     MemoryBufferRef Buffer, llvm::SmallVectorImpl<OffloadFile> &Binaries) {
-  LLVMContext Context;
-  static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
-  llvm::file_magic Magic = identify_magic(Buffer.getBuffer());
-  Expected<std::unique_ptr<SymbolicFile>> ObjOrErr =
-      SymbolicFile::createSymbolicFile(Buffer, Magic, &Context,
-                                       /*InitContent=*/Magic !=
-                                           llvm::file_magic::bitcode);
   size_t OldNumBinaries = Binaries.size();
   if (Error Err = extractOffloadBinaries(Buffer, Binaries)) {
     // The SYCL pipeline embeds raw bitcode in .llvm.offloading sections
@@ -3392,15 +3385,18 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
     // fall through to the SYCL bundled objects extraction path.
     consumeError(std::move(Err));
   }
+  // No need to process the symbols if the object contains no device code.
+  if (OldNumBinaries == Binaries.size())
+    return Error::success();
+  LLVMContext Context;
+  static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
+  Expected<std::unique_ptr<SymbolicFile>> ObjOrErr =
+      SymbolicFile::createSymbolicFile(Buffer, file_magic::unknown, &Context);
   if (!ObjOrErr) {
     // Not something we can read symbols from; ignore it.
     consumeError(ObjOrErr.takeError());
     return Error::success();
   }
-  // An object without device code has no device image to define its
-  // references.
-  if (OldNumBinaries == Binaries.size())
-    return Error::success();
   SmallSet<std::string, 4> FuncNames;
   for (const BasicSymbolRef &Sym : (*ObjOrErr)->symbols()) {
     Expected<uint32_t> FlagsOrErr = Sym.getFlags();
