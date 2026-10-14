@@ -45,7 +45,7 @@
 // CHECK-SAME:,+SPV_KHR_uniform_group_instructions
 // CHECK-SAME:,+SPV_INTEL_masked_gather_scatter
 // CHECK-SAME:,+SPV_INTEL_tensor_float32_conversion
-// CHECK-SAME:,+SPV_INTEL_optnone
+// CHECK-SAME:,+SPV_EXT_optnone
 // CHECK-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-SAME:,+SPV_KHR_cooperative_matrix
 // CHECK-SAME:,+SPV_EXT_shader_atomic_float16_add
