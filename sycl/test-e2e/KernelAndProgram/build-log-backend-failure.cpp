@@ -5,11 +5,13 @@
 // RUN: FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16416
-
 #include <stdio.h>
 #include <sycl/detail/core.hpp>
+
+#define UNUSED(var)                                                            \
+  do {                                                                         \
+    static_cast<void>(var);                                                    \
+  } while (0)
 
 long long int app_var_3 = 7450649278945924256LL;
 long long int app_var_4 = -7822479480217888654LL;
@@ -48,9 +50,9 @@ long long int app_var_38 = -5600606352884923795LL;
 void test() {
   using namespace sycl;
 #if CPU
-  cpu_selector a;
+  auto a = cpu_selector_v;
 #else
-  gpu_selector a;
+  auto a = gpu_selector_v;
 #endif
   queue b(a);
   buffer c{&app_var_3, range(1)};
@@ -123,31 +125,31 @@ void test() {
     aj.single_task<class br>([=] {
       au[0] = am[0];
       if (ao[0] ? as[0] ? ar[0] : 9 : ap[0])
-        av;
-      aw;
+        UNUSED(av);
+      UNUSED(aw);
       if (aq[0])
         if (an[0])
-          ax;
-      ay;
-      az;
+          UNUSED(ax);
+      UNUSED(ay);
+      UNUSED(az);
       ba[0] = al[0];
       bb[0] = at[0];
-      bc;
-      bd;
-      be;
-      bf;
-      bg;
-      bh;
-      bi;
-      bj;
-      bk;
-      bl;
-      bm;
+      UNUSED(bc);
+      UNUSED(bd);
+      UNUSED(be);
+      UNUSED(bf);
+      UNUSED(bg);
+      UNUSED(bh);
+      UNUSED(bi);
+      UNUSED(bj);
+      UNUSED(bk);
+      UNUSED(bl);
+      UNUSED(bm);
       if (ak[0])
-        bn;
-      bo;
-      bp;
-      bq;
+        UNUSED(bn);
+      UNUSED(bo);
+      UNUSED(bp);
+      UNUSED(bq);
     });
   });
 }
