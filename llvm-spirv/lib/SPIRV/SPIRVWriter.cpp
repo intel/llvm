@@ -2459,32 +2459,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(V, BM->addUnreachableInst(BB));
 
   if (auto *RI = dyn_cast<ReturnInst>(V)) {
-    if (auto *RV = RI->getReturnValue()) {
-      if (auto *II = dyn_cast<IntrinsicInst>(RV)) {
-        if (II->getIntrinsicID() == Intrinsic::frexp) {
-          // create composite type from the return value and second operand
-          auto *FrexpResult = transValue(RV, BB);
-          SPIRVValue *IntFromFrexpResult =
-              static_cast<SPIRVExtInst *>(FrexpResult)->getArgValues()[1];
-          SPIRVType *LoadTy = nullptr;
-
-          if (IntFromFrexpResult->isUntypedVariable())
-            LoadTy = static_cast<SPIRVUntypedVariableKHR *>(IntFromFrexpResult)
-                         ->getDataType();
-
-          IntFromFrexpResult =
-              BM->addLoadInst(IntFromFrexpResult, {}, BB, LoadTy);
-
-          std::vector<SPIRVId> Operands = {FrexpResult->getId(),
-                                           IntFromFrexpResult->getId()};
-          auto *Compos = BM->addCompositeConstructInst(transType(RV->getType()),
-                                                       Operands, BB);
-
-          return mapValue(V, BM->addReturnValueInst(Compos, BB));
-        }
-      }
+    if (auto *RV = RI->getReturnValue())
       return mapValue(V, BM->addReturnValueInst(transValue(RV, BB), BB));
-    }
     return mapValue(V, BM->addReturnInst(BB));
   }
 
@@ -2733,26 +2709,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   }
 
   if (auto *Ext = dyn_cast<ExtractValueInst>(V)) {
-    if (auto *II = dyn_cast<IntrinsicInst>(Ext->getAggregateOperand())) {
-      if (II->getIntrinsicID() == Intrinsic::frexp) {
-        unsigned Idx = Ext->getIndices()[0];
-        auto *Val = transValue(II, BB);
-        if (Idx == 0)
-          return mapValue(V, Val);
-
-        // Idx = 1
-        SPIRVValue *IntFromFrexpResult =
-            static_cast<SPIRVExtInst *>(Val)->getArgValues()[1];
-        SPIRVType *LoadTy = nullptr;
-        if (IntFromFrexpResult->isUntypedVariable())
-          LoadTy = static_cast<SPIRVUntypedVariableKHR *>(IntFromFrexpResult)
-                       ->getDataType();
-
-        IntFromFrexpResult =
-            BM->addLoadInst(IntFromFrexpResult, {}, BB, LoadTy);
-        return mapValue(V, IntFromFrexpResult);
-      }
-    }
     return mapValue(V, BM->addCompositeExtractInst(
                            transScavengedType(Ext),
                            transValue(Ext->getAggregateOperand(), BB),
@@ -4641,27 +4597,32 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       break;
     SPIRVWord ExtOp = getBuiltinIdForIntrinsic(IID);
 
+    // OpenCLLIB::frexp returns the mantissa and stores the exponent through a
+    // pointer, so rebuild the { mantissa, exponent } struct llvm.frexp returns.
     SPIRVType *FTy = transType(II->getType()->getStructElementType(0));
-    SPIRVTypePointer *ITy = static_cast<SPIRVTypePointer *>(transPointerType(
-        II->getType()->getStructElementType(1), SPIRAS_Private));
-    if (!ITy->isTypeUntypedPointerKHR()) {
-      unsigned BitWidth = ITy->getElementType()->getBitWidth();
-      BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
-                                   std::to_string(BitWidth));
-    }
+    SPIRVType *ExpTy = transType(II->getType()->getStructElementType(1));
+    SPIRVType *ITy = transPointerType(II->getType()->getStructElementType(1),
+                                      SPIRAS_Private);
+    // OpenCLLIB::frexp only accepts a pointer to a 32-bit integer or a vector
+    // of them.
+    unsigned BitWidth = ExpTy->getBitWidth();
+    BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
+                                 std::to_string(BitWidth));
+    // Function scope variables must come first in the entry block, not in BB.
     SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
     SPIRVValue *IntVal =
-        BM->addVariable(ITy,
-                        ITy->isTypeUntypedPointerKHR()
-                            ? transType(II->getType()->getStructElementType(1))
-                            : nullptr,
-                        false, spv::internal::LinkageTypeInternal, nullptr, "",
-                        ITy->getStorageClass(), EntryBB);
+        BM->addVariable(ITy, ExpTy, false, spv::internal::LinkageTypeInternal,
+                        nullptr, "", ITy->getPointerStorageClass(), EntryBB);
 
     std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB), IntVal};
+    SPIRVValue *Frexp = BM->addExtInst(
+        FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops, BB);
 
-    return BM->addExtInst(FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
-                          BB);
+    SPIRVValue *ExpVal = BM->addLoadInst(IntVal, {}, BB, ExpTy);
+
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVId> StructVals{Frexp->getId(), ExpVal->getId()};
+    return BM->addCompositeConstructInst(STy, StructVals, BB);
   }
   case Intrinsic::modf: {
     // llvm.modf has a single arg --the number to be decomposed-- and returns a
