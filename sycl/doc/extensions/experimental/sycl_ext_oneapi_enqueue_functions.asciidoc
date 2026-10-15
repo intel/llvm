@@ -557,7 +557,7 @@ at index `i`, as if it had been passed to `set_arg`. The sequence referenced by
 [_Note:_ An element that represents a pointer argument has to be constructed
 with the `pointer_arg` overload of `raw_kernel_arg`, as described in
 link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
-_end note_]
+_{endnote}_]
 
 a|
 [frame=all,grid=none]
