@@ -24,6 +24,7 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Support/TypeSize.h>
+#include <llvm/Support/VirtualFileSystem.h>
 
 #include <cstdint>
 #include <optional>
@@ -139,7 +140,15 @@ public:
 /// manager's ModuleAnalysisManager is configured with a custom @ref
 /// `VeczShouldRunOnFunctionAnalysis`
 class RunVeczPass : public llvm::OptionalPassInfoMixin<RunVeczPass> {
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
+
 public:
+  /// @brief Construct the Vecz pass.
+  /// @param[in] FS file system to be used by Vecz's internal PassBuilder.
+  explicit RunVeczPass(llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS =
+                           llvm::vfs::getRealFileSystem())
+      : FS(std::move(FS)) {}
+
   /// @brief llvm's entry point for the PassManager
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };

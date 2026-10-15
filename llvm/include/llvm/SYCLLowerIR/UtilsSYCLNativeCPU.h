@@ -13,6 +13,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
+#include "llvm/Support/VirtualFileSystem.h"
 
 namespace llvm {
 namespace sycl {
@@ -20,7 +21,8 @@ namespace utils {
 
 void addSYCLNativeCPUBackendPasses(ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM,
-                                   OptimizationLevel OptLevel);
+                                   OptimizationLevel OptLevel,
+                                   IntrusiveRefCntPtr<vfs::FileSystem> FS);
 
 constexpr char SYCLNATIVECPUSUFFIX[] = ".SYCLNCPU";
 constexpr char SYCLNATIVECPUKERNEL[] = ".NativeCPUKernel";
