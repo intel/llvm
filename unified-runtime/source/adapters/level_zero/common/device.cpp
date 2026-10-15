@@ -418,22 +418,6 @@ ur_result_t urDeviceGetInfo(
              (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
-    // Level Zero has no direct query for 16-bit integer atomics, which is what
-    // aspect::ext_oneapi_atomic16 also covers (short/unsigned short), so
-    // fp16Flags of the float atomics extension is used as a proxy. Any non-zero
-    // bit (global/local load/store, add, min/max) is treated as sufficient;
-    // we assume devices reporting fp16 atomics also support 16-bit integer
-    // atomics.
-    // Only verified on CRI.
-    // TODO: Extend to other architectures once 16-bit atomics are supported
-    // there.
-    // TODO: cl_ext_float_atomics also covers fp32/fp64 atomics, so gating it on
-    // fp16Flags alone is misleading for other consumers of
-    // UR_DEVICE_INFO_EXTENSIONS. Replace this with a dedicated UR device info
-    // query for 16-bit atomics.
-    if (Device->isCRI() && Device->ZeDeviceFloatAtomicExtProperties->fp16Flags)
-      SupportedExtensions += ("cl_ext_float_atomics ");
-
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -1150,6 +1134,18 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(static_cast<ur_bool_t>(true));
+  }
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    constexpr ze_device_fp_atomic_ext_flags_t Required =
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_MIN_MAX |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_MIN_MAX;
+    return ReturnValue(static_cast<ur_bool_t>(
+        (Device->ZeDeviceFloatAtomicExtProperties->fp16Flags & Required) ==
+        Required));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));

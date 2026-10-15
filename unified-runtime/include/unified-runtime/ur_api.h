@@ -2452,6 +2452,10 @@ typedef enum ur_device_info_t {
   /// [::ur_device_igca_feature_flags_t][optional-query] return the IGCA
   /// feature sets the Intel GPU implements
   UR_DEVICE_INFO_IGCA_FEATURE_SET = 141,
+  /// [::ur_bool_t][optional-query] return true if the device supports
+  /// global and local atomic load, store, add, min and max on IEEE 754
+  /// half-precision (fp16) values
+  UR_DEVICE_INFO_FP16_ATOMIC = 142,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
