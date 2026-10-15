@@ -111,6 +111,10 @@ inline ur_result_t
 printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
+inline ur_result_t printFlag<ur_device_igca_feature_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
+template <>
 inline ur_result_t
 printFlag<ur_kernel_launch_properties_flag_t>(std::ostream &os, uint32_t flag);
 
@@ -371,6 +375,8 @@ operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_throttle_reasons_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_igca_feature_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_launch_properties_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &
@@ -618,6 +624,9 @@ operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_image_user_pitch_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_program_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_queue_priority_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_exp_usm_host_alloc_register_flag_t value);
 inline std::ostream &operator<<(
@@ -1636,6 +1645,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC";
     break;
+  case UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -2008,6 +2020,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC: {
     const ur_exp_event_sync_mode_desc_t *pstruct =
         (const ur_exp_event_sync_mode_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES: {
+    const ur_exp_queue_priority_properties_t *pstruct =
+        (const ur_exp_queue_priority_properties_t *)ptr;
     printPtr(os, pstruct);
   } break;
   default:
@@ -3313,6 +3331,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     os << "UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD";
     break;
+  case UR_DEVICE_INFO_IGCA_TARGET:
+    os << "UR_DEVICE_INFO_IGCA_TARGET";
+    break;
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
+    os << "UR_DEVICE_INFO_IGCA_FEATURE_SET";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -3450,6 +3474,15 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+    os << "UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP";
+    break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP:
+    os << "UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5256,6 +5289,33 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_IGCA_TARGET: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
+    const ur_device_igca_feature_flags_t *tptr =
+        (const ur_device_igca_feature_flags_t *)ptr;
+    if (sizeof(ur_device_igca_feature_flags_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_device_igca_feature_flags_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    ur::details::printFlag<ur_device_igca_feature_flag_t>(os, *tptr);
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -5850,6 +5910,45 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
          << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -6889,6 +6988,68 @@ printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag) {
       first = false;
     }
     os << UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_igca_feature_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_igca_feature_flag_t value) {
+  switch (value) {
+  case UR_DEVICE_IGCA_FEATURE_FLAG_RENDER:
+    os << "UR_DEVICE_IGCA_FEATURE_FLAG_RENDER";
+    break;
+  case UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE:
+    os << "UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_igca_feature_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_device_igca_feature_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_DEVICE_IGCA_FEATURE_FLAG_RENDER) ==
+      (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_RENDER) {
+    val ^= (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+  }
+
+  if ((val & UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE) ==
+      (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE) {
+    val ^= (uint32_t)UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -12624,6 +12785,32 @@ inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_queue_priority_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_queue_priority_properties_t params) {
+  os << "(struct ur_exp_queue_priority_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".priority = ";
+
+  os << (params.priority);
+
+  os << "}";
+  return os;
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_usm_host_alloc_register_flag_t type
 /// @returns

@@ -115,14 +115,14 @@ attributes #0 = { "sycl-module-id"="TU1.cpp" }
 attributes #1 = { "sycl-module-id"="TU2.cpp" }
 
 ; Metadata is saved in both modules.
-; CHECK: !opencl.spir.version = !{!0, !0}
-; CHECK: !spirv.Source = !{!1, !1}
+; CHECK: !opencl.spir.version = !{![[VER:[0-9]+]], ![[VER]]}
+; CHECK: !spirv.Source = !{![[SRC:[0-9]+]], ![[SRC]]}
 
 !opencl.spir.version = !{!0, !0}
 !spirv.Source = !{!1, !1}
 
-; CHECK: !0 = !{i32 1, i32 2}
-; CHECK: !1 = !{i32 4, i32 100000}
+; CHECK: ![[VER]] = !{i32 1, i32 2}
+; CHECK: ![[SRC]] = !{i32 4, i32 100000}
 
 !0 = !{i32 1, i32 2}
 !1 = !{i32 4, i32 100000}

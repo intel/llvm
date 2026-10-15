@@ -667,6 +667,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
   /// ::ur_exp_event_sync_mode_desc_t
   UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC = 0x8001,
+  /// ::ur_exp_queue_priority_properties_t
+  UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES = 0x9000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2444,6 +2446,12 @@ typedef enum ur_device_info_t {
   /// [uint32_t][optional-query] return Intel GPU maximal number of lanes
   /// (virtual SIMD size) per hardware thread
   UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD = 139,
+  /// [uint32_t][optional-query] return the Intel GPU IGCA (Intel Graphics
+  /// Compute Architecture) target
+  UR_DEVICE_INFO_IGCA_TARGET = 140,
+  /// [::ur_device_igca_feature_flags_t][optional-query] return the IGCA
+  /// feature sets the Intel GPU implements
+  UR_DEVICE_INFO_IGCA_FEATURE_SET = 141,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2581,6 +2589,17 @@ typedef enum ur_device_info_t {
   /// information for individual events without the whole queue being
   /// created with ::UR_QUEUE_FLAG_PROFILING_ENABLE.
   UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP = 0x20A0,
+  /// [::ur_bool_t] returns true if the device supports creating queues
+  /// with ::ur_exp_queue_priority_properties_t.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP = 0x20B0,
+  /// [int32_t][optional-query] returns the numerically lowest priority
+  /// value, which corresponds to the highest queue priority. It is
+  /// never greater than 0.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP = 0x20B1,
+  /// [int32_t][optional-query] returns the numerically highest priority
+  /// value, which corresponds to the lowest queue priority. It is never
+  /// less than 0.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP = 0x20B2,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -3170,6 +3189,25 @@ typedef enum ur_device_throttle_reasons_flag_t {
 } ur_device_throttle_reasons_flag_t;
 /// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
 #define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief IGCA (Intel Graphics Compute Architecture) feature sets a device
+///        implements.
+typedef uint32_t ur_device_igca_feature_flags_t;
+typedef enum ur_device_igca_feature_flag_t {
+  /// The device implements the IGCA render feature set, typically a client
+  /// GPU.
+  UR_DEVICE_IGCA_FEATURE_FLAG_RENDER = UR_BIT(0),
+  /// The device implements the IGCA compute feature set, typically a
+  /// datacenter GPU.
+  UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE = UR_BIT(1),
+  /// @cond
+  UR_DEVICE_IGCA_FEATURE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_device_igca_feature_flag_t;
+/// @brief Bit Mask for validating ur_device_igca_feature_flags_t
+#define UR_DEVICE_IGCA_FEATURE_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Kernel launch properties support
@@ -11853,6 +11891,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     const char *pOptions,
     /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for queue priority levels
+#if !defined(__GNUC__)
+#pragma region queue_priority_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue priority creation properties
+///
+/// @details
+///     - Specify these properties in ::urQueueCreate via
+///       ::ur_queue_properties_t as part of a `pNext` chain.
+///     - Lower values indicate higher priority, 0 is the default priority.
+///     - Values outside of the range reported by
+///       ::UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP and
+///       ::UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP are clamped to the nearest
+///       supported value.
+///     - Must not be combined with ::UR_QUEUE_FLAG_PRIORITY_LOW or
+///       ::UR_QUEUE_FLAG_PRIORITY_HIGH.
+typedef struct ur_exp_queue_priority_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] priority of the queue.
+  int32_t priority;
+
+} ur_exp_queue_priority_properties_t;
 
 #if !defined(__GNUC__)
 #pragma endregion

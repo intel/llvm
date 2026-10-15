@@ -239,6 +239,49 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
   }
 }
 
+ur_backend_t GetDeviceBackend(ur_device_handle_t Device) {
+  // There's no device level query for the backend, so go through the platform.
+  ur_platform_handle_t Platform{};
+  ur_result_t Result = getContext()->urDdiTable.Device.pfnGetInfo(
+      Device, UR_DEVICE_INFO_PLATFORM, sizeof(Platform), &Platform, nullptr);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "GetDeviceBackend: failed to query the device platform: {}",
+             Result);
+    return UR_BACKEND_UNKNOWN;
+  }
+
+  ur_backend_t Backend = UR_BACKEND_UNKNOWN;
+  Result = getContext()->urDdiTable.Platform.pfnGetInfo(
+      Platform, UR_PLATFORM_INFO_BACKEND, sizeof(Backend), &Backend, nullptr);
+  if (Result != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "GetDeviceBackend: failed to query the platform backend: {}",
+             Result);
+    return UR_BACKEND_UNKNOWN;
+  }
+
+  return Backend;
+}
+
+ur_result_t CheckDeviceBackendSupported(ur_device_handle_t Device,
+                                        DeviceType Type) {
+  // Shadow memory for GPU devices is reserved through the virtual memory API
+  // (urVirtualMemReserve), which only the Level Zero adapter implements. CPU
+  // devices mmap their shadow directly and work on any backend.
+  if (Type == DeviceType::CPU)
+    return UR_RESULT_SUCCESS;
+
+  if (GetDeviceBackend(Device) != UR_BACKEND_LEVEL_ZERO) {
+    UR_LOG_L(getContext()->logger, ERR,
+             "Device sanitizers on GPU devices require the Level Zero backend, "
+             "select it with ONEAPI_DEVICE_SELECTOR=level_zero:*");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_device_handle_t GetParentDevice(ur_device_handle_t Device) {
   ur_device_handle_t ParentDevice{};
   [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(

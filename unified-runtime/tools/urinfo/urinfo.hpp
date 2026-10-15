@@ -370,6 +370,11 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
   std::cout << prefix;
+  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_IGCA_TARGET);
+  std::cout << prefix;
+  printDeviceInfo<ur_device_igca_feature_flags_t>(
+      hDevice, UR_DEVICE_INFO_IGCA_FEATURE_SET);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -495,6 +500,13 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
   std::cout << prefix;

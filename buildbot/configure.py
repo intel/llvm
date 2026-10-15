@@ -161,8 +161,12 @@ def do_configure(args, passthrough_args):
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
 
-    # lld is needed on Windows or when building AMDGPU
-    if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
+    # lld is needed for CI or on Windows or when building AMDGPU
+    if (
+        args.ci_defaults
+        or platform.system() == "Windows"
+        or "AMDGPU" in llvm_targets_to_build
+    ):
         llvm_enable_projects += ";lld"
 
     install_dir = os.path.join(abs_obj_dir, "install")
@@ -206,6 +210,24 @@ def do_configure(args, passthrough_args):
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
 
+    if sys.platform != "darwin":
+        llvm_spirv64_runtimes = "compiler-rt"
+        llvm_spirv64_sanitizers = ""
+        runtime_targets += ";spirv64-unknown-unknown"
+        cmake_cmd.extend(
+            [
+                "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
+                    llvm_spirv64_runtimes
+                ),
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
+                    llvm_spirv64_sanitizers
+                ),
+                # Disable compiler-rt tests (e.g. builtins) for the spirv64
+                # runtime target so they are not added to `check-all`.
+                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_INCLUDE_TESTS=OFF",
+            ]
+        )
+
     if llvm_enable_runtimes:
         cmake_cmd.extend(
             [
@@ -231,19 +253,19 @@ def do_configure(args, passthrough_args):
 
     if libclc_enabled:
         for target in runtime_targets.split(";"):
-            if target == "default":
+            if target == "default" or target == "spirv64-unknown-unknown":
                 continue
             cmake_cmd.extend(
                 [
                     f"-DRUNTIMES_{target}_LLVM_ENABLE_RUNTIMES=libclc",
                 ]
             )
-        cmake_cmd.extend(
-            [
-                "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
-            ]
-        )
 
+    cmake_cmd.extend(
+        [
+            "-DLLVM_RUNTIME_TARGETS={}".format(runtime_targets),
+        ]
+    )
     if args.l0_headers and args.l0_loader:
         cmake_cmd.extend(
             [

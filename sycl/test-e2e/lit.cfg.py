@@ -30,11 +30,16 @@ config.target_to_triple = {
     "target-nvidia": "nvptx64-nvidia-cuda",
     "target-amd": "amdgcn-amd-amdhsa",
     "target-native_cpu": "native_cpu",
+    "target-spir_gen": "spir64_gen",
+    "target-spir_x86_64": "spir64_x86_64",
 }
 config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
+
+# Triples for which the runtime can build/link a device image from IR at run time.
+JIT_CAPABLE_TRIPLES = {"spir64"}
 
 # The backend set by the user has precedence over backends set during the parsing of the sycl-ls output
 is_offload_preferred_backend_set = config.backend_to_target["offload"] != ""
@@ -1042,6 +1047,25 @@ for sycl_device in remove_level_zero_suffix(config.sycl_devices):
 for target in config.sycl_build_targets:
     config.available_features.add("any-target-is-" + target.replace("target-", ""))
 
+# "jit" means at least one of the built targets provides a JIT-capable image.
+if any(
+    config.target_to_triple.get(t) in JIT_CAPABLE_TRIPLES
+    for t in config.sycl_build_targets
+):
+    config.available_features.add("jit")
+
+# "spir-family" is true for a build target/device whose triple is any SPIR
+# triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for tests
+# that only care "is this a SPIR backend" not which triple specifically. Kept
+# per-target (not a global available_feature) so it doesn't leak onto
+# non-SPIR targets/devices when a build/run combines multiple triples.
+SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
+config.spir_family_targets = {
+    target
+    for target in config.sycl_build_targets
+    if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+}
+
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
     config.available_features.add("device-config-file")
@@ -1253,6 +1277,8 @@ for full_name, sycl_device in zip(
     # Add corresponding target feature
     target = config.backend_to_target[be]
     features.add(target)
+    if target in config.spir_family_targets:
+        features.add("spir-family")
 
     if be == "hip":
         if not config.amd_arch:

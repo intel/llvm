@@ -12,6 +12,9 @@ See more general ESIMD documentation [here](./sycl_ext_intel_esimd.md).
 - [block_store(...) - fast store to a contiguous memory block](#block-store---fast-store-to-a-contiguous-memory-block)
 - [gather(...)](#gather---load-from-memory-locations-addressed-by-a-vector-of-offsets)
 - [scatter(...)](#scatter---store-to-memory-locations-addressed-by-a-vector-of-offsets)
+- [gather_rgba_typed(...) - read RGBA pixels from a typed image surface](#gather_rgba_typed---read-rgba-pixels-from-a-typed-image-surface)
+- [scatter_rgba_typed(...) - write RGBA pixels to a typed image surface](#scatter_rgba_typed---write-rgba-pixels-to-a-typed-image-surface)
+- [lsc_gather_rgba_typed / lsc_scatter_rgba_typed / lsc_prefetch_rgba_typed - Xe2+ typed image access](#lsc_gather_rgba_typed--lsc_scatter_rgba_typed--lsc_prefetch_rgba_typed---xe2-typed-image-access)
 - [load_2d(...) - load 2D block](#load_2d---load-2d-block)
 - [prefetch_2d(...) - prefetch 2D block](#prefetch_2d---prefetch-2d-block)
 - [store_2d(...) - store 2D block](#store_2d---store-2d-block)
@@ -524,6 +527,154 @@ scatter<float, 8, 2>(ptr, offsets4);
 | The next 2 lines are similar to the previous 2 lines. They are for SLM gather and the only difference is that SLM scatters ignore cache-hints|||
 | `(slm-sc-*)`, `(lacc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
 | `(slm-sc-*)`, `(lacc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+
+## gather_rgba_typed(...) - read RGBA pixels from a typed image surface
+
+```cpp
+// Namespace: sycl::ext::intel::experimental::esimd
+// Read up to 4 32-bit channels (selected by RGBAMask) of N pixels of the image
+// bound to 'acc', addressing pixels by integer coordinates (u, v, r).
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT>
+/*ga-ty-1*/ simd<T, N * get_num_channels_enabled(RGBAMask)>
+gather_rgba_typed(AccessorT acc, simd<uint32_t, N> u, simd<uint32_t, N> v = 0,
+                  simd<uint32_t, N> r = 0, simd_mask<N> mask = 1);
+```
+
+### Description
+
+`gather_rgba_typed` is the typed-surface counterpart of `gather_rgba`. It reads
+up to 4 channels of each of the `N` pixels of the image bound to the accessor
+`acc`. Unlike `gather_rgba`, which addresses a buffer by byte offsets,
+`gather_rgba_typed` addresses a bound `sycl::image` by integer pixel coordinates
+`u` (X), `v` (Y) and `r` (Z); the hardware applies the image's format handling
+and out-of-bounds behavior. It maps to the `GATHER4_TYPED`
+(`llvm.genx.gather4.typed`) hardware message.
+
+The set of accessed channels is selected at compile time by `RGBAMask`. The
+returned vector is laid out channel-major: all `N` values of the lowest enabled
+channel come first, followed by all `N` values of the next enabled channel, etc.
+The pixels whose corresponding `mask` element is `0` are not accessed and their
+values in the returned vector are undefined.
+
+## scatter_rgba_typed(...) - write RGBA pixels to a typed image surface
+
+```cpp
+// Namespace: sycl::ext::intel::experimental::esimd
+// Write up to 4 32-bit channels (selected by RGBAMask) of N pixels to the image
+// bound to 'acc', addressing pixels by integer coordinates (u, v, r).
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          typename AccessorT>
+/*sc-ty-1*/ void
+scatter_rgba_typed(AccessorT acc, simd<uint32_t, N> u, simd<uint32_t, N> v,
+                   simd<uint32_t, N> r,
+                   simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+                   simd_mask<N> mask = 1);
+```
+
+### Description
+
+`scatter_rgba_typed` is the typed-surface counterpart of `scatter_rgba` and the
+write companion of `gather_rgba_typed`. It writes up to 4 channels of each of
+the `N` pixels to the image bound to `acc`, addressing pixels by integer
+coordinates `u`, `v`, `r`. The `vals` argument is laid out channel-major,
+matching the layout returned by `gather_rgba_typed`. It maps to the
+`SCATTER4_TYPED` (`llvm.genx.scatter4.typed`) hardware message.
+
+As with `scatter_rgba`, only channel masks covering a set of consecutive channels
+starting from `R` (i.e. `R`, `GR`, `BGR` or `ABGR`) are supported for writes. The
+pixels whose corresponding `mask` element is `0` are not written.
+
+### Restrictions
+
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(ga-ty-*)`, `(sc-ty-*)` | `sizeof(T)` == 4 and `N` == 8,16,32 and `acc` is an image accessor | Intel GPU up to (and including) PVC/DG2 (pre-Xe2) |
+
+> **Note**: `gather_rgba_typed`/`scatter_rgba_typed` map to the `GATHER4_TYPED`/
+> `SCATTER4_TYPED` dataport messages, which are **only available on pre-Xe2**
+> devices. On Xe2 and later use the LSC variants
+> `lsc_gather_rgba_typed`/`lsc_scatter_rgba_typed` (below).
+
+## lsc_gather_rgba_typed / lsc_scatter_rgba_typed / lsc_prefetch_rgba_typed - Xe2+ typed image access
+
+```cpp
+// Namespace: sycl::ext::intel::experimental::esimd
+// Read up to 4 32-bit channels (selected by RGBAMask) of N pixels of the image
+// bound to 'acc', addressed by integer pixel coordinates (u, v, r) and a
+// level-of-detail 'lod', with optional L1/L2 cache hints.
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename AccessorT>
+/*lsc-ga-ty-1*/ simd<T, N * get_num_channels_enabled(RGBAMask)>
+lsc_gather_rgba_typed(AccessorT acc, simd<uint32_t, N> u,
+                      simd<uint32_t, N> v = 0, simd<uint32_t, N> r = 0,
+                      simd<uint32_t, N> lod = 0, simd_mask<N> mask = 1);
+
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename AccessorT>
+/*lsc-ga-ty-2*/ simd<T, N * get_num_channels_enabled(RGBAMask)>
+lsc_gather_rgba_typed(AccessorT acc, simd<uint32_t, N> u, simd<uint32_t, N> v,
+                      simd<uint32_t, N> r, simd<uint32_t, N> lod,
+                      simd_mask<N> mask,
+                      simd<T, N * get_num_channels_enabled(RGBAMask)> pass_thru);
+
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
+          typename AccessorT>
+/*lsc-sc-ty-1*/ void
+lsc_scatter_rgba_typed(AccessorT acc, simd<uint32_t, N> u, simd<uint32_t, N> v,
+                       simd<uint32_t, N> r, simd<uint32_t, N> lod,
+                       simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+                       simd_mask<N> mask = 1);
+
+template <typename T, int N,
+          rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
+          cache_hint L1H = cache_hint::cached,
+          cache_hint L2H = cache_hint::cached, typename AccessorT>
+/*lsc-pf-ty-1*/ void
+lsc_prefetch_rgba_typed(AccessorT acc, simd<uint32_t, N> u,
+                        simd<uint32_t, N> v = 0, simd<uint32_t, N> r = 0,
+                        simd<uint32_t, N> lod = 0, simd_mask<N> mask = 1);
+```
+
+### Description
+
+These are the **Xe2 and later** LSC-message counterparts of
+`gather_rgba_typed`/`scatter_rgba_typed`. They read, write or prefetch up to 4
+channels of `N` pixels of a bound `sycl::image`, addressing pixels by integer
+coordinates `u` (X), `v` (Y), `r` (Z) and a per-pixel level-of-detail `lod`. In
+addition to the pre-Xe2 variants they accept L1/L2 `cache_hint`s and the LOD
+coordinate, and they lower to the LSC typed "quad" messages
+(`llvm.genx.lsc.load.merge.quad.typed.bti`, `llvm.genx.lsc.store.quad.typed.bti`
+and `llvm.genx.lsc.prefetch.quad.typed.bti`). The gathered/scattered data is
+laid out channel-major, exactly like the pre-Xe2 variants.
+
+If some element of `mask` is zero, the corresponding pixel is not accessed. For
+`lsc_gather_rgba_typed`, its channels in the result are copied from `pass_thru`
+(if it is passed) or are undefined (if `pass_thru` is omitted).
+
+As with the other RGBA write APIs, only channel masks covering a set of
+consecutive channels starting from `R` (i.e. `R`, `GR`, `BGR` or `ABGR`) are
+supported by `lsc_scatter_rgba_typed`.
+
+### Restrictions
+
+The `L1H`/`L2H` cache hints must follow the rules for
+[load](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions),
+[store](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) and
+[prefetch](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions)
+functions respectively.
+
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(lsc-ga-ty-*)`, `(lsc-sc-ty-*)`, `(lsc-pf-ty-*)` | `sizeof(T)` == 4 and `N` == 8,16,32 and `acc` is an image accessor | Xe2 or later |
 
 ## load_2d(...) - load 2D block
 ```C++

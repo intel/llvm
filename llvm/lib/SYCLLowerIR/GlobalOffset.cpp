@@ -282,6 +282,17 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
           /* NameStr= */ Twine(),
           /* InsertBefore= */ CallToOld->getIterator());
       NewCallInst->setTailCallKind(CallToOld->getTailCallKind());
+      NewCallInst->setCallingConv(CallToOld->getCallingConv());
+      // Preserve call-site attributes (e.g. byval), adding an empty attribute
+      // set for the new implicit offset argument.
+      const AttributeList &CallAttrs = CallToOld->getAttributes();
+      SmallVector<AttributeSet, 8> CallArgAttrs;
+      for (unsigned I = 0, E = CallToOld->arg_size(); I < E; ++I)
+        CallArgAttrs.push_back(CallAttrs.getParamAttrs(I));
+      CallArgAttrs.push_back(AttributeSet());
+      NewCallInst->setAttributes(
+          AttributeList::get(M.getContext(), CallAttrs.getFnAttrs(),
+                             CallAttrs.getRetAttrs(), CallArgAttrs));
       NewCallInst->copyMetadata(*CallToOld);
       CallToOld->replaceAllUsesWith(NewCallInst);
 

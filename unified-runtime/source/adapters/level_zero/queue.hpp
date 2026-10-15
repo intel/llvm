@@ -690,9 +690,6 @@ struct ur_queue_handle_t_ : ur_object_t {
   // Threshold for cleaning up the EventList for immediate command lists.
   size_t getImmdCmmdListsEventCleanupThreshold();
 
-  // Pointer to the unified handle.
-  ur_queue_handle_t_ *UnifiedHandle;
-
   ur::RefCount RefCount;
 };
 

@@ -31,6 +31,7 @@
 #include <sycl/handler.hpp>                         // for handler
 #include <sycl/id.hpp>                              // for getDeline...
 #include <sycl/kernel.hpp>                          // for auto_name
+#include <sycl/khr/properties.hpp>                  // for khr properties
 #include <sycl/known_identity.hpp>                  // for IsKnownId...
 #include <sycl/marray.hpp>                          // for marray
 #include <sycl/memory_enums.hpp>                    // for memory_order
@@ -2671,6 +2672,13 @@ void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
 }
 
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(handler &cgh);
+// Returns the maximum number of work-groups to be used by a reduction over a
+// range of NWorkItems work-items executed in work-groups of WGSize, where
+// ElemSize is the size of the biggest reduction element.
+__SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
+                                                     size_t NWorkItems,
+                                                     size_t WGSize,
+                                                     size_t ElemSize);
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
           typename PropertiesT, typename... RestT>
@@ -2697,13 +2705,6 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     }
   }();
 
-  uint32_t NumConcurrentWorkGroups =
-#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
-      __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
-#else
-      reduGetMaxNumConcurrentWorkGroups(CGH);
-#endif
-
   // TODO: currently the preferred work group size is determined for the given
   // queue/device, while it is safer to use queries to the kernel pre-compiled
   // for the device.
@@ -2714,7 +2715,24 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   size_t NWorkGroups = NWorkItems / WGSize;
   if (NWorkItems % WGSize)
     NWorkGroups++;
-  size_t MaxNWorkGroups = NumConcurrentWorkGroups;
+#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
+  size_t MaxNWorkGroups = __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
+#else
+  // The size of the biggest reduction element.
+  size_t ReduElemSize = 0;
+  std::apply(
+      [&](auto &...Reds) {
+        auto Update = [&](size_t Size) {
+          ReduElemSize = Size > ReduElemSize ? Size : ReduElemSize;
+        };
+        (Update(sizeof(
+             typename std::remove_reference_t<decltype(Reds)>::result_type)),
+         ...);
+      },
+      ReduTuple);
+  size_t MaxNWorkGroups =
+      reduGetMaxNumWorkGroupsForRange(CGH, NWorkItems, WGSize, ReduElemSize);
+#endif
   NWorkGroups = NWorkGroups < MaxNWorkGroups ? NWorkGroups : MaxNWorkGroups;
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
@@ -2794,6 +2812,54 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   }
 }
 } // namespace detail
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr {
+namespace property {
+namespace tag {
+struct reduction; // tag type, never defined
+} // namespace tag
+
+namespace key {
+struct initialize_to_identity : detail::runtime_property_key {};
+} // namespace key
+
+struct initialize_to_identity
+    : detail::runtime_property<key::initialize_to_identity> {
+  constexpr initialize_to_identity(bool v = true) : value{v} {}
+  bool value;
+};
+} // namespace property
+
+template <>
+struct is_property_key_for<property::key::initialize_to_identity,
+                           property::tag::reduction> : std::true_type {};
+} // namespace khr
+
+namespace detail {
+template <typename PropertyOrList>
+inline property_list khrReductionToPropertyList(const PropertyOrList &Props) {
+  if constexpr (khr::is_property_v<PropertyOrList>) {
+    return khrReductionToPropertyList(khr::properties{Props});
+  } else {
+    PropertyListBuilder Builder;
+    if constexpr (PropertyOrList::template has_property<
+                      khr::property::key::initialize_to_identity>())
+      if (Props
+              .template get_property<
+                  khr::property::key::initialize_to_identity>()
+              .value)
+        Builder.template add<property::reduction::initialize_to_identity>();
+    return Builder.finalize();
+  }
+}
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForReduction =
+    khr::is_property_for_v<PropertyOrList, khr::property::tag::reduction> ||
+    khr::is_property_list_for_v<PropertyOrList, khr::property::tag::reduction>;
+} // namespace detail
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
@@ -2881,5 +2947,70 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+// sycl_khr_properties reduction overloads. Each mirrors the property_list
+// overload above, accepting a khr property or property list translated to an
+// old-style property_list.
+template <
+    typename T, typename AllocatorT, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
+               BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Var, CGH, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(T *Var, BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Var, Combiner, detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, typename AllocatorT, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
+               BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Var, CGH, Identity, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, typename BinaryOperation,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
+               PropertyOrList props) {
+  return reduction(Var, Identity, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, size_t Extent, typename BinaryOperation,
+    typename = std::enable_if_t<Extent != dynamic_extent>,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
+               PropertyOrList props) {
+  return reduction(Span, Combiner, detail::khrReductionToPropertyList(props));
+}
+
+template <
+    typename T, size_t Extent, typename BinaryOperation,
+    typename = std::enable_if_t<Extent != dynamic_extent>,
+    typename PropertyOrList = khr::empty_properties_t,
+    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
+auto reduction(span<T, Extent> Span, const T &Identity,
+               BinaryOperation Combiner, PropertyOrList props) {
+  return reduction(Span, Identity, Combiner,
+                   detail::khrReductionToPropertyList(props));
+}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
 } // namespace _V1
 } // namespace sycl

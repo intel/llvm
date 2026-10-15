@@ -43,29 +43,18 @@ namespace detail {
 /// \param DeviceImpl A device associated with a queue or graph.
 /// \param GraphImpl A graph associated with a queue or a handler. Can
 /// be nullptr if no associated graph.
-/// \param CommandGroupType Type of command group.
 template <bool LockQueue = true>
 void registerEventDependency(
     const EventImplPtr &EventImpl, std::vector<EventImplPtr> &EventsRegistered,
     queue_impl *QueueImpl, const context_impl &ContextImpl,
     const device_impl &DeviceImpl,
-    const ext::oneapi::experimental::detail::graph_impl *GraphImpl,
-    CGType CommandGroupType) {
+    const ext::oneapi::experimental::detail::graph_impl *GraphImpl) {
 
   if (!EventImpl)
     return;
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
-  }
-
-  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
-  // are handled at that point, including in order queue deps. Further calls to
-  // depends_on after an async alloc are explicitly disallowed.
-  if (CommandGroupType == CGType::AsyncAlloc) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "Cannot submit a dependency after an asynchronous "
-                          "allocation has already been executed!");
   }
 
   auto EventGraph = EventImpl->getCommandGraph();

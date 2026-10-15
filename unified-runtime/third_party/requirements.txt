@@ -37,7 +37,7 @@ sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.5
 sphinxcontrib-websupport==1.2.4
 sphinx-rtd-theme==1.0.0
-urllib3==2.5.0
+urllib3==2.8.0
 dataclasses-json==0.6.7
 
 # Unified-runtime is formatted using black

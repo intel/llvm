@@ -511,6 +511,8 @@ ur_result_t urQueueCreate(
         ForceComputeIndex = IndexProperties->computeIndex;
       }
     }
+    if (find_stype_node<ur_exp_queue_priority_properties_t>(Props))
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
@@ -811,7 +813,7 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ::ur_platform_handle_t PlatformOpque{};
   ::ur_adapter_handle_t AdapterHandleOpque =
-      ur::level_zero::common_cast(ur::level_zero::GlobalAdapter);
+      ur::level_zero::common_cast(Context->getPlatform()->Adapter);
   UR_CALL(ur::level_zero::urPlatformGet(AdapterHandleOpque, NumEntries,
                                         &PlatformOpque, nullptr));
 

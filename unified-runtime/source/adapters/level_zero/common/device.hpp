@@ -69,6 +69,13 @@ struct ze_global_memsize {
   uint64_t value;
 };
 
+// Queue priority range reported by zeDeviceGetPriorityLevels.
+struct ze_queue_priority_range {
+  bool Supported;
+  int32_t Highest;
+  int32_t Lowest;
+};
+
 enum ur_ze_external_memory_desc_type {
   UR_ZE_EXTERNAL_OPAQUE_FD,
   UR_ZE_EXTERNAL_WIN32,
@@ -78,6 +85,9 @@ struct ur_ze_external_memory_data {
   void *importExtensionDesc;
   enum ur_ze_external_memory_desc_type type;
   size_t size;
+  // Owns the Win32 NT name referenced by importExtensionDesc. L0 reads it at
+  // map time (zeImageCreate/zeMemAllocDevice), after the import call returns.
+  std::wstring win32NameStorage;
 };
 
 struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
@@ -237,6 +247,11 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
             ZeDeviceIpVersionExt->ipVersion >= 0x05004000);
   }
 
+  bool isCRI() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            (ZeDeviceIpVersionExt->ipVersion & 0xffffc000) == 0x08c2c000);
+  }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }
@@ -271,6 +286,8 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeDevicePitchedAllocInfo> ZeDevicePitchedAllocProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<ZeStruct<ze_float_atomic_ext_properties_t>>
+      ZeDeviceFloatAtomicExtProperties;
   ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
                     std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
@@ -281,6 +298,7 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
       ZeDeviceCacheLinePropertiesExt;
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
+  ZeCache<struct ze_queue_priority_range> ZeQueuePriorityRange;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME

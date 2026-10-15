@@ -518,7 +518,7 @@ private:
   void mangleUnqualifiedBlock(const BlockDecl *Block);
   void mangleTemplateParamDecl(const NamedDecl *Decl);
   void mangleTemplateParameterList(const TemplateParameterList *Params);
-  void mangleTypeConstraint(const TemplateDecl *Concept,
+  void mangleTypeConstraint(TemplateName Concept,
                             ArrayRef<TemplateArgument> Arguments);
   void mangleTypeConstraint(const TypeConstraint *Constraint);
   void mangleRequiresClause(const Expr *RequiresClause);
@@ -537,6 +537,7 @@ private:
   void manglePrefix(QualType type);
   void mangleTemplatePrefix(GlobalDecl GD, bool NoFunction=false);
   void mangleTemplatePrefix(TemplateName Template);
+  void DiagnoseUnsupportedPackIndexTemplateName();
   const NamedDecl *getClosurePrefix(const Decl *ND);
   void mangleClosurePrefix(const NamedDecl *ND, bool NoFunction = false);
   bool mangleUnresolvedTypeOrSimpleId(QualType DestroyedType,
@@ -725,20 +726,18 @@ bool ItaniumMangleContextImpl::isInternalLinkageDecl(const NamedDecl *ND) {
   return false;
 }
 
-// Check if this Function Decl needs a unique internal linkage name.
+// Check if this Decl needs a unique internal linkage name.
 bool ItaniumMangleContextImpl::isUniqueInternalLinkageDecl(
     const NamedDecl *ND) {
   if (!NeedsUniqueInternalLinkageNames || !ND)
     return false;
 
-  const auto *FD = dyn_cast<FunctionDecl>(ND);
-  if (!FD)
-    return false;
-
   // For C functions without prototypes, return false as their
   // names should not be mangled.
-  if (!FD->getType()->getAs<FunctionProtoType>())
-    return false;
+  if (const auto *FD = dyn_cast<FunctionDecl>(ND)) {
+    if (!FD->getType()->getAs<FunctionProtoType>())
+      return false;
+  }
 
   if (isInternalLinkageDecl(ND))
     return true;
@@ -1264,6 +1263,12 @@ void CXXNameMangler::mangleFixedPointLiteral() {
   DiagnosticsEngine &Diags = Context.getDiags();
   Diags.Report(diag::err_unsupported_itanium_mangling)
       << UnsupportedItaniumManglingKind::FixedPointLiteral;
+}
+
+void CXXNameMangler::DiagnoseUnsupportedPackIndexTemplateName() {
+  DiagnosticsEngine &Diags = Context.getDiags();
+  Diags.Report(diag::err_unsupported_itanium_mangling)
+      << UnsupportedItaniumManglingKind::PackIndexTemplateName;
 }
 
 void CXXNameMangler::mangleNullPointer(QualType T) {
@@ -2096,14 +2101,19 @@ void CXXNameMangler::mangleTemplateParameterList(
 }
 
 void CXXNameMangler::mangleTypeConstraint(
-    const TemplateDecl *Concept, ArrayRef<TemplateArgument> Arguments) {
-  const DeclContext *DC = Context.getEffectiveDeclContext(Concept);
+    TemplateName Concept, ArrayRef<TemplateArgument> Arguments) {
+  const TemplateDecl *TD = Concept.getAsTemplateDecl();
+  if (!TD) {
+    DiagnoseUnsupportedPackIndexTemplateName();
+    return;
+  }
+  const DeclContext *DC = Context.getEffectiveDeclContext(TD);
   if (!Arguments.empty())
-    mangleTemplateName(Concept, Arguments);
+    mangleTemplateName(TD, Arguments);
   else if (DC->isTranslationUnit() || isStdNamespace(DC))
-    mangleUnscopedName(Concept, DC);
+    mangleUnscopedName(TD, DC);
   else
-    mangleNestedName(Concept, DC);
+    mangleNestedName(TD, DC);
 }
 
 void CXXNameMangler::mangleTypeConstraint(const TypeConstraint *Constraint) {
@@ -2275,6 +2285,11 @@ void CXXNameMangler::mangleTemplatePrefix(TemplateName Template) {
   if (TemplateDecl *TD = Template.getAsTemplateDecl())
     return mangleTemplatePrefix(TD);
 
+  if (Template.getAsPackIndexingTemplate()) {
+    DiagnoseUnsupportedPackIndexTemplateName();
+    return;
+  }
+
   DependentTemplateName *Dependent = Template.getAsDependentTemplateName();
   assert(Dependent && "unexpected template name kind");
 
@@ -2432,6 +2447,11 @@ void CXXNameMangler::mangleType(TemplateName TN) {
     Out << "_SUBSTPACK_";
     break;
   }
+
+  case TemplateName::PackIndexingTemplate:
+    DiagnoseUnsupportedPackIndexTemplateName();
+    return;
+
   case TemplateName::DeducedTemplate:
     llvm_unreachable("Unexpected DeducedTemplate");
   }
@@ -2598,6 +2618,11 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
       Out << "_SUBSTPACK_";
       break;
     }
+
+    case TemplateName::PackIndexingTemplate:
+      DiagnoseUnsupportedPackIndexTemplateName();
+      return false;
+
     case TemplateName::UsingTemplate: {
       TemplateDecl *TD = TN.getAsTemplateDecl();
       assert(TD && !isa<TemplateTemplateParmDecl>(TD));
@@ -4706,7 +4731,7 @@ void CXXNameMangler::mangleType(const HLSLAttributedResourceType *T) {
     Str += "_Counter";
   if (Attrs.IsArray)
     Str += "_Array";
-  if (Attrs.IsMultiSampled)
+  if (Attrs.isMultiSampled())
     Str += "_MS";
   if (T->hasContainedType())
     Str += "_CT";
@@ -5335,7 +5360,11 @@ recurse:
   case Expr::DependentTemplateIdExprClass: {
     NotPrimaryExpr();
     const auto *DTI = cast<DependentTemplateIdExpr>(E);
-    mangleUnresolvedName(NestedNameSpecifier(), DTI->getName(),
+    if (DTI->getTemplateName().getAsPackIndexingTemplate()) {
+      DiagnoseUnsupportedPackIndexTemplateName();
+      break;
+    }
+    mangleUnresolvedName(/*NestedNameSpecifier=*/std::nullopt, DTI->getName(),
                          DTI->template_arguments().data(),
                          DTI->getNumTemplateArgs(), Arity);
     break;
@@ -5725,7 +5754,7 @@ recurse:
       // entity, meaning that references to enclosing template arguments don't
       // work.
       Out << "L_Z";
-      mangleTemplateName(CSE->getNamedConcept(), CSE->getTemplateArguments());
+      mangleTemplateName(CSE->getConceptDecl(), CSE->getTemplateArguments());
       Out << 'E';
       break;
     }

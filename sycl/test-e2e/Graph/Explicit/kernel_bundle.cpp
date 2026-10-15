@@ -1,3 +1,5 @@
+// REQUIRES: jit
+
 // RUN: %{build} -o %t.out
 // RUN: %if cuda %{ %{run} %t.out %}
 // RUN: %if level_zero %{env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --implicit-check-not=LEAK %}
