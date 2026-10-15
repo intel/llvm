@@ -1858,35 +1858,8 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
       Kernel->setImplicitOffsetArg(sizeof(ImplicitOffset), ImplicitOffset);
     }
 
-    uint32_t LocalSize = Kernel->getLocalSize();
-    if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
-      setErrorMessage("Excessive allocation of local memory on the device",
-                      UR_RESULT_ERROR_OUT_OF_RESOURCES);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
-
-    if (int MaxLocalMem = Device->getMaxChosenLocalMem()) {
-      if (LocalSize > static_cast<uint32_t>(MaxLocalMem)) {
-        setErrorMessage(
-            "Local memory for kernel exceeds the amount requested using "
-            "UR_HIP_MAX_LOCAL_MEM_SIZE (or deprecated "
-            "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
-            "local memory.",
-            UR_RESULT_ERROR_OUT_OF_RESOURCES);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-
-      UR_CHECK_ERROR(hipFuncSetAttribute(
-          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, MaxLocalMem));
-    } else if (LocalSize >
-               static_cast<uint32_t>(Device->getMaxDefaultLocalMem())) {
-      // Match the CUDA adapter: dynamic shared memory above the default
-      // per-block limit must be opted in. UR_HIP_MAX_LOCAL_MEM_SIZE is only a
-      // cap on that ceiling; it is not required to reach the opt-in pool.
-      UR_CHECK_ERROR(hipFuncSetAttribute(
-          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize,
-          static_cast<int>(LocalSize)));
-    }
+    Kernel->getProgram()->prepareFunctionLocalMemory(HIPFunc,
+                                                     Kernel->getLocalSize());
   } catch (ur_result_t Err) {
     return Err;
   }

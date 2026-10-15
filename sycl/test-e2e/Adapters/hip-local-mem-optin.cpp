@@ -1,11 +1,11 @@
-// REQUIRES: hip
+// REQUIRES: hip, hip_dev_kit
 
 // RUN: %{build} -o %t.out %hip_options
 // The opt-in launch is skipped when the opt-in ceiling equals the non-opt-in
 // limit. Otherwise it uses one byte more than that limit.
-// RUN: %{run} %t.out
+// RUN: env SYCL_DEVICE_FILTER=hip %{run} %t.out
 // A cap below the device ceiling lowers the query and rejects a larger launch.
-// RUN: %{run} UR_HIP_MAX_LOCAL_MEM_SIZE=32768 %t.out
+// RUN: env SYCL_DEVICE_FILTER=hip UR_HIP_MAX_LOCAL_MEM_SIZE=32768 %{run} %t.out
 
 //==------------------------ hip-local-mem-optin.cpp ----------------------===//
 //

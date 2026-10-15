@@ -74,7 +74,7 @@ public:
         HIPDevice);
     if (OptinStatus != hipSuccess) {
       // ROCm 5.7 rejects this attribute on AMD (hipErrorInvalidValue). Clear
-      // the sticky error so later hipDeviceGetAttribute calls are not poisoned.
+      // HIP's last-error state so it does not contaminate a later error check.
       (void)hipGetLastError();
       MaxSharedMemOptin = 0;
     }

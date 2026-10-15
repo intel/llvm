@@ -10,6 +10,58 @@
 #include "program.hpp"
 #include "ur_util.hpp"
 
+void ur_program_handle_t_::prepareFunctionLocalMemory(hipFunction_t Function,
+                                                      uint32_t DynamicSize) {
+  std::lock_guard<std::mutex> Lock(FunctionLocalMemMutex);
+  auto &Info = FunctionLocalMem[Function];
+
+  if (Info.StaticSize < 0) {
+    UR_CHECK_ERROR(hipFuncGetAttribute(
+        &Info.StaticSize, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, Function));
+  }
+
+  const uint64_t TotalSize =
+      static_cast<uint64_t>(Info.StaticSize) + DynamicSize;
+  const int Capacity = Device->getMaxCapacityLocalMem();
+  if (TotalSize > static_cast<uint64_t>(Capacity)) {
+    setErrorMessage("Excessive allocation of local memory on the device",
+                    UR_RESULT_ERROR_OUT_OF_RESOURCES);
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  const int ChosenSize = Device->getMaxChosenLocalMem();
+  if (ChosenSize && DynamicSize > static_cast<uint32_t>(ChosenSize)) {
+    setErrorMessage(
+        "Local memory for kernel exceeds the amount requested using "
+        "UR_HIP_MAX_LOCAL_MEM_SIZE (or deprecated "
+        "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
+        "local memory.",
+        UR_RESULT_ERROR_OUT_OF_RESOURCES);
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  if (TotalSize <= static_cast<uint64_t>(Device->getMaxDefaultLocalMem()) ||
+      Info.MaxDynamicSizeSet)
+    return;
+
+  // Set one stable limit for this module function. Multiple UR kernel handles
+  // can share Function, so changing the limit to each launch's requested size
+  // would race with launches through the other handles.
+  const int MaxDynamicSize =
+      std::min(ChosenSize ? ChosenSize : Capacity, Capacity - Info.StaticSize);
+#if defined(__HIP_PLATFORM_NVIDIA__)
+  // hipModuleGetFunction returns a driver function. HIP's NVIDIA runtime
+  // hipFuncSetAttribute wrapper expects a runtime-registered kernel symbol.
+  UR_CHECK_ERROR(hipCUResultTohipError(cuFuncSetAttribute(
+      Function, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+      MaxDynamicSize)));
+#else
+  UR_CHECK_ERROR(hipFuncSetAttribute(
+      Function, hipFuncAttributeMaxDynamicSharedMemorySize, MaxDynamicSize));
+#endif
+  Info.MaxDynamicSizeSet = true;
+}
+
 #ifdef SYCL_ENABLE_KERNEL_FUSION
 #ifdef UR_COMGR_VERSION4_INCLUDE
 #include <amd_comgr.h>
