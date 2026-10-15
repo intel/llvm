@@ -511,6 +511,8 @@ ur_result_t urQueueCreate(
         ForceComputeIndex = IndexProperties->computeIndex;
       }
     }
+    if (find_stype_node<ur_exp_queue_priority_properties_t>(Props))
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
