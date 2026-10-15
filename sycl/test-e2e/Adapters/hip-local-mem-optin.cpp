@@ -1,4 +1,5 @@
 // REQUIRES: hip, hip_dev_kit
+// UNSUPPORTED: windows
 
 // RUN: %{build} -o %t.out %hip_options
 // The opt-in launch is skipped when the opt-in ceiling equals the non-opt-in
