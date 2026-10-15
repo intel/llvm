@@ -2,8 +2,6 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 // HIP doesn't support printf.
 // CUDA doesn't support vector format specifiers ("%v").
-// XFAIL: run-mode && spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21618
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
