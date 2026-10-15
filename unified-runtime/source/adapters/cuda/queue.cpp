@@ -12,6 +12,7 @@
 #include "context.hpp"
 #include "event.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cuda.h>
 
@@ -82,10 +83,19 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       if (URFlags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
         IsOutOfOrder = true;
       }
-      if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
+      if (auto PriorityProperties =
+              find_stype_node<ur_exp_queue_priority_properties_t>(pProps)) {
+        if (URFlags &
+            (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH))
+          return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+        auto Range = getStreamPriorityRange();
+        if (!Range)
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        Priority = std::clamp(PriorityProperties->priority, Range->second,
+                              Range->first);
+      } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
-        ScopedContext Active(hDevice);
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(&Priority, nullptr));
       }
     }
