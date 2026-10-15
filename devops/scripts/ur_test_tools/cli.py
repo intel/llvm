@@ -120,6 +120,8 @@ def _run_tests_command() -> int:
         github_actions.print_error(str(e))
         return 1
 
+    config.extra_lit_opts = os.environ.get("EXTRA_LIT_OPTS", "")
+
     workspace_path = Path(workspace).resolve()
     build_dir_path = workspace_path / build_dir
 

@@ -1,0 +1,64 @@
+name: 'Set up ur-test'
+description: >
+  Provision the Python dependencies required by UR test reporting (ur-test)
+  and LIT execution (devops/scripts/ur_test_tools/requirements.txt), without
+  touching the system/base Python installation.
+
+outputs:
+  python:
+    description: 'Path to the Python interpreter with ur-test dependencies installed.'
+    value: ${{ steps.setup.outputs.python }}
+  site-packages:
+    description: >
+      Path to the directory containing ur-test's dependencies. Needed on
+      PYTHONPATH only by other processes (e.g. lit, run via a different,
+      system Python) that must see these packages but do not use the
+      interpreter above directly.
+    value: ${{ steps.setup.outputs.site-packages }}
+
+runs:
+  using: "composite"
+  steps:
+  - name: Provision ur-test Python environment
+    id: setup
+    shell: bash
+    run: |
+      # `python3` may not be on PATH on Windows runners.
+      if command -v python3 >/dev/null 2>&1; then
+        base_py=python3
+      else
+        base_py=python
+      fi
+
+      # Already satisfied (e.g. a caller-provisioned venv already on PATH)?
+      # Avoid provisioning a redundant nested environment.
+      if "$base_py" -c "import defusedxml, psutil" >/dev/null 2>&1; then
+        echo "python=$base_py" >> "$GITHUB_OUTPUT"
+        echo "site-packages=" >> "$GITHUB_OUTPUT"
+        exit 0
+      fi
+
+      venv_dir="${RUNNER_TEMP:-$GITHUB_WORKSPACE}/ur-test-venv"
+      rm -rf "$venv_dir"
+      if "$base_py" -m venv "$venv_dir" >/dev/null 2>&1; then
+        venv_py="$venv_dir/bin/python"
+        [ -f "$venv_py" ] || venv_py="$venv_dir/Scripts/python.exe"
+        "$venv_py" -m pip install --disable-pip-version-check --quiet \
+          -r devops/scripts/ur_test_tools/requirements.txt
+        site_packages="$("$venv_py" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+        echo "python=$venv_py" >> "$GITHUB_OUTPUT"
+        echo "site-packages=$site_packages" >> "$GITHUB_OUTPUT"
+        exit 0
+      fi
+
+      # Some containers (nightly images) have no venv/ensurepip and broken apt;
+      # fall back to a workspace-local --target install on the base interpreter.
+      echo "::warning::'python -m venv' unavailable; falling back to a --target install."
+      deps_dir="${RUNNER_TEMP:-$GITHUB_WORKSPACE}/ur-test-deps"
+      rm -rf "$deps_dir"
+      mkdir -p "$deps_dir"
+      # Same --break-system-packages fallback as run-tests/benchmark for nightly images.
+      "$base_py" -m pip install --disable-pip-version-check --quiet --break-system-packages --target "$deps_dir" -r devops/scripts/ur_test_tools/requirements.txt \
+        || "$base_py" -m pip install --disable-pip-version-check --quiet --target "$deps_dir" -r devops/scripts/ur_test_tools/requirements.txt
+      echo "python=$base_py" >> "$GITHUB_OUTPUT"
+      echo "site-packages=$deps_dir" >> "$GITHUB_OUTPUT"

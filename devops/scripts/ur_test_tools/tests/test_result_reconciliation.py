@@ -179,6 +179,41 @@ class LITLogParserTest(unittest.TestCase):
 
         self.assertEqual(result["Passed"], 5)
 
+    def test_extracts_time_summary_with_lit_count_suffix(self):
+        # lit appends a dynamic "(N of M)"/"(N)" suffix to these headers.
+        lines = [
+            "Slowest Tests (20 of 2022):\n",
+            "-" * 70 + "\n",
+            "41.86s: SYCL :: WorkGroupMemory/basic_usage.cpp\n",
+            "\n",
+            "Test Times (2022):\n",
+            "-" * 70 + "\n",
+            "[40.0s,42.0s) :: [] :: [   1/2022]\n",
+            "-" * 70 + "\n",
+        ]
+
+        slowest, histogram = LITLogParser(lines).extract_time_summary()
+
+        self.assertEqual(slowest, ["41.86s: SYCL :: WorkGroupMemory/basic_usage.cpp"])
+        self.assertEqual(
+            histogram,
+            ["[40.0s,42.0s) :: [] :: [   1/2022]", "-" * 70],
+        )
+
+    def test_error_details_stop_at_lit_count_suffixed_slowest_header(self):
+        lines = [
+            "FAIL: Suite :: test.cpp (1 of 1)\n",
+            "some failure output\n",
+            "Slowest Tests (1 of 1):\n",
+            "0.10s: Suite :: test.cpp\n",
+        ]
+
+        details = LITLogParser(lines).extract_error_details()
+
+        self.assertEqual(
+            details, ["FAIL: Suite :: test.cpp (1 of 1)\n", "some failure output\n"]
+        )
+
     def test_sums_repeated_category_counts(self):
         lines = [
             "Passed Tests (1):\n",
