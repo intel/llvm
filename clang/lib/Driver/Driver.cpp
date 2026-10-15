@@ -1567,6 +1567,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (std::distance(TCRange.first, TCRange.second) > 1)
         Diag(clang::diag::err_drv_sycl_no_rdc_multiple_targets)
             << RDCArg->getAsString(C.getInputArgs());
+      // Native CPU and -fsycl-embed-ir produce host objects in addition to the
+      // wrapper module, which the compile-step embedding cannot carry.
+      for (auto TI = TCRange.first; TI != TCRange.second; ++TI) {
+        const llvm::Triple &T = TI->second->getTriple();
+        if (T.isNativeCPU())
+          Diag(clang::diag::err_drv_sycl_no_rdc_unsupported)
+              << RDCArg->getAsString(C.getInputArgs())
+              << "-fsycl-targets=native_cpu";
+        else if ((T.isNVPTX() || T.isAMDGCN()) &&
+                 C.getInputArgs().hasArg(options::OPT_fsycl_embed_ir))
+          Diag(clang::diag::err_drv_sycl_no_rdc_unsupported)
+              << RDCArg->getAsString(C.getInputArgs()) << "-fsycl-embed-ir";
+      }
     }
   }
 
@@ -4004,6 +4017,14 @@ static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
   return !llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs);
 }
 
+void Driver::diagnoseOffloadBundlerNotFound(StringRef Dir,
+                                            StringRef FileName) const {
+  if (OffloadBundlerNotFoundDiagnosed)
+    return;
+  OffloadBundlerNotFoundDiagnosed = true;
+  Diag(diag::err_drv_offload_bundler_not_found) << Dir << FileName;
+}
+
 static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
                                                       const StringRef &File) {
   // Do not do the check if the file doesn't exist
@@ -4019,6 +4040,12 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
   llvm::ErrorOr<std::string> BundlerBinary =
       llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
+  if (!BundlerBinary) {
+    // Without the bundler we cannot tell whether the input contains offload
+    // device code, so diagnose instead of treating it as host-only.
+    C.getDriver().diagnoseOffloadBundlerNotFound(ExecPath, File);
+    return {};
+  }
   const char *Input = C.getArgs().MakeArgString(Twine("-input=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
@@ -4035,8 +4062,6 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
         llvm::errs() << A << " ";
     llvm::errs() << '\n';
   }
-  if (BundlerBinary.getError())
-    return {};
   llvm::SmallString<64> OutputFile(
       C.getDriver().GetTemporaryPath("bundle-list", "txt"));
   llvm::FileRemover OutputRemover(OutputFile.c_str());
@@ -7725,6 +7750,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         Action *LA = LAList.front();
         LA = OffloadBuilder->processHostLinkAction(LA);
         Actions.push_back(LA);
+        // The device-only wrapped object is the only output with -fsycl-link.
+        // Host linker inputs (e.g. fat static archives) were only needed above
+        // to gather device link dependencies; they must not produce an
+        // additional host link output.
+        LinkerInputs.clear();
       }
     } else if (LinkerInputs.empty())
       OffloadBuilder->appendDeviceLinkActions(Actions);

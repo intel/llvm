@@ -1,8 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
+// Memory import by name is not implemented in the L0 driver yet.
 // UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: GSD-12837
+// UNSUPPORTED-TRACKER: GSD-13599
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe

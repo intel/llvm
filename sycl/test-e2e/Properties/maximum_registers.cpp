@@ -13,7 +13,7 @@
 //   * Free function kernels and lambda kernels.
 //   * maximum_registers<num> and maximum_registers_automatic.
 
-// REQUIRES: arch-intel_gpu_bmg_g21
+// REQUIRES: arch-intel_gpu_bmg_g21 || arch-intel_gpu_cri
 
 // XFAIL: windows && run-mode
 // XFAIL-TRACKER: GSD-4149
@@ -200,6 +200,7 @@ int main(void) {
             << "\n";
 
   syclexp::properties specified_props{maximum_registers<256>};
+  syclexp::properties specified_192_props{maximum_registers<192>};
   syclexp::properties automatic_props{maximum_registers_automatic};
 
   bool Pass = true;
@@ -209,6 +210,10 @@ int main(void) {
       runLambdaSYCL(q, specified_props, "SYCL lambda maximum_registers<256>");
   Pass &= runLambdaSYCL(q, automatic_props,
                         "SYCL lambda maximum_registers_automatic");
+  if (q.get_device().get_info<syclexp::info::device::architecture>() ==
+      syclexp::architecture::intel_gpu_cri)
+    Pass &= runLambdaSYCL(q, specified_192_props,
+                          "SYCL lambda maximum_registers<192>");
 
   // ESIMD lambda kernels.
   Pass &=
