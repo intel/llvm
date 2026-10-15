@@ -450,6 +450,10 @@ public:
     // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup
     // call can be removed once that pass no longer depends on this cleanup.
     Desc->cleanup(AllowDeviceImageDependencies);
+    // Disabling splitting must not disable undefined-function diagnostics.
+    checkForCallsToUndefinedFunctions(Desc->getModule(),
+                                      AllowDeviceImageDependencies,
+                                      SuppressUndefinedFuncWarnings);
     return Desc;
   }
 };

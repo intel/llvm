@@ -375,6 +375,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_device_igca_feature_flags_t>(
       hDevice, UR_DEVICE_INFO_IGCA_FEATURE_SET);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_FP16_ATOMIC);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
