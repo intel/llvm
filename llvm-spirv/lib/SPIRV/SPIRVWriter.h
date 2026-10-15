@@ -166,6 +166,7 @@ public:
                               bool CreateForward = true,
                               FuncTransMode FuncTrans = FuncTransMode::Decl);
   void transGlobalIOPipeStorage(GlobalVariable *V, MDNode *IO);
+  bool shouldLowerUSMAddrSpace(unsigned AddrSpace) const;
 
   static SPIRVInstruction *applyRoundingModeConstraint(Value *V,
                                                        SPIRVInstruction *I);

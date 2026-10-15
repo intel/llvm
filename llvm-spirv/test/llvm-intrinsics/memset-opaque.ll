@@ -23,24 +23,26 @@
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset0:[0-9]+]] 12
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Const21:[0-9]+]] 21
 ; CHECK-SPIRV: TypeArray [[Int8x4:[0-9]+]] [[Int8]] [[Lenmemset21]]
+; CHECK-SPIRV: TypePointer [[#Int8x4Ptr:]] 7 [[Int8x4]]
 ; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8Ptr:[0-9]+]] 8
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
 ; CHECK-SPIRV: TypeArray [[Int8x12:[0-9]+]] [[Int8]] [[Lenmemset0]]
-; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrConst:[0-9]+]] 7 [[Int8]]
-; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrConst:[0-9]+]] 7
+; CHECK-SPIRV: TypePointer [[#Int8x12Ptr:]] 8 [[Int8x12]]
 
 ; CHECK-SPIRV: ConstantNull [[Int8x12]] [[Init:[0-9]+]]
 ; CHECK-SPIRV: 7 ConstantComposite [[Int8x4]] [[InitComp:[0-9]+]] [[Const21]] [[Const21]] [[Const21]] [[Const21]]
 ; CHECK-SPIRV: ConstantFalse [[#]] [[#False:]]
-; CHECK-SPIRV: Variable {{[0-9]+}} [[Val:[0-9]+]] 7 [[Init]]
-; CHECK-SPIRV: Variable {{[0-9]+}} [[ValComp:[0-9]+]] 7 [[InitComp]]
 
-; CHECK-SPIRV: Bitcast [[Int8Ptr]] [[Target:[0-9]+]] {{[0-9]+}}
-; CHECK-SPIRV: Bitcast [[Int8PtrConst]] [[Source:[0-9]+]] [[Val]]
-; CHECK-SPIRV: CopyMemorySized [[Target]] [[Source]] [[Lenmemset0]] 2 4
+; CHECK-SPIRV: FunctionParameter [[#]] [[#AggResult:]]
+; CHECK-SPIRV: Variable [[#Int8x4Ptr]] [[#X:]] 7
 
-; CHECK-SPIRV: Bitcast [[Int8PtrConst]] [[SourceComp:[0-9]+]] [[ValComp]]
-; CHECK-SPIRV: CopyMemorySized {{[0-9]+}} [[SourceComp]] [[Lenmemset21]] 2 4
+; CHECK-SPIRV: Bitcast [[Int8Ptr]] [[Target:[0-9]+]] [[#AggResult]]
+; CHECK-SPIRV: Bitcast [[#Int8x12Ptr]] [[#TargetArray:]] [[Target]]
+; CHECK-SPIRV: Store [[#TargetArray]] [[Init]] 2 4
+
+; CHECK-SPIRV: Bitcast [[#]] [[#XBytePtr:]] [[#X]]
+; CHECK-SPIRV: Bitcast [[#Int8x4Ptr]] [[#TargetComp:]] [[#XBytePtr]]
+; CHECK-SPIRV: Store [[#TargetComp]] [[InitComp]] 2 4
 
 ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[#NonConstMemset]] [[#]] [[#]] [[#]] [[#False]]
 
@@ -74,18 +76,18 @@ target triple = "spir"
 
 %struct.S1 = type { i32, i32, i32 }
 
-; CHECK-LLVM-OPAQUE: %{{[0-9]+}} = alloca [12 x i8], align 4
-; CHECK-LLVM-OPAQUE: store [12 x i8] zeroinitializer, ptr %{{[0-9]+}}, align 1
-; CHECK-LLVM-OPAQUE: %{{[0-9]+}} = alloca [4 x i8], align 4
-; CHECK-LLVM-OPAQUE: store [4 x i8] c"\15\15\15\15", ptr %{{[0-9]+}}, align 1
-
 ; Function Attrs: nounwind
 define spir_func void @_Z5foo11v(ptr addrspace(4) noalias captures(none) sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
   %x = alloca [4 x i8]
+; CHECK-LLVM-OPAQUE: %[[X:.+]] = alloca [4 x i8]
   tail call void @llvm.memset.p4.i32(ptr addrspace(4) align 4 %agg.result, i8 0, i32 12, i1 false)
-; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p4.p0.i32(ptr addrspace(4) align 4 %{{[0-9]+}}, ptr align 4 %{{[0-9]+}}, i32 12, i1 false)
+; CHECK-LLVM-OPAQUE: %[[#DstBytePtr:]] = bitcast ptr addrspace(4) %agg.result to ptr addrspace(4)
+; CHECK-LLVM-OPAQUE: %[[#DstArrayPtr:]] = bitcast ptr addrspace(4) %[[#DstBytePtr]] to ptr addrspace(4)
+; CHECK-LLVM-OPAQUE: store [12 x i8] zeroinitializer, ptr addrspace(4) %[[#DstArrayPtr]], align 4
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 21, i32 4, i1 false)
-; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p0.p0.i32(ptr align 4 %{{[0-9]+}}, ptr align 4 %{{[0-9]+}}, i32 4, i1 false)
+; CHECK-LLVM-OPAQUE: %[[#XBytePtr:]] = bitcast ptr %[[X]] to ptr
+; CHECK-LLVM-OPAQUE: %[[#XArrayPtr:]] = bitcast ptr %[[#XBytePtr]] to ptr
+; CHECK-LLVM-OPAQUE: store [4 x i8] c"\15\15\15\15", ptr %[[#XArrayPtr]], align 4
 
   ; non-const value
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 %v, i32 3, i1 false)
