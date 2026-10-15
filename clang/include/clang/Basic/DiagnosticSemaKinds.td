@@ -3377,6 +3377,11 @@ def warn_auto_var_is_id : Warning<
   InGroup<DiagGroup<"auto-var-id">>;
 
 // Attributes
+def warn_sycl_max_work_group_size_removed : Warning<
+  "unknown attribute %0 ignored; it was removed; use the 'max_work_group_size' "
+  "kernel property from sycl_ext_oneapi_kernel_properties instead">,
+  InGroup<UnknownAttributes>;
+
 def warn_attribute_form_ignored : Warning<
   "%0 attribute ignored because Clang does not yet support this attribute signature">,
   InGroup<IgnoredAttributes>;

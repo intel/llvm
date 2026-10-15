@@ -8873,6 +8873,13 @@ void Sema::DiagnoseUnknownAttribute(const ParsedAttr &AL) {
   }
 
   StringRef AttrName = AL.getNormalizedAttrName(ScopeName);
+
+  if (getLangOpts().SYCLIsDevice && !CorrectedScopeName &&
+      ScopeName == "intel" && AttrName == "max_work_group_size") {
+    Diag(NR.getBegin(), diag::warn_sycl_max_work_group_size_removed) << AL;
+    return;
+  }
+
   std::optional<StringRef> CorrectedAttrName = AL.tryGetCorrectedAttrName(
       ScopeName, AttrName, Context.getTargetInfo(), getLangOpts());
   if (CorrectedAttrName) {
