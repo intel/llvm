@@ -9,12 +9,22 @@ description: Reviews a SYCL extension specification the way DPC++ specification 
    stale elsewhere, a table row that no longer matches the synopsis).
 2. Read the rendered document, not only the source. Asciidoc defects
    (cut-off tables, `C++` rendering as `C`, notes rendering as plain text) are
-   invisible in the diff.
+   invisible in the diff. GitHub renders `.asciidoc` files in the PR file view;
+   locally, use `asciidoctor -o /tmp/<name>.html <file>.asciidoc` if
+   `asciidoctor` is installed.
 3. Compare against `sycl/doc/extensions/template.asciidoc`. Some of the old
    extensions are *not* a style reference.
-4. Walk the passes below in order. Passes 1-4 are cheap and catch most review
+4. The "core SYCL specification" is the SYCL 2020 revision named in the
+   extension's Dependencies section:
+   https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html. Its
+   sources are in https://github.com/KhronosGroup/SYCL-Docs (`adoc/chapters/`),
+   and the Khronos `sycl_khr_*` extensions are in `adoc/extensions/`. The spec
+   is too large to read whole — shallow-clone SYCL-Docs outside this repo, grep
+   for the sections, classes and terms the extension touches, and read only
+   those.
+5. Walk the passes below in order. Passes 1-4 are cheap and catch most review
    comments; passes 5-8 are where the design discussions live.
-5. Write comments as concrete replacement wording (an Asciidoc ```suggestion```
+6. Write comments as concrete replacement wording (an Asciidoc ```suggestion```
    block or a block quote of the proposed paragraph), not just as a complaint —
    that is how these reviews are conducted and it is what makes them converge.
 
@@ -129,6 +139,11 @@ description: Reviews a SYCL extension specification the way DPC++ specification 
   * `_Returns:_ Nothing` on a `void` function, and clauses that state nothing
     observable, should be deleted.
 - "must" for requirements, "may" for implementation freedom; weak words removed.
+- Ambiguity and verbosity: flag any sentence that can be understood in more
+  than one way (e.g. an unclear "it", or a condition whose scope is unclear) and
+  propose a rewrite that can only be understood one way; flag prose that
+  restates the synopsis or the core spec, repeats itself, or is longer than
+  needed, and propose the shorter text.
 - **Hint vs assertion**: does the description promise only performance, or does
   it require the application to guarantee something? If the latter, it is an
   assertion — the wording must say "This property is an assertion by the
@@ -185,8 +200,9 @@ description: Reviews a SYCL extension specification the way DPC++ specification 
 
 ## Pass 7 — API design questions to ask
 
-These are the questions that recur across hundreds of these reviews. Ask them
-explicitly:
+These questions recur across these reviews. Raise only the ones that apply to
+the change under review, and only where the spec doesn't already answer them —
+never paste the list:
 
 - Is this required or merely allowed? What happens if the user does it anyway?
 - Which translation unit must carry the decoration? Must the implementation do
