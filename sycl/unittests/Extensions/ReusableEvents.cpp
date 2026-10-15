@@ -457,6 +457,52 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   Queue.wait();
 }
 
+// event::get_wait_list on a command that depends on an event which has been
+// reassociated since: the list still contains the event, and the event
+// represents its new command
+TEST_F(ReusableEventsTest, GetWaitListIncludesReassociatedDependency) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue SignalQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+  // Out-of-order, so that the command keeps its dependencies for
+  // get_wait_list.
+  sycl::queue Queue{Ctx, Dev};
+
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"TestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+
+  sycl::event Event = syclex::make_event(Ctx);
+  syclex::enqueue_signal_event(SignalQueue, Event);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+
+  // The command C depends on the first signal of Event.
+  ExpectedNumEventsInWaitListKernelLaunch = 1;
+  sycl::event C = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(Event);
+    cgh.single_task<TestKernel>([]() {});
+  });
+
+  // Reassociate Event with a new command after C has been submitted.
+  syclex::enqueue_signal_event(SignalQueue, Event);
+  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 2);
+
+  // C's wait list still contains Event. It is the same event object, so it
+  // represents the command it is associated with now, the second signal.
+  std::vector<sycl::event> WaitList = C.get_wait_list();
+  ASSERT_EQ(WaitList.size(), 1u);
+  EXPECT_EQ(WaitList[0], Event);
+  EXPECT_EQ(WaitList[0].get_info<sycl::info::event::command_execution_status>(),
+            Event.get_info<sycl::info::event::command_execution_status>());
+
+  Queue.wait();
+  SignalQueue.wait();
+}
+
 // Cross-context event with wait.
 // Current limitation is that the cross-context wait
 // is not supported.
