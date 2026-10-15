@@ -95,13 +95,29 @@ add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 # Restore original flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
-if(WIN32 AND UR_STATIC_LOADER)
-  foreach(_ur_static_target ur_loader ur_common)
-    if(TARGET ${_ur_static_target})
-      set_target_properties(${_ur_static_target} PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-    endif()
-  endforeach()
+if(MSVC)
+  # helpers.cmake makes a Debug in-tree UR build /MDd, but sycl/sycl-preview
+  # are always /MD, so force UR back to /MD here. Skip ur_mock/ur_adapter_mock,
+  # which only the (CRT-variant-matching) unittests link against.
+  function(_ur_force_release_crt dir)
+    get_property(_ur_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(_ur_target ${_ur_targets})
+      if(_ur_target STREQUAL "ur_mock" OR _ur_target STREQUAL "ur_adapter_mock")
+        continue()
+      endif()
+      get_target_property(_ur_target_type ${_ur_target} TYPE)
+      if(NOT _ur_target_type STREQUAL "INTERFACE_LIBRARY" AND
+         NOT _ur_target_type STREQUAL "UTILITY")
+        set_target_properties(${_ur_target} PROPERTIES
+          MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+      endif()
+    endforeach()
+    get_property(_ur_subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(_ur_subdir ${_ur_subdirs})
+      _ur_force_release_crt("${_ur_subdir}")
+    endforeach()
+  endfunction()
+  _ur_force_release_crt(${UNIFIED_RUNTIME_SOURCE_DIR})
 endif()
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
