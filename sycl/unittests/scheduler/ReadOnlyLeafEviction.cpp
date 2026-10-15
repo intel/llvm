@@ -8,7 +8,7 @@
 
 // Kernels which only read shared buffers are independent. Once the read leaves
 // of a buffer are full, the oldest one becomes a dependency of the new kernel,
-// so read leaves are allowed to grow beyond the generic leaf limit first.
+// so read leaves have a larger capacity than the generic leaf limit.
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"

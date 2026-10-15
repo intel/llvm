@@ -58,8 +58,8 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   // add only generic commands
   {
-    LeavesCollection LE = LeavesCollection(
-        nullptr, GenericCmdsCapacity, AllocateDependency, GenericCmdsCapacity);
+    LeavesCollection LE =
+        LeavesCollection(nullptr, GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -86,8 +86,8 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    LeavesCollection LE = LeavesCollection(
-        nullptr, GenericCmdsCapacity, AllocateDependency, GenericCmdsCapacity);
+    LeavesCollection LE =
+        LeavesCollection(nullptr, GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     TimesGenericWasFull = 0;
@@ -128,8 +128,8 @@ TEST_F(LeavesCollectionTest, Remove) {
 
     Requirement MockReq = getMockRequirement(Buf);
 
-    LeavesCollection LE = LeavesCollection(
-        nullptr, GenericCmdsCapacity, AllocateDependency, GenericCmdsCapacity);
+    LeavesCollection LE =
+        LeavesCollection(nullptr, GenericCmdsCapacity, AllocateDependency);
     std::vector<std::shared_ptr<Command>> Cmds;
 
     for (size_t Idx = 0; Idx < GenericCmdsCapacity * 4; ++Idx) {
