@@ -312,6 +312,13 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
         ze_device_handle_t, uint32_t *,
         ze_device_vector_width_properties_ext_t *) = nullptr;
   } ZeDeviceVectorWidthExt;
+
+  // Intel driver extension for queue priority levels, see ze_intel_gpu.h.
+  struct ZeQueuePriorityExtension {
+    bool Supported = false;
+    ze_result_t (*zeDeviceGetPriorityLevels)(ze_device_handle_t, int32_t *,
+                                             int32_t *) = nullptr;
+  } ZeQueuePriorityExt;
 };
 
 } // namespace ur::level_zero

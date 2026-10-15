@@ -667,6 +667,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
   /// ::ur_exp_event_sync_mode_desc_t
   UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC = 0x8001,
+  /// ::ur_exp_queue_priority_properties_t
+  UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES = 0x9000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2587,6 +2589,17 @@ typedef enum ur_device_info_t {
   /// information for individual events without the whole queue being
   /// created with ::UR_QUEUE_FLAG_PROFILING_ENABLE.
   UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP = 0x20A0,
+  /// [::ur_bool_t] returns true if the device supports creating queues
+  /// with ::ur_exp_queue_priority_properties_t.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP = 0x20B0,
+  /// [int32_t][optional-query] returns the numerically lowest priority
+  /// value, which corresponds to the highest queue priority. It is
+  /// never greater than 0.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP = 0x20B1,
+  /// [int32_t][optional-query] returns the numerically highest priority
+  /// value, which corresponds to the lowest queue priority. It is never
+  /// less than 0.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP = 0x20B2,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -11878,6 +11891,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     const char *pOptions,
     /// [out][alloc] pointer to handle of program object created.
     ur_program_handle_t *phProgram);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for queue priority levels
+#if !defined(__GNUC__)
+#pragma region queue_priority_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue priority creation properties
+///
+/// @details
+///     - Specify these properties in ::urQueueCreate via
+///       ::ur_queue_properties_t as part of a `pNext` chain.
+///     - Lower values indicate higher priority, 0 is the default priority.
+///     - Values outside of the range reported by
+///       ::UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP and
+///       ::UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP are clamped to the nearest
+///       supported value.
+///     - Must not be combined with ::UR_QUEUE_FLAG_PRIORITY_LOW or
+///       ::UR_QUEUE_FLAG_PRIORITY_HIGH.
+typedef struct ur_exp_queue_priority_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] priority of the queue.
+  int32_t priority;
+
+} ur_exp_queue_priority_properties_t;
 
 #if !defined(__GNUC__)
 #pragma endregion
