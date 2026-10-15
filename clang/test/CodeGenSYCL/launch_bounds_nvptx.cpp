@@ -36,6 +36,11 @@ int main() {
         [] [[intel::min_work_groups_per_cu(2),
              intel::max_work_groups_per_mp(4)]] () {});
 
+    // Test attribute placed after the parameter list (intel/llvm#23322).
+    h.single_task<class kernel_name4>(
+        [=]() [[intel::min_work_groups_per_cu(2),
+                intel::max_work_groups_per_mp(4)]] {});
+
     // Test class template argument.
     Functor<6> f;
     h.single_task<class kernel_name3>(f);
@@ -45,6 +50,7 @@ int main() {
 
 // CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name1() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]]
 // CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name2() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]]
+// CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name4() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]]
 // CHECK: define {{.*}}ptx_kernel void @{{.*}}kernel_name3() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC_MWGPM:[0-9]+]] !max_work_groups_per_mp ![[MWGPC_MWGPM]]
 
 // CHECK: ![[MWGPC]] = !{i32 2}

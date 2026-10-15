@@ -37,6 +37,10 @@ int main() {
     // expected-warning@+2 {{'intel::max_work_groups_per_mp' attribute ignored, as it requires: maximum work group size and minimum work groups per compute unit to be also specified}}
     cgh.single_task<class T3>(
         [=] [[intel::max_work_groups_per_mp(4)]] () { volatile int A = 42; });
+
+    cgh.single_task<class T4>(
+        [=]() [[intel::min_work_groups_per_cu(2),
+                intel::max_work_groups_per_mp(4)]] { volatile int A = 42; });
   });
 
   Q.submit([&](sycl::handler &cgh) {

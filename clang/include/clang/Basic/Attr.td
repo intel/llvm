@@ -1969,6 +1969,7 @@ def SYCLIntelMinWorkGroupsPerComputeUnit : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMinWorkGroupsPerComputeUnitAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLIntelMaxWorkGroupsPerMultiprocessor : InheritableAttr {
@@ -1977,6 +1978,7 @@ def SYCLIntelMaxWorkGroupsPerMultiprocessor : InheritableAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelMaxWorkGroupsPerMultiprocessorDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
 }
 
 def SYCLDeviceGlobal: InheritableAttr {
