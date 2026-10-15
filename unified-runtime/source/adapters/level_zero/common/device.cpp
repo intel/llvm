@@ -1383,28 +1383,24 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
     const auto ZeDeviceBlockArrayFlags =
         Device->ZeDeviceBlockArrayProperties->flags;
 
     auto supportsFlags =
-        [&](ze_intel_device_block_array_exp_flags_t RequiredFlags) {
+        [&](ur_ze_intel_device_block_array_exp_flags_t RequiredFlags) {
           return (ZeDeviceBlockArrayFlags & RequiredFlags) == RequiredFlags;
         };
 
     ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities = 0;
-    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
+    if (supportsFlags(UR_ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
       BlockArrayCapabilities |=
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
     }
-    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
+    if (supportsFlags(UR_ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
       BlockArrayCapabilities |=
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
     }
     return ReturnValue(BlockArrayCapabilities);
-#else
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-#endif
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
 #ifdef _WIN32
@@ -2205,16 +2201,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
     Range.Supported = true;
   };
 
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
-      [ZeDevice](
-          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+      [ZeDevice](ZexStruct<ur_ze_intel_device_block_array_exp_properties_t>
+                     &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
-#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
   auto UrPlatform = this->Platform;
   ZeDeviceVectorWidthPropertiesExt.Compute =
@@ -2279,7 +2273,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       };
 
   ZeXEDeviceProperties.Compute =
-      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+      [ZeDevice](ur_ze_intel_xe_device_exp_properties_t &Properties) {
         // Set up default values of 0
         Properties.numXeStacks = 0;
         Properties.numXeRegionsPerStack = 0;
