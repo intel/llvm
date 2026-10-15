@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: windows && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23446
+
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM pointer.
 
