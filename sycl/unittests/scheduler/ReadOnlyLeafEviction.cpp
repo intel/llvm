@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // Kernels which only read shared buffers are independent. Once the read leaves
-// of a buffer are full, the oldest one becomes a dependency of the new kernel,
-// so read leaves have a larger capacity than the generic leaf limit.
+// of a buffer are full, the oldest one becomes a dependency of the new kernel.
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
@@ -25,8 +24,7 @@
 namespace {
 using namespace sycl;
 
-constexpr size_t LeafLimit = 8;
-constexpr size_t ReadLeafLimit = 16;
+constexpr size_t LeafLimit = 16;
 
 // Kernels launched so far, by output event, and the kernels each one waits on.
 std::map<ur_event_handle_t, size_t> EventToKernel;
@@ -79,20 +77,20 @@ protected:
 };
 
 TEST_P(ReadOnlyLeafEviction, NoDependenciesBetweenReaders) {
-  submitReaders(ReadLeafLimit);
+  submitReaders(LeafLimit);
 
   detail::Requirement Req = getMockRequirement(ABuf);
   detail::MemObjRecord *Record = detail::Scheduler::getMemObjRecord(&Req);
-  EXPECT_EQ(Record->MReadLeaves.genericCommandsCapacity(), ReadLeafLimit);
+  EXPECT_EQ(Record->MReadLeaves.genericCommandsCapacity(), LeafLimit);
   EXPECT_EQ(Record->MWriteLeaves.genericCommandsCapacity(), LeafLimit);
 
-  ASSERT_EQ(KernelDeps.size(), ReadLeafLimit);
+  ASSERT_EQ(KernelDeps.size(), LeafLimit);
   for (size_t I = 0; I < KernelDeps.size(); ++I)
     EXPECT_TRUE(KernelDeps[I].empty()) << "kernel " << I;
 }
 
 TEST_P(ReadOnlyLeafEviction, EvictedReaderBecomesDependency) {
-  constexpr size_t NumReaders = 2 * ReadLeafLimit + 1;
+  constexpr size_t NumReaders = 2 * LeafLimit + 1;
   submitReaders(NumReaders);
   // A writer depends on the read leaves, and on the evicted readers through
   // them.
@@ -104,12 +102,12 @@ TEST_P(ReadOnlyLeafEviction, EvictedReaderBecomesDependency) {
   ASSERT_EQ(KernelDeps.size(), NumReaders + 1);
   for (size_t I = 0; I < NumReaders; ++I) {
     std::set<size_t> Expected;
-    if (I >= ReadLeafLimit)
-      Expected.insert(I - ReadLeafLimit);
+    if (I >= LeafLimit)
+      Expected.insert(I - LeafLimit);
     EXPECT_EQ(KernelDeps[I], Expected) << "kernel " << I;
   }
   std::set<size_t> LastReaders;
-  for (size_t I = NumReaders - ReadLeafLimit; I < NumReaders; ++I)
+  for (size_t I = NumReaders - LeafLimit; I < NumReaders; ++I)
     LastReaders.insert(I);
   EXPECT_EQ(KernelDeps[NumReaders], LastReaders);
 }

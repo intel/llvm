@@ -200,8 +200,7 @@ using CommandPtr = std::unique_ptr<Command>;
 struct MemObjRecord {
   MemObjRecord(context_impl *Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
-      // Read-only commands don't depend on each other, allow more of them.
-      : MReadLeaves{this, 2 * LeafLimit, AllocateDependency},
+      : MReadLeaves{this, LeafLimit, AllocateDependency},
         MWriteLeaves{this, LeafLimit, std::move(AllocateDependency)},
         MCurContext{Ctx ? Ctx->shared_from_this() : nullptr} {}
   // Contains all allocation commands for the memory object.
