@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -20,11 +21,12 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2026 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
 permission by Khronos.
+
 
 == Contact
 
@@ -35,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 11 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -44,28 +46,33 @@ SYCL specification refer to that revision.
 This extension is implemented and fully supported by {dpcpp}.
 [NOTE]
 ====
-Although {dpcpp} supports this extension on all backends, it is currently used
-on Level Zero, CUDA, and HIP.
-Other backends ignore the properties defined in this specification.
+Although {dpcpp} supports this extension on all backends, the pre-defined
+priorities are currently used on Level Zero, CUDA, and HIP, and numeric
+priorities are currently used on Level Zero with the v2 adapter. Other
+backends ignore the properties defined in this specification.
 ====
 
 == Overview
 
-Introduce SYCL queue properties specifying the desired priority of a queue.
-These priorities are a hint and may be ignored if not supported by
-underlying backends. 
+This extension defines queue properties that permit a backend, when
+supported, to create command queues with different levels of priority.
+Priorities are hints from the programmer that certain command submissions
+to a device may execute before others of lesser priority.
+
+The extension defines a property for a numeric priority value and several
+pre-defined priority properties with fixed numeric values.
 
 == Specification
 
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification.  An implementation supporting this extension must predefine
-the macro `SYCL_EXT_ONEAPI_QUEUE_PRIORITY` to one of the values defined
-in the table below.  Applications can test for the existence of this macro
-to determine if the implementation supports this feature, or applications
-can test the macro's value to determine which of the extension's features
-the implementation supports.
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_QUEUE_PRIORITY` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
 
 [%header,cols="1,5"]
 |===
@@ -74,35 +81,134 @@ the implementation supports.
 
 |1
 |Initial version of this extension.
+
+|2
+|Adds `sycl::ext::oneapi::property::queue::priority` property and
+`sycl::ext::oneapi::info::device::priority_range` information descriptor.
+
 |===
 
-=== API of the extension
+=== New queue property for numeric priority value
 
-This extension adds support for new properties for SYCL queue constructors
-taking properties list:
+Added in revision 2 of this specification.
 
-```c++
+This extension defines the following new property that may be passed to
+the constructor of the `queue` class:
+
+'''
+
+[source,c++]
+----
 namespace sycl::ext::oneapi::property::queue {
 
-  class priority_normal {
-  public:
-    priority_normal() = default;
-  };
-  class priority_low {
-  public:
-    priority_low() = default;
-  };
-  class priority_high {
-  public:
-    priority_high() = default;
-  };
+class priority {
+public:
+  priority(int priority_value);
 
-} // namespace
-```
-The new properties hint the SYCL runtime that the queue gets the specified
-priority for execution if supported by underlying target runtimes. These
-properties are hints and may safely be ignored by an implementation.
+  int get_priority() const;
+};
 
-It is illegal to specify multiple differrent priority hints for the same queue.
-Doing so causes the `queue` constructor to throw a synchronous `exception` with
-the `errc::invalid` error code.
+} // namespace sycl::ext::oneapi::property::queue
+----
+
+'''
+
+[source,c++]
+----
+priority(int priority_value);
+----
+
+_Effects:_ Specifies that the queue should be constructed with the specified
+`priority_value`. Commands executed by this queue may take priority over
+commands in queues with lower priority on this device. If the user specifies
+`priority_value` outside the range returned by
+`sycl::ext::oneapi::info::device::priority_range` for the device associated
+with the queue, `priority_value` will be clamped down or up to the lowest or
+highest priority in the range. Lower numbers imply greater priorities.
+If the property is not set for a queue, the default priority for that queue is
+assumed to be 0.
+
+'''
+
+[source,c++]
+----
+int get_priority() const;
+----
+
+_Returns:_ The `priority_value` this property was constructed with.
+
+=== New queue properties for pre-defined priority values
+
+This extension defines the following properties that may be passed to
+the constructor of the `queue` class:
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::property::queue {
+
+// Equivalent to: priority(0)
+class priority_normal {
+public:
+  priority_normal() = default;
+};
+
+// Equivalent to the lowest possible priority for the device
+class priority_low {
+public:
+  priority_low() = default;
+};
+
+// Equivalent to the highest possible priority for the device
+class priority_high {
+public:
+  priority_high() = default;
+};
+
+} // namespace sycl::ext::oneapi::property::queue
+----
+
+_Effects:_ Specifies that the queue should be constructed with the specified
+pre-defined priority. The properties map to the numeric priority values in the
+following way: `priority_normal` has a priority value of 0, `priority_low` has
+a priority value of the lowest possible priority (highest numerical value) for
+the device as reported by the `priority_range` information descriptor, and
+`priority_high` has a priority value of the highest possible priority (lowest
+numerical value) for the device as reported by the `priority_range` information
+descriptor. On devices that don't support numeric priorities,
+`priority_range` returns `{0, 0}`, and `priority_low` and `priority_high` may
+still specify a lower or higher priority than the default one.
+
+=== Conflicting priorities
+
+It is illegal to specify more than one of the properties defined in this
+specification for the same queue. Doing so causes the `queue` constructor to
+throw a synchronous `exception` with the `errc::invalid` error code.
+
+=== New device information descriptor
+
+Added in revision 2 of this specification.
+
+'''
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::info::device {
+
+struct priority_range {
+  using return_type = std::array<int, 2>;
+};
+
+} // namespace sycl::ext::oneapi::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ `std::array<int,2>` that represents the `{lowestPriority,
+highestPriority}` for this device. The first element is the numerical value
+corresponding to the lowest (least urgent) queue priority supported by the
+device, and the second element is the numerical value corresponding to the
+highest (most urgent) queue priority supported by the device. Lower numerical
+values imply greater priorities. The range always contains the default
+priority 0. Devices that don't support numeric priorities return `{0, 0}`.
