@@ -7,7 +7,7 @@
 /// ###########################################################################
 
 /// Ahead of Time compilation for gen, cpu - tool invocation
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-device-code-split -fsycl-targets=intel_gpu_pvc %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-TOOLS-AOT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-device-code-split -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-TOOLS-AOT

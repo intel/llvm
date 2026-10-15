@@ -28,7 +28,7 @@
 
 // Test compilation step: with -c, -fno-sycl-rdc finalizes the device code of
 // the translation unit into a fat binary at compile time.
-// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp -c -o %t.o 2>&1 \
+// RUN: %clang -### --offload-new-driver -Werror --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=intel_gpu_pvc -fno-sycl-rdc --no-offloadlib -fno-sycl-instrument-device-code %t.cpp -c -o %t.o 2>&1 \
 // RUN:    | FileCheck -check-prefix=CHK-COMPILE-STEP %s
 
 // CHK-COMPILE-STEP-NOT: argument unused during compilation

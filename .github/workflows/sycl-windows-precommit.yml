@@ -60,6 +60,8 @@ jobs:
       e2e_binaries_artifact: sycl_windows_e2ebin
       e2e_binaries_new_offload_model_artifact: sycl_windows_e2ebin_with_new_offload_model
 
+  # The E2E binaries run here are built for GPU_AOT_TARGET in
+  # sycl-windows-build.yml; update it when adding or removing an Intel GPU runner.
   run_prebuilt_e2e_tests:
     needs: build
     # Continue if build was successful.

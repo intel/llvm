@@ -698,11 +698,6 @@ if platform.system() == "Windows":
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
 
-if not config.gpu_aot_target_opts:
-    config.gpu_aot_target_opts = '"-device *"'
-
-config.substitutions.append(("%gpu_aot_target_opts", config.gpu_aot_target_opts))
-
 if config.dump_ir_supported:
     config.available_features.add("dump_ir")
 
@@ -1306,6 +1301,38 @@ if amd_arch:
         f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
     )
 config.substitutions.append(("%amd_arch_options", amd_arch_flags))
+
+# Intel GPU AOT target(s), as a -fsycl-targets value. Uses the detected Intel
+# GPU architectures, or intel_gpu_dg2 if none are detected (e.g. build-only
+# mode). CI passes the architectures of its run-only runners.
+if not config.gpu_aot_target:
+    intel_gpu_archs = sorted(
+        feature[len("arch-") :]
+        for feature in set().union(*config.sycl_dev_features.values())
+        if feature.startswith("arch-intel_gpu_")
+    )
+    config.gpu_aot_target = ",".join(intel_gpu_archs)
+    if not config.gpu_aot_target:
+        config.gpu_aot_target = "intel_gpu_dg2"
+        lit_config.note(
+            "No Intel GPU detected, defaulting the AOT target to intel_gpu_dg2"
+        )
+lit_config.note("Intel GPU AOT target: {}".format(config.gpu_aot_target))
+config.substitutions.append(("%{gpu_aot_target}", config.gpu_aot_target))
+
+# Extra backend options for Intel GPU AOT compilation, passed for each target in
+# gpu_aot_target. The device is selected by gpu_aot_target instead.
+if "-device" in config.gpu_aot_target_opts.split():
+    lit_config.error(
+        "gpu_aot_target_opts must not contain -device; use gpu_aot_target to "
+        "select the Intel GPU AOT target(s)"
+    )
+config.gpu_aot_backend_opts = ""
+if config.gpu_aot_target_opts:
+    config.gpu_aot_backend_opts = " ".join(
+        "-Xsycl-target-backend={} '{}'".format(target, config.gpu_aot_target_opts)
+        for target in config.gpu_aot_target.split(",")
+    )
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

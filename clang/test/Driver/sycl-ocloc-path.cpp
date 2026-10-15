@@ -37,9 +37,6 @@
 
 /// Check that --ocloc-path= is forwarded to the clang-linker-wrapper for the
 /// new offloading model.
-// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
-// RUN:     --sysroot=%S/Inputs/SYCL --ocloc-path=/my/ocloc/dir %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-NEW %s
 // RUN:   %clang -### -fsycl --offload-new-driver \
 // RUN:     -fsycl-targets=intel_gpu_pvc --sysroot=%S/Inputs/SYCL \
 // RUN:     --ocloc-path=/my/ocloc/dir %s 2>&1 \
@@ -97,7 +94,7 @@
 // RUN:     --ocloc-path="/my/ocloc dir/with spaces" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-OLD %s
 // CHK-OCLOC-PATH-SPACES-OLD: "/my/ocloc dir/with spaces{{[/\\]+}}ocloc{{(\.exe)?}}" "-output"
-// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
 // RUN:     --sysroot=%S/Inputs/SYCL --ocloc-path="/my/ocloc dir/with spaces" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OCLOC-PATH-SPACES-NEW %s
 // CHK-OCLOC-PATH-SPACES-NEW: clang-linker-wrapper{{.*}} "--ocloc-path=/my/ocloc dir/with spaces"

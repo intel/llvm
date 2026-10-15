@@ -4,5 +4,6 @@
 if (NOT LLVM_LIBCXX_USED)
 add_sycl_unittest(DynamicLinkingTests OBJECT
   DynamicLinking.cpp
+  DynamicLinkingCompileTarget.cpp
 )
 endif()

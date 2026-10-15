@@ -1216,12 +1216,14 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
 }
 
 /// Reads device images from the given \p InputFile and wraps them
-/// in one LLVM IR Module as a constant data.
+/// in one LLVM IR Module as a constant data. \p Target overrides the target
+/// triple given by \p Args.
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
 wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
-                         const ArgList &Args, bool IsEmbeddedIR) {
+                         const ArgList &Args, bool IsEmbeddedIR,
+                         StringRef Target = "") {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
@@ -1246,7 +1248,8 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
       return OutputFilePath;
   }
 
-  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
+  if (Target.empty())
+    Target = Args.getLastArgValue(OPT_triple_EQ);
   if (Target.empty())
     return createStringError(
         inconvertibleErrorCode(),
@@ -2955,6 +2958,12 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   std::mutex SYCLBINModulesMtx;
   SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
 
+  // The -fno-sycl-rdc compile step wraps the modules of all architectures into
+  // a single wrapper module. Keep them per input group for a stable order.
+  std::vector<std::vector<module_split::SplitModule>> NoRDCModules(
+      LinkerInputFiles.size());
+  std::string NoRDCTriple;
+
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
     if (Error Err = handleOverrideImages(Args, Images))
@@ -3060,14 +3069,15 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
       } else if (!NeedsWrapping) {
-        // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the
-        // host compilation links it in via -foffload-include-binary.
-        Expected<StringRef> OutputFile =
-            sycl::wrapSYCLBinariesFromFile(Modules, LinkerArgs,
-                                           /*IsEmbeddedIR=*/false);
-        if (!OutputFile)
-          return OutputFile.takeError();
-        AppendImageToWrapperOutput(*OutputFile);
+        // -fno-sycl-rdc compile step: the modules are wrapped once all inputs
+        // are processed.
+        StringRef Triple = LinkerArgs.getLastArgValue(OPT_triple_EQ);
+        std::scoped_lock<std::mutex> Guard(ImageMtx);
+        if (!NoRDCTriple.empty() && NoRDCTriple != Triple)
+          return createStringError(
+              "--no-sycl-rdc does not support multiple SYCL target triples");
+        NoRDCModules[&Input - LinkerInputFiles.data()] = std::move(Modules);
+        NoRDCTriple = Triple.str();
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         Expected<StringRef> OutputFile =
@@ -3139,6 +3149,20 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   });
   if (Err)
     return std::move(Err);
+
+  // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the host
+  // compilation links it in via -foffload-include-binary.
+  if (!NoRDCTriple.empty()) {
+    std::vector<module_split::SplitModule> Modules;
+    for (std::vector<module_split::SplitModule> &GroupModules : NoRDCModules)
+      std::move(GroupModules.begin(), GroupModules.end(),
+                std::back_inserter(Modules));
+    Expected<StringRef> OutputFile = sycl::wrapSYCLBinariesFromFile(
+        Modules, Args, /*IsEmbeddedIR=*/false, NoRDCTriple);
+    if (!OutputFile)
+      return OutputFile.takeError();
+    WrappedOutput.push_back(*OutputFile);
+  }
 
   if (OutputSYCLBIN) {
     auto OutputOrErr = sycl::packageSYCLBIN(SYCLBINState, SYCLBINModules);
