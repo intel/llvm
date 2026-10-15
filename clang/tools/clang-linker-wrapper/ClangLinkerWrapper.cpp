@@ -1210,6 +1210,13 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
         StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
                   CompressedBytes.size()),
         Image.Image->getBufferIdentifier());
+    // Formats without magic bytes can't be detected after decompression.
+    if (Image.Format != offloading::SYCLBinaryImageFormat::BIF_None)
+      Image.PropertyRegistry.add(
+          llvm::util::PropertySetRegistry::SYCL_MISC_PROP,
+          offloading::OriginalFormatPropName,
+          static_cast<uint32_t>(
+              offloading::binaryImageFormatToInt8(Image.Format)));
     Image.Format = offloading::SYCLBinaryImageFormat::BIF_Compressed;
   }
   return Error::success();
