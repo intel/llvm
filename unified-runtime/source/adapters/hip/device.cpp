@@ -23,6 +23,17 @@ int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
   return Value;
 }
 
+std::optional<std::pair<int32_t, int32_t>>
+getStreamPriorityRange(ur_device_handle_t Device) {
+  ScopedDevice Active(Device);
+  int Least = 0, Greatest = 0;
+  UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(&Least, &Greatest));
+  // The UR API requires a range containing the default priority 0.
+  if (Greatest >= Least || Greatest > 0 || Least < 0)
+    return std::nullopt;
+  return std::pair<int32_t, int32_t>{Least, Greatest};
+}
+
 uint64_t ur_device_handle_t_::getElapsedTime(hipEvent_t ev) const {
   float Milliseconds = 0.0f;
 
@@ -726,6 +737,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
+  }
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    return ReturnValue(
+        static_cast<ur_bool_t>(getStreamPriorityRange(hDevice).has_value()));
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    auto Range = getStreamPriorityRange(hDevice);
+    if (!Range)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP
+                           ? Range->second
+                           : Range->first);
   }
 
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {

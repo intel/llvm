@@ -11,6 +11,8 @@
 #include "context.hpp"
 #include "event.hpp"
 
+#include <algorithm>
+
 template <>
 void hip_stream_queue::computeStreamWaitForBarrierIfNeeded(hipStream_t Stream,
                                                            uint32_t Stream_i) {
@@ -67,10 +69,19 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         Flags = 0;
       }
 
-      if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
+      if (auto PriorityProperties =
+              find_stype_node<ur_exp_queue_priority_properties_t>(pProps)) {
+        if (URFlags &
+            (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH))
+          return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+        auto Range = getStreamPriorityRange(hDevice);
+        if (!Range)
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        Priority = std::clamp(PriorityProperties->priority, Range->second,
+                              Range->first);
+      } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
-        ScopedDevice Active(hDevice);
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(&Priority, nullptr));
       }
     }
