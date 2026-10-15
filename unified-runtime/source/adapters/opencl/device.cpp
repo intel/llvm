@@ -191,7 +191,7 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     /* The OpenCL implementation returns a value of 0 if no properties are
      * supported. UR will return a size of 0 for now.
      */
-    if (pPropSizeRet && CLValue[0] == 0) {
+    if (pPropSizeRet && (CLSize == 0 || CLValue[0] == 0)) {
       *pPropSizeRet = 0;
       return UR_RESULT_SUCCESS;
     }
