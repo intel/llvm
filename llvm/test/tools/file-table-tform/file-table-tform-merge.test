@@ -4,3 +4,19 @@ RUN: file-table-tform --merge=Two %S/Inputs/merge-input.txt -o merge-output.txt
 
 -- Verify result
 RUN: diff %S/Inputs/merge-gold.txt merge-output.txt
+
+-- A column name which is not present in the input table must be diagnosed
+-- instead of aborting the tool.
+RUN: not file-table-tform --merge=NoSuchCol %S/Inputs/merge-input.txt -o %t.out.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-NO-COL %s
+CHECK-NO-COL: usage ERROR: column not found in merge: 'NoSuchCol'
+
+-- An input table with no rows (title line only, or completely empty) must be
+-- diagnosed instead of indexing the first row out of bounds.
+RUN: echo "[Two]" > %t.titles-only.txt
+RUN: not file-table-tform --merge=Two %t.titles-only.txt -o %t.out.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-NO-ROWS %s
+RUN: echo -n "" > %t.empty.txt
+RUN: not file-table-tform --merge=Two %t.empty.txt -o %t.out.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-NO-ROWS %s
+CHECK-NO-ROWS: usage ERROR: input table has no rows in merge
