@@ -274,6 +274,8 @@ private:
   ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
                                    ur_command_t commandType);
 
+  void retainEventIfCapturing(ur_event_handle_t hEvent);
+
   ur_result_t appendKernelLaunchLocked(
       ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel,
       uint32_t workDim, const size_t *pGlobalWorkOffset,
