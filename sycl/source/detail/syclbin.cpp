@@ -9,6 +9,7 @@
 // TODO: Remove once we can consistently link the SYCL runtime library with
 // LLVMObject.
 
+#include <cstddef>
 #include <detail/compiler.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -38,15 +39,9 @@ struct OffloadBinaryHeaderType {
   uint64_t Size;
   uint64_t EntriesOffset; // V2: Renamed from EntryOffset
   uint64_t EntriesCount;  // V2: Renamed from EntrySize, now stores count
+  uint64_t InflatedSize;  // V3: Original size of the binary if compressed.
 };
-// V3 appends InflatedSize to the header. It is kept out of
-// OffloadBinaryHeaderType so the 32-byte v1/v2 layout (and the v2 header
-// emitted by SYCLBIN::write) stays unchanged.
-struct OffloadBinaryHeaderV3Type : OffloadBinaryHeaderType {
-  uint64_t InflatedSize; // V3: Original size of the binary if compressed.
-};
-static_assert(sizeof(OffloadBinaryHeaderType) == 32);
-static_assert(sizeof(OffloadBinaryHeaderV3Type) == 40);
+static_assert(sizeof(OffloadBinaryHeaderType) == 40);
 struct OffloadBinaryEntryType {
   uint16_t ImageKind;
   uint16_t OffloadKind;
@@ -99,7 +94,10 @@ public:
 
 std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
                                                         size_t Size) {
-  if (sizeof(OffloadBinaryHeaderType) > Size)
+  // The v1/v2 header lacks the trailing InflatedSize field.
+  constexpr size_t HeaderSizeV2 =
+      offsetof(OffloadBinaryHeaderType, InflatedSize);
+  if (HeaderSizeV2 > Size)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Invalid Offload Binary size.");
 
@@ -119,12 +117,10 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
   // compressed, which this reader cannot decompress. Uncompressed v3 binaries
   // have the same entry layout as v2, located via EntriesOffset.
   if (Header->Version >= 3) {
-    if (sizeof(OffloadBinaryHeaderV3Type) > Size)
+    if (sizeof(OffloadBinaryHeaderType) > Size)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Invalid Offload Binary size.");
-    const OffloadBinaryHeaderV3Type *HeaderV3 =
-        reinterpret_cast<const OffloadBinaryHeaderV3Type *>(Data);
-    if (HeaderV3->InflatedSize != 0)
+    if (Header->InflatedSize != 0)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Compressed Offload Binary is not supported.");
   }
@@ -481,7 +477,7 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
   std::ostringstream OB;
   OffloadBinaryHeaderType OBHeader{};
   std::memcpy(OBHeader.Magic, OffloadBinaryMagic, sizeof(OBHeader.Magic));
-  OBHeader.Version = 2;
+  OBHeader.Version = 3;
   OBHeader.EntriesOffset = sizeof(OffloadBinaryHeaderType);
   OBHeader.EntriesCount = 1;
   // Single entry pointing at the SYCLBIN payload following the entry array.

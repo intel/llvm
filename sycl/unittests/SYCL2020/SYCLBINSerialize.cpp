@@ -68,8 +68,8 @@ sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 // on the optional rather than dereferencing unconditionally.
 std::optional<std::string_view>
 stripOffloadWrapper(const std::vector<char> &Bytes) {
-  // OffloadBinary v2 layout: 32-byte header, then a single entry pointing at
-  // the SYCLBIN payload. See sycl/source/detail/syclbin.cpp for layout.
+  // OffloadBinary v2/v3 layout: 32/40-byte header, then a single entry pointing
+  // at the SYCLBIN payload. See sycl/source/detail/syclbin.cpp for layout.
   struct OffloadBinaryHeader {
     uint8_t Magic[4];
     uint32_t Version;
@@ -93,7 +93,7 @@ stripOffloadWrapper(const std::vector<char> &Bytes) {
   if (H->Magic[0] != 0x10 || H->Magic[1] != 0xFF || H->Magic[2] != 0x10 ||
       H->Magic[3] != 0xAD)
     return std::nullopt;
-  if (H->Version != 2u || H->EntriesCount != 1u)
+  if ((H->Version != 2u && H->Version != 3u) || H->EntriesCount != 1u)
     return std::nullopt;
   if (H->EntriesOffset + sizeof(OffloadBinaryEntry) > Bytes.size())
     return std::nullopt;
