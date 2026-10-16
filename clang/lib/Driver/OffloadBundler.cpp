@@ -1993,10 +1993,12 @@ Error OffloadBundler::UnbundleFiles() {
       if (Error Err = (*IDHandlerOrErr)->getBundleIDs(Input, BundleIDs))
         return Err;
     }
-    // Returns false only for a SYCL match where exactly one side has a target
-    // ID, i.e. a match that relies on the ID-less fallback.
-    auto IsExactMatch = [](const OffloadTargetInfo &CodeObject,
-                           const OffloadTargetInfo &Target) {
+    // Returns true if both or neither of \p CodeObject and \p Target have a
+    // target ID. Returns false only for SYCL when exactly one side has one,
+    // i.e. a match that relies on the ID-less fallback. The target ID values
+    // themselves are compared by isCodeObjectCompatible.
+    auto TargetIDPresenceMatches = [](const OffloadTargetInfo &CodeObject,
+                                      const OffloadTargetInfo &Target) {
       return CodeObject.OffloadKind != "sycl" ||
              CodeObject.TargetID.empty() == Target.TargetID.empty();
     };
@@ -2005,7 +2007,7 @@ Error OffloadBundler::UnbundleFiles() {
     auto HasExactEntry = [&](const OffloadTargetInfo &Target) {
       return llvm::any_of(BundleIDs, [&](StringRef ID) {
         OffloadTargetInfo CodeObject(ID, BundlerConfig);
-        return IsExactMatch(CodeObject, Target) &&
+        return TargetIDPresenceMatches(CodeObject, Target) &&
                isCodeObjectCompatible(CodeObject, Target);
       });
     };
@@ -2033,7 +2035,7 @@ Error OffloadBundler::UnbundleFiles() {
       // sycl-spir64_gen-unknown-unknown-pvc.
       auto Output = llvm::find_if(Worklist, [&](const auto &W) {
         OffloadTargetInfo Target(W.first(), BundlerConfig);
-        return IsExactMatch(CodeObject, Target) &&
+        return TargetIDPresenceMatches(CodeObject, Target) &&
                isCodeObjectCompatible(CodeObject, Target);
       });
       // Otherwise, an ID-less SYCL entry (e.g. sycl-spir64_gen-unknown-unknown)
@@ -2042,7 +2044,7 @@ Error OffloadBundler::UnbundleFiles() {
       if (Output == Worklist.end())
         Output = llvm::find_if(Worklist, [&](const auto &W) {
           OffloadTargetInfo Target(W.first(), BundlerConfig);
-          return !IsExactMatch(CodeObject, Target) &&
+          return !TargetIDPresenceMatches(CodeObject, Target) &&
                  isCodeObjectCompatible(CodeObject, Target) &&
                  !HasExactEntry(Target);
         });
