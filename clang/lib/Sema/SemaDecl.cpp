@@ -7866,6 +7866,7 @@ void Sema::CheckAsmLabel(Scope *S, Expr *E, StorageClass SC,
       break;
     case SC_Register:
       // Local Named register
+<<<<<<< HEAD
       if (!Context.getTargetInfo().isValidGCCRegisterName(Label) &&
           DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl())) {
         if (getLangOpts().SYCLIsDevice)
@@ -7874,6 +7875,16 @@ void Sema::CheckAsmLabel(Scope *S, Expr *E, StorageClass SC,
               << Label;
         else
           Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
+=======
+      if (DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl())) {
+        const auto &TI = Context.getTargetInfo();
+        if (!TI.isValidGCCRegisterName(Label))
+          Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
+        else if (!TI.validateLocalRegisterVariable(
+                     TI.getNormalizedGCCRegisterName(Label,
+                                                     /*ReturnCanonical=*/true)))
+          Diag(E->getExprLoc(), diag::err_asm_invalid_local_var_reg) << Label;
+>>>>>>> 24760aacc86f14018f128e9ea94d66822d8c518e
       }
       break;
     case SC_Static:
