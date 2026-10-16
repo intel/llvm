@@ -76,13 +76,12 @@ static void CheckEventAndThrow(detail::event_impl &EventImpl,
   }
 }
 
-} // namespace detail
-
-__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
+__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt,
+                                      uint32_t /*Flags*/) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
+  CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   QueueImpl.submit_barrier_direct_without_event(
       sycl::span<const event>(&evt, 1), detail::CGType::BarrierWaitlist,
@@ -90,19 +89,21 @@ __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
 }
 
 __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
-                                       const std::vector<event> &evts) {
+                                       const std::vector<event> &evts,
+                                       uint32_t /*Flags*/) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
 
   for (const sycl::event &evt : evts) {
-    detail::CheckEventAndThrow(*sycl::detail::getSyclObjImpl(evt),
-                               QueueImpl.getContextImpl());
+    CheckEventAndThrow(*sycl::detail::getSyclObjImpl(evt),
+                       QueueImpl.getContextImpl());
   }
 
   QueueImpl.submit_barrier_direct_without_event(
       evts, detail::CGType::BarrierWaitlist, detail::code_location::current());
 }
 
-__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
+__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt,
+                                        uint32_t /*Flags*/) {
   detail::queue_impl &QueueImpl = *sycl::detail::getSyclObjImpl(q);
   detail::event_impl &EventImpl = *sycl::detail::getSyclObjImpl(evt);
 
@@ -118,7 +119,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
                           "on a queue which is recording a graph.");
   }
 
-  detail::CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
+  CheckEventAndThrow(EventImpl, QueueImpl.getContextImpl());
 
   // An IPC event cannot be signaled on a profiling-enabled queue.
   if (EventImpl.isIPCEnabled() && QueueImpl.MIsProfilingEnabled) {
@@ -131,6 +132,22 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   QueueImpl.submit_barrier_direct_without_event(
       {}, detail::CGType::Barrier, detail::code_location::current(),
       sycl::detail::getSyclObjImpl(evt));
+}
+
+} // namespace detail
+
+// These entry points are kept for backwards compatibility.
+__SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
+  detail::enqueue_wait_event(q, evt, /*Flags*/ 0);
+}
+
+__SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
+                                       const std::vector<event> &evts) {
+  detail::enqueue_wait_events(q, evts, /*Flags*/ 0);
+}
+
+__SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
+  detail::enqueue_signal_event(q, evt, /*Flags*/ 0);
 }
 
 } // namespace ext::oneapi::experimental
