@@ -994,6 +994,14 @@ def err_drv_target_variant_invalid : Error<
   "unsupported '%0' value '%1'; use 'ios-macabi' instead">;
 def warn_drv_fsycl_with_c_type : Warning<
   "treating '%0' input as '%1' when -fsycl is used">, InGroup<ExpectedFileType>;
+def warn_drv_sycl_huge_device_code : Warning<
+  "total SYCL device code size is %0; the host link may fail with "
+  "'relocation truncated to fit' or 'PC-relative offset overflow' because "
+  "32-bit PC-relative relocations cannot reach past 2 GB; add "
+  "'-flink-huge-device-code' to the link command line (not only the "
+  "compile line) to place device code sections via a custom linker "
+  "script">,
+  InGroup<LargeDeviceKernel>;
 
 def err_drv_invalid_directx_shader_module : Error<
   "invalid profile : %0">;
