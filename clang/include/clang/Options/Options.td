@@ -1385,6 +1385,7 @@ def no_offload_arch_EQ
 
 def offload_new_driver : Flag<["--"], "offload-new-driver">,
   Visibility<[ClangOption, CC1Option]>, Group<f_Group>,
+  MarshallingInfoFlag<LangOpts<"OffloadingNewDriver">>,
   HelpText<"Deprecated; the new driver is always used for offloading compilation.">;
 def no_offload_new_driver : Flag<["--"], "no-offload-new-driver">,
   Visibility<[ClangOption, CC1Option]>, Group<f_Group>,

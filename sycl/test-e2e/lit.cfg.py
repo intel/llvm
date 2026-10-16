@@ -914,6 +914,7 @@ feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
+    ToolSubst("lld", command=FindTool("ld.lld"), unresolved="ignore"),
 ]
 
 tools = [

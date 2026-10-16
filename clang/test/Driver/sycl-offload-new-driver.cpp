@@ -24,9 +24,9 @@
 
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
-// CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
+// CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
 // CHK-FLOW-NEXT: llvm-offload-binary{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
-// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
+// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
 /// Verify phases used to generate SPIR-V instead of LLVM-IR
@@ -93,7 +93,7 @@
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
 // RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_75 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
-// CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
+// CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
 // CHK_ARCH-NEXT: llvm-offload-binary{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]]{{.*}},kind=sycl{{.*}}"
 
 // Verify offload-packager option values
