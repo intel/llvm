@@ -198,6 +198,19 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(Path.str());
 }
 
+std::optional<SmallString<128>>
+SYCLInstallationDetector::findSYCLDeviceLib(StringRef LibName) const {
+  SmallVector<SmallString<128>, 4> DeviceLibPaths;
+  getSYCLDeviceLibPath(DeviceLibPaths);
+  for (const auto &LibPath : DeviceLibPaths) {
+    SmallString<128> FullLibName(LibPath);
+    llvm::sys::path::append(FullLibName, LibName);
+    if (D.getVFS().exists(FullLibName))
+      return FullLibName;
+  }
+  return std::nullopt;
+}
+
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
@@ -2075,9 +2088,6 @@ SYCLToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
-  SmallVector<SmallString<128>, 4> LibraryPaths;
-  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
-
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
@@ -2085,21 +2095,12 @@ SYCLToolChain::getDeviceLibs(
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
   for (const auto &DeviceLib : DeviceLibs) {
-    bool DeviceLibFound = false;
-    for (const auto &LibraryPath : LibraryPaths) {
-      SmallString<128> FullLibName(LibraryPath);
-      llvm::sys::path::append(FullLibName, DeviceLib.Path);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        BitCodeLibraryInfo BitCodeLibrary(
-            {FullLibName, DeviceLib.ShouldInternalize});
-        BCLibs.emplace_back(BitCodeLibrary);
-        DeviceLibFound = true;
-        break;
-      }
-    }
     // The device libraries are all known internal libraries.  If any are not
     // found, emit an error.
-    if (!DeviceLibFound)
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(DeviceLib.Path))
+      BCLibs.emplace_back(
+          BitCodeLibraryInfo({*FullLibName, DeviceLib.ShouldInternalize}));
+    else
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
   return BCLibs;
