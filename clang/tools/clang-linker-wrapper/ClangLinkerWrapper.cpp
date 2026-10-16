@@ -1735,10 +1735,15 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
 /// \return Path to the final linked device file
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                       const ArgList &Args) {
-  // First llvm-link step: link all device input files.
-  auto LinkedFile = sycl::linkDeviceInputFiles(InputFiles, Args);
+  // Non-RDC callers process one user module at a time. Only skip the user
+  // module link; device-library resolution below is needed in both modes.
+  assert((!Args.hasArg(OPT_no_sycl_rdc) || InputFiles.size() == 1) &&
+         "no-RDC linkDevice expects a single user module");
+  auto LinkedFile = Args.hasArg(OPT_no_sycl_rdc)
+                        ? Expected<StringRef>(InputFiles.front())
+                        : sycl::linkDeviceInputFiles(InputFiles, Args);
   if (!LinkedFile)
-    reportError(LinkedFile.takeError());
+    return LinkedFile.takeError();
 
   // Gather device library files from --bitcode-library option.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
@@ -2376,8 +2381,15 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
   // In that case, we apply sycl processing to several modules.
   std::vector<StringRef> Modules;
   if (LinkerArgs.hasArg(OPT_no_sycl_rdc)) {
-    // No need to perform any linking.
+    // Keep user translation units independent, but resolve device libraries
+    // for each one just as in the RDC pipeline.
     Modules = std::vector<StringRef>(InputModules.begin(), InputModules.end());
+    for (StringRef &Module : Modules) {
+      auto LinkedFile = sycl::linkDevice({Module}, LinkerArgs);
+      if (!LinkedFile)
+        return LinkedFile.takeError();
+      Module = *LinkedFile;
+    }
   } else {
     Expected<StringRef> OutputOrErr =
         sycl::linkDevice(InputModules, LinkerArgs);
