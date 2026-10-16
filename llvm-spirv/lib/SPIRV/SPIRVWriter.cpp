@@ -3091,19 +3091,22 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
       Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
       break;
     }
-    case DecorationUniformId: {
+    case DecorationUniformId:
+    case DecorationAlignmentId:
+    case DecorationMaxByteOffsetId: {
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
-                        "UniformId requires exactly 1 extra operand");
-      auto *ScopeEO = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+                        "Id decoration requires exactly 1 extra operand");
+      auto *ValEO = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
       if (!ErrLog.checkError(
-              ScopeEO, SPIRVEC_InvalidLlvmModule,
-              "UniformId requires extra operand to be an integer"))
+              ValEO, SPIRVEC_InvalidLlvmModule,
+              "Id decoration requires extra operand to be an integer"))
         return;
       SPIRVModule *BM = Target->getModule();
-      SPIRVValue *ScopeConst = BM->addIntegerConstant(BM->addIntegerType(32),
-                                                      ScopeEO->getZExtValue());
+      unsigned Width = ValEO->getBitWidth() > 32 ? 64 : 32;
+      SPIRVValue *ValConst = BM->addIntegerConstant(BM->addIntegerType(Width),
+                                                    ValEO->getZExtValue());
       Target->addDecorate(
-          new SPIRVDecorateId(DecoKind, Target, ScopeConst->getId()));
+          new SPIRVDecorateId(DecoKind, Target, ValConst->getId()));
       break;
     }
     case DecorationBufferLocationINTEL:

@@ -4902,13 +4902,18 @@ static llvm::MDNode *transDecorationsToMetadataList(
       OPs.push_back(StrMD);
       break;
     }
-    case DecorationUniformId: {
-      SPIRVId ScopeId = Deco->getVecLiteral()[0];
-      auto *ScopeConst =
-          static_cast<SPIRVConstant *>(Deco->getModule()->getValue(ScopeId));
-      auto *const ScopeMD = ConstantAsMetadata::get(ConstantInt::get(
-          Type::getInt32Ty(*Context), ScopeConst->getZExtIntValue()));
-      OPs.push_back(ScopeMD);
+    case DecorationUniformId:
+    case DecorationAlignmentId:
+    case DecorationMaxByteOffsetId: {
+      SPIRVId ValId = Deco->getVecLiteral()[0];
+      SPIRVValue *Val = Deco->getModule()->getValue(ValId);
+      if (Val->getOpCode() != OpConstant)
+        continue;
+      auto *ValConst = static_cast<SPIRVConstant *>(Val);
+      auto *const ValMD = ConstantAsMetadata::get(ConstantInt::get(
+          Type::getIntNTy(*Context, Val->getType()->getIntegerBitWidth()),
+          ValConst->getZExtIntValue()));
+      OPs.push_back(ValMD);
       break;
     }
     default: {
