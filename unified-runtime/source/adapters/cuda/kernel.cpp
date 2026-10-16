@@ -148,14 +148,10 @@ urKernelRelease(ur_kernel_handle_t hKernel) {
   return UR_RESULT_SUCCESS;
 }
 
-// TODO(ur): Not implemented on cuda atm. Also, need to add tests for this
-// feature.
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
-  (void)hKernel;
-  (void)phNativeKernel;
-
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel->get());
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
