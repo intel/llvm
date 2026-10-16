@@ -1,6 +1,6 @@
 // REQUIRES: system-linux
 /// Verify --offload-new-driver option phases
-// RUN:  %clang --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver --sysroot=%S/Inputs/SYCL -ccc-print-phases %s 2>&1 \
+// RUN:  %clang --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=OFFLOAD-NEW-DRIVER %s
 // OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -55,10 +55,10 @@
 // WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2"{{.*}} "--sycl-post-link-options=-device-globals"{{.*}} "--sycl-post-link-options=sycl:spir64-unknown-unknown=-post-link-opt"
 
 // -fsycl-device-only behavior
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -fsycl-device-only -ccc-print-phases %s 2>&1 \
 // RUN   | FileCheck -check-prefix DEVICE_ONLY %s
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          --offload-device-only -ccc-print-phases %s 2>&1 \
 // RUN:  | FileCheck -check-prefix DEVICE_ONLY %s
 // DEVICE_ONLY: 0: input, "{{.*}}", c++, (device-sycl)
@@ -84,12 +84,12 @@
 // RUN:              -DTRIPLE=spir64_gen-unknown-unknown -DARCH=pvc %s
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:          -fno-sycl-libspirv -fsycl-targets=amd_gpu_gfx900 \
-// RUN:          -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:          -nogpulib --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
 // RUN:              -DTRIPLE=amdgpu9.00-amd-amdhsa -DARCH=gfx900 %s
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:          -fno-sycl-libspirv -fsycl-targets=nvidia_gpu_sm_75 \
-// RUN:          -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:          -nogpulib --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_ARCH \
 // RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_75 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
@@ -168,7 +168,7 @@
 // compilation options belong to the input images. Explicit linker options
 // still reach clang-linker-wrapper for all three targets, with no extra
 // JIT compiler or AOT backend options.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu \
 // RUN:   -fsycl --offload-new-driver -fsycl-targets=spir64,intel_gpu_pvc,spir64_x86_64 \
 // RUN:   -g0 -O2 -ftarget-register-alloc-mode=pvc:small \
 // RUN:   -Xsycl-target-linker=spir64 -jit-link-opt \
@@ -233,20 +233,20 @@
 
 /// Verify arch settings for nvptx and amdgcn targets
 // RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
-// RUN:          -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -nocudalib --offload-new-driver \
 // RUN:          -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx600 \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix AMD_ARCH %s
 // AMD_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=amdgpu6.00-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
 
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
-// RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_DEF_ARCH %s
 // NVPTX_DEF_ARCH: llvm-offload-binary{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_75,kind=sycl"
 
 /// check for -sycl-embed-ir transmission to clang-linker-wrapper tool
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
-// RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver \
 // RUN:          -fsycl-embed-ir %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_EMBED_IR %s
 // CHECK_EMBED_IR: clang-linker-wrapper{{.*}} "-sycl-embed-ir"
@@ -320,7 +320,7 @@
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \
 // RUN:          --cuda-gpu-arch=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s \
-// RUN:          --offload-new-driver --sysroot=%S/Inputs/SYCL 2>&1 \
+// RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
 // NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}}--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
 
@@ -342,11 +342,11 @@
 
 // Check if fsycl-targets correctly processes multiple NVidia
 // and AMD GPU targets.
-// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -fno-sycl-libspirv -nocudalib --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
+// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -fno-sycl-libspirv -nocudalib --offload-new-driver  %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-MACRO-SM-60,CHK-MACRO-SM-70 %s
 // CHK-MACRO-SM-60: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_60__"{{.*}}
 // CHK-MACRO-SM-70: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_70__"{{.*}}
-// RUN:   %clang -### -fsycl -fsycl-targets=amd_gpu_gfx90a,amd_gpu_gfx90c -fno-sycl-libspirv -nogpulib --offload-new-driver --sysroot=%S/Inputs/SYCL  %s 2>&1 \
+// RUN:   %clang -### -fsycl -fsycl-targets=amd_gpu_gfx90a,amd_gpu_gfx90c -fno-sycl-libspirv -nogpulib --offload-new-driver  %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-MACRO-GFX90A,CHK-MACRO-GFX90C %s
 // CHK-MACRO-GFX90A: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90A__"{{.*}}
 // CHK-MACRO-GFX90C: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_AMD_GPU_GFX90C__"{{.*}}
