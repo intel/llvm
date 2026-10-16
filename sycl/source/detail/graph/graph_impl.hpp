@@ -568,6 +568,10 @@ public:
   detail::EnqueueHostTaskData *
   addNativeHostTaskCallback(std::unique_ptr<detail::EnqueueHostTaskData> Data);
 
+  // Take ownership of the UR event of a natively recorded command, leaving
+  // Event as a non-owning reference to it.
+  void addNativeRecordedEvent(sycl::detail::event_impl &Event);
+
 private:
   template <typename... Ts> node_impl &createNode(Ts &&...Args) {
     MNodeStorage.push_back(
@@ -642,6 +646,9 @@ private:
   /// Callback data for host tasks recorded in native recording mode.
   std::vector<std::unique_ptr<detail::EnqueueHostTaskData>>
       MNativeHostTaskCallbacks;
+
+  // UR events of natively recorded commands, released on graph destruction.
+  std::vector<ur_event_handle_t> MNativeRecordedEvents;
 
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.

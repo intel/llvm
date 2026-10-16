@@ -833,6 +833,10 @@ protected:
   EventImplPtr makeEnqueuedEvent(ur_event_handle_t UREvent,
                                  std::vector<detail::EventImplPtr> &&DepEvents);
 
+  // If the event was natively recorded, passes ownership of its UR handle to
+  // the recording graph, leaving it as a non-owning reference.
+  void passEventToNativeGraph(event_impl *Event);
+
   EventImplPtr insertHelperBarrier();
 
   template <typename HandlerType = handler>
