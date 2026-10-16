@@ -1993,11 +1993,15 @@ Error OffloadBundler::UnbundleFiles() {
       if (Error Err = (*IDHandlerOrErr)->getBundleIDs(Input, BundleIDs))
         return Err;
     }
+    // Returns false only for a SYCL match where exactly one side has a target
+    // ID, i.e. a match that relies on the ID-less fallback.
     auto IsExactMatch = [](const OffloadTargetInfo &CodeObject,
                            const OffloadTargetInfo &Target) {
       return CodeObject.OffloadKind != "sycl" ||
              CodeObject.TargetID.empty() == Target.TargetID.empty();
     };
+    // Returns true if the blob has an entry that matches \p Target without the
+    // ID-less fallback.
     auto HasExactEntry = [&](const OffloadTargetInfo &Target) {
       return llvm::any_of(BundleIDs, [&](StringRef ID) {
         OffloadTargetInfo CodeObject(ID, BundlerConfig);
@@ -2024,11 +2028,17 @@ Error OffloadBundler::UnbundleFiles() {
                                  "invalid bundle id read from the bundle");
 
       OffloadTargetInfo CodeObject(CurTriple, BundlerConfig);
+      // First, look for a requested target that this entry matches exactly,
+      // e.g. entry sycl-spir64_gen-unknown-unknown-pvc for target
+      // sycl-spir64_gen-unknown-unknown-pvc.
       auto Output = llvm::find_if(Worklist, [&](const auto &W) {
         OffloadTargetInfo Target(W.first(), BundlerConfig);
         return IsExactMatch(CodeObject, Target) &&
                isCodeObjectCompatible(CodeObject, Target);
       });
+      // Otherwise, an ID-less SYCL entry (e.g. sycl-spir64_gen-unknown-unknown)
+      // may be used for a target with a target ID, or the reverse, but only if
+      // the blob has no exact entry for that target.
       if (Output == Worklist.end())
         Output = llvm::find_if(Worklist, [&](const auto &W) {
           OffloadTargetInfo Target(W.first(), BundlerConfig);
