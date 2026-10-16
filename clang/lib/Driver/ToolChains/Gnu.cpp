@@ -311,12 +311,12 @@ public:
                                  const llvm::opt::ArgStringList &Arguments,
                                  ArrayRef<InputInfo> Inputs,
                                  ArrayRef<InputInfo> Outputs = {})
-      : Command(Source, Creator, ResponseSupport, Executable, Arguments,
-                Inputs, Outputs),
+      : Command(Source, Creator, ResponseSupport, Executable, Arguments, Inputs,
+                Outputs),
         D(D) {}
 
-  int Execute(ArrayRef<std::optional<StringRef>> Redirects,
-             std::string *ErrMsg, bool *ExecutionFailed) const override {
+  int Execute(ArrayRef<std::optional<StringRef>> Redirects, std::string *ErrMsg,
+              bool *ExecutionFailed) const override {
     uint64_t DeviceCodeSize = getTotalSYCLDeviceCodeSize(getInputInfos());
     if (DeviceCodeSize > SYCLHugeDeviceCodeWarnThreshold)
       D.Diag(diag::warn_drv_sycl_huge_device_code)
@@ -744,8 +744,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   if (WarnOnHugeSYCLDeviceCode)
     C.addCommand(std::make_unique<SYCLHugeDeviceCodeCheckCommand>(
-        D, JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs,
-        Inputs, Output));
+        D, JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs,
+        Output));
   else
     C.addCommand(std::make_unique<Command>(JA, *this,
                                            ResponseFileSupport::AtFileCurCP(),
