@@ -25,6 +25,12 @@ namespace {
 
 ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
                          const ur_device_handle_t *phDevices) {
+  // Offload contexts are sanitized below liboffload (Level Zero interception),
+  // so leave them unregistered and let every hook pass through.
+  if (numDevices && GetDeviceBackend(phDevices[0]) == UR_BACKEND_OFFLOAD) {
+    return UR_RESULT_SUCCESS;
+  }
+
   std::shared_ptr<ContextInfo> CI;
   UR_CALL(getMsanInterceptor()->insertContext(Context, CI));
   for (uint32_t i = 0; i < numDevices; ++i) {
@@ -145,6 +151,11 @@ ur_result_t urUSMDeviceAlloc(
     void **ppMem) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        hContext, hDevice, pUSMDesc, pool, size, ppMem);
+  }
+
   return getMsanInterceptor()->allocateMemory(
       hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
       AllocType::DEVICE_USM, ppMem);
@@ -163,6 +174,11 @@ ur_result_t urUSMHostAlloc(
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
+
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return getContext()->urDdiTable.USM.pfnHostAlloc(hContext, pUSMDesc, pool,
+                                                     size, ppMem);
+  }
 
   return getMsanInterceptor()->allocateMemory(
       hContext, nullptr, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
@@ -183,6 +199,11 @@ ur_result_t urUSMSharedAlloc(
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
+
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return getContext()->urDdiTable.USM.pfnSharedAlloc(
+        hContext, hDevice, pUSMDesc, pool, size, ppMem);
+  }
 
   return getMsanInterceptor()->allocateMemory(
       hContext, hDevice, AllocMemoryParams::forUSM(pUSMDesc, pool), size,
@@ -313,6 +334,10 @@ ur_result_t urProgramBuild(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
 
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return pfnProgramBuild(hContext, hProgram, pOptions);
+  }
+
   auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
     auto Devices = GetDevices(hContext);
@@ -342,6 +367,10 @@ ur_result_t urProgramBuildExp(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
 
+  if (!getMsanInterceptor()->hasContext(GetContext(hProgram))) {
+    return pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
+  }
+
   auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
     PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
@@ -369,6 +398,10 @@ ur_result_t urProgramLink(
   auto pfnProgramLink = getContext()->urDdiTable.Program.pfnLink;
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
+
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
+  }
 
   auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
@@ -526,6 +559,10 @@ ur_result_t urContextRetain(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRetain");
 
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return pfnRetain(hContext);
+  }
+
   UR_CALL(pfnRetain(hContext));
 
   auto ContextInfo = getMsanInterceptor()->getContextInfo(hContext);
@@ -543,6 +580,10 @@ ur_result_t urContextRelease(
   auto pfnRelease = getContext()->urDdiTable.Context.pfnRelease;
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRelease");
+
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return pfnRelease(hContext);
+  }
 
   UR_CALL(pfnRelease(hContext));
 
@@ -573,6 +614,11 @@ ur_result_t urMemBufferCreate(
   }
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferCreate");
+
+  if (!getMsanInterceptor()->hasContext(hContext)) {
+    return getContext()->urDdiTable.Mem.pfnBufferCreate(hContext, flags, size,
+                                                        pProperties, phBuffer);
+  }
 
   void *Host = nullptr;
   if (pProperties) {
@@ -1390,6 +1436,11 @@ ur_result_t urEnqueueUSMFill(
   auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueUSMFill");
 
+  if (!getMsanInterceptor()->hasContext(GetContext(hQueue))) {
+    return pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
+                      numEventsInWaitList, phEventWaitList, phEvent);
+  }
+
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
   UR_CALL(pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
@@ -1445,6 +1496,11 @@ ur_result_t urEnqueueUSMMemcpy(
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
   UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueUSMMemcpy");
+
+  if (!getMsanInterceptor()->hasContext(GetContext(hQueue))) {
+    return pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
+                        phEventWaitList, phEvent);
+  }
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1717,6 +1773,13 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
+  if (!getMsanInterceptor()->hasContext(GetContext(hQueue))) {
+    return getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numArgs, pArgs, launchPropList, numEventsInWaitList,
+        phEventWaitList, phEvent);
+  }
+
   // This mutex is to prevent concurrent kernel launches across different queues
   // as the DeviceMSAN local/private shadow memory does not support concurrent
   // kernel launches now.

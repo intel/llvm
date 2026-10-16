@@ -200,6 +200,19 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
     CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
     break;
   case SanitizerType::MemorySanitizer:
+#ifndef _WIN32
+    // Either shim intercepts zeMemAlloc*; liboffload's pool would bypass it.
+    setenv("LIBOMPTARGET_LEVEL_ZERO_MEMORY_POOL", "0", 0);
+    // Opt in to liboffload's Level Zero MSan shim instead of the UR layer;
+    // mirrors the env setup the UR layer does in its urAdapterGet.
+    if (std::getenv("LIBOFFLOAD_MSAN_ENABLE")) {
+      setenv("LIBOMPTARGET_LEVEL_ZERO_MSAN", "1", 1);
+      setenv("NEOReadDebugKeys", "1", 1);
+      setenv("AllocateHostAllocationsInHeapExtendedHost", "0", 1);
+      setenv("UseHighAlignmentForHeapExtended", "0", 1);
+      break;
+    }
+#endif
     CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_MSAN"));
     break;
   case SanitizerType::ThreadSanitizer:

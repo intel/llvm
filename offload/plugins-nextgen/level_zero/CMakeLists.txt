@@ -67,6 +67,19 @@ else()
   target_sources(omptarget.rtl.level_zero PRIVATE dynamic_l0/L0DynWrapper.cpp)
 endif()
 
+option(LIBOMPTARGET_LEVEL_ZERO_MSAN
+       "Build MemorySanitizer support for the Level Zero plugin" OFF)
+if(LIBOMPTARGET_LEVEL_ZERO_MSAN)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+     "level_zero" IN_LIST LIBOMPTARGET_DLOPEN_PLUGINS AND
+     LIBOMPTARGET_DEP_LEVEL_ZERO_INCLUDE_DIR)
+    add_subdirectory(msan)
+  else()
+    message(WARNING "LIBOMPTARGET_LEVEL_ZERO_MSAN needs Linux, a dlopened "
+                    "level_zero plugin and Level Zero headers; disabled.")
+  endif()
+endif()
+
 option(LIBOMPTARGET_FORCE_LEVELZERO_TESTS "Build Level Zero libomptarget tests" OFF)
 if (LIBOMPTARGET_FOUND_INTELGPU_GPU OR LIBOMPTARGET_FORCE_LEVELZERO_TESTS)
   # Report to the parent scope that we are building a plugin for intelgpu

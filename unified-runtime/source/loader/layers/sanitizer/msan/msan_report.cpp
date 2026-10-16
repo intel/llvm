@@ -22,13 +22,11 @@ namespace ur_sanitizer_layer {
 namespace msan {
 
 bool ReportUsesUninitializedValue(const MsanErrorReport &Report,
-                                  ur_kernel_handle_t Kernel) {
+                                  const std::string &KernelName) {
   const char *File = Report.File[0] ? Report.File : "<unknown file>";
   const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
-  auto KernelName = GetKernelName(Kernel);
-
   // Try to demangle the kernel name
-  KernelName = DemangleName(KernelName);
+  auto DemangledName = DemangleName(KernelName);
 
   UR_LOG_L(getContext()->logger, QUIET,
            "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
@@ -36,7 +34,7 @@ bool ReportUsesUninitializedValue(const MsanErrorReport &Report,
   UR_LOG_L(getContext()->logger, QUIET,
            "use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
            "{}, {})",
-           Report.AccessSize, KernelName.c_str(), Report.LID0, Report.LID1,
+           Report.AccessSize, DemangledName.c_str(), Report.LID0, Report.LID1,
            Report.LID2, Report.GID0, Report.GID1, Report.GID2);
   UR_LOG_L(getContext()->logger, QUIET, "  #0 {} {}:{}", Func, File,
            Report.Line);

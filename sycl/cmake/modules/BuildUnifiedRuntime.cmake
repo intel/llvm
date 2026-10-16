@@ -141,6 +141,12 @@ if(TARGET UnifiedRuntimeLoader)
       RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
     )
   endif()
+  # dlopen()ed by the sanitizer layer from its own directory.
+  if(TARGET ur_msan_ze)
+    install(TARGETS ur_msan_ze
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    )
+  endif()
 endif()
 
 add_custom_target(UnifiedRuntimeAdapters)

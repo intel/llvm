@@ -14,6 +14,8 @@
 
 #include "unified-runtime/ur_api.h"
 
+#include <string>
+
 namespace ur_sanitizer_layer {
 
 struct MsanErrorReport;
@@ -22,7 +24,7 @@ namespace msan {
 
 // Abort the program if the return value is true
 bool ReportUsesUninitializedValue(const MsanErrorReport &Report,
-                                  ur_kernel_handle_t Kernel);
+                                  const std::string &KernelName);
 
 } // namespace msan
 } // namespace ur_sanitizer_layer
