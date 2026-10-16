@@ -10,6 +10,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/khr/properties.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
@@ -331,6 +333,375 @@ T *aligned_alloc(
   return aligned_alloc<T>(Alignment, Count, Q.get_device(), Q.get_context(),
                           Kind, PropList, CodeLoc);
 }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr::property::tag {
+struct usm_device; // tag type, never defined
+struct usm_host;   // tag type, never defined
+struct usm_shared; // tag type, never defined
+} // namespace khr::property::tag
+
+namespace detail {
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForUsmDevice =
+    khr::property::detail::is_property_or_list_for_v<
+        PropertyOrList, khr::property::tag::usm_device>;
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForUsmHost =
+    khr::property::detail::is_property_or_list_for_v<
+        PropertyOrList, khr::property::tag::usm_host>;
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForUsmShared =
+    khr::property::detail::is_property_or_list_for_v<
+        PropertyOrList, khr::property::tag::usm_shared>;
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForUsmAny =
+    KhrPropsForUsmDevice<PropertyOrList> ||
+    KhrPropsForUsmHost<PropertyOrList> || KhrPropsForUsmShared<PropertyOrList>;
+
+template <typename PropertyOrList, usm::alloc Kind>
+inline constexpr bool KhrPropsForUsmKind =
+    (Kind == usm::alloc::device && KhrPropsForUsmDevice<PropertyOrList>) ||
+    (Kind == usm::alloc::host && KhrPropsForUsmHost<PropertyOrList>) ||
+    (Kind == usm::alloc::shared && KhrPropsForUsmShared<PropertyOrList>);
+
+// Throws errc::invalid if PropertyOrList is not valid for the runtime Kind.
+template <typename PropertyOrList>
+void checkKhrPropsForUsmKind(usm::alloc Kind) {
+  if constexpr (!(KhrPropsForUsmDevice<PropertyOrList> &&
+                  KhrPropsForUsmHost<PropertyOrList> &&
+                  KhrPropsForUsmShared<PropertyOrList>)) {
+    if ((Kind == usm::alloc::device && !KhrPropsForUsmDevice<PropertyOrList>) ||
+        (Kind == usm::alloc::host && !KhrPropsForUsmHost<PropertyOrList>) ||
+        (Kind == usm::alloc::shared && !KhrPropsForUsmShared<PropertyOrList>))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Properties are not valid for the USM allocation "
+                            "kind");
+  }
+}
+} // namespace detail
+
+// sycl_khr_properties device allocation overloads.
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+void *malloc_device(
+    size_t NumBytes, const device &Dev, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_device(NumBytes, Dev, Ctxt, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+T *malloc_device(
+    size_t Count, const device &Dev, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_device<T>(Count, Dev, Ctxt, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+void *malloc_device(
+    size_t NumBytes, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_device(NumBytes, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+T *malloc_device(
+    size_t Count, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_device<T>(Count, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+void *aligned_alloc_device(
+    size_t Alignment, size_t NumBytes, const device &Dev, const context &Ctxt,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_device(Alignment, NumBytes, Dev, Ctxt, property_list{},
+                              CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+T *aligned_alloc_device(
+    size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_device<T>(Alignment, Count, Dev, Ctxt, property_list{},
+                                 CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+void *aligned_alloc_device(
+    size_t Alignment, size_t NumBytes, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_device(Alignment, NumBytes, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmDevice<PropertyOrList>>>
+T *aligned_alloc_device(
+    size_t Alignment, size_t Count, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_device<T>(Alignment, Count, Q, property_list{}, CodeLoc);
+}
+
+// sycl_khr_properties host allocation overloads.
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+void *malloc_host(
+    size_t NumBytes, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_host(NumBytes, Ctxt, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+T *malloc_host(
+    size_t Count, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_host<T>(Count, Ctxt, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+void *malloc_host(
+    size_t NumBytes, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_host(NumBytes, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+T *malloc_host(
+    size_t Count, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_host<T>(Count, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+void *aligned_alloc_host(
+    size_t Alignment, size_t NumBytes, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_host(Alignment, NumBytes, Ctxt, property_list{},
+                            CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+T *aligned_alloc_host(
+    size_t Alignment, size_t Count, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_host<T>(Alignment, Count, Ctxt, property_list{},
+                               CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+void *aligned_alloc_host(
+    size_t Alignment, size_t NumBytes, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_host(Alignment, NumBytes, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmHost<PropertyOrList>>>
+T *aligned_alloc_host(
+    size_t Alignment, size_t Count, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_host<T>(Alignment, Count, Q, property_list{}, CodeLoc);
+}
+
+// sycl_khr_properties shared allocation overloads.
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+void *malloc_shared(
+    size_t NumBytes, const device &Dev, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_shared(NumBytes, Dev, Ctxt, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+T *malloc_shared(
+    size_t Count, const device &Dev, const context &Ctxt, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_shared<T>(Count, Dev, Ctxt, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+void *malloc_shared(
+    size_t NumBytes, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_shared(NumBytes, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+T *malloc_shared(
+    size_t Count, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return malloc_shared<T>(Count, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+void *aligned_alloc_shared(
+    size_t Alignment, size_t NumBytes, const device &Dev, const context &Ctxt,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_shared(Alignment, NumBytes, Dev, Ctxt, property_list{},
+                              CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+T *aligned_alloc_shared(
+    size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_shared<T>(Alignment, Count, Dev, Ctxt, property_list{},
+                                 CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+void *aligned_alloc_shared(
+    size_t Alignment, size_t NumBytes, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_shared(Alignment, NumBytes, Q, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmShared<PropertyOrList>>>
+T *aligned_alloc_shared(
+    size_t Alignment, size_t Count, const queue &Q, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  return aligned_alloc_shared<T>(Alignment, Count, Q, property_list{}, CodeLoc);
+}
+
+// sycl_khr_properties parameterized allocation overloads.
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+void *malloc(
+    size_t NumBytes, const device &Dev, const context &Ctxt, usm::alloc Kind,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return malloc(NumBytes, Dev, Ctxt, Kind, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+T *malloc(
+    size_t Count, const device &Dev, const context &Ctxt, usm::alloc Kind,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return malloc<T>(Count, Dev, Ctxt, Kind, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+void *malloc(
+    size_t NumBytes, const queue &Q, usm::alloc Kind, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return malloc(NumBytes, Q, Kind, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+T *malloc(
+    size_t Count, const queue &Q, usm::alloc Kind, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return malloc<T>(Count, Q, Kind, property_list{}, CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+void *aligned_alloc(
+    size_t Alignment, size_t NumBytes, const device &Dev, const context &Ctxt,
+    usm::alloc Kind, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return aligned_alloc(Alignment, NumBytes, Dev, Ctxt, Kind, property_list{},
+                       CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+T *aligned_alloc(
+    size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
+    usm::alloc Kind, PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return aligned_alloc<T>(Alignment, Count, Dev, Ctxt, Kind, property_list{},
+                          CodeLoc);
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+void *aligned_alloc(
+    size_t Alignment, size_t NumBytes, const queue &Q, usm::alloc Kind,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return aligned_alloc(Alignment, NumBytes, Q, Kind, property_list{}, CodeLoc);
+}
+
+template <
+    typename T, typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForUsmAny<PropertyOrList>>>
+T *aligned_alloc(
+    size_t Alignment, size_t Count, const queue &Q, usm::alloc Kind,
+    PropertyOrList,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  detail::checkKhrPropsForUsmKind<PropertyOrList>(Kind);
+  return aligned_alloc<T>(Alignment, Count, Q, Kind, property_list{}, CodeLoc);
+}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 // Device copy enhancement APIs, prepare_for and release_from USM.
 
