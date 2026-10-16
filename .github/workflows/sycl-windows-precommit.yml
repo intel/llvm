@@ -60,6 +60,67 @@ jobs:
       e2e_binaries_artifact: sycl_windows_e2ebin
       e2e_binaries_new_offload_model_artifact: sycl_windows_e2ebin_with_new_offload_model
 
+  build_debug_runtime:
+    name: Debug runtime (${{ matrix.loader }})
+    needs: [detect_changes]
+    if: success() && github.repository == 'intel/llvm'
+    runs-on: [Windows, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - loader: static-default
+            configure_args: ''
+          - loader: shared
+            configure_args: '-DUR_STATIC_LOADER=OFF'
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        sparse-checkout: |
+          devops/actions
+    - uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
+      with:
+        arch: x64
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "CCACHE_DIR=D:\github\_work\cache\debug-runtime-${{ matrix.loader }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
+      with:
+        path: src
+        ref: ${{ github.sha }}
+        cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
+    - name: Configure Debug runtime
+      shell: cmd
+      env:
+        ARGS: ${{ matrix.configure_args }}
+      run: |
+        mkdir build
+        IF NOT EXIST D:\github\_work\cache\debug-runtime-${{ matrix.loader }} MKDIR D:\github\_work\cache\debug-runtime-${{ matrix.loader }}
+        python.exe src/buildbot/configure.py -o build ^
+          --ci-defaults --build-type Debug --disable-jit %ARGS% ^
+          -DCMAKE_C_COMPILER=cl ^
+          -DCMAKE_CXX_COMPILER=cl ^
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+    - name: Build release-CRT and debug-CRT runtimes
+      run: cmake --build build --target sycl-runtime-libraries unified-runtimed-build
+    - name: Check both SYCL DLL variants were built
+      shell: powershell
+      run: |
+        $dlls = Get-ChildItem build/bin -Filter 'sycl*.dll'
+        if (-not ($dlls.Name -match '^sycl[0-9]+\.dll$')) {
+          throw 'The release-CRT SYCL DLL was not built'
+        }
+        if (-not ($dlls.Name -match '^sycl[0-9]+d\.dll$')) {
+          throw 'The debug-CRT SYCL DLL was not built'
+        }
+
   run_prebuilt_e2e_tests:
     needs: build
     # Continue if build was successful.

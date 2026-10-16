@@ -90,16 +90,47 @@ if(WIN32)
   set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
   set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
 endif()
+
+
+# Initialize UR_STATIC_LOADER before the XPTI check.
+# If not set, UR initializes it later, inside add_subdirectory().
+option(UR_STATIC_LOADER "Build loader as a static library" ON)
+
+# The in-tree static UR libraries use /MD even in Debug configurations,
+# so force the release CRT XPTI library.
+if(WIN32 AND UR_STATIC_LOADER)
+  set(UR_XPTI_TARGET xpti)
+endif()
+
 add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 
 # Restore original flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
 if(WIN32 AND UR_STATIC_LOADER)
-  foreach(_ur_static_target ur_loader ur_common)
-    if(TARGET ${_ur_static_target})
-      set_target_properties(${_ur_static_target} PROPERTIES
+  # ur_loader/ur_common go into the /MD sycl runtime, so everything linked with
+  # them must match. Create a list of the adapters for all enabled backends that
+  # need to be updated.
+  list(TRANSFORM SYCL_ENABLE_BACKENDS PREPEND "ur_adapter_"
+    OUTPUT_VARIABLE _ur_crt_targets)
+  # Add the remaining targets that don't match the "ur_adapter_*" pattern.
+  list(APPEND _ur_crt_targets
+    ur_loader ur_common ur_adapter_level_zero_common ze_loader level_zero_utils
+    urinfo ur_collector collector test_collector hwloc)
+  foreach(_ur_target IN LISTS _ur_crt_targets)
+    if(TARGET ${_ur_target})
+      # Force the release CRT (/MD), even in Debug builds.
+      set_target_properties(${_ur_target} PROPERTIES
         MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    endif()
+  endforeach()
+  foreach(_umf_target umf umf_ba umf_coarse umf_utils)
+    if(TARGET ${_umf_target})
+      get_target_property(_umf_compile_options ${_umf_target} COMPILE_OPTIONS)
+      string(REPLACE "/MD$<$<CONFIG:Debug>:d>" "/MD"
+        _umf_compile_options "${_umf_compile_options}")
+      set_target_properties(${_umf_target} PROPERTIES
+        COMPILE_OPTIONS "${_umf_compile_options}")
     endif()
   endforeach()
 endif()
@@ -217,6 +248,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       --target install-unified-runtime-libraries
     CMAKE_CACHE_ARGS
       -DCMAKE_BUILD_TYPE:STRING=Debug
+      -DCMAKE_MSVC_RUNTIME_LIBRARY:STRING=MultiThreadedDebugDLL
       -DCMAKE_INSTALL_PREFIX:STRING=<INSTALL_DIR>
       # Enable d suffix on libraries
       -DUR_USE_DEBUG_POSTFIX:BOOL=ON
