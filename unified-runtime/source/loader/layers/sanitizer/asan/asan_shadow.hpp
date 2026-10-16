@@ -114,6 +114,8 @@ struct ShadowMemoryGPU : public ShadowMemory {
                                  uptr *&Base, uptr &Begin,
                                  uptr &End) override final;
 
+  virtual uptr GetStartAddress() { return 0; }
+
   ur_mutex VirtualMemMapsMutex;
 
   std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
@@ -147,6 +149,8 @@ struct ShadowMemoryPVC final : public ShadowMemoryGPU {
   uptr MemToShadow(uptr Ptr) override;
 
   size_t GetShadowSize() override { return 0x180000000000ULL; }
+
+  uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };
 
 /// Shadow Memory layout of GPU DG2 device
