@@ -44,11 +44,9 @@ using namespace llvm;
 using namespace llvm::offloading;
 using namespace llvm::util;
 
-namespace {
-
 /// Note: Returned values are a part of ABI. If you want to change them
 /// then coordinate it with SYCL Runtime.
-int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
+int8_t llvm::offloading::binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   switch (Format) {
   case SYCLBinaryImageFormat::BIF_None:
     return 0;
@@ -64,6 +62,8 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
     llvm_unreachable("unexpected SYCLBinaryImageFormat");
   }
 }
+
+namespace {
 
 /// Wrapper helper class that creates all LLVM IRs wrapping given images.
 /// Note: All created structures, "_pi_device_*", "__sycl_*" and "__tgt*" names
