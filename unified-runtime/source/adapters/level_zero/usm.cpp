@@ -726,10 +726,20 @@ ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
+static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr,
+                               bool BlockingFree = false) {
   ur_result_t Res = UR_RESULT_SUCCESS;
   if (checkL0LoaderTeardown()) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+    ze_result_t ZeResult;
+    if (BlockingFree) {
+      ze_memory_free_ext_desc_t FreeDesc = {};
+      FreeDesc.stype = ZE_STRUCTURE_TYPE_MEMORY_FREE_EXT_DESC;
+      FreeDesc.freePolicy = ZE_DRIVER_MEMORY_FREE_POLICY_EXT_FLAG_BLOCKING_FREE;
+      ZeResult =
+          ZE_CALL_NOCHECK(zeMemFreeExt, (Context->ZeContext, &FreeDesc, Ptr));
+    } else {
+      ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+    }
     // Handle When the driver is already released
     if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
       Res = UR_RESULT_SUCCESS;
@@ -756,6 +766,19 @@ L0MemoryProvider::initialize(ur_context_handle_t Ctx,
   Context = Ctx;
   Device = Dev;
 
+  // Without USM pooling every free goes directly to the driver, so the memory
+  // may still be in use by the device. Wait for it like the V2 adapter does.
+  if (Dev) {
+    BlockingFree = Dev->isUsmPoolingDisabled();
+  } else {
+    const auto &Devices = Ctx->getDevices();
+    BlockingFree =
+        !Devices.empty() &&
+        std::all_of(Devices.begin(), Devices.end(), [](ur_device_handle_t D) {
+          return D->isUsmPoolingDisabled();
+        });
+  }
+
   return UMF_RESULT_SUCCESS;
 }
 
@@ -776,7 +799,7 @@ enum umf_result_t L0MemoryProvider::alloc(size_t Size, size_t Align,
 enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
   (void)Size;
 
-  auto Res = USMFreeImpl(Context, Ptr);
+  auto Res = USMFreeImpl(Context, Ptr, BlockingFree);
   if (Res != UR_RESULT_SUCCESS) {
     getLastStatusRef() = Res;
     return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
