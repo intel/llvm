@@ -1993,10 +1993,11 @@ Error OffloadBundler::UnbundleFiles() {
       if (Error Err = (*IDHandlerOrErr)->getBundleIDs(Input, BundleIDs))
         return Err;
     }
-    // Returns true if both or neither of \p CodeObject and \p Target have a
-    // target ID. Returns false only for SYCL when exactly one side has one,
-    // i.e. a match that relies on the ID-less fallback. The target ID values
-    // themselves are compared by isCodeObjectCompatible.
+    // Returns false only if exactly one of the SYCL bundle entry (CodeObject)
+    // and the requested -targets ID (Target) has a target ID, e.g. entry
+    // sycl-spir64_gen-unknown-unknown and target
+    // sycl-spir64_gen-unknown-unknown-pvc. Such a match relies on the ID-less
+    // fallback. Only whether a target ID is present is checked, not its value.
     auto TargetIDPresenceMatches = [](const OffloadTargetInfo &CodeObject,
                                       const OffloadTargetInfo &Target) {
       return CodeObject.OffloadKind != "sycl" ||
@@ -2030,8 +2031,9 @@ Error OffloadBundler::UnbundleFiles() {
                                  "invalid bundle id read from the bundle");
 
       OffloadTargetInfo CodeObject(CurTriple, BundlerConfig);
-      // First, look for a requested target that this entry matches exactly,
-      // e.g. entry sycl-spir64_gen-unknown-unknown-pvc for target
+      // First, look for a requested -targets ID (Target) that this bundle
+      // entry (CodeObject) matches exactly, e.g. entry
+      // sycl-spir64_gen-unknown-unknown-pvc for target
       // sycl-spir64_gen-unknown-unknown-pvc.
       auto Output = llvm::find_if(Worklist, [&](const auto &W) {
         OffloadTargetInfo Target(W.first(), BundlerConfig);
