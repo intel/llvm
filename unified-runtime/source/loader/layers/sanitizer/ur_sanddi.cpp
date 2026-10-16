@@ -12,9 +12,6 @@
 
 #include "asan/asan_ddi.hpp"
 #include "msan/msan_ddi.hpp"
-#ifdef UR_MSAN_ZE
-#include "msan/msan_ze.hpp"
-#endif
 #include "tsan/tsan_ddi.hpp"
 #include "ur_sanitizer_layer.hpp"
 
@@ -51,9 +48,6 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   case SanitizerType::MemorySanitizer:
     getContext()->Options.Init("UR_LAYER_MSAN_OPTIONS", getContext()->logger);
     initMsanInterceptor();
-#ifdef UR_MSAN_ZE
-    msan::loadZeShim();
-#endif
     return initMsanDDITable(dditable);
   case SanitizerType::ThreadSanitizer:
     getContext()->Options.Init("UR_LAYER_TSAN_OPTIONS", getContext()->logger);

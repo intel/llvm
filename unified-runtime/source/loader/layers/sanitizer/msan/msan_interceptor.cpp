@@ -188,8 +188,7 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
       return Result;
     }
 
-    if (ReportUsesUninitializedValue(LaunchInfo.Data.Host.Report,
-                                     GetKernelName(Kernel))) {
+    if (ReportUsesUninitializedValue(LaunchInfo.Data.Host.Report, Kernel)) {
       exitWithErrors();
     }
   }

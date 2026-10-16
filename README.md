@@ -64,62 +64,54 @@ See [Get Started Guide](./sycl/doc/GetStartedGuide.md).
 ### MemorySanitizer over the liboffload backend
 
 Device MemorySanitizer (MSan) works for SYCL programs that run through the UR
-offload adapter (`ONEAPI_DEVICE_SELECTOR=offload:gpu`) on Level Zero GPUs. The
-UR MSan layer can't instrument offload contexts directly, so MSan works below
-liboffload instead: a shim library with SONAME `libze_loader.so` is `dlopen`ed
-before liboffload's level_zero plugin loads Level Zero. The plugin's
-`dlopen("libze_loader.so")` then binds to the shim. The shim sends the calls
-MSan needs to hooks and forwards every other call to the real loader:
+offload adapter (`ONEAPI_DEVICE_SELECTOR=offload:gpu`) on Level Zero GPUs. It
+is separate from the UR MSan layer, which intercepts UR calls: here MSan works
+below liboffload instead. A shim library with SONAME `libze_loader.so` is
+`dlopen`ed before liboffload's level_zero plugin loads Level Zero, so the
+plugin's `dlopen("libze_loader.so")` binds to the shim. The shim sends the
+calls MSan needs to hooks and forwards every other call to the real loader:
 - `zeMemAlloc*` (shadow setup and origins)
 - `zeCommandListAppendMemoryCopy/Fill` (shadow propagation)
 - `zeModuleCreate`, `zeKernelCreate`, `zeKernelSetGroupSize`
 - `zeCommandListAppendLaunchKernel` (launch info and reports)
 
-There are two copies of this interception. The `LIBOFFLOAD_MSAN_ENABLE`
-environment variable selects which one is used at run time:
-
-| | UR shim (default) | liboffload shim (`LIBOFFLOAD_MSAN_ENABLE` set) |
-|---|---|---|
-| Loaded by | UR MSan layer (`ur_sanddi.cpp`) | level_zero plugin (`L0DynWrapper.cpp`) |
-| Shim library | `libur_msan_ze.so` | `liboffload_msan_ze.so` |
-| Build switch | always on with `UR_BUILD_ADAPTER_OFFLOAD` | `-DLIBOMPTARGET_LEVEL_ZERO_MSAN=ON` |
-| Options | `UR_LAYER_MSAN_OPTIONS` | `OFFLOAD_MSAN_OPTIONS`, else `UR_LAYER_MSAN_OPTIONS` |
+There are no changes under `unified-runtime/`.
 
 #### Usage
+
+Build liboffload with `-DLIBOMPTARGET_LEVEL_ZERO_MSAN=ON`. This needs Linux,
+`level_zero` in `LIBOMPTARGET_DLOPEN_PLUGINS` and the Level Zero headers
+(`LIBOMPTARGET_DEP_LEVEL_ZERO_INCLUDE_DIR`). `liboffload_msan_ze.so` is
+installed next to `libLLVMOffload.so`. The offload adapter finds liboffload
+through its RPATH (`UR_OFFLOAD_INSTALL_DIR`), and `LD_LIBRARY_PATH` does not
+override it.
 
 Compile as for any device MSan build. `-g` adds source lines to the reports.
 `-Xarch_device -fsanitize-memory-track-origins=1` adds origins.
 
 ```bash
 clang++ -fsycl -Xarch_device -fsanitize=memory -g app.cpp -o app
-
-# UR shim: nothing else needed.
-ONEAPI_DEVICE_SELECTOR=offload:gpu ./app
-
-# liboffload shim: needs a liboffload built with LIBOMPTARGET_LEVEL_ZERO_MSAN=ON.
 LIBOFFLOAD_MSAN_ENABLE=1 ONEAPI_DEVICE_SELECTOR=offload:gpu ./app
 ```
 
-Both modes print `==== DeviceSanitizer: MSAN` followed by any
-`use-of-uninitialized-value` reports, and abort on the first report.
+It prints `==== DeviceSanitizer: MSAN` followed by any
+`use-of-uninitialized-value` reports, and aborts on the first report.
+Options come from `OFFLOAD_MSAN_OPTIONS`, else `UR_LAYER_MSAN_OPTIONS`.
 
-The liboffload shim needs:
-- Linux
-- `level_zero` in `LIBOMPTARGET_DLOPEN_PLUGINS`
-- Level Zero headers (`LIBOMPTARGET_DEP_LEVEL_ZERO_INCLUDE_DIR`)
-
-`liboffload_msan_ze.so` is installed next to `libLLVMOffload.so`. The offload
-adapter finds liboffload through its RPATH (`UR_OFFLOAD_INSTALL_DIR`), and
-`LD_LIBRARY_PATH` does not override it.
-
-For MSan images, SYCL (`sycl/source/detail/ur.cpp`) sets
-`LIBOMPTARGET_LEVEL_ZERO_MEMORY_POOL=0` in both modes: pooled memory has no
-shadow mapped and causes GPU page faults. When `LIBOFFLOAD_MSAN_ENABLE` is set,
-SYCL also does not enable `UR_LAYER_MSAN`. Instead it sets the environment the
-layer would otherwise set:
+When `LIBOFFLOAD_MSAN_ENABLE` is set, SYCL (`sycl/source/detail/ur.cpp`) does
+not enable `UR_LAYER_MSAN` for MSan images. Instead it sets:
 - `LIBOMPTARGET_LEVEL_ZERO_MSAN=1`, which makes the plugin load the shim
+- `LIBOMPTARGET_LEVEL_ZERO_MEMORY_POOL=0`: pooled memory has no shadow mapped
+  and causes GPU page faults
 - `NEOReadDebugKeys=1`, `AllocateHostAllocationsInHeapExtendedHost=0` and
   `UseHighAlignmentForHeapExtended=0`
+
+Without `LIBOFFLOAD_MSAN_ENABLE`, behavior is unchanged from upstream.
+
+**Prerequisite (separate fix):** the offload adapter's `urProgramBuildExp`
+fails with "Liboffload doesn't support link options" for any build option, so
+every SYCL program compiled with `-g` fails on `offload:gpu`, with or without
+MSan. That has to be fixed in the adapter separately.
 
 #### Changes
 
@@ -137,23 +129,8 @@ layer would otherwise set:
   `level_zero/CMakeLists.txt` adds the `LIBOMPTARGET_LEVEL_ZERO_MSAN` option.
   `dynamic_l0/L0DynWrapper.cpp` calls `loadZeShim()` before loading Level
   Zero.
-- **Unified Runtime** (`unified-runtime/source/`):
-  - `loader/layers/sanitizer/msan/msan_ze*`, `msan/ze_shim/` and the
-    `CMakeLists.txt` block: the UR copy of the shim and hooks.
-  - `msan/msan_ddi.cpp`, `msan/msan_interceptor.*`: offload contexts are left
-    unregistered, so every UR-level MSan hook that would look up their state
-    passes them through.
-  - `msan/msan_report.*`: the report takes the kernel name as a string, so the
-    Level Zero hooks can use it.
-  - `ur_sanddi.cpp`: loads the shim when the MSan layer starts.
-  - `adapters/offload/program.cpp`: `urProgramBuildExp` ignores build options
-    instead of failing, because liboffload builds programs on creation.
-    Without this, any SYCL program compiled with `-g` fails on the offload
-    adapter, with or without MSan.
 - **SYCL**:
-  - `sycl/source/detail/ur.cpp`: sets `LIBOMPTARGET_LEVEL_ZERO_MEMORY_POOL=0`
-    for MSan in both modes, and adds the `LIBOFFLOAD_MSAN_ENABLE` switch.
-  - `sycl/cmake/modules/BuildUnifiedRuntime.cmake`: installs `ur_msan_ze`.
+  - `sycl/source/detail/ur.cpp`: the `LIBOFFLOAD_MSAN_ENABLE` switch.
   - `sycl/test-e2e/MemorySanitizer/lit.local.cfg`: liboffload reports no
     architecture, so offload on PVC is treated as `level_zero` +
     `arch-intel_gpu_pvc`.
@@ -171,15 +148,14 @@ layer would otherwise set:
 #### Testing
 
 ```bash
-llvm-lit --param sycl_devices="offload:gpu" sycl/test-e2e/MemorySanitizer
-# liboffload shim:
 LIBOFFLOAD_MSAN_ENABLE=1 llvm-lit --param sycl_devices="offload:gpu" \
   --param extra_system_environment=LIBOFFLOAD_MSAN_ENABLE \
   sycl/test-e2e/MemorySanitizer
 ```
 
-On PVC both modes pass 20 tests, fail 4 and mark 3 unsupported. The 4
-failures are offload adapter limitations that hit before MSan runs:
+On PVC, with the adapter `-g` fix applied, 20 tests pass, 4 fail and 3 are
+unsupported. The 4 failures are offload adapter limitations that hit before
+MSan runs:
 - `check_usm2d`: 2D USM
 - `gpu_aot`: AOT images
 - `check_device_global`: device globals

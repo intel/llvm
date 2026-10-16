@@ -117,37 +117,3 @@ endif()
 
 # Loaded at runtime, so there is no link time dependency to pull it in.
 add_dependencies(ur_loader ur_sanitizer_layer)
-
-# MSan over the offload adapter: the layer dlopens libur_msan_ze.so, which
-# liboffload's level_zero plugin then binds to as "libze_loader.so".
-if(UR_BUILD_ADAPTER_OFFLOAD)
-    include(FetchLevelZero)
-    target_sources(ur_sanitizer_layer PRIVATE
-        msan/msan_ze.cpp
-        msan/msan_ze_intercept.cpp
-    )
-    # Headers only: the layer must not depend on libze_loader.
-    target_link_libraries(ur_sanitizer_layer PRIVATE LevelZeroLoader-Headers)
-    target_compile_definitions(ur_sanitizer_layer PRIVATE UR_MSAN_ZE=1)
-
-    # Link-time stand-in giving the shim DT_NEEDED libze_loader.so.1 whether
-    # LevelZeroLoader is shared or static. Not installed.
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/ze_loader_needed.cpp "")
-    add_library(ur_msan_ze_needed SHARED
-        ${CMAKE_CURRENT_BINARY_DIR}/ze_loader_needed.cpp)
-    set_target_properties(ur_msan_ze_needed PROPERTIES NO_SONAME ON)
-    target_link_options(ur_msan_ze_needed PRIVATE
-        "-Wl,-soname,libze_loader.so.1")
-
-    add_ur_library(ur_msan_ze SHARED msan/ze_shim/msan_ze_shim.cpp)
-    # Not in the export set: nothing links against it.
-    install(TARGETS ur_msan_ze COMPONENT unified-runtime
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-    target_link_libraries(ur_msan_ze PRIVATE
-        LevelZeroLoader-Headers
-        -Wl,--no-as-needed ur_msan_ze_needed -Wl,--as-needed
-    )
-    set_target_properties(ur_msan_ze PROPERTIES NO_SONAME ON)
-    target_link_options(ur_msan_ze PRIVATE "-Wl,-soname,libze_loader.so")
-    add_dependencies(ur_loader ur_msan_ze)
-endif()

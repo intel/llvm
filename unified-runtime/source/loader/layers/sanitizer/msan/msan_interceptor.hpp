@@ -323,11 +323,6 @@ public:
     return UR_RESULT_SUCCESS;
   }
 
-  bool hasContext(ur_context_handle_t Context) {
-    std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
-    return m_ContextMap.find(Context) != m_ContextMap.end();
-  }
-
   std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
     std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) != m_ContextMap.end());
