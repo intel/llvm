@@ -26,15 +26,6 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   return value;
 }
 
-std::optional<std::pair<int32_t, int32_t>> getStreamPriorityRange() {
-  int Least = 0, Greatest = 0;
-  UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(&Least, &Greatest));
-  // The UR API requires a range containing the default priority 0.
-  if (Greatest >= Least || Greatest > 0 || Least < 0)
-    return std::nullopt;
-  return std::pair<int32_t, int32_t>{Least, Greatest};
-}
-
 uint64_t ur_device_handle_t_::getElapsedTime(CUevent ev) const {
   float Milliseconds = 0.0f;
 
