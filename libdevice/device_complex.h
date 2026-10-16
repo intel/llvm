@@ -10,6 +10,8 @@
 
 #include "device.h"
 
+#include <sycl/detail/numbers.hpp>
+
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 // TODO: This needs to be more robust.

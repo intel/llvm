@@ -191,7 +191,7 @@ static inline double __complex__ __sqr(double __complex__ z) {
 static inline double __complex__ __devicelib_cacos(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
-  const double __pi(__spirv_ocl_atan2(+0.0, -0.0));
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return CMPLX(z_imag, z_real);
@@ -213,19 +213,23 @@ static inline double __complex__ __devicelib_cacos(double __complex__ z) {
     return CMPLX(__pi / 2.0, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return CMPLX(__pi / 2.0, -z_imag);
+  // For real(z) < 0, z + sqrt(z^2-1) cancels; use acos(z) = pi - acos(-z).
+  const bool refl = __spirv_SignBitSet(z_real);
+  double __complex__ zr = refl ? -z : z;
   double __complex__ w =
-      __devicelib_clog(z + __devicelib_csqrt(__sqr(z) - 1.0));
+      __devicelib_clog(zr + __devicelib_csqrt(__sqr(zr) - 1.0));
+  double re = __spirv_ocl_fabs(__devicelib_cimag(w));
+  if (refl)
+    re = __pi - re;
   if (__spirv_SignBitSet(z_imag))
-    return CMPLX(__spirv_ocl_fabs(__devicelib_cimag(w)),
-                 __spirv_ocl_fabs(__devicelib_creal(w)));
-  return CMPLX(__spirv_ocl_fabs(__devicelib_cimag(w)),
-               -__spirv_ocl_fabs(__devicelib_creal(w)));
+    return CMPLX(re, __spirv_ocl_fabs(__devicelib_creal(w)));
+  return CMPLX(re, -__spirv_ocl_fabs(__devicelib_creal(w)));
 }
 
 static inline double __complex__ __devicelib_casinh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
-  const double __pi(__spirv_ocl_atan2(+0.0, -0.0));
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return z;
@@ -243,8 +247,11 @@ static inline double __complex__ __devicelib_casinh(double __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return CMPLX(__spirv_ocl_copysign(z_imag, z_real),
                  __spirv_ocl_copysign(__pi / 2.0, z_imag));
+  // For real(z) < 0, z + sqrt(z^2+1) cancels; use asinh(z) = -asinh(-z),
+  // with the copysign calls below restoring the signs.
+  double __complex__ zr = __spirv_SignBitSet(z_real) ? -z : z;
   double __complex__ w =
-      __devicelib_clog(z + __devicelib_csqrt(__sqr(z) + 1.0));
+      __devicelib_clog(zr + __devicelib_csqrt(__sqr(zr) + 1.0));
   return CMPLX(__spirv_ocl_copysign(__devicelib_creal(w), z_real),
                __spirv_ocl_copysign(__devicelib_cimag(w), z_imag));
 }
@@ -258,7 +265,7 @@ static inline double __complex__ __devicelib_casin(double __complex__ z) {
 static inline double __complex__ __devicelib_cacosh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
-  const double __pi(__spirv_ocl_atan2(+0.0, -0.0));
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_real)) {
     if (__spirv_IsNan(z_imag))
       return CMPLX(__spirv_ocl_fabs(z_real), z_imag);
@@ -280,16 +287,23 @@ static inline double __complex__ __devicelib_cacosh(double __complex__ z) {
   if (__spirv_IsInf(z_imag))
     return CMPLX(__spirv_ocl_fabs(z_imag),
                  __spirv_ocl_copysign(__pi / 2.0, z_imag));
+  // For real(z) < 0, z + sqrt(z^2-1) cancels; use
+  // acosh(z) = acosh(-z) + i*copysign(pi, imag(z)).
+  const bool refl = __spirv_SignBitSet(z_real);
+  double __complex__ zr = refl ? -z : z;
   double __complex__ w =
-      __devicelib_clog(z + __devicelib_csqrt(__sqr(z) - 1.0));
+      __devicelib_clog(zr + __devicelib_csqrt(__sqr(zr) - 1.0));
+  double im = __spirv_ocl_fabs(__devicelib_cimag(w));
+  if (refl)
+    im = __pi - im;
   return CMPLX(__spirv_ocl_copysign(__devicelib_creal(w), 0.0),
-               __spirv_ocl_copysign(__devicelib_cimag(w), z_imag));
+               __spirv_ocl_copysign(im, z_imag));
 }
 
 static inline double __complex__ __devicelib_catanh(double __complex__ z) {
   double z_real = __devicelib_creal(z);
   double z_imag = __devicelib_cimag(z);
-  const double __pi(__spirv_ocl_atan2(+0.0, -0.0));
+  constexpr double __pi = sycl::detail::numbers::pi;
   if (__spirv_IsInf(z_imag))
     return CMPLX(__spirv_ocl_copysign(0.0, z_real),
                  __spirv_ocl_copysign(__pi / 2.0, z_imag));
