@@ -3,6 +3,8 @@
 // REQUIRES: spirv-to-ir-wrapper, sycl-post-link
 // -------
 // Generate .o file as linker wrapper input.
+// These objects are built in RDC mode on purpose: they carry the packaged
+// device code that the clang-linker-wrapper runs below consume.
 //
 // RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
 // RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
@@ -352,7 +354,9 @@
 // With several GPU architectures, all their images are wrapped into a single
 // wrapper module.
 // RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.multi.syclfb %t_aot_gpu_multi.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-MULTI %s
-// CHK-FATBIN-ONLY-MULTI: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}, input: {{.*}}
+// CHK-FATBIN-ONLY-MULTI-DAG: ocloc{{.*}} -device pvc{{.*}} -output [[PVC:[^ ]+]]
+// CHK-FATBIN-ONLY-MULTI-DAG: ocloc{{.*}} -device dg2{{.*}} -output [[DG2:[^ ]+]]
+// CHK-FATBIN-ONLY-MULTI: offload-wrapper: output: [[WRAPPEROUT:.*]].bc,{{.*}} input: [[DG2]],{{.*}} input: [[PVC]],
 // CHK-FATBIN-ONLY-MULTI-NOT: offload-wrapper:
 // CHK-FATBIN-ONLY-MULTI: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.multi.syclfb
 // CHK-FATBIN-ONLY-MULTI-NOT: "{{.*}}/ld"
