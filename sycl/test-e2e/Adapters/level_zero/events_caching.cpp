@@ -11,14 +11,15 @@
 // we need a new one.
 //
 // L0v2 has no on/off switch for event caching, but reuses events via a
-// counter-based event API. The driver may expose it under the experimental
-// name (zexCounterBasedEventCreate2) or its promoted stable name
-// (zeEventCounterBasedCreate), depending on driver version; either way, far
-// fewer than 256 creations are expected.
+// counter-based event API. Which name and whether the create side is even
+// traced varies by driver/OS, so check the destroy side instead: zeEventCreate
+// stays 0 (no legacy events), and far fewer than 256 counter-based events
+// should be destroyed.
 
 // CACHING-ENABLED: zeEventCreate = {{[1-9]}}
 // CACHING-DISABLED: zeEventCreate = 256
-// CHECK-V2: {{zexCounterBasedEventCreate2|zeEventCounterBasedCreate}} = {{[1-9][0-9]?}}
+// CHECK-V2: zeEventCreate = 0
+// CHECK-V2: zeEventDestroy = {{[1-9][0-9]?}}
 
 // Check event caching modes in the L0 adapter.
 
