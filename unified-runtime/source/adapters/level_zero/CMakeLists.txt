@@ -6,6 +6,7 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
     set(UR_L0_COMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/common/device.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/platform.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/usm_pooling_disabled.hpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/common/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/device.cpp

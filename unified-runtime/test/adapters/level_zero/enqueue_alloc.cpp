@@ -9,6 +9,7 @@
 #include <thread>
 
 #include "unified-runtime/ur_api.h"
+#include "usm_pooling_disabled.hpp"
 #include "uur/utils.h"
 #include <uur/fixtures.h>
 
@@ -31,6 +32,38 @@ std::ostream &operator<<(std::ostream &os, EnqueueAllocTestParam param) {
   }
 
   return os;
+}
+
+// Mirrors ur_device_handle_t_::isUsmPoolingDisabled() in
+// adapters/level_zero/common/device.cpp: USM pooling (and therefore the
+// address-reuse optimization it enables) is disabled by the adapter for
+// Xe2-or-newer devices when running on L0 driver
+// UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR.MINOR or newer. On such
+// configurations the adapter falls back to a UMF proxy pool, which has no
+// reuse semantics, so tests must not assume a freed allocation's address
+// will be reused.
+bool isUsmPoolingDisabledForDevice(ur_device_handle_t device) {
+  uint32_t vendorId = 0;
+  if (urDeviceGetInfo(device, UR_DEVICE_INFO_VENDOR_ID, sizeof(vendorId),
+                      &vendorId, nullptr) != UR_RESULT_SUCCESS) {
+    return false;
+  }
+
+  uint32_t ipVersion = 0;
+  if (urDeviceGetInfo(device, UR_DEVICE_INFO_IP_VERSION, sizeof(ipVersion),
+                      &ipVersion, nullptr) != UR_RESULT_SUCCESS) {
+    return false;
+  }
+  constexpr uint32_t BMGMinIpVersion = 0x05004000;
+  bool isBMGOrNewer = (vendorId == 0x8086) && (ipVersion >= BMGMinIpVersion);
+  if (!isBMGOrNewer) {
+    return false;
+  }
+
+  auto [major, minor, patch] = uur::getDriverVersion(device);
+  return std::make_tuple(major, minor, patch) >=
+         std::make_tuple(UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR,
+                         UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MINOR, 0);
 }
 
 struct urL0EnqueueAllocTest
@@ -235,7 +268,15 @@ TEST_P(urL0EnqueueAllocTest, SuccessReuse) {
   ur_event_handle_t allocEvent2 = nullptr;
   ASSERT_SUCCESS(enqueueUSMAllocFunc(queue, nullptr, sizeof(DATA), nullptr, 1,
                                      &freeEvent, &ptr2, &allocEvent2));
-  ASSERT_EQ(ptr2, ptr); // Memory should be reused from previous allocation.
+  // Memory should normally be reused from the previous allocation. However,
+  // on Xe2-or-newer devices with L0 driver
+  // UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR.MINOR or newer, the adapter
+  // disables USM pooling and falls back to a UMF proxy pool (see
+  // ur_device_handle_t_::isUsmPoolingDisabled()), which has no reuse
+  // semantics, so the address is not guaranteed to be reused there.
+  if (!isUsmPoolingDisabledForDevice(device)) {
+    ASSERT_EQ(ptr2, ptr);
+  }
   ASSERT_NE(allocEvent2, nullptr);
 
   ASSERT_SUCCESS(urEventRelease(allocEvent));
