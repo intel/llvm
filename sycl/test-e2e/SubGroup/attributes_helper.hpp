@@ -74,7 +74,7 @@ int runTests() {
       // Get the previous power of 2
       auto ReqdSize = flp2(SGSize);
 
-      std::cout << "Run for " << ReqdSize << " required workgroup size.\n";
+      std::cout << "Run for " << ReqdSize << " required sub-group size.\n";
 
       // Store the `sycl::kernel` into a vector because `sycl::kernel`
       // doesn't have default constructor
