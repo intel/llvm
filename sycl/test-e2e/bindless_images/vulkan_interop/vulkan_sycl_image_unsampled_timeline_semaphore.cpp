@@ -167,8 +167,8 @@ int runTest(
   uint64_t syclSignalVal = 2;
 
   try {
-    // External semaphore ops require an in-order queue backed by immediate
-    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::queue q{
         {sycl::property::queue::in_order{},
          sycl::ext::intel::property::queue::immediate_command_list{}}};
