@@ -5195,14 +5195,6 @@ ConstantAddress CodeGenModule::GetWeakRefReference(const ValueDecl *VD) {
   return ConstantAddress(Aliasee, DeclTy, Alignment);
 }
 
-template <typename AttrT> static bool hasImplicitAttr(const ValueDecl *D) {
-  if (!D)
-    return false;
-  if (auto *A = D->getAttr<AttrT>())
-    return A->isImplicit();
-  return D->isImplicit();
-}
-
 static bool shouldSkipAliasEmission(const CodeGenModule &CGM,
                                     const ValueDecl *Global) {
   const LangOptions &LangOpts = CGM.getLangOpts();
@@ -5233,19 +5225,6 @@ static bool shouldSkipAliasEmission(const CodeGenModule &CGM,
   // CUDA / HIP Host
   // we know that the aliasee exists from above, so we know to emit
   return false;
-}
-
-bool CodeGenModule::shouldEmitCUDAGlobalVar(const VarDecl *Global) const {
-  assert(LangOpts.CUDA && "Should not be called by non-CUDA languages");
-  // We need to emit host-side 'shadows' for all global
-  // device-side variables because the CUDA runtime needs their
-  // size and host-side address in order to provide access to
-  // their device-side incarnations.
-  return !LangOpts.CUDAIsDevice || Global->hasAttr<CUDADeviceAttr>() ||
-         Global->hasAttr<CUDAConstantAttr>() ||
-         Global->hasAttr<CUDASharedAttr>() ||
-         Global->getType()->isCUDADeviceBuiltinSurfaceType() ||
-         Global->getType()->isCUDADeviceBuiltinTextureType();
 }
 
 void CodeGenModule::EmitGlobal(GlobalDecl GD) {
@@ -5288,42 +5267,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     return emitCPUDispatchDefinition(GD);
 
   // If this is CUDA, be selective about which declarations we emit.
-  // Non-constexpr non-lambda implicit host device functions are not emitted
-  // unless they are used on device side.
-  if (LangOpts.CUDA) {
-    assert((isa<FunctionDecl>(Global) || isa<VarDecl>(Global)) &&
-           "Expected Variable or Function");
-    if (const auto *VD = dyn_cast<VarDecl>(Global)) {
-      if (!shouldEmitCUDAGlobalVar(VD))
-        return;
-    } else if (LangOpts.CUDAIsDevice) {
-      const auto *FD = dyn_cast<FunctionDecl>(Global);
-      if ((!Global->hasAttr<CUDADeviceAttr>() ||
-           (LangOpts.OffloadImplicitHostDeviceTemplates &&
-            hasImplicitAttr<CUDAHostAttr>(FD) &&
-            hasImplicitAttr<CUDADeviceAttr>(FD) && !FD->isConstexpr() &&
-            !isLambdaCallOperator(FD) &&
-            !getContext().CUDAImplicitHostDeviceFunUsedByDevice.count(FD))) &&
-          !Global->hasAttr<CUDAGlobalAttr>() &&
-          !(LangOpts.HIPStdPar && isa<FunctionDecl>(Global) &&
-            !Global->hasAttr<CUDAHostAttr>()))
-        return;
-      // Device-only functions are the only things we skip.
-    } else {
-      // We need to emit host-side 'shadows' for all global
-      // device-side variables because the CUDA runtime needs their
-      // size and host-side address in order to provide access to
-      // their device-side incarnations.
-
-      // So device-only functions are the only things we skip, except for SYCL.
-      if (!LangOpts.isSYCL() && isa<FunctionDecl>(Global) &&
-          !Global->hasAttr<CUDAHostAttr>() && Global->hasAttr<CUDADeviceAttr>())
-        return;
-
-      assert((isa<FunctionDecl>(Global) || isa<VarDecl>(Global)) &&
-             "Expected Variable or Function");
-    }
-  }
+  // Device-only functions are skipped on the host side, except for SYCL
+  // (SYCL and CUDA in the same TU).
+  if (LangOpts.CUDA && !getContext().shouldEmitCUDADecl(Global) &&
+      !(LangOpts.isSYCL() && !LangOpts.CUDAIsDevice &&
+        isa<FunctionDecl>(Global)))
+    return;
 
   // Don't emit 'sycl_device_only' function in SYCL host compilation.
   if (LangOpts.SYCLIsHost && isa<FunctionDecl>(Global) &&
@@ -7681,7 +7630,7 @@ static void ReplaceUsesOfNonProtoTypeWithRealFunction(llvm::GlobalValue *Old,
 void CodeGenModule::HandleCXXStaticMemberVarInstantiation(VarDecl *VD) {
   auto DK = VD->isThisDeclarationADefinition();
   if ((DK == VarDecl::Definition && VD->hasAttr<DLLImportAttr>()) ||
-      (LangOpts.CUDA && !shouldEmitCUDAGlobalVar(VD)))
+      (LangOpts.CUDA && !getContext().shouldEmitCUDADecl(VD)))
     return;
 
   TemplateSpecializationKind TSK = VD->getTemplateSpecializationKind();
