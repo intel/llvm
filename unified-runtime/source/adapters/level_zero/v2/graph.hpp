@@ -28,9 +28,15 @@ public:
   ze_graph_handle_t getZeHandle() { return zeGraph; }
   ur_context_handle_t getContext() { return hContext; }
 
+  // Keeps the event out of its pool until the graph is destroyed.
+  void retainCapturedEvent(ur_event_handle_t hEvent);
+
 private:
   ur_context_handle_t hContext = nullptr;
   ze_graph_handle_t zeGraph = nullptr;
+
+  ur_mutex capturedEventsMutex;
+  std::vector<ur_event_handle_t> capturedEvents;
 };
 
 struct ur_exp_executable_graph_handle_t_ : v2::ur_object_t {
