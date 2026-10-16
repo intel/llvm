@@ -82,6 +82,10 @@ public:
     return result;                                                             \
   }
 
+// SYCL 2020 mandates the id to size_t conversion, so the
+// __SYCL_DISABLE_ID_TO_INT_CONV__ opt-out is obsolete and is ignored in preview
+// mode.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   // Enable operators with integral types only
 #define __SYCL_GEN_OPT(op)                                                     \
@@ -124,6 +128,29 @@ public:
     return result;                                                             \
   }
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+  // Enable operators with integral types only
+#define __SYCL_GEN_OPT(op)                                                     \
+  __SYCL_GEN_OPT_BASE(op)                                                      \
+  template <typename T>                                                        \
+  friend IntegralType<T, range<Dimensions>> operator op(                       \
+      const range<Dimensions> &lhs, const T & rhs) noexcept {                  \
+    range<Dimensions> result(lhs);                                             \
+    for (int i = 0; i < Dimensions; ++i) {                                     \
+      result.common_array[i] = lhs.common_array[i] op rhs;                     \
+    }                                                                          \
+    return result;                                                             \
+  }                                                                            \
+  template <typename T>                                                        \
+  friend IntegralType<T, range<Dimensions>> operator op(                       \
+      const T & lhs, const range<Dimensions> &rhs) noexcept {                  \
+    range<Dimensions> result(rhs);                                             \
+    for (int i = 0; i < Dimensions; ++i) {                                     \
+      result.common_array[i] = lhs op rhs.common_array[i];                     \
+    }                                                                          \
+    return result;                                                             \
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   __SYCL_GEN_OPT(+)
   __SYCL_GEN_OPT(-)
