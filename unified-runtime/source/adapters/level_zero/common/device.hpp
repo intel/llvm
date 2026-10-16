@@ -359,9 +359,14 @@ inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
   return DevicesAndSubDevices;
 }
 
-// Returns true if USM pooling is disabled for the pool described by Desc.
-// Host pools are not associated with any device, so pooling of host memory is
-// disabled only if it is disabled for all devices in the context.
+// Returns true if USM pooling is disabled for memory of the given Device in
+// Context. A null Device denotes host memory, which is not associated with any
+// device, so its pooling is disabled only if it is disabled for all devices in
+// the context.
+bool isUsmPoolingDisabled(const ur_context_common_t *Context,
+                          ur_device_handle_t Device);
+
+// Same as above for the pool described by Desc.
 bool isUsmPoolingDisabled(const usm::pool_descriptor &Desc);
 
 } // namespace ur::level_zero

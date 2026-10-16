@@ -290,6 +290,9 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
   // sizes (e.g. SIZE_MAX). Reject host allocations larger than
   // maxMemAllocSize unless relaxed allocation limits are enabled, the same
   // way the V1 adapter does (it calls zeMemAllocHost without that descriptor).
+  // This applies to all devices, not only to those with USM pooling disabled.
+  // Host memory is accessible from every device in the context, so the
+  // largest maxMemAllocSize among them is used as the limit.
   if (type == UR_USM_TYPE_HOST) {
     bool relaxedLimits = false;
     uint64_t maxAllocSize = 0;

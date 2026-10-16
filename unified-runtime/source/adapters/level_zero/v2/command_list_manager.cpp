@@ -960,6 +960,9 @@ ur_result_t ur_command_list_manager::appendUSMFreeExp(
     // Proxy pools (used when USM pooling is disabled) do not track allocation
     // sizes. Query the size from the driver, otherwise the allocation would
     // be inserted into the async pool with size 0 and never be reused.
+    // zeMemGetAddressRange returns the size of the whole allocation, which is
+    // correct here because a USM free must be given the base pointer of an
+    // allocation.
     ZE2UR_CALL(zeMemGetAddressRange,
                (hContext->getZeHandle(), pMem, nullptr, &size));
   } else if (umfRet != UMF_RESULT_SUCCESS) {

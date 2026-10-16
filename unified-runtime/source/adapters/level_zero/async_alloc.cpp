@@ -263,7 +263,9 @@ ur_result_t urEnqueueUSMFreeExp(
     // sizes. Query the size from the driver so that the allocation can still
     // be deferred to the async pool: freeing it synchronously here could
     // release memory still used by previously enqueued work, and a size of 0
-    // would make the allocation never reusable.
+    // would make the allocation never reusable. zeMemGetAddressRange returns
+    // the size of the whole allocation, which is correct here because a USM
+    // free must be given the base pointer of an allocation.
     ZE2UR_CALL(zeMemGetAddressRange,
                (Queue->Context->ZeContext, Mem, nullptr, &Size));
   } else if (UmfRet != UMF_RESULT_SUCCESS) {

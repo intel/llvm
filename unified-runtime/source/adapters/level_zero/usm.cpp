@@ -768,16 +768,7 @@ L0MemoryProvider::initialize(ur_context_handle_t Ctx,
 
   // Without USM pooling every free goes directly to the driver, so the memory
   // may still be in use by the device. Wait for it like the V2 adapter does.
-  if (Dev) {
-    BlockingFree = Dev->isUsmPoolingDisabled();
-  } else {
-    const auto &Devices = Ctx->getDevices();
-    BlockingFree =
-        !Devices.empty() &&
-        std::all_of(Devices.begin(), Devices.end(), [](ur_device_handle_t D) {
-          return D->isUsmPoolingDisabled();
-        });
-  }
+  BlockingFree = ur::level_zero::isUsmPoolingDisabled(Ctx, Dev);
 
   return UMF_RESULT_SUCCESS;
 }

@@ -2033,21 +2033,26 @@ bool ur_device_handle_t_::isUsmPoolingDisabled() {
                                UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MINOR, 0);
 }
 
+bool isUsmPoolingDisabled(const ur_context_common_t *Context,
+                          ur_device_handle_t Device) {
+  if (Device)
+    return Device->isUsmPoolingDisabled();
+
+  const auto &Devices = Context->getDevices();
+  return !Devices.empty() &&
+         std::all_of(Devices.begin(), Devices.end(),
+                     [](ur_device_handle_t Device) {
+                       return Device->isUsmPoolingDisabled();
+                     });
+}
+
 bool isUsmPoolingDisabled(const usm::pool_descriptor &Desc) {
-  bool Disabled = false;
-  if (Desc.hDevice) {
-    Disabled = common_cast(Desc.hDevice)->isUsmPoolingDisabled();
-  } else {
-    const auto &Devices = common_cast(Desc.hContext)->getDevices();
-    Disabled =
-        !Devices.empty() && std::all_of(Devices.begin(), Devices.end(),
-                                        [](ur_device_handle_t Device) {
-                                          return Device->isUsmPoolingDisabled();
-                                        });
-  }
+  bool Disabled =
+      isUsmPoolingDisabled(common_cast(Desc.hContext),
+                           Desc.hDevice ? common_cast(Desc.hDevice) : nullptr);
 
   if (Disabled) {
-    UR_LOG(INFO,
+    UR_LOG(DEBUG,
            "USM pooling is disabled on Xe2 or newer devices with L0 driver "
            "{}.{} or newer, desc:{}",
            UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR,
