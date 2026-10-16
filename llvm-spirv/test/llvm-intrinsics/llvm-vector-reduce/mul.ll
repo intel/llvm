@@ -2,9 +2,12 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck --check-prefix CHECK-SPIRV %s
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck --check-prefix CHECK-LLVM %s
 
 target triple = "spir64-unknown-unknown"
 
+; CHECK-SPIRV-DAG: TypeBool [[#BOOLTYPE:]]
 ; CHECK-SPIRV-DAG: TypeInt [[#I8TYPE:]] 8
 ; CHECK-SPIRV-DAG: TypeInt [[#I32TYPE:]] 32
 ; CHECK-SPIRV-DAG: TypeInt [[#I16TYPE:]] 16
@@ -25,6 +28,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV-DAG: Constant [[#I32TYPE]] [[#CONST_13:]] 13
 ; CHECK-SPIRV-DAG: Constant [[#I32TYPE]] [[#CONST_14:]] 14
 ; CHECK-SPIRV-DAG: Constant [[#I32TYPE]] [[#CONST_15:]] 15
+; CHECK-SPIRV-DAG: TypeVector [[#V3XI1TYPE:]] [[#BOOLTYPE]] 3
+; CHECK-SPIRV-DAG: TypeVector [[#V4XI1TYPE:]] [[#BOOLTYPE]] 4
 ; CHECK-SPIRV-DAG: TypeVector [[#V2XI8TYPE:]] [[#I8TYPE]] 2
 ; CHECK-SPIRV-DAG: TypeVector [[#V3XI8TYPE:]] [[#I8TYPE]] 3
 ; CHECK-SPIRV-DAG: TypeVector [[#V4XI8TYPE:]] [[#I8TYPE]] 4
@@ -45,6 +50,48 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV-DAG: TypeVector [[#V4XI64TYPE:]] [[#I64TYPE]] 4
 ; CHECK-SPIRV-DAG: TypeVector [[#V8XI64TYPE:]] [[#I64TYPE]] 8
 ; CHECK-SPIRV-DAG: TypeVector [[#V16XI64TYPE:]] [[#I64TYPE]] 16
+
+; -------- I1 --------
+
+; CHECK-SPIRV: FunctionParameter [[#V3XI1TYPE]] [[#VEC_V3XI1TYPE:]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_0_V3XI1TYPE:]] [[#VEC_V3XI1TYPE]] [[#CONST_0]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_1_V3XI1TYPE:]] [[#VEC_V3XI1TYPE]] [[#CONST_1]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_2_V3XI1TYPE:]] [[#VEC_V3XI1TYPE]] [[#CONST_2]]
+
+; CHECK-SPIRV: LogicalAnd [[#BOOLTYPE]] [[#MUL_0_V3XI1TYPE:]] [[#EXTRACT_0_V3XI1TYPE]] [[#EXTRACT_1_V3XI1TYPE]]
+
+; CHECK-SPIRV: LogicalAnd [[#BOOLTYPE]] [[#MUL_1_V3XI1TYPE:]] [[#MUL_0_V3XI1TYPE]] [[#EXTRACT_2_V3XI1TYPE]]
+; CHECK-SPIRV: ReturnValue [[#MUL_1_V3XI1TYPE]]
+
+; CHECK-SPIRV: FunctionParameter [[#V4XI1TYPE]] [[#VEC_V4XI1TYPE:]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_0_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_0]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_1_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_1]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_2_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_2]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_3_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_3]]
+
+; CHECK-SPIRV: LogicalAnd [[#BOOLTYPE]] [[#MUL_0_V4XI1TYPE:]] [[#EXTRACT_0_V4XI1TYPE]] [[#EXTRACT_1_V4XI1TYPE]]
+; CHECK-SPIRV: LogicalAnd [[#BOOLTYPE]] [[#MUL_1_V4XI1TYPE:]] [[#EXTRACT_2_V4XI1TYPE]] [[#EXTRACT_3_V4XI1TYPE]]
+
+; CHECK-SPIRV: LogicalAnd [[#BOOLTYPE]] [[#MUL_2_V4XI1TYPE:]] [[#MUL_0_V4XI1TYPE]] [[#MUL_1_V4XI1TYPE]]
+; CHECK-SPIRV: ReturnValue [[#MUL_2_V4XI1TYPE]]
+
+; CHECK-LLVM-LABEL: define spir_func i1 @test_vector_reduce_mul_v3i1(
+; CHECK-LLVM: %[[#E0:]] = extractelement <3 x i1> %v, i32 0
+; CHECK-LLVM: %[[#E1:]] = extractelement <3 x i1> %v, i32 1
+; CHECK-LLVM: %[[#E2:]] = extractelement <3 x i1> %v, i32 2
+; CHECK-LLVM: %[[#R0:]] = and i1 %[[#E0]], %[[#E1]]
+; CHECK-LLVM: %res = and i1 %[[#R0]], %[[#E2]]
+; CHECK-LLVM: ret i1 %res
+
+; CHECK-LLVM-LABEL: define spir_func i1 @test_vector_reduce_mul_v4i1(
+; CHECK-LLVM: %[[#E0:]] = extractelement <4 x i1> %v, i32 0
+; CHECK-LLVM: %[[#E1:]] = extractelement <4 x i1> %v, i32 1
+; CHECK-LLVM: %[[#E2:]] = extractelement <4 x i1> %v, i32 2
+; CHECK-LLVM: %[[#E3:]] = extractelement <4 x i1> %v, i32 3
+; CHECK-LLVM: %[[#R0:]] = and i1 %[[#E0]], %[[#E1]]
+; CHECK-LLVM: %[[#R1:]] = and i1 %[[#E2]], %[[#E3]]
+; CHECK-LLVM: %res = and i1 %[[#R0]], %[[#R1]]
+; CHECK-LLVM: ret i1 %res
 
 ; -------- I8 --------
 
@@ -406,6 +453,18 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: IMul [[#I64TYPE]] [[#MUL_14_V16XI64TYPE:]] [[#MUL_12_V16XI64TYPE]] [[#MUL_13_V16XI64TYPE]]
 ; CHECK-SPIRV: ReturnValue [[#MUL_14_V16XI64TYPE]]
 
+define spir_func i1 @test_vector_reduce_mul_v3i1(<3 x i1> %v) {
+entry:
+  %res = call i1 @llvm.vector.reduce.mul.v3i1(<3 x i1> %v)
+  ret i1 %res
+}
+
+define spir_func i1 @test_vector_reduce_mul_v4i1(<4 x i1> %v) {
+entry:
+  %res = call i1 @llvm.vector.reduce.mul.v4i1(<4 x i1> %v)
+  ret i1 %res
+}
+
 define spir_func i8 @test_vector_reduce_mul_v2i8(<2 x i8> %v) {
 entry:
   %0 = call i8 @llvm.vector.reduce.mul.v2i8(<2 x i8> %v)
@@ -525,6 +584,9 @@ entry:
   %0 = call i64 @llvm.vector.reduce.mul.v16i64(<16 x i64> %v)
   ret i64 %0
 }
+
+declare i1 @llvm.vector.reduce.mul.v3i1(<3 x i1>)
+declare i1 @llvm.vector.reduce.mul.v4i1(<4 x i1>)
 
 declare i8 @llvm.vector.reduce.mul.v2i8(<2 x i8>)
 declare i8 @llvm.vector.reduce.mul.v3i8(<3 x i8>)

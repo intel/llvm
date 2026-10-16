@@ -5107,8 +5107,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     }
     VectorType *VecTy = cast<VectorType>(II->getArgOperand(0)->getType());
     SPIRVValue *VecSVal = transValue(II->getArgOperand(0), BB);
-    SPIRVTypeInt *ResultSType =
-        BM->addIntegerType(VecTy->getElementType()->getIntegerBitWidth());
+    SPIRVType *ResultSType = transType(VecTy->getElementType());
+    Op = transBoolOpCode(VecSVal, Op);
     SPIRVTypeInt *I32STy = BM->addIntegerType(32);
     unsigned VecSize = VecTy->getElementCount().getFixedValue();
     if (VecSize > 0) {

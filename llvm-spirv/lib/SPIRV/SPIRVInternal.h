@@ -161,6 +161,7 @@ template <> inline void SPIRVMap<Op, Op, IntBoolOpMapId>::init() {
   add(OpBitwiseOr, OpLogicalOr);
   add(OpBitwiseXor, OpLogicalNotEqual);
   add(OpIEqual, OpLogicalEqual);
+  add(OpIAdd, OpLogicalNotEqual);
   add(OpINotEqual, OpLogicalNotEqual);
 }
 typedef SPIRVMap<Op, Op, IntBoolOpMapId> IntBoolOpMap;
