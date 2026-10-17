@@ -53,6 +53,19 @@ To contribute:
 
 ### Pull request
 
+#### Commit e-mail address
+
+Please turn off the
+[Keep my email addresses private](https://github.com/settings/emails) setting in
+your GitHub account. When a pull request is merged, GitHub records the author of
+the resulting commit using the e-mail address from the account settings rather
+than the one used to author the commits in the pull request. So, with this
+setting enabled, the merged commit gets a `noreply` address even if your local
+`git config user.email` is a real one. See
+[LLVM Developer Policy](https://llvm.org/docs/DeveloperPolicy.html#email-addresses)
+and this [LLVM Discourse thread](https://discourse.llvm.org/t/hidden-emails-on-github-should-we-do-something-about-it)
+for more information.
+
 - When creating your commit messages, please make sure to follow
   [LLVM developer policies](
   https://llvm.org/docs/DeveloperPolicy.html#commit-messages) on the subject.
