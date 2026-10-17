@@ -402,7 +402,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
     // OpenCL's "local memory" maps most closely to HIP's "shared memory".
     // HIP has its own definition of "local memory", which maps to OpenCL's
-    // "private memory".
+    // "private memory". The size is the opt-in per-block ceiling
+    // (hipDeviceAttributeSharedMemPerBlockOptin, or the non-opt-in size when
+    // that attribute is absent). UR_HIP_MAX_LOCAL_MEM_SIZE caps it.
     if (hDevice->getMaxChosenLocalMem()) {
       return ReturnValue(
           static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
