@@ -241,6 +241,15 @@ supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
 #endif
 }
 
+static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
+  constexpr const char *ExtensionName = ZE_DEVICE_IGCA_TARGET_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
+}
+
 static std::optional<uint64_t>
 getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
 #ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
@@ -1633,11 +1642,24 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     return ReturnValue(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
-  // TODO: Level Zero does not report IGCA yet. Report the queries as
-  // unsupported until an extension to zeDeviceGetProperties exposes it.
   case UR_DEVICE_INFO_IGCA_TARGET:
-  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
+    const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
+    // A device implementing no IGCA feature set has no IGCA target, which is
+    // also what is reported when the extension is unavailable.
+    if (IgcaProperties.featureSets == 0)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+    if (ParamName == UR_DEVICE_INFO_IGCA_TARGET)
+      return ReturnValue(uint32_t{IgcaProperties.target});
+
+    ur_device_igca_feature_flags_t FeatureSets = 0;
+    if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_COMPUTE)
+      FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+    if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER)
+      FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+    return ReturnValue(FeatureSets);
+  }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -2098,6 +2120,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         if (ZeResult != ZE_RESULT_SUCCESS)
           UR_LOG(DEBUG,
                  "zeDeviceGetModuleProperties failed to query float atomic "
+                 "properties, error code: {}",
+                 ZeResult);
+      };
+
+  ZeDeviceIgcaTargetProperties.Compute =
+      [ZeDevice, Platform = Platform](
+          ze_device_igca_target_ext_properties_t &Properties) {
+        if (!supportsDeviceIgcaTargetExtension(Platform))
+          return; // leave the target and the feature sets zero-initialized
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query the IGCA target "
                  "properties, error code: {}",
                  ZeResult);
       };
