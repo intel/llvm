@@ -110,7 +110,10 @@ template <> struct DenseMapInfo<OldOffloadKind> {
 };
 } // namespace llvm
 
-static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
+// Anchor whose address is passed to sys::fs::getMainExecutable; it just needs
+// to be some symbol in this binary, since C++ does not allow taking the address
+// of ::main.
+static int MainAddrAnchor;
 
 static cl::opt<bool>
     PreviewBreakingChanges("fpreview-breaking-changes",
@@ -1296,9 +1299,7 @@ public:
     // clang-offload-wrapper is invoked. This helps OpenMP offload
     // LIT tests.
 
-    // This just needs to be some symbol in the binary; C++ doesn't
-    // allow taking the address of ::main however.
-    void *P = (void *)(intptr_t)&Help;
+    void *P = (void *)(intptr_t)&MainAddrAnchor;
     std::string COWPath = sys::fs::getMainExecutable(ToolName.str().c_str(), P);
     if (!COWPath.empty()) {
       auto COWDir = sys::path::parent_path(COWPath);
@@ -1779,10 +1780,6 @@ int main(int argc, const char **argv) {
       "|...|                    |\n"
       "|...|                    |\n");
 
-  if (Help) {
-    cl::PrintHelpMessage();
-    return 0;
-  }
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };

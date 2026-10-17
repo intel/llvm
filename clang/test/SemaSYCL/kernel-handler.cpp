@@ -28,9 +28,9 @@ int main() {
 }
 
 // Check test_kernel_handler parameters
-// NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), __global char *) __attribute__((device_kernel))'
+// NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), {{\[\[clang::sycl_global\]\]}} char *) __attribute__((device_kernel))'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg__sycl_functor '(lambda at {{.*}}'
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '{{\[\[clang::sycl_global\]\]}} char *'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: CompoundStmt
@@ -43,8 +43,8 @@ int main() {
 // NONATIVESUPPORT-NEXT: MemberExpr {{.*}} 'void (char *)' lvalue .__init_specialization_constants_buffer
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}}'kernel_handler' lvalue Var {{.*}} 'kh'
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <AddressSpaceConversion>
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} char *' <LValueToRValue>
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '{{\[\[clang::sycl_global\]\]}} char *'
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::kernel_handler) const' <FunctionToPointerDecay>
@@ -57,10 +57,10 @@ int main() {
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'kernel_handler' lvalue Var {{.*}} 'kh' 'kernel_handler'
 
 // Check test_pfwg_kernel_handler parameters
-// NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), __global char *) __attribute__((device_kernel))'
+// NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void ((lambda at {{.*}}kernel-handler.cpp{{.*}}), {{\[\[clang::sycl_global\]\]}} char *) __attribute__((device_kernel))'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__sycl_functor '(lambda at {{.*}}kernel-handler.cpp{{.*}})'
 // NONATIVESUPPORT-NEXT: SYCLScopeAttr {{.*}} Implicit WorkGroup
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '{{\[\[clang::sycl_global\]\]}} char *'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: CompoundStmt
@@ -73,8 +73,8 @@ int main() {
 // NONATIVESUPPORT-NEXT: MemberExpr {{.*}} 'void (char *)' lvalue .__init_specialization_constants_buffer
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}}'kernel_handler' lvalue Var {{.*}} 'kh'
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'char *' <AddressSpaceConversion>
-// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '__global char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '__global char *'
+// NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} char *' <LValueToRValue>
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} char *' lvalue ParmVar {{.*}} '_arg__specialization_constants_buffer' '{{\[\[clang::sycl_global\]\]}} char *'
 // NONATIVESUPPORT-NEXT: CompoundStmt
 // NONATIVESUPPORT-NEXT: CXXOperatorCallExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'void (*)(group<1>, kernel_handler) const' <FunctionToPointerDecay>
@@ -91,9 +91,9 @@ int main() {
 // Test AST for default SPIR architecture
 
 // Check test_kernel_handler parameters
-// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *) __attribute__((device_kernel))'
+// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, {{\[\[clang::sycl_global\]\]}} char *) __attribute__((device_kernel))'
 // NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
-// NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
+// NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '{{\[\[clang::sycl_global\]\]}} char *'
 
 // Check declaration and initialization of kernel object local clone
 // NATIVESUPPORT-NEXT: CompoundStmt

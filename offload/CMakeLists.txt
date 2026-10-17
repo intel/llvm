@@ -27,8 +27,8 @@ endif()
 if(APPLE OR WASM)
   message(WARNING "libomptarget cannot be built on MacOS X and WASM!")
   return()
-elseif("${LLVM_DEFAULT_TARGET_TRIPLE}" MATCHES "^(amdgcn|nvptx|spirv)" OR
-       "${CMAKE_CXX_COMPILER_TARGET}" MATCHES "^(amdgcn|nvptx|spirv)")
+elseif("${LLVM_DEFAULT_TARGET_TRIPLE}" MATCHES "^(amdgpu|amdgcn|nvptx|spirv)" OR
+       "${CMAKE_CXX_COMPILER_TARGET}" MATCHES "^(amdgpu|amdgcn|nvptx|spirv)")
   message(WARNING "offload cannot be built on GPU targets yet.")
   return()
 elseif(NOT "cxx_std_17" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
@@ -354,11 +354,12 @@ add_subdirectory(plugins-nextgen)
 add_subdirectory(tools)
 add_subdirectory(docs)
 
+add_subdirectory(liboffload)
+
 if(BUILD_LIBOMPTARGET)
   add_subdirectory(libomptarget)
 endif()
 
-add_subdirectory(liboffload)
 add_subdirectory(languages)
 
 # Add tests.

@@ -740,6 +740,10 @@ class Attr {
   // typical attribute serialization. This will cause tablegen to emit a call to
   // ASTRecordWriter::Add<Name>Attr and ASTRecordReader::read<Name>Attr.
   bit HasCustomSerialization = 0;
+  // Set to true if this attribute has a custom text node dump implementation
+  // in TextNodeDumper.cpp. This will prevent the automatic generation of a
+  // Visit method in AttrTextNodeDump.inc.
+  bit HasCustomTextNodeDump = 0;
   // Set to true if all of the attribute's arguments should be parsed in an
   // unevaluated context.
   bit ParseArgumentsAsUnevaluated = 0;
@@ -2037,7 +2041,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       return std::nullopt;
 
     APValue NameLValue;
-    if (!NameCE->isCXX11ConstantExpr(Context, &NameLValue))
+    if (!NameCE->isCXX11ConstantExpr(Context, NameLValue))
       NameLValue = NameCE->getAPValueResult();
 
     if (!NameLValue.isLValue())
@@ -2143,7 +2147,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       return std::nullopt;
 
     APValue ValueAPV;
-    if (!ValueCE->isCXX11ConstantExpr(Context, &ValueAPV))
+    if (!ValueCE->isCXX11ConstantExpr(Context, ValueAPV))
       ValueAPV = ValueCE->getAPValueResult();
 
     if (!ValueAPV.isLValue())
@@ -2417,11 +2421,13 @@ def OpenCLGlobalAddressSpace : TypeAttr {
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
 }
 
+// TODO: Remove OpenCLGlobalDeviceAddressSpace after deprecation.
 def OpenCLGlobalDeviceAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_global_device">];
   let Documentation = [OpenCLAddressSpaceGlobalExtDocs];
 }
 
+// TODO: Remove OpenCLGlobalHostAddressSpace after deprecation.
 def OpenCLGlobalHostAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_global_host">];
   let Documentation = [OpenCLAddressSpaceGlobalExtDocs];
@@ -2443,6 +2449,36 @@ def OpenCLGenericAddressSpace : TypeAttr {
   let Spellings = [CustomKeyword<"__generic">, CustomKeyword<"generic">,
                    Clang<"opencl_generic">];
   let Documentation = [OpenCLAddressSpaceGenericDocs];
+}
+
+def SYCLPrivateAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_private">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLGlobalAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_global">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLLocalAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_local">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLConstantAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_constant">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLGenericAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_generic">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
 }
 
 def OpenCLNoSVM : Attr {
@@ -2588,7 +2624,7 @@ def MinSize : InheritableAttr {
 }
 
 def FlagEnum : InheritableAttr {
-  let Spellings = [Clang<"flag_enum">];
+  let Spellings = [ClangGCC<"flag_enum">];
   let Subjects = SubjectList<[Enum]>;
   let Documentation = [FlagEnumDocs];
   let SimpleHandler = 1;
@@ -5439,6 +5475,7 @@ def OMPCaptureKind : Attr {
   let SemaHandler = 0;
   let Args = [UnsignedArgument<"CaptureKindVal">];
   let Documentation = [InternalOnly];
+  let HasCustomTextNodeDump = 1;
   let AdditionalMembers = [{
     llvm::omp::Clause getCaptureKind() const {
       return static_cast<llvm::omp::Clause>(getCaptureKindVal());

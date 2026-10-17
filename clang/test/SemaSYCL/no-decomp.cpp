@@ -44,7 +44,7 @@ int main() {
     cgh.single_task(ptr);
   });
   // NODECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void (pointer_wrap) __attribute__((device_kernel))'
-  // DECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void (__global int *) __attribute__((device_kernel))'
+  // DECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void ({{\[\[clang::sycl_global\]\]}} int *) __attribute__((device_kernel))'
 
   q.submit([&](sycl::handler &cgh) {
     empty e;

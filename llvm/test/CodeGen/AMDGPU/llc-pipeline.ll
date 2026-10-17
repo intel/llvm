@@ -373,9 +373,9 @@
 ; GCN-O1-NEXT:        SI Optimize VGPR LiveRange
 ; GCN-O1-NEXT:        Eliminate PHI nodes for register allocation
 ; GCN-O1-NEXT:        SI Lower control flow pseudo instructions
-; GCN-O1-NEXT:        Two-Address instruction pass
 ; GCN-O1-NEXT:        Slot index numbering
 ; GCN-O1-NEXT:        Live Interval Analysis
+; GCN-O1-NEXT:        Two-Address instruction pass
 ; GCN-O1-NEXT:        Machine Natural Loop Construction
 ; GCN-O1-NEXT:        Register Coalescer
 ; GCN-O1-NEXT:        Rename Disconnected Subregister Components
@@ -450,6 +450,7 @@
 ; GCN-O1-NEXT:        Insert XRay ops
 ; GCN-O1-NEXT:        GCN Create VOPD Instructions
 ; GCN-O1-NEXT:        SI Memory Legalizer
+; GCN-O1-NEXT:        SI post-RA 16bit Mov Folding
 ; GCN-O1-NEXT:        MachineDominator Tree Construction
 ; GCN-O1-NEXT:        Machine Natural Loop Construction
 ; GCN-O1-NEXT:        MachinePostDominator Tree Construction
@@ -705,9 +706,9 @@
 ; GCN-O1-OPTS-NEXT:        SI Optimize VGPR LiveRange
 ; GCN-O1-OPTS-NEXT:        Eliminate PHI nodes for register allocation
 ; GCN-O1-OPTS-NEXT:        SI Lower control flow pseudo instructions
-; GCN-O1-OPTS-NEXT:        Two-Address instruction pass
 ; GCN-O1-OPTS-NEXT:        Slot index numbering
 ; GCN-O1-OPTS-NEXT:        Live Interval Analysis
+; GCN-O1-OPTS-NEXT:        Two-Address instruction pass
 ; GCN-O1-OPTS-NEXT:        Machine Natural Loop Construction
 ; GCN-O1-OPTS-NEXT:        Register Coalescer
 ; GCN-O1-OPTS-NEXT:        Rename Disconnected Subregister Components
@@ -783,6 +784,7 @@
 ; GCN-O1-OPTS-NEXT:        Insert XRay ops
 ; GCN-O1-OPTS-NEXT:        GCN Create VOPD Instructions
 ; GCN-O1-OPTS-NEXT:        SI Memory Legalizer
+; GCN-O1-OPTS-NEXT:        SI post-RA 16bit Mov Folding
 ; GCN-O1-OPTS-NEXT:        MachineDominator Tree Construction
 ; GCN-O1-OPTS-NEXT:        Machine Natural Loop Construction
 ; GCN-O1-OPTS-NEXT:        MachinePostDominator Tree Construction
@@ -1042,9 +1044,9 @@
 ; GCN-O2-NEXT:        SI Optimize VGPR LiveRange
 ; GCN-O2-NEXT:        Eliminate PHI nodes for register allocation
 ; GCN-O2-NEXT:        SI Lower control flow pseudo instructions
-; GCN-O2-NEXT:        Two-Address instruction pass
 ; GCN-O2-NEXT:        Slot index numbering
 ; GCN-O2-NEXT:        Live Interval Analysis
+; GCN-O2-NEXT:        Two-Address instruction pass
 ; GCN-O2-NEXT:        Machine Natural Loop Construction
 ; GCN-O2-NEXT:        Register Coalescer
 ; GCN-O2-NEXT:        Rename Disconnected Subregister Components
@@ -1121,6 +1123,7 @@
 ; GCN-O2-NEXT:        Insert XRay ops
 ; GCN-O2-NEXT:        GCN Create VOPD Instructions
 ; GCN-O2-NEXT:        SI Memory Legalizer
+; GCN-O2-NEXT:        SI post-RA 16bit Mov Folding
 ; GCN-O2-NEXT:        MachineDominator Tree Construction
 ; GCN-O2-NEXT:        Machine Natural Loop Construction
 ; GCN-O2-NEXT:        MachinePostDominator Tree Construction
@@ -1395,9 +1398,9 @@
 ; GCN-O3-NEXT:        SI Optimize VGPR LiveRange
 ; GCN-O3-NEXT:        Eliminate PHI nodes for register allocation
 ; GCN-O3-NEXT:        SI Lower control flow pseudo instructions
-; GCN-O3-NEXT:        Two-Address instruction pass
 ; GCN-O3-NEXT:        Slot index numbering
 ; GCN-O3-NEXT:        Live Interval Analysis
+; GCN-O3-NEXT:        Two-Address instruction pass
 ; GCN-O3-NEXT:        Machine Natural Loop Construction
 ; GCN-O3-NEXT:        Register Coalescer
 ; GCN-O3-NEXT:        Rename Disconnected Subregister Components
@@ -1474,6 +1477,7 @@
 ; GCN-O3-NEXT:        Insert XRay ops
 ; GCN-O3-NEXT:        GCN Create VOPD Instructions
 ; GCN-O3-NEXT:        SI Memory Legalizer
+; GCN-O3-NEXT:        SI post-RA 16bit Mov Folding
 ; GCN-O3-NEXT:        MachineDominator Tree Construction
 ; GCN-O3-NEXT:        Machine Natural Loop Construction
 ; GCN-O3-NEXT:        MachinePostDominator Tree Construction
