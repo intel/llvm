@@ -590,7 +590,7 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
               MDs.push_back(DecoMD);
         MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
         GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
-        return;
+        continue;
       }
     }
     IRBuilder Builder(Inst);
