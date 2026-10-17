@@ -276,7 +276,7 @@ inheritance hierarchy are decorated with the attribute.
 
 [source,dpcpp]
 ----
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct set_A;
 struct set_B;
@@ -284,38 +284,43 @@ struct set_B;
 class Foo {
 public:
   // properties to functions should be applied using the macro:
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_A>) void
-  foo() {}
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_A>)
+  virtual void foo() {}
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_A>) void
-  bar();
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_A>)
+  virtual void bar();
 
   // first declaration must be annotated
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_B>) void
-  baz();
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_B>)
+  virtual void baz();
 };
 
 // redeclarations may be annotated as well
-void SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_B>)
-Foo::baz() {}
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_B>)
+void Foo::baz() {}
 
 // but it is not required
-Foo::bar() {}
+void Foo::bar() {}
 
-int main() {
-  sycl::queue q;
-  // kernel calling virtual function should also be annotated:
-  q.single_task(syclext::properties{syclext::assume_indirect_calls_to<set_A>},
-      [=]() {
+// kernel calling virtual function should also be annotated
+// use a kernel functor with the get(properties_tag) method to do so:
+struct KernelFunctor {
+  void operator()() const {
     Foo *ptr = /* ... */;
     ptr->bar()
 
-    // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
-    // 'Foo::baz', because the latter is declared within a different set.
-  });
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls_to<set_A>};
+  }
+  // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
+  // 'Foo::baz', because the latter is declared within a different set.
+};
+
+int main() {
+  sycl::queue q;
+  
+  q.single_task(KernelFunctor{});
 }
 ----
 
@@ -326,7 +331,7 @@ have aliases which allow to omit the set, thus using the default set:
 
 [source,dpcpp]
 ----
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct set_A;
 
@@ -334,24 +339,31 @@ class Foo {
 public:
   // This virtual member function belongs to the default set of virtual
   // functions.
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
-  void foo() {}
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  virtual void foo() {}
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_A>)
-  void bar() {}
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_A>)
+  virtual void bar() {}
+};
+
+// This kernel declares a use of default set of virtual functions
+struct KernelFunctor {
+  void operator()() const {
+    Foo *ptr = /* ... */;
+    ptr->bar()
+
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls};
+  }
+  // Note: this kernel can only call 'Foo::foo' but not 'Foo::bar', because
+  // the latter belongs to a different (non-default) set of virtual functions.
 };
 
 int main() {
   sycl::queue q;
-  // This kernel declares a use of default set of virtual functions
-  q.single_task(syclext::properties{syclext::assume_indirect_calls}, [=]() {
-    Foo *ptr = /* ... */;
-    ptr->bar()
-
-    // Note: this kernel can only call 'Foo::foo' but not 'Foo::bar', because
-    // the latter belongs to a different (non-default) set of virtual functions.
-  });
+  
+  q.single_task(KernelFunctor{});
 }
 ----
 
@@ -399,49 +411,69 @@ virtual functions using them should be outlined into a separate set.
 
 [source,dpcpp]
 ----
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct set_fp64;
 struct set_fp16;
 
 struct Foo {
   // This function uses 'fp64' aspect
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_fp64>)
-  void f64() {
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_fp64>)
+  virtual void f64() {
     double d = 3.14;
   }
 
   // This function uses 'fp16' aspect
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_fp16>)
-  void f16() {
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_fp16>)
+  virtual void f16() {
     sycl::half h = 2.71f;
   }
 };
 
-sycl::queue q;
-
-q.single_task(syclext::properties{syclext::assume_indirect_calls_to<set_fp16>},
-    [=]() [[sycl::device_has(sycl::aspect::fp64)]] {
+struct KernelFunctor1 {
+  void operator()() const {
+    /* ... */
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls_to<set_fp16>};
+  }
   // Diagnostic is required for this kernel, because it is declared as only
   // using 'fp64' aspect, but it also uses virtual member functions from
   // "set_fp16", which includes 'Foo::f16' that uses 'fp16' aspect.
-});
+};
 
-q.single_task(syclext::properties{syclext::assume_indirect_calls_to<set_fp64>},
-    [=]() [[sycl::device_has()]] {
+struct KernelFunctor2 {
+  void operator()() const {
+    /* ... */
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls_to<set_fp64>};
+  }
   // Diagnostic is required for this kernel, because it is declared as not
   // using any optional features, but it also uses virtual member functions from
   // "set_fp64", which includes 'Foo::f64' that uses 'fp64' aspect.
-});
+};
 
-q.single_task(syclext::properties{syclext::assume_indirect_calls_to<set_fp64>},
-    [=]() [[sycl::device_has(sycl::aspect::fp64)]] {
+struct KernelFunctor3 {
+  void operator()() const {
+    /* ... */
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls_to<set_fp64>};
+  }
   // No diagnostic is required for this kernel, because list of declared aspects
   // matches list of used aspects. That includes virtual member functions from
   // "set_fp64", which includes 'Foo::f64' that uses 'fp64' aspect
-});
+};
+
+
+sycl::queue q;
+
+q.single_task([[sycl::device_has(sycl::aspect::fp64)]] KernelFunctor1{});
+
+q.single_task([[sycl::device_has()]] KernelFunctor2{});
+
+q.single_task([[sycl::device_has(sycl::aspect::fp64)]] KernelFunctor3{});
 ----
 
 Submitting a kernel with `assume_indirect_calls_to` property, which includes
@@ -451,38 +483,51 @@ it is defined by the core SYCL specification.
 
 [source,dpcpp]
 ----
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct set_A;
 struct set_B;
 
 struct Foo {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_A>)
-  void foo() {
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_A>)
+  virtual void foo() {
     double d = 3.14;
   }
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable_in<set_B>)
-  void bar() {}
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable_in<set_B>)
+  virtual void bar() {}
 };
+
+struct KernelFunctor1 {
+  void operator()() const {
+    /* ... */
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls_to<set_A>};
+  }
+  // Exception is expected to be thrown, because target device doesn't support
+  // fp64 aspect and it is used by 'Foo::foo' which is included into 'set_A'
+};
+
+struct KernelFunctor2 {
+  void operator()() const {
+    /* ... */
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls_to<set_B>};
+  }
+  // No exceptions are expected, because 'set_B' doesn't bring any
+  // requirements for optional kernel features.
+};
+
 
 int main() {
   sycl::queue q(/* device selector returns a device *without* fp64 support */);
   assert(!q.get_device().has(sycl::aspect::fp64));
 
-  q.single_task(syclext::properties{syclext::assume_indirect_calls_to<set_A>},
-      [=]() {
-    // Exception is expected to be thrown, because target device doesn't support
-    // fp64 aspect and it is used by 'Foo::foo' which is included into 'set_A'
-  });
+  q.single_task(KernelFunctor1{});
 
-  q.single_task(syclext::properties{syclext::assume_indirect_calls_to<set_B>},
-      [=]() {
-    // No exceptions are expected, because 'set_B' doesn't bring any
-    // requirements for optional kernel features.
-  });
+  q.single_task(KernelFunctor2{});
 }
 ----
 
@@ -493,16 +538,16 @@ through the corresponding properties.
 
 [source,dpcpp]
 ----
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct Foo {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
-  void foo() {
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  virtual void foo() {
     double d = 3.14;
   }
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
-  void bar() {}
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  virtual void bar() {}
 };
 
 int main() {
@@ -566,15 +611,26 @@ kernel from a different kernel bundle is an undefined behavior.
 
 [source,dpcpp]
 ----
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 struct Base {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
-  void foo() {}
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  virtual void foo() {}
 };
 
 class Constructor;
 class Use;
+
+struct KernelFunctor {
+  Base *Obj;
+  KernelFunctor(double *Obj_param) { Obj = Obj_param; };
+  void operator()() const {
+    Obj->foo();
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls};
+  }
+};
 
 int main() {
   sycl::queue Q;
@@ -600,12 +656,9 @@ int main() {
 
   Q.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(bundleB);
-    CGH.single_task<Use>(syclext::properties{syclext::assume_indirect_calls},
-        [=]() {
-      // Call to 'Base::foo' is an undefined behavior here, because 'Obj' was
-      // constructed within kernel bundle `bundleA`
-      Obj->foo();
-    });
+    CGH.single_task<Use>(KernelFunctor{Obj});
+    // Call to 'Base::foo' in KernelFunctor is an undefined behavior here,
+    // because 'Obj' was constructed within kernel bundle `bundleA`
   });
 
   return 0;
@@ -636,12 +689,12 @@ virtual functions.
 ----
 #include <sycl/sycl.hpp>
 
-using syclext = sycl::ext::oneapi::experimental;
+namespace syclext = sycl::ext::oneapi::experimental;
 
 class Base {
 public:
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
-  int get_random_number() {
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  virtual int get_random_number() {
     return 4; // Chosen by fair dice roll. Guaranteed to be random
   }
 
@@ -659,6 +712,33 @@ public:
   }
 };
 
+struct KernelFunctor1 {
+  int *Result;
+  KernelFunctor1(int *Result_param) { Result = Result_param; };
+  void operator()() const {
+    Base B;
+    Result[0] = B.get_random_number();
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls};
+  }
+};
+
+struct KernelFunctor2 {
+  int *Result;
+  Base *Obj;
+  KernelFunctor2(int *Result_param, Base *Obj_param) {
+    Result = Result_param;
+    Obj = Obj_param;
+  };
+  void operator()() const {
+    Result[0] = Obj->get_random_number();
+  }
+  auto get(syclext::properties_tag) const {
+     return syclext::properties{syclext::assume_indirect_calls};
+  }
+};
+
 int main() {
   sycl::queue Q;
 
@@ -669,17 +749,11 @@ int main() {
     // Only placement new can be used within device functions.
     new (Obj) Derived;
   });
-
-  auto props = syclext::properties{syclext::assume_indirect_calls};
-  Q.single_task(props, [=]() {
-    Base B;
-    Result[0] = B.get_random_number();
-  }).wait();
+  
+  Q.single_task(KernelFunctor1{Result}).wait();
   assert(Result[0] == 4);
 
-  Q.single_task(props, [=]() {
-    Result[0] = Obj->get_random_number();
-  }).wait();
+  Q.single_task(KernelFunctor2{Result, Obj}).wait();
   assert(Result[0] == 221);
 
   return 0;
