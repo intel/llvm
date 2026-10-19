@@ -879,6 +879,10 @@ private:
   /// gathered during creation of offloading device toolchains.
   mutable llvm::opt::ArgStringList SYCLDeviceTraitsMacrosArgs;
 
+  /// Set once a missing clang-offload-bundler has been diagnosed, so that the
+  /// error is emitted only once per driver invocation.
+  mutable bool OffloadBundlerNotFoundDiagnosed = false;
+
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -971,6 +975,11 @@ public:
   StringRef getSYCLUniqueID(StringRef FileName) const {
     return SYCLUniqueIDList[FileName];
   }
+
+  /// diagnoseOffloadBundlerNotFound - Report that clang-offload-bundler could
+  /// not be found in \p Dir while inspecting \p FileName.  Only the first
+  /// occurrence is reported.
+  void diagnoseOffloadBundlerNotFound(StringRef Dir, StringRef FileName) const;
 
   /// SYCLDeviceTraitMacroArg - Add the given macro to the vector of args to be
   /// added to the device compilation step.

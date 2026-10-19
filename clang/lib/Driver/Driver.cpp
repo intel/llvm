@@ -4017,6 +4017,14 @@ static bool runBundler(const SmallVectorImpl<StringRef> &InputArgs,
   return !llvm::sys::ExecuteAndWait(BundlerBinary.get(), BundlerArgs);
 }
 
+void Driver::diagnoseOffloadBundlerNotFound(StringRef Dir,
+                                            StringRef FileName) const {
+  if (OffloadBundlerNotFoundDiagnosed)
+    return;
+  OffloadBundlerNotFoundDiagnosed = true;
+  Diag(diag::err_drv_offload_bundler_not_found) << Dir << FileName;
+}
+
 static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
                                                       const StringRef &File) {
   // Do not do the check if the file doesn't exist
@@ -4032,6 +4040,12 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   StringRef ExecPath(C.getArgs().MakeArgString(C.getDriver().Dir));
   llvm::ErrorOr<std::string> BundlerBinary =
       llvm::sys::findProgramByName("clang-offload-bundler", ExecPath);
+  if (!BundlerBinary) {
+    // Without the bundler we cannot tell whether the input contains offload
+    // device code, so diagnose instead of treating it as host-only.
+    C.getDriver().diagnoseOffloadBundlerNotFound(ExecPath, File);
+    return {};
+  }
   const char *Input = C.getArgs().MakeArgString(Twine("-input=") + File.str());
   // Always use -type=ao for bundle checking.  The 'bundles' are
   // actually archives.
@@ -4048,8 +4062,6 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
         llvm::errs() << A << " ";
     llvm::errs() << '\n';
   }
-  if (BundlerBinary.getError())
-    return {};
   llvm::SmallString<64> OutputFile(
       C.getDriver().GetTemporaryPath("bundle-list", "txt"));
   llvm::FileRemover OutputRemover(OutputFile.c_str());
