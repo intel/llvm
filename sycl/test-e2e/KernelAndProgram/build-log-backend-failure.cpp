@@ -1,8 +1,11 @@
 // REQUIRES: gpu
-// RUN: %{build} -o %t.exe
-// RUN: %{run} %t.exe 2> %t.out
-
-// RUN: %{run-aux} FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
+// RUN: %if cuda %{ not %{build} -o %t.exe > %t.out 2>&1 %} \
+// RUN: %else %{ %{build} -o %t.exe && %{run} %t.exe > %t.out 2>&1 %}
+//
+// RUN: %if cuda %{ FileCheck %s --check-prefix=CHECK-PTXAS-ERROR --input-file %t.out %} \
+// RUN: %else %{ %{run-aux} FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out %}
+//
+// CHECK-PTXAS-ERROR: ptxas fatal
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
 #include <array>
