@@ -16,8 +16,8 @@
 
 // CACHING-ENABLED: zeEventCreate = {{[1-9]}}
 // CACHING-DISABLED: zeEventCreate = 256
-// CHECK-V2: Distinct native event handles: {{[1-9][0-9]?}}
-// CHECK-V2: zeEventDestroy = {{[1-9][0-9]?}}
+// CHECK-V2-DAG: Distinct native event handles: {{[1-9][0-9]?[[:space:]]*$}}
+// CHECK-V2-DAG: zeEventDestroy = {{[1-9][0-9]?([[:space:]]|$)}}
 
 // Check event caching modes in the L0 adapter.
 
