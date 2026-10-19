@@ -1,5 +1,7 @@
 // REQUIRES: hip, hip_dev_kit
 // UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED: %{build} targets spir64, so --rocm-path from
+// %hip_options is an unused argument and fails under -Werror.
 
 // RUN: %{build} -o %t.out %hip_options
 // The opt-in launch is skipped when the opt-in ceiling equals the non-opt-in
