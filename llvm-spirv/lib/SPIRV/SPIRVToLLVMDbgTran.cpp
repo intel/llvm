@@ -891,7 +891,8 @@ DINode *SPIRVToLLVMDbgTran::transLexicalBlock(const SPIRVExtInst *DebugInst) {
     return getDIBuilder(DebugInst).createNameSpace(ParentScope, Name,
                                                    InlinedNamespace);
   }
-  unsigned Column = Ops[ColumnIdx];
+  SPIRVWord Column =
+      getConstantValueOrLiteral(Ops, ColumnIdx, DebugInst->getExtSetKind());
   return getDIBuilder(DebugInst).createLexicalBlock(ParentScope, File, LineNo,
                                                     Column);
 }
