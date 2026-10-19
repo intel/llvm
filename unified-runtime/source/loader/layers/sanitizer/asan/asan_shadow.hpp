@@ -114,6 +114,8 @@ struct ShadowMemoryGPU : public ShadowMemory {
                                  uptr *&Base, uptr &Begin,
                                  uptr &End) override final;
 
+  // The pStart hint passed to urVirtualMemReserve when reserving shadow
+  // memory. 0 means no hint, and the driver picks the address.
   virtual uptr GetStartAddress() { return 0; }
 
   ur_mutex VirtualMemMapsMutex;
@@ -150,6 +152,9 @@ struct ShadowMemoryPVC final : public ShadowMemoryGPU {
 
   size_t GetShadowSize() override { return 0x180000000000ULL; }
 
+  // To reserve very large amount of GPU virtual memory, the pStart param
+  // should be beyond the SVM range, so that GFX driver will automatically
+  // switch to reservation on the GPU heap.
   uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };
 
