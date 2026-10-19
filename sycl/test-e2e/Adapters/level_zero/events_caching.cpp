@@ -12,13 +12,19 @@
 //
 // L0v2 has no on/off switch for event caching. Which internal API creates
 // the event, and whether it's traced by UR_L0_LEAKS_DEBUG at all, varies by
-// driver/OS, so check the property directly instead: count distinct native
-// event handles returned across 256 operations. Reuse means far fewer than
-// 256 distinct handles.
+// driver/OS, so a single signal isn't enough: a small distinct-handle count
+// alone wouldn't rule out the driver happening to reallocate a freed
+// handle's address, rather than the adapter genuinely keeping it alive.
+// zeEventDestroy is only called when the adapter's event cache itself is
+// torn down (not per-operation), so combining a small distinct-handle count
+// with a small zeEventDestroy count only holds if the events are actually
+// being kept alive and reused, not destroyed and recreated by coincidence
+// at the same address.
 
 // CACHING-ENABLED: zeEventCreate = {{[1-9]}}
 // CACHING-DISABLED: zeEventCreate = 256
 // CHECK-V2: Distinct native event handles: {{[1-9][0-9]?}}
+// CHECK-V2: zeEventDestroy = {{[1-9][0-9]?}}
 
 // Check event caching modes in the L0 adapter.
 
