@@ -21,6 +21,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   if (pNumPlatforms) {
+    UR_LOG(INFO, "OFFLOAD: {} platforms available", Adapter->Platforms.size());
     *pNumPlatforms = Adapter->Platforms.size();
   }
 

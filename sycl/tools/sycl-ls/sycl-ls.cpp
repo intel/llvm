@@ -25,6 +25,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -467,14 +468,25 @@ int main(int argc, char **argv) {
 
     // In verbose mode, if UR logging has not already been enabled by the user,
     // enable the printing of any errors related to adapter loading.
-    const char *ur_log_loader_var = std::getenv("UR_LOG_LOADER");
-    if (verbose && ur_log_loader_var == nullptr)
-      setenv("UR_LOG_LOADER", "level:info;output:stderr", 1);
+    constexpr const char *Loggers[] = {"UR_LOG_LOADER",  "UR_LOG_CUDA",
+                                       "UR_LOG_HIP",     "UR_LOG_NATIVE_CPU",
+                                       "UR_LOG_OFFLOAD", "UR_LOG_OPENCL"};
+    std::vector<const char *> SetLoggers;
+
+    if (verbose) {
+      for (const auto &Logger : Loggers)
+        if (nullptr == std::getenv(Logger)) {
+          SetLoggers.push_back(Logger);
+          setenv(Logger, "level:info;output:stderr", 1);
+        }
+    }
 
     const auto &Platforms = platform::get_platforms();
 
-    if (verbose && ur_log_loader_var == nullptr) {
-      unsetenv("UR_LOG_LOADER");
+    if (verbose) {
+      for (const auto &Logger : SetLoggers) {
+        unsetenv(Logger);
+      }
     } else if (Platforms.size() == 0) {
       std::cout
           << "No platforms found - run with '--verbose' to get more details."
@@ -512,6 +524,7 @@ int main(int argc, char **argv) {
     if (verbose) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
       uint32_t PlatformNum = 0;
+      std::set<backend> SeenBackends;
       if (!SuppressNumberPrinting)
         DeviceNums.clear();
       for (const auto &Platform : Platforms) {
@@ -535,7 +548,36 @@ int main(int argc, char **argv) {
           }
           printDeviceInfo(Device, true, "        ");
         }
+        if (!Devices.empty())
+          SeenBackends.insert(Backend);
       }
+
+      if (SeenBackends.count(backend::opencl) == 0) {
+        std::cout
+            << "Missing OpenCL platforms or devices can be diagnosed using "
+               "the clinfo tool."
+            << std::endl;
+      }
+      if (SeenBackends.count(backend::ext_oneapi_cuda) == 0) {
+        std::cout << "Missing CUDA platforms or devices can be diagnosed using "
+                     "nvidia-smi."
+                  << std::endl;
+      }
+      if (SeenBackends.count(backend::ext_oneapi_hip) == 0) {
+        std::cout << "Missing HIP platforms or devices can be diagnosed using "
+                     "rocminfo or amd-smi."
+                  << std::endl;
+      }
+      if (SeenBackends.count(backend::ext_oneapi_level_zero) == 0) {
+        std::cout << "Missing Level Zero platforms or devices can be diagnosed "
+                     "by setting ZE_ENABLE_LOADER_DEBUG_TRACE=1."
+                  << std::endl;
+      }
+#ifdef __linux__
+      std::cout
+          << "strace can be used to diagnose any missing shared libraries."
+          << std::endl;
+#endif
     } else {
       return EXIT_SUCCESS;
     }
