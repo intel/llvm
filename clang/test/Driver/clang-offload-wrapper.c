@@ -1,5 +1,18 @@
 // REQUIRES: x86-registered-target
 
+// Empty SYCL images must not introduce a runtime dependency.
+// RUN: touch %t.empty
+// RUN: echo '[Code|Properties|Symbols]' > %t.empty.table
+// RUN: clang-offload-wrapper -host=x86_64-unknown-linux-gnu -kind=sycl -batch %t.empty.table -o %t.empty.bc
+// RUN: llvm-dis %t.empty.bc -o - | FileCheck %s --check-prefix=EMPTY
+// RUN: clang-offload-wrapper -host=x86_64-unknown-linux-gnu -kind=sycl %t.empty -o %t.empty.bc
+// RUN: llvm-dis %t.empty.bc -o - | FileCheck %s --check-prefix=EMPTY
+// RUN: clang-offload-wrapper -host=x86_64-pc-windows-msvc -kind=sycl %t.empty -target=spir64 %t.empty -o %t.empty.bc
+// RUN: llvm-dis %t.empty.bc -o - | FileCheck %s --check-prefix=EMPTY
+// EMPTY: target triple
+// EMPTY-NOT: __sycl_register_lib
+// EMPTY-NOT: __sycl_unregister_lib
+
 //
 // Check help message.
 //
@@ -93,6 +106,10 @@
 // RUN: echo 'Content of device file1' > %t1.tgt
 // RUN: echo 'Content of device file2' > %t2.tgt
 // RUN: echo 'Content of device file3' > %t3.tgt
+// RUN: clang-offload-wrapper -host=x86_64-unknown-linux-gnu -kind=sycl %t.empty -target=spir64 %t1.tgt -o %t.mixed.bc
+// RUN: llvm-dis %t.mixed.bc -o - | FileCheck %s --check-prefix=MIXED
+// MIXED: call void @__sycl_register_lib
+// MIXED: call void @__sycl_unregister_lib
 //
 // -------
 // Check bitcode produced by the wrapper tool.

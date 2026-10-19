@@ -38,6 +38,34 @@
 // RUN:   -sycl-post-link-options=-properties --linker-path=/usr/bin/ld \
 // RUN:   %t.o -o %t.thin-lto.out 2>&1 | FileCheck %s --check-prefix=THIN-LTO
 
+// Device pre-linking must produce an object without runtime references when
+// there are no device inputs or when the device module is empty.
+// RUN: %clang_cc1 -DEMPTY -triple=x86_64-unknown-linux-gnu %s -emit-obj -o %t.host-only.o
+// RUN: clang-linker-wrapper --sycl-device-link --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --linker-path=/usr/bin/ld %t.host-only.o -o %t.empty.o
+// RUN: %clang %t.host-only.o %t.empty.o -o %t.host-only.out
+// RUN: clang-linker-wrapper --sycl-device-link --print-wrapped-module \
+// RUN:   --host-triple=x86_64-pc-windows-msvc --linker-path=/usr/bin/ld \
+// RUN:   %t.host-only.o -o %t.empty.obj 2>&1 | FileCheck %s --check-prefix=EMPTY
+// RUN: %clang_cc1 -DEMPTY -fsycl-is-device -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.empty.bc
+// RUN: llvm-offload-binary -o %t.empty.fat --image=file=%t.empty.bc,kind=sycl,triple=spir64-unknown-unknown
+// RUN: %clang_cc1 -DEMPTY -triple=x86_64-unknown-linux-gnu %s -emit-obj -o %t.empty-input.o -fembed-offload-object=%t.empty.fat
+// RUN: clang-linker-wrapper --sycl-device-link --print-wrapped-module \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   -sycl-post-link-options=-split=auto -sycl-post-link-options=-symbols \
+// RUN:   -sycl-post-link-options=-properties %t.empty-input.o -o %t.empty.o 2>&1 | FileCheck %s --check-prefix=EMPTY
+// RUN: %clang %t.host-only.o %t.empty.o -o %t.empty.out
+// RUN: clang-linker-wrapper --sycl-device-link --no-use-sycl-post-link-tool \
+// RUN:   --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --linker-path=/usr/bin/ld --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   %t.empty-input.o -o %t.empty.o 2>&1 | FileCheck %s --check-prefix=EMPTY
+// RUN: %clang %t.host-only.o %t.empty.o -o %t.empty-library.out
+// EMPTY: target triple
+// EMPTY-NOT: __sycl_register_lib
+// EMPTY-NOT: __sycl_unregister_lib
+
+#ifndef EMPTY
 template <typename t, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &func) {
   func();
@@ -52,6 +80,9 @@ void __sycl_unregister_lib(void *) {}
 int main() {
   kernel<class fake_kernel>([]() {});
 }
+#else
+int main() {}
+#endif
 
 // THIN-LTO-NOT: invalid SYCL Table file.
 // THIN-LTO: @.sycl_offloading.target.0 = internal unnamed_addr constant [7 x i8] c"spir64\00"
