@@ -645,7 +645,7 @@ private:
   static bool getCachedValue(bool ResetCache = false) {
     static bool Val = parseValue();
     if (ResetCache) {
-      Val = BaseT::getRawValue();
+      Val = parseValue();
     }
     return Val;
   }
