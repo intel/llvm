@@ -136,6 +136,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt,
 
 } // namespace detail
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // These entry points are kept for backwards compatibility.
 __SYCL_EXPORT void enqueue_wait_event(sycl::queue q, const event &evt) {
   detail::enqueue_wait_event(q, evt, /*Flags*/ 0);
@@ -149,6 +150,7 @@ __SYCL_EXPORT void enqueue_wait_events(sycl::queue q,
 __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   detail::enqueue_signal_event(q, evt, /*Flags*/ 0);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
