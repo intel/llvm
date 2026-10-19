@@ -12297,11 +12297,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
-    // -sycl-device-library-location=<dir> provides the location of the device
-    // libraries that clang-linker-wrapper consumes itself: the NativeCPU
-    // utilities library and the native bfloat16 library (passed on to
-    // sycl-post-link).  Use the location where that library is found, falling
-    // back to the location relative to the driver.
+    // -sycl-device-library-location=<dir> provides the location of the
+    // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
     SmallString<128> DeviceLibDir(D.Dir);
     llvm::sys::path::append(DeviceLibDir, "..", "lib");
     if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(
