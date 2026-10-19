@@ -316,15 +316,7 @@ public:
 /// This is the common base class for debug info intrinsics for variables.
 class DbgVariableIntrinsic : public DbgInfoIntrinsic {
 public:
-  /// Get the locations corresponding to the variable referenced by the debug
-  /// info intrinsic.  Depending on the intrinsic, this could be the
-  /// variable's value or its address.
-  LLVM_ABI iterator_range<location_op_iterator> location_ops() const;
-
   LLVM_ABI Value *getVariableLocationOp(unsigned OpIdx) const;
-
-  LLVM_ABI void replaceVariableLocationOp(Value *OldValue, Value *NewValue,
-                                          bool AllowEmpty = false);
 
   void setExpression(DIExpression *NewExpr) {
     setArgOperand(2, MetadataAsValue::get(NewExpr->getContext(), NewExpr));
@@ -440,7 +432,6 @@ class DbgAssignIntrinsic : public DbgValueInst {
   };
 
 public:
-  LLVM_ABI Value *getAddress() const;
   Metadata *getRawAddress() const {
     return cast<MetadataAsValue>(getArgOperand(OpAddress))->getMetadata();
   }
@@ -454,7 +445,6 @@ public:
   DIExpression *getAddressExpression() const {
     return cast<DIExpression>(getRawAddressExpression());
   }
-  LLVM_ABI void setAddress(Value *V);
   /// \name Casting methods
   /// @{
   static bool classof(const IntrinsicInst *I) {
