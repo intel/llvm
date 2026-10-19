@@ -4,12 +4,12 @@
 // -------
 // Generate .o file as linker wrapper input.
 //
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
-// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
-// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code  -o %t_aot_cpu.o
-// RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
-// RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
-// RUN: %clang %s -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code  -o %t_aot_cpu.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
 //
 // Generate .bc file as SYCL device library file.
 //
@@ -216,7 +216,7 @@
 // CHK-OCLOC-PATH-NOARG: no directory given for '--ocloc-path='
 
 // /<arch> qualifier routes each value to that arch's ocloc call.
-// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_skl -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_skl.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=intel_gpu_skl -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_skl.o
 // RUN: clang-linker-wrapper \
 // RUN:   --device-compiler=sycl:spir64_gen-unknown-unknown/pvc=--ocloc-options=-extraopt_pvc \
 // RUN:   --device-compiler=sycl:spir64_gen-unknown-unknown/skl=--ocloc-options=-extraopt_skl \
@@ -437,7 +437,7 @@
 // CHECK-ERROR-WITH-WRONG-SPIRV-SUBARCH: SYCL device compilation is not supported for the target: spirv64v1.0
 
 // Check -no-sycl-rdc
-// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_rdc.o
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_rdc.o
 //
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- -o /dev/null %t.o %t_rdc.o --dry-run 2>&1 | FileCheck -check-prefix=CHECK-RDC %s
 // CHECK-RDC: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
@@ -500,7 +500,7 @@
 // CHECK-WRAPPER-AMD: llvm-link{{.*}} {{.*}}.amd.devicelib.bc
 
 // Check that each target uses only its own libraries with multi-target input.
-// RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa,nvptx64-nvidia-cuda \
+// RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=amdgcn-amd-amdhsa,nvptx64-nvidia-cuda \
 // RUN:   -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 \
 // RUN:   -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked \
 // RUN:   --offload-new-driver -c -o %t_multi.o -nocudalib -nogpulib -fgpu-rdc
@@ -511,3 +511,10 @@
 // RUN:   --linker-path=/usr/bin/ld %t_multi.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-MULTI %s
 // CHECK-WRAPPER-MULTI: llvm-link{{.*}} {{.*}}.amd.devicelib.bc
 // CHECK-WRAPPER-MULTI: llvm-link{{.*}} {{.*}}.nvptx.devicelib.bc {{.*}}.nvptx.libdummy.bc
+
+template <typename Name, typename Func>
+__attribute__((sycl_kernel)) void kernel(const Func &func) {
+  func();
+}
+
+void f() { kernel<class TestKernel>([]() {}); }
