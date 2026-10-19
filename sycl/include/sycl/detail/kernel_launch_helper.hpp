@@ -22,6 +22,7 @@
 #include <sycl/kernel_handler.hpp>
 
 #include <assert.h>
+#include <optional>
 #include <type_traits>
 
 namespace sycl {
