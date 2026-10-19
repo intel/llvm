@@ -75,7 +75,7 @@ private:
         std::stringstream Result;
         // Open list
         Result << "{";
-        auto Values = LI->getValues();
+        auto Values = LI->getElements();
         bool IsAspect = (Field.Name == "aspects");
         ListSeparator LS;
         for (const auto &[Idx, Val] : enumerate(Values)) {
