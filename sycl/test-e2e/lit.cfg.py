@@ -123,7 +123,6 @@ for name in possibly_dangerous_env_vars:
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(
     [
-        "PATH",
         "OCL_ICD_FILENAMES",
         "OCL_ICD_VENDORS",
         "CL_CONFIG_DEVICES",

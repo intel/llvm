@@ -967,31 +967,21 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
       ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr"
-      ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
-      ",+SPV_INTEL_device_side_avc_motion_estimation"
-      ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
-      ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
+      ",+SPV_INTEL_subgroups"
+      ",+SPV_INTEL_unstructured_loop_controls"
       ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
-      ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+      ",+SPV_INTEL_inline_assembly"
       ",+SPV_INTEL_arbitrary_precision_integers"
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-      ",+SPV_INTEL_arbitrary_precision_fixed_point"
-      ",+SPV_INTEL_arbitrary_precision_floating_point"
       ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
       ",+SPV_INTEL_long_composites"
       ",+SPV_INTEL_arithmetic_fence"
       ",+SPV_INTEL_global_variable_decorations"
       ",+SPV_INTEL_cache_controls"
-      ",+SPV_INTEL_fpga_buffer_location"
-      ",+SPV_INTEL_fpga_argument_interfaces"
-      ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-      ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
-      ",+SPV_INTEL_task_sequence"
       ",+SPV_INTEL_bfloat16_conversion"
       ",+SPV_INTEL_joint_matrix"
-      ",+SPV_INTEL_hw_thread_queries"
       ",+SPV_KHR_uniform_group_instructions"
       ",+SPV_INTEL_masked_gather_scatter"
       ",+SPV_INTEL_tensor_float32_conversion"
@@ -1210,20 +1200,28 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
         StringRef(reinterpret_cast<const char *>(CompressedBytes.data()),
                   CompressedBytes.size()),
         Image.Image->getBufferIdentifier());
+    // Formats without magic bytes can't be detected after decompression.
+    if (Image.Format != offloading::SYCLBinaryImageFormat::BIF_None)
+      Image.PropertyRegistry.add(
+          llvm::util::PropertySetRegistry::SYCL_MISC_PROP,
+          offloading::OriginalFormatPropName,
+          static_cast<uint32_t>(
+              offloading::binaryImageFormatToInt8(Image.Format)));
     Image.Format = offloading::SYCLBinaryImageFormat::BIF_Compressed;
   }
   return Error::success();
 }
 
-/// Reads device images from the given \p InputFile and wraps them
-/// in one LLVM IR Module as a constant data. \p Target overrides the target
-/// triple given by \p Args.
+/// Wraps the device images of \p SplitModules, built for the device target
+/// triple \p Target, in one LLVM IR module as constant data. If
+/// \p IsEmbeddedIR is true, the images are LLVM IR to be compiled at runtime.
+/// \p Args provides the global options: image compression and host triple.
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
 wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
                          const ArgList &Args, bool IsEmbeddedIR,
-                         StringRef Target = "") {
+                         const llvm::Triple &Target) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
@@ -1248,21 +1246,13 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
       return OutputFilePath;
   }
 
-  if (Target.empty())
-    Target = Args.getLastArgValue(OPT_triple_EQ);
-  if (Target.empty())
-    return createStringError(
-        inconvertibleErrorCode(),
-        "can't wrap SYCL image. -triple argument is missing.");
-
   SmallVector<llvm::offloading::SYCLImage> Images;
   // SYCL runtime currently works for spir64 target triple and not for
   // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
   // TODO: Fix SYCL runtime to accept other triples
-  llvm::Triple T(Target);
   std::string EmbeddedIRTarget("llvm_");
-  EmbeddedIRTarget.append(T.getArchName());
-  StringRef RegularTarget(T.getArchName());
+  EmbeddedIRTarget.append(Target.getArchName());
+  StringRef RegularTarget(Target.getArchName());
   if (RegularTarget == "spirv64")
     RegularTarget = "spir64";
 
@@ -1648,8 +1638,13 @@ static Error checkForUndefinedSYCLBINSymbols(const SYCLBINSymbols &Symbols) {
 static Expected<StringRef>
 runWrapperAndCompile(ArrayRef<module_split::SplitModule> SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
-  auto OutputFile =
-      sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
+  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
+  if (Target.empty())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "can't wrap SYCL image. -triple argument is missing.");
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(
+      SplitModules, Args, IsEmbeddedIR, llvm::Triple(Target));
   if (!OutputFile)
     return OutputFile.takeError();
   // call to clang
@@ -2959,10 +2954,34 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
 
   // The -fno-sycl-rdc compile step wraps the modules of all architectures into
-  // a single wrapper module. Keep them per input group for a stable order.
-  std::vector<std::vector<module_split::SplitModule>> NoRDCModules(
-      LinkerInputFiles.size());
-  std::string NoRDCTriple;
+  // a single wrapper module. One vector of split modules per input group, so
+  // the wrap order doesn't depend on thread scheduling. Each group only writes
+  // its own slot, so no lock is needed.
+  using SplitModuleList = std::vector<module_split::SplitModule>;
+  std::vector<SplitModuleList> NoRDCModulesPerGroup(LinkerInputFiles.size());
+
+  // The single wrapper module has one target triple, so check before any
+  // device compilation that all SYCL input groups share it.
+  std::optional<std::string> NoRDCTriple;
+  if (!NeedsWrapping && !OutputSYCLBIN) {
+    for (const SmallVector<OffloadFile> &Input : LinkerInputFiles) {
+      const auto *It = llvm::find_if(Input, [](const OffloadFile &F) {
+        return F.getBinary()->getOffloadKind() == OFK_SYCL;
+      });
+      if (It == Input.end())
+        continue;
+      StringRef Triple = It->getBinary()->getTriple();
+      if (Triple.empty())
+        return createStringError(
+            "--no-sycl-rdc requires a target triple for every SYCL input");
+      if (!NoRDCTriple)
+        NoRDCTriple = Triple.str();
+      else if (*NoRDCTriple != Triple)
+        return createStringError(
+            "--no-sycl-rdc does not support multiple SYCL target triples ('" +
+            *NoRDCTriple + "' and '" + Triple + "')");
+    }
+  }
 
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
@@ -3071,13 +3090,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       } else if (!NeedsWrapping) {
         // -fno-sycl-rdc compile step: the modules are wrapped once all inputs
         // are processed.
-        StringRef Triple = LinkerArgs.getLastArgValue(OPT_triple_EQ);
-        std::scoped_lock<std::mutex> Guard(ImageMtx);
-        if (!NoRDCTriple.empty() && NoRDCTriple != Triple)
-          return createStringError(
-              "--no-sycl-rdc does not support multiple SYCL target triples");
-        NoRDCModules[&Input - LinkerInputFiles.data()] = std::move(Modules);
-        NoRDCTriple = Triple.str();
+        size_t GroupIdx = std::distance(LinkerInputFiles.begin(), &Input);
+        NoRDCModulesPerGroup[GroupIdx] = std::move(Modules);
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         Expected<StringRef> OutputFile =
@@ -3152,13 +3166,13 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
   // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the host
   // compilation links it in via -foffload-include-binary.
-  if (!NoRDCTriple.empty()) {
-    std::vector<module_split::SplitModule> Modules;
-    for (std::vector<module_split::SplitModule> &GroupModules : NoRDCModules)
+  if (NoRDCTriple) {
+    SplitModuleList Modules;
+    for (SplitModuleList &GroupModules : NoRDCModulesPerGroup)
       std::move(GroupModules.begin(), GroupModules.end(),
                 std::back_inserter(Modules));
     Expected<StringRef> OutputFile = sycl::wrapSYCLBinariesFromFile(
-        Modules, Args, /*IsEmbeddedIR=*/false, NoRDCTriple);
+        Modules, Args, /*IsEmbeddedIR=*/false, llvm::Triple(*NoRDCTriple));
     if (!OutputFile)
       return OutputFile.takeError();
     WrappedOutput.push_back(*OutputFile);

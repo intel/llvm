@@ -547,8 +547,9 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
   return UR_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
-// An image with a compile_target was built for that device architecture only.
-// Images without one are matched by their target.
+// An image with a compile_target was built for that device architecture only,
+// so it only matches a device of that architecture. Images without a
+// compile_target are not filtered here.
 static bool doesCompileTargetMatchDevice(const RTDeviceBinaryImage &Img,
                                          const device_impl &Dev) {
   const RTDeviceBinaryImage::PropertyRange &Range = Img.getDeviceRequirements();
@@ -1458,13 +1459,15 @@ const RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
-  // Only consider images built for the device's architecture, if any.
+  // Skip images built for another device architecture.
   std::vector<const RTDeviceBinaryImage *> Imgs;
   for (const RTDeviceBinaryImage *Img : ImageSet)
     if (doesCompileTargetMatchDevice(*Img, DeviceImpl))
       Imgs.push_back(Img);
   if (Imgs.empty())
-    Imgs.assign(ImageSet.begin(), ImageSet.end());
+    throw exception(make_error_code(errc::runtime),
+                    "No device image is built for the selected device's "
+                    "architecture");
 
   std::vector<sycl_device_binary> RawImgs(Imgs.size());
   for (size_t i = 0; i < Imgs.size(); i++)

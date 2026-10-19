@@ -9,7 +9,7 @@
 // CHK-OLD: clang-offload-bundler
 
 /// The new offloading model embeds the finalized device image.
-// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -ccc-install-dir %S/Inputs/SYCL/bin \
 // RUN:   --offload-new-driver -fsycl-targets=intel_gpu_pvc -fno-sycl-rdc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NEW %s
 // CHK-NEW: "-fsycl-is-host"{{.*}} "-foffload-include-binary"

@@ -17,26 +17,29 @@ namespace ur::level_zero::v2 {
 template <size_t N>
 std::array<ur_command_list_manager, N> createCommandListManagers(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
-    ze_command_queue_priority_t priority, std::optional<int32_t> index) {
+    ze_command_queue_priority_t priority, std::optional<int32_t> index,
+    std::optional<int32_t> priorityLevel) {
   return createArrayOf<ur_command_list_manager, N>([&](size_t) {
     return ur_command_list_manager(
         hContext, hDevice,
         hContext->getCommandListCache().getImmediateCommandList(
             hDevice->ZeDevice,
             {true, ordinal, true /* always enable copy offload */},
-            ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index));
+            ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
+            priorityLevel));
   });
 }
 
 ur_queue_immediate_out_of_order_t::ur_queue_immediate_out_of_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
-    event_flags_t eventFlags, ur_queue_flags_t flags)
+    std::optional<int32_t> priorityLevel, event_flags_t eventFlags,
+    ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)),
       commandListManagers(createCommandListManagers<numCommandLists>(
-          hContext, hDevice, ordinal, priority, index)),
+          hContext, hDevice, ordinal, priority, index, priorityLevel)),
       flags(flags) {
   for (size_t i = 0; i < numCommandLists; i++) {
     barrierEvents[i] = eventPool->allocate();

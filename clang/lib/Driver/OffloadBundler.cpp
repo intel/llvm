@@ -138,7 +138,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   // SYCL bundle entry IDs use a 3-component triple followed by the target ID,
   // e.g. sycl-spir64_gen-unknown-unknown-pvc, so the last component is the
   // target ID rather than the environment.
-  if (Components.size() == 5 &&
+  if (this->OffloadKind == "sycl" && Components.size() == 5 &&
       T.getEnvironment() == llvm::Triple::UnknownEnvironment &&
       !clang::StringToOffloadArch(Components.back().split(':').first)
            .isUnknown()) {
@@ -1980,6 +1980,39 @@ Error OffloadBundler::UnbundleFiles() {
     if (Error Err = FH->ReadHeader(Input.getBuffer()))
       return Err;
 
+    // A SYCL code object without a target ID is compatible with any target ID
+    // of the same triple (see isCodeObjectCompatible). Only use such a match
+    // when the blob has no entry with an exactly matching target ID, so that
+    // the result does not depend on the order of the entries.
+    std::set<StringRef> BundleIDs;
+    {
+      Expected<std::unique_ptr<FileHandler>> IDHandlerOrErr =
+          CreateFileHandler(Input, BundlerConfig);
+      if (!IDHandlerOrErr)
+        return IDHandlerOrErr.takeError();
+      if (Error Err = (*IDHandlerOrErr)->getBundleIDs(Input, BundleIDs))
+        return Err;
+    }
+    // Returns false only if exactly one of the SYCL bundle entry (CodeObject)
+    // and the requested -targets ID (Target) has a target ID, e.g. entry
+    // sycl-spir64_gen-unknown-unknown and target
+    // sycl-spir64_gen-unknown-unknown-pvc. Such a match relies on the ID-less
+    // fallback. Only whether a target ID is present is checked, not its value.
+    auto TargetIDPresenceMatches = [](const OffloadTargetInfo &CodeObject,
+                                      const OffloadTargetInfo &Target) {
+      return CodeObject.OffloadKind != "sycl" ||
+             CodeObject.TargetID.empty() == Target.TargetID.empty();
+    };
+    // Returns true if the blob has an entry that matches \p Target without the
+    // ID-less fallback.
+    auto HasExactEntry = [&](const OffloadTargetInfo &Target) {
+      return llvm::any_of(BundleIDs, [&](StringRef ID) {
+        OffloadTargetInfo CodeObject(ID, BundlerConfig);
+        return TargetIDPresenceMatches(CodeObject, Target) &&
+               isCodeObjectCompatible(CodeObject, Target);
+      });
+    };
+
     // Drain worklist entries satisfied by this blob.
     while (!Worklist.empty()) {
       Expected<std::optional<StringRef>> CurTripleOrErr =
@@ -1997,13 +2030,26 @@ Error OffloadBundler::UnbundleFiles() {
         return createStringError(errc::invalid_argument,
                                  "invalid bundle id read from the bundle");
 
-      auto Output = Worklist.begin();
-      for (auto E = Worklist.end(); Output != E; Output++) {
-        if (isCodeObjectCompatible(
-                OffloadTargetInfo(CurTriple, BundlerConfig),
-                OffloadTargetInfo((*Output).first(), BundlerConfig)))
-          break;
-      }
+      OffloadTargetInfo CodeObject(CurTriple, BundlerConfig);
+      // First, look for a requested -targets ID (Target) that this bundle
+      // entry (CodeObject) matches exactly, e.g. entry
+      // sycl-spir64_gen-unknown-unknown-pvc for target
+      // sycl-spir64_gen-unknown-unknown-pvc.
+      auto Output = llvm::find_if(Worklist, [&](const auto &W) {
+        OffloadTargetInfo Target(W.first(), BundlerConfig);
+        return TargetIDPresenceMatches(CodeObject, Target) &&
+               isCodeObjectCompatible(CodeObject, Target);
+      });
+      // Otherwise, an ID-less SYCL entry (e.g. sycl-spir64_gen-unknown-unknown)
+      // may be used for a target with a target ID, or the reverse, but only if
+      // the blob has no exact entry for that target.
+      if (Output == Worklist.end())
+        Output = llvm::find_if(Worklist, [&](const auto &W) {
+          OffloadTargetInfo Target(W.first(), BundlerConfig);
+          return !TargetIDPresenceMatches(CodeObject, Target) &&
+                 isCodeObjectCompatible(CodeObject, Target) &&
+                 !HasExactEntry(Target);
+        });
 
       if (Output == Worklist.end())
         continue;

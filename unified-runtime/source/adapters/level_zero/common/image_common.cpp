@@ -1604,10 +1604,10 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
         Win32ExpDesc.name = Utf8NameStorage.c_str();
+        Win32ExpDesc.handle = nullptr;
 #else
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
-        Win32ExpDesc.handle = nullptr;
       }
     }
     pNext = const_cast<void *>(BaseDesc->pNext);

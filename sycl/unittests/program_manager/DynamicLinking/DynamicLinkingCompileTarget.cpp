@@ -9,6 +9,14 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <initializer_list>
+#include <set>
+#include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
 // Check that the dependencies of an AOT image are resolved with images built
 // for the same device when there are images for several devices.
 
@@ -178,4 +186,26 @@ TEST(DynamicLinking, AheadOfTimeImageFromSetForDevice) {
       PM.getDeviceImage(ImgSet, *sycl::detail::getSyclObjImpl(Q.get_context()),
                         *sycl::detail::getSyclObjImpl(Q.get_device()));
   EXPECT_EQ(*Img.getRawData().BinaryStart, PVC_PRG);
+}
+
+TEST(DynamicLinking, AheadOfTimeImageFromSetForOtherDevice) {
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfo);
+
+  sycl::queue Q(sycl::platform().get_devices()[0]);
+  auto &PM = sycl::detail::ProgramManager::getInstance();
+  std::unordered_set<const sycl::detail::RTDeviceBinaryImage *> ImgSet;
+  for (const sycl::detail::RTDeviceBinaryImage *Img :
+       PM.getRawDeviceImages({sycl::get_kernel_id<
+           DynamicLinkingCompileTargetTest::MultiArchKernel>()}))
+    if (*Img->getRawData().BinaryStart != PVC_PRG)
+      ImgSet.insert(Img);
+  ASSERT_EQ(ImgSet.size(), 1u);
+
+  // The only image is built for TGLLP, so it can't be used on PVC.
+  EXPECT_THROW(PM.getDeviceImage(ImgSet,
+                                 *sycl::detail::getSyclObjImpl(Q.get_context()),
+                                 *sycl::detail::getSyclObjImpl(Q.get_device())),
+               sycl::exception);
 }

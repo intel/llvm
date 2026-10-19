@@ -89,6 +89,8 @@
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_55_8 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // SYCL_DEVICE_LIB_ASAN_DG2: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf.bc
@@ -130,6 +132,8 @@
 /// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_60_7 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // SYCL_DEVICE_LIB_MSAN_PVC: clang{{.*}} "-mlink-bitcode-file" "{{.*}}libsycl-msan-pvc.bc"
 
 /// test behavior of msan libdevice linking when -fsanitize=memory is available for AOT targets
@@ -161,6 +165,8 @@
 
 /// test behavior of tsan libdevice linking when -fsanitize=thread is available for AOT targets
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_60_7 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // SYCL_DEVICE_LIB_TSAN_PVC: clang{{.*}} "-mlink-bitcode-file" "{{.*}}libsycl-tsan-pvc.bc"
 

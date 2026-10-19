@@ -1,11 +1,11 @@
 /// SYCL offloading tests using -save-temps
 
 /// Verify that -save-temps does not crash
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clang -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-FSYCL-SAVE-TEMPS
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clang -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-FSYCL-SAVE-TEMPS
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-FSYCL-SAVE-TEMPS
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BASE_NAME:[a-z0-9-]+]].ii"
 // CHK-FSYCL-SAVE-TEMPS: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[HEADER_NAME:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[DEVICE_BASE_NAME]].bc"{{.*}} "[[DEVICE_BASE_NAME]].ii"

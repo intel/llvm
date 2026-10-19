@@ -36,6 +36,11 @@ ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
     return ReturnValue(false);
   case UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     return ur::level_zero::urDeviceGetInfo(hDeviceOpque, propName, propSize,
                                            propValue, propSizeRet);
