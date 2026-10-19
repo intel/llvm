@@ -1244,7 +1244,7 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
   }
 
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
-  if (Target.empty())
+  if (Target.empty() && !SplitModules.empty())
     return createStringError(
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missing.");
@@ -3671,6 +3671,12 @@ int main(int Argc, char **Argv) {
     } else if (Args.hasArg(OPT_sycl_device_link)) {
       // Skip host linker if --sycl-device-link option is set.
       // Just copy the output of device linking and wrapping action.
+      if (FilesOrErr->empty()) {
+        auto OutputFile = sycl::runWrapperAndCompile({}, Args);
+        if (!OutputFile)
+          reportError(OutputFile.takeError());
+        FilesOrErr->push_back(*OutputFile);
+      }
       if (FilesOrErr->size() != 1)
         reportError(
             createStringError("Expect single output from the device linker."));

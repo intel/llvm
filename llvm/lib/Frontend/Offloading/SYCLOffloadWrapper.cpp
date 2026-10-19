@@ -16,6 +16,7 @@
 
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -773,6 +774,12 @@ struct Wrapper {
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          const SmallVector<SYCLImage> &Images,
                                          SYCLWrappingOptions Options) {
+  if (llvm::all_of(Images, [](const SYCLImage &Image) {
+        return Image.Image->getBufferSize() == 0 &&
+               Image.Target != "native_cpu";
+      }))
+    return Error::success();
+
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)
