@@ -717,9 +717,6 @@ detail::EventImplPtr handler::finalize() {
   case detail::CGType::Barrier:
   case detail::CGType::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
-      impl->CGData.MEvents.insert(std::end(impl->CGData.MEvents),
-                                  std::begin(impl->MEventsWaitWithBarrier),
-                                  std::end(impl->MEventsWaitWithBarrier));
       // Barrier node is implemented as an empty node in Graph
       // but keep the barrier type to help managing dependencies
       setType(detail::CGType::Barrier);
@@ -727,8 +724,7 @@ detail::EventImplPtr handler::finalize() {
                                         std::move(impl->CGData), MCodeLoc));
     } else {
       CommandGroup.reset(new detail::CGBarrier(
-          std::move(impl->MEventsWaitWithBarrier), impl->MEventMode,
-          std::move(impl->CGData), getType(), MCodeLoc));
+          impl->MEventMode, std::move(impl->CGData), getType(), MCodeLoc));
     }
     break;
   }
@@ -996,16 +992,9 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   setType(detail::CGType::BarrierWaitlist);
-  impl->MEventsWaitWithBarrier.reserve(WaitList.size());
-  for (auto &Event : WaitList) {
-    auto EventImpl = detail::getSyclObjImpl(Event);
-    // We could not wait for host task events in backend.
-    // Adding them as dependency to enable proper scheduling.
-    if (EventImpl->isHost()) {
-      depends_on(EventImpl);
-    }
-    impl->MEventsWaitWithBarrier.push_back(std::move(EventImpl));
-  }
+
+  // The events of the wait list are regular dependencies of the barrier.
+  depends_on(WaitList);
 }
 
 using namespace sycl::detail;

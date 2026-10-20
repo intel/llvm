@@ -247,7 +247,7 @@ query.
 
 '''
 
-=== New functions to enqueue event operations
+=== New functions to enqueue event operations [[enqueue-event-operations]]
 
 This extension adds the following free functions which submit operations related
 to events onto a queue.
@@ -258,11 +258,22 @@ to events onto a queue.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void enqueue_wait_event(queue q, const event& evt);
-void enqueue_wait_events(queue q, const std::vector<event>& evts);
+template<typename PropertyListT = empty_properties_t>
+void enqueue_wait_event(queue q, const event& evt, PropertyListT props = {});
+
+template<typename PropertyListT = empty_properties_t>
+void enqueue_wait_events(queue q, const std::vector<event>& evts,
+                         PropertyListT props = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
+
+_Constraints:_
+
+* `PropertyListT` is a property that is documented as legal to pass to this
+  function; or
+* `is_property_list_v<PropertyListT>` is `true` and contains no properties other
+  than those that are documented as legal to pass to this function.
 
 _Effects:_ Enqueues a special barrier to `q` with the following semantic.
 Any commands submitted to the queue after this barrier cannot begin execution
@@ -277,10 +288,18 @@ same context as `q`.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void enqueue_signal_event(queue q, event& evt);
+template<typename PropertyListT = empty_properties_t>
+void enqueue_signal_event(queue q, event& evt, PropertyListT props = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
+
+_Constraints:_
+
+* `PropertyListT` is a property that is documented as legal to pass to this
+  function; or
+* `is_property_list_v<PropertyListT>` is `true` and contains no properties other
+  than those that are documented as legal to pass to this function.
 
 _Effects:_ The event `evt` is immediately disassociated with any previous
 command, and its status is set to `info::event_command_status::submitted`.

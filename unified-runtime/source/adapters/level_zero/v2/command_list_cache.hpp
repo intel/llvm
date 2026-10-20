@@ -59,6 +59,7 @@ struct immediate_command_list_descriptor_t {
   ze_command_queue_mode_t Mode;
   ze_command_queue_priority_t Priority;
   std::optional<uint32_t> Index;
+  std::optional<int32_t> PriorityLevel;
   bool operator==(const immediate_command_list_descriptor_t &rhs) const;
 };
 
@@ -87,7 +88,8 @@ struct command_list_cache_t {
   getImmediateCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc,
                           ze_command_queue_mode_t Mode,
                           ze_command_queue_priority_t Priority,
-                          std::optional<uint32_t> Index = std::nullopt);
+                          std::optional<uint32_t> Index = std::nullopt,
+                          std::optional<int32_t> PriorityLevel = std::nullopt);
   raii::command_list_unique_handle
   getRegularCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc);
 
