@@ -1,6 +1,6 @@
 // REQUIRES: system-linux
 /// Verify --offload-new-driver option phases
-// RUN:  %clang --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver --sysroot=%S/Inputs/SYCL -ccc-print-phases %s 2>&1 \
+// RUN:  %clang --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=OFFLOAD-NEW-DRIVER %s
 // OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // OFFLOAD-NEW_DRIVER: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -55,10 +55,10 @@
 // WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--sycl-post-link-options=-O2"{{.*}} "--sycl-post-link-options=-device-globals"{{.*}} "--sycl-post-link-options=sycl:spir64-unknown-unknown=-post-link-opt"
 
 // -fsycl-device-only behavior
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -fsycl-device-only -ccc-print-phases %s 2>&1 \
 // RUN   | FileCheck -check-prefix DEVICE_ONLY %s
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          --offload-device-only -ccc-print-phases %s 2>&1 \
 // RUN:  | FileCheck -check-prefix DEVICE_ONLY %s
 // DEVICE_ONLY: 0: input, "{{.*}}", c++, (device-sycl)

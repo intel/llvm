@@ -1215,7 +1215,8 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
 /// Wraps the device images of \p SplitModules, built for the device target
 /// triple \p Target, in one LLVM IR module as constant data. If
 /// \p IsEmbeddedIR is true, the images are LLVM IR to be compiled at runtime.
-/// \p Args provides the global options: image compression and host triple.
+/// \p Args provides the global options, such as image compression and the
+/// host triple.
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
@@ -2957,8 +2958,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   // a single wrapper module. One vector of split modules per input group, so
   // the wrap order doesn't depend on thread scheduling. Each group only writes
   // its own slot, so no lock is needed.
-  using SplitModuleList = std::vector<module_split::SplitModule>;
-  std::vector<SplitModuleList> NoRDCModulesPerGroup(LinkerInputFiles.size());
+  using SplitModulesVec = std::vector<module_split::SplitModule>;
+  std::vector<SplitModulesVec> NoRDCModulesPerGroup(LinkerInputFiles.size());
 
   // The single wrapper module has one target triple, so check before any
   // device compilation that all SYCL input groups share it.
@@ -3167,8 +3168,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the host
   // compilation links it in via -foffload-include-binary.
   if (NoRDCTriple) {
-    SplitModuleList Modules;
-    for (SplitModuleList &GroupModules : NoRDCModulesPerGroup)
+    SplitModulesVec Modules;
+    for (SplitModulesVec &GroupModules : NoRDCModulesPerGroup)
       std::move(GroupModules.begin(), GroupModules.end(),
                 std::back_inserter(Modules));
     Expected<StringRef> OutputFile = sycl::wrapSYCLBinariesFromFile(

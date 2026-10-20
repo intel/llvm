@@ -58,10 +58,10 @@
 
 /// Check compilation phases, only device compile should be performed
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -fsyclbin \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -ccc-print-phases 2>&1 \
+// RUN:   --offload-new-driver %s -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PHASES
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsyclbin \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -ccc-print-phases 2>&1 \
+// RUN:   --offload-new-driver %s -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "{{.*}}", c++, (device-sycl)
 // CHECK_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
