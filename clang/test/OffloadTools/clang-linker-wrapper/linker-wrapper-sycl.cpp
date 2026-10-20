@@ -339,13 +339,16 @@
 // CHK-DEVLINK-CMDS-NEXT: "{{.*cp|copy}}" [[CLANGOUT]] /dev/null
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
 
-// Verify that with --emit-fatbin-only (-fno-sycl-rdc compile step) the wrapper
-// module is copied to the output as bitcode, without compiling it or calling
-// the host linker.
+// Verify that --emit-fatbin-only writes a raw fatbin without generating
+// wrapper bitcode, compiling it, or host linking.
 // RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.syclfb %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY %s
+// CHK-FATBIN-ONLY-NOT: offload-wrapper:
+// CHK-FATBIN-ONLY-NOT: "{{.*}}clang"{{.*}} -c
+// CHK-FATBIN-ONLY-NOT: "{{.*cp|copy}}"
 // CHK-FATBIN-ONLY: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
-// CHK-FATBIN-ONLY-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
-// CHK-FATBIN-ONLY-NEXT: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.syclfb
+// CHK-FATBIN-ONLY-NOT: offload-wrapper:
+// CHK-FATBIN-ONLY-NOT: "{{.*}}clang"{{.*}} -c
+// CHK-FATBIN-ONLY-NOT: "{{.*cp|copy}}"
 // CHK-FATBIN-ONLY-NOT: "{{.*}}/ld"
 
 // Verify list of commands when syclbin is used

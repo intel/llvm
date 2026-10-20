@@ -1,10 +1,9 @@
 // REQUIRES: spirv-registered-target, x86-registered-target
 // REQUIRES: spirv-to-ir-wrapper, sycl-post-link
 
-/// intel/llvm counterpart of LLORG's sycl-nordc-fatbin.cpp. In intel/llvm the
-/// non-RDC host object carries the wrapper module produced at compile time:
-/// the device image in ".tgtimg" plus the __sycl_register_lib registration,
-/// and no ".llvm.offloading", so the final link does not device-link it again.
+/// Verify that the non-RDC host object carries the finalized device image in
+/// ".tgtimg" and a runtime descriptor registered with __sycl_register_lib. It
+/// has no ".llvm.offloading", so the final link does not device-link it again.
 /// The RDC host object is the reverse.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:   --no-offloadlib -fno-gpu-rdc -c %s -o %t.nordc.o

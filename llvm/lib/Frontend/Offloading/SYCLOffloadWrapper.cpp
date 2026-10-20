@@ -28,12 +28,14 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/PropertySetIO.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
@@ -786,4 +788,85 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
     W.createUnregisterFunction(Desc);
   }
   return Error::success();
+}
+
+namespace {
+// Offload binary string keys that carry the SYCLImage fields.
+constexpr char TargetKey[] = "sycl-target";
+constexpr char FormatKey[] = "sycl-image-format";
+constexpr char EntriesKey[] = "symbols";
+constexpr char PropertiesKey[] = "properties";
+constexpr char CompileOptionsKey[] = "compile-opts";
+constexpr char LinkOptionsKey[] = "link-opts";
+} // anonymous namespace
+
+void llvm::offloading::addSYCLImageStrings(
+    const SYCLImage &Image, MapVector<StringRef, StringRef> &StringData,
+    StringSaver &Saver) {
+  std::string Properties;
+  raw_string_ostream PropertiesOS(Properties);
+  Image.PropertyRegistry.write(PropertiesOS);
+  StringData[TargetKey] = Saver.save(Image.Target);
+  StringData[FormatKey] = Saver.save(
+      Twine(static_cast<int>(binaryImageFormatToInt8(Image.Format))));
+  StringData[EntriesKey] = Saver.save(Image.Entries);
+  StringData[PropertiesKey] = Saver.save(Properties);
+  StringData[CompileOptionsKey] = Saver.save(Image.CompileOptions);
+  StringData[LinkOptionsKey] = Saver.save(Image.LinkOptions);
+}
+
+Expected<SmallVector<SYCLImage>>
+llvm::offloading::readSYCLImages(MemoryBufferRef Buffer) {
+  auto BinariesOrErr = object::OffloadBinary::create(Buffer);
+  if (!BinariesOrErr)
+    return BinariesOrErr.takeError();
+
+  SmallVector<SYCLImage> Images;
+  for (const std::unique_ptr<object::OffloadBinary> &Binary : *BinariesOrErr) {
+    if (Binary->getOffloadKind() != object::OFK_SYCL)
+      return createStringError("offload binary entry " +
+                               Twine(Binary->getIndex()) +
+                               " is not a SYCL device image");
+
+    std::unique_ptr<MemoryBuffer> PropertiesBuffer =
+        MemoryBuffer::getMemBufferCopy(Binary->getString(PropertiesKey));
+    auto PropertiesOrErr = PropertySetRegistry::read(PropertiesBuffer.get());
+    if (!PropertiesOrErr)
+      return PropertiesOrErr.takeError();
+
+    SYCLImage Image(MemoryBuffer::getMemBuffer(
+                        Binary->getImage(), Buffer.getBufferIdentifier(),
+                        /*RequiresNullTerminator=*/false),
+                    **PropertiesOrErr, Binary->getString(EntriesKey),
+                    Binary->getString(TargetKey),
+                    Binary->getString(CompileOptionsKey),
+                    Binary->getString(LinkOptionsKey));
+
+    unsigned Format = 0;
+    if (Binary->getString(FormatKey).getAsInteger(10, Format))
+      return createStringError("invalid SYCL image format '" +
+                               Binary->getString(FormatKey) + "'");
+    switch (Format) {
+    case 0:
+      Image.Format = SYCLBinaryImageFormat::BIF_None;
+      break;
+    case 1:
+      Image.Format = SYCLBinaryImageFormat::BIF_Native;
+      break;
+    case 2:
+      Image.Format = SYCLBinaryImageFormat::BIF_SPIRV;
+      break;
+    case 3:
+      Image.Format = SYCLBinaryImageFormat::BIF_LLVMBC;
+      break;
+    case 4:
+      Image.Format = SYCLBinaryImageFormat::BIF_Compressed;
+      break;
+    default:
+      return createStringError("invalid SYCL image format '" + Twine(Format) +
+                               "'");
+    }
+    Images.emplace_back(std::move(Image));
+  }
+  return std::move(Images);
 }
