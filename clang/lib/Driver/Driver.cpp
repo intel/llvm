@@ -1288,8 +1288,8 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
 
   // spir64_gen is deprecated in favor of intel_gpu_<arch>, both as a
   // -fsycl-targets value and as the triple of the -X<tool>= options. It is not
-  // supported with the new offloading model, and is removed together with the
-  // old offloading model.
+  // supported with the new offloading model, and will be removed together with
+  // the old offloading model.
   if (IsSYCL) {
     const Driver &D = C.getDriver();
     // Target is a SYCL target as given on the command line, e.g. spir64_gen,
