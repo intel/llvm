@@ -658,17 +658,17 @@
 
 /// Passing in the default triple should allow for -Xsycl-target options, both the
 /// "=<triple>" and the default spelling
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-DFOO" "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-DFOO2"
 
 /// ###########################################################################
 
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_x86_64 -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_CPU %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_GPU %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
 // SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-DFOO"
@@ -684,10 +684,10 @@
 
 /// Using linker specific items at the end of the command should not fail when
 /// we are performing a non-linking compilation behavior
-// RUN: %clangxx -E -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %S/Inputs/SYCL/liblin64.a \
+// RUN: %clangxx -E -fsycl --offload-new-driver %S/Inputs/SYCL/liblin64.a \
 // RUN:          -target x86_64-unknown-linux-gnu -### 2>&1 \
 // RUN:  | FileCheck -check-prefix IGNORE_INPUT %s
-// RUN: %clangxx -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %S/Inputs/SYCL/liblin64.a \
+// RUN: %clangxx -c -fsycl --offload-new-driver %S/Inputs/SYCL/liblin64.a \
 // RUN:          -target x86_64-unknown-linux-gnu -### 2>&1 \
 // RUN:  | FileCheck -check-prefix IGNORE_INPUT %s
 // IGNORE_INPUT: input unused

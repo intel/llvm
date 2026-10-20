@@ -168,7 +168,7 @@
 // compilation options belong to the input images. Explicit linker options
 // still reach clang-linker-wrapper for all three targets, with no extra
 // JIT compiler or AOT backend options.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu \
 // RUN:   -fsycl --offload-new-driver -fsycl-targets=spir64,intel_gpu_pvc,spir64_x86_64 \
 // RUN:   -g0 -O2 -ftarget-register-alloc-mode=pvc:small \
 // RUN:   -Xsycl-target-linker=spir64 -jit-link-opt \
