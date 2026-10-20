@@ -15,18 +15,18 @@
 // RUN: %clangxx --driver-mode=cl --target=x86_64-pc-windows-msvc /std:c++17 /Zs /Zp4 /D_DLL /I%sycl_include /clang:-Xclang /clang:-verify=packed /clang:-Xclang /clang:-verify-ignore-unexpected=note %s
 // RUN: %clangxx --driver-mode=cl --target=x86_64-pc-windows-msvc /std:c++17 /Zs /Zp8 /D_DLL /I%sycl_include /clang:-Xclang /clang:-verify=normal %s
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -fpack-struct -Xclang -verify=normal %s
-// RUN: %clangxx -fsycl -fsyntax-only -DPACK_AFTER_COMMON_HEADER=1 -Xclang -verify=runtime -Xclang -verify-ignore-unexpected=note %s
-// RUN: %clangxx -fsycl -fsyntax-only -DPACK_AFTER_COMMON_HEADER=4 -Xclang -verify=runtime -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl -fsyntax-only -DPACK_AFTER_COMMON_HEADER=1 -Xclang -verify=sycl-packing -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl -fsyntax-only -DPACK_AFTER_COMMON_HEADER=4 -Xclang -verify=sycl-packing -Xclang -verify-ignore-unexpected=note %s
 
 // normal-no-diagnostics
 // clang-format off
 // packed-error@sycl/detail/defines_elementary.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI. Remove -fpack-struct or -Zp, and do not include SYCL headers inside #pragma pack. Apply packing only to user-defined types instead.}}
 #ifndef __SYCL_DEVICE_ONLY__
-// runtime-error@sycl/detail/string_view.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI.}}
-// runtime-error@sycl/detail/compile_time_kernel_info.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI.}}
-// runtime-error@sycl/detail/kernel_launch_helper.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI.}}
+// sycl-packing-error@sycl/detail/string_view.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI.}}
+// sycl-packing-error@sycl/detail/compile_time_kernel_info.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI.}}
+// sycl-packing-error@sycl/detail/kernel_launch_helper.hpp:* {{Structure packing is incompatible with the supported SYCL runtime ABI.}}
 #else
-// runtime-no-diagnostics
+// sycl-packing-no-diagnostics
 #endif
 // clang-format on
 

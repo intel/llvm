@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
 #include <unified-runtime/ur_api.h>
 
@@ -32,7 +33,6 @@ using context_runtime_traits =
     sycl::detail::rt_traits_base<sycl::detail::info_class::context>;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/detail/defines_elementary.hpp>
 struct __SYCL_DEPRECATED("info::context::reference_count is not part of "
                          "SYCL 2020") reference_count
     : context_traits<UR_CONTEXT_INFO_REFERENCE_COUNT> {

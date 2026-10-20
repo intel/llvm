@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/info_desc_traits.hpp>
 #include <unified-runtime/ur_api.h>
 
@@ -33,7 +34,6 @@ struct device : queue_traits<UR_QUEUE_INFO_DEVICE> {
   using return_type = sycl::device;
 };
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/detail/defines_elementary.hpp>
 struct __SYCL_DEPRECATED("info::queue::reference_count is not part of "
                          "SYCL 2020") reference_count
     : queue_traits<UR_QUEUE_INFO_REFERENCE_COUNT> {
