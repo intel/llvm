@@ -25,9 +25,9 @@
 /// ###########################################################################
 
 /// Check warning for empty -fsycl-targets
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=  %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -fsycl-targets=  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-EMPTY-SYCLTARGETS %s
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=  %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-EMPTY-SYCLTARGETS %s
 // CHK-EMPTY-SYCLTARGETS: warning: joined argument expects additional value: '-fsycl-targets='
 
