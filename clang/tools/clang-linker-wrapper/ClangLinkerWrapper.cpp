@@ -1130,7 +1130,7 @@ runAOTCompileIntelCPU(StringRef InputFile, const ArgList &Args,
   return *TempFileOrErr;
 }
 
-/// Define __sycl_registerlib_<unique_prefix> functions referenced by the
+/// Define __sycl_registerlib_<unique_identifier> functions referenced by the
 /// host compile to force all device code images to be linked in, which
 /// may not happen for static archives with -fsycl-link.
 /// \p M The module.
