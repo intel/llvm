@@ -815,9 +815,10 @@ _Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::ha
 
 == Example
 
-The following example launches a kernel whose argument list is assembled at run
-time, as a launcher for kernels that are not known at compile time would do, so
-the arguments are passed as a sequence rather than as a parameter pack.  A
+The following example launches `scale` the usual way, which is also what makes
+it a kernel that `get_kernel_id` can find.  It then launches it through its
+`sycl::kernel` object with the argument list assembled at run time, as a
+launcher for kernels that are not known at compile time would do.  A
 `std::vector<raw_kernel_arg>`, a `std::array` of them and a `std::span` of them
 all convert to `std::span<const raw_kernel_arg>`.
 
@@ -829,25 +830,31 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 static constexpr size_t N = 1024;
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
-void scale(float *data, int factor) { /* kernel body */ }
+struct scale {
+  float *data;
+  int factor;
+  void operator()(sycl::nd_item<1>) const { /* kernel body */ }
+};
 
 int main() {
   sycl::queue q;
-
-  auto bundle =
-      syclex::get_kernel_bundle<scale, sycl::bundle_state::executable>(
-          q.get_context());
-  sycl::kernel k = bundle.ext_oneapi_get_kernel<scale>();
+  sycl::nd_range<1> range{{N}, {256}};
 
   float *data = sycl::malloc_device<float>(N, q);
   int factor = 2;
+
+  syclex::nd_launch(q, range, scale{data, factor});
+  q.wait();
+
+  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+      q.get_context(), {sycl::get_kernel_id<scale>()});
+  sycl::kernel k = bundle.get_kernel<scale>();
 
   std::vector<syclex::raw_kernel_arg> args;
   args.emplace_back(&data, syclex::pointer_arg);
   args.emplace_back(&factor, sizeof(factor));
 
-  syclex::nd_launch(q, sycl::nd_range<1>{{N}, {256}}, k, args);
+  syclex::nd_launch(q, range, k, args);
   q.wait();
 
   sycl::free(data, q);
