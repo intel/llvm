@@ -1217,21 +1217,15 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
 /// target and compresses them if requested.
 static Expected<SmallVector<offloading::SYCLImage>>
 createSYCLImages(ArrayRef<module_split::SplitModule> SplitModules,
-                 const ArgList &Args, bool IsEmbeddedIR) {
-  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
-  if (Target.empty())
-    return createStringError(
-        inconvertibleErrorCode(),
-        "can't wrap SYCL image. -triple argument is missing.");
-
+                 const ArgList &Args, bool IsEmbeddedIR,
+                 const llvm::Triple &Target) {
   SmallVector<llvm::offloading::SYCLImage> Images;
   // SYCL runtime currently works for spir64 target triple and not for
   // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
   // TODO: Fix SYCL runtime to accept other triples
-  llvm::Triple T(Target);
   std::string EmbeddedIRTarget("llvm_");
-  EmbeddedIRTarget.append(T.getArchName());
-  StringRef RegularTarget(T.getArchName());
+  EmbeddedIRTarget.append(Target.getArchName());
+  StringRef RegularTarget(Target.getArchName());
   if (RegularTarget == "spirv64")
     RegularTarget = "spir64";
 
@@ -1266,13 +1260,17 @@ createSYCLImages(ArrayRef<module_split::SplitModule> SplitModules,
   return std::move(Images);
 }
 
-/// Reads device images from the given \p InputFile and wraps them
-/// in one LLVM IR Module as a constant data.
+/// Wraps the device images of \p SplitModules, built for the device target
+/// triple \p Target, in one LLVM IR module as constant data. If
+/// \p IsEmbeddedIR is true, the images are LLVM IR to be compiled at runtime.
+/// \p Args provides the global options, such as image compression and the
+/// host triple.
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
 wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
-                         const ArgList &Args, bool IsEmbeddedIR) {
+                         const ArgList &Args, bool IsEmbeddedIR,
+                         const llvm::Triple &Target) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
@@ -1298,7 +1296,7 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
   }
 
   Expected<SmallVector<offloading::SYCLImage>> ImagesOrErr =
-      createSYCLImages(SplitModules, Args, IsEmbeddedIR);
+      createSYCLImages(SplitModules, Args, IsEmbeddedIR, Target);
   if (!ImagesOrErr)
     return ImagesOrErr.takeError();
   SmallVector<offloading::SYCLImage> &Images = *ImagesOrErr;
@@ -1659,8 +1657,13 @@ static Error checkForUndefinedSYCLBINSymbols(const SYCLBINSymbols &Symbols) {
 static Expected<StringRef>
 runWrapperAndCompile(ArrayRef<module_split::SplitModule> SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
-  auto OutputFile =
-      sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
+  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
+  if (Target.empty())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "can't wrap SYCL image. -triple argument is missing.");
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(
+      SplitModules, Args, IsEmbeddedIR, llvm::Triple(Target));
   if (!OutputFile)
     return OutputFile.takeError();
   // call to clang
@@ -3092,7 +3095,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         // compilation wraps them for registration with the SYCL runtime.
         Expected<SmallVector<offloading::SYCLImage>> SYCLImagesOrErr =
             sycl::createSYCLImages(Modules, LinkerArgs,
-                                   /*IsEmbeddedIR=*/false);
+                                   /*IsEmbeddedIR=*/false, TargetTriple);
         if (!SYCLImagesOrErr)
           return SYCLImagesOrErr.takeError();
 
