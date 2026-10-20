@@ -91,3 +91,15 @@ TEST(QueuePriorityTest, WithDriverLevelsUsesPriorityLevels) {
   expectPriority(getZeQueuePriority(Range, 0, Min),
                  ZE_COMMAND_QUEUE_PRIORITY_NORMAL, -3);
 }
+
+TEST(QueuePriorityTest, HighFlagMatchesHighestLevelWhenHighestIsZero) {
+  const auto Range = makeQueuePriorityRange(std::pair{1, 0});
+  ASSERT_TRUE(Range.HasLevels);
+  ASSERT_EQ(Range.Highest, 0);
+
+  const auto HighFlag =
+      getZeQueuePriority(Range, UR_QUEUE_FLAG_PRIORITY_HIGH, std::nullopt);
+  const auto HighestLevel = getZeQueuePriority(Range, 0, Range.Highest);
+  expectPriority(HighFlag, ZE_COMMAND_QUEUE_PRIORITY_NORMAL, 0);
+  expectPriority(HighestLevel, HighFlag.Class, HighFlag.Level);
+}

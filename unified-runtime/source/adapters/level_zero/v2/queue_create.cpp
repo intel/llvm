@@ -16,8 +16,6 @@
 #include "queue_immediate_in_order.hpp"
 #include "unified-runtime/ur_api.h"
 
-#include <algorithm>
-
 static const bool ForceBatched = getenv_tobool("UR_L0_V2_FORCE_BATCHED");
 
 namespace ur::level_zero::v2 {

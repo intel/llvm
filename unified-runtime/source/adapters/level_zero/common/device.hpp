@@ -116,7 +116,7 @@ getZeQueuePriority(const ze_queue_priority_range &Range, ur_queue_flags_t Flags,
       return {ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt};
     // The high priority class alone gets the driver's default priority of high
     // priority queues, which may be below the highest priority level.
-    if (Range.HasLevels && Range.Highest < 0)
+    if (Range.HasLevels)
       return {ZE_COMMAND_QUEUE_PRIORITY_NORMAL, Range.Highest};
     return {ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH, std::nullopt};
   }
