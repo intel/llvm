@@ -435,7 +435,8 @@ struct KernelFunctor1 {
     /* ... */
   }
   auto get(syclext::properties_tag) const {
-     return syclext::properties{syclext::assume_indirect_calls_to<set_fp16>};
+     return syclext::properties{syclext::assume_indirect_calls_to<set_fp16>,
+        sycl::device_has<sycl::aspect::fp64>};
   }
   // Diagnostic is required for this kernel, because it is declared as only
   // using 'fp64' aspect, but it also uses virtual member functions from
@@ -447,7 +448,8 @@ struct KernelFunctor2 {
     /* ... */
   }
   auto get(syclext::properties_tag) const {
-     return syclext::properties{syclext::assume_indirect_calls_to<set_fp64>};
+     return syclext::properties{syclext::assume_indirect_calls_to<set_fp64>,
+        sycl::device_has<>};
   }
   // Diagnostic is required for this kernel, because it is declared as not
   // using any optional features, but it also uses virtual member functions from
@@ -459,7 +461,8 @@ struct KernelFunctor3 {
     /* ... */
   }
   auto get(syclext::properties_tag) const {
-     return syclext::properties{syclext::assume_indirect_calls_to<set_fp64>};
+     return syclext::properties{syclext::assume_indirect_calls_to<set_fp64>,
+        sycl::device_has<sycl::aspect::fp64>};
   }
   // No diagnostic is required for this kernel, because list of declared aspects
   // matches list of used aspects. That includes virtual member functions from
@@ -469,11 +472,11 @@ struct KernelFunctor3 {
 
 sycl::queue q;
 
-q.single_task([[sycl::device_has(sycl::aspect::fp64)]] KernelFunctor1{});
+q.single_task(KernelFunctor1{});
 
-q.single_task([[sycl::device_has()]] KernelFunctor2{});
+q.single_task(KernelFunctor2{});
 
-q.single_task([[sycl::device_has(sycl::aspect::fp64)]] KernelFunctor3{});
+q.single_task(KernelFunctor3{});
 ----
 
 Submitting a kernel with `assume_indirect_calls_to` property, which includes
