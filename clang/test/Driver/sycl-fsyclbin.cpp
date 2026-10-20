@@ -149,3 +149,13 @@
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_REDUNDANT
 // CHECK_DEPS_REDUNDANT: warning: '-fsycl-allow-device-image-dependencies' has no effect with '-fsyclbin=executable'
+
+/// -fsycl-max-parallel-link-jobs is passed to clang-linker-wrapper when
+/// building a SYCLBIN.
+// RUN: %clangxx -fsyclbin=executable -fsycl-targets=spir64_gen \
+// RUN:   -fsycl-device-code-split=per_kernel -fsycl-max-parallel-link-jobs=24 \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PARALLEL_JOBS
+// CHECK_PARALLEL_JOBS-NOT: argument unused during compilation: '-fsycl-max-parallel-link-jobs=24'
+// CHECK_PARALLEL_JOBS: clang-linker-wrapper{{.*}} "--syclbin=executable"
+// CHECK_PARALLEL_JOBS-SAME: "--wrapper-jobs=24"

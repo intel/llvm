@@ -2239,20 +2239,29 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
                     M.LinkOptions = CompileLinkOptions.second;
                   });
 
-  for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-    Expected<StringRef> OutputOrErr =
-        compileDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs,
-                               Triple, BackendOptions, AOTDeviceArgs);
-    if (!OutputOrErr)
-      return OutputOrErr.takeError();
+  // Split modules are independent, so compile them in parallel. The number of
+  // jobs is controlled by --wrapper-jobs.
+  SmallVector<StringRef> Outputs(SplitModules.size());
+  if (Error Err = parallelForEachError(
+          llvm::seq<size_t>(0, SplitModules.size()), [&](size_t I) -> Error {
+            Expected<StringRef> OutputOrErr = compileDeviceAndBundle(
+                SplitModules[I].ModuleFilePath, LinkerArgs, Triple,
+                BackendOptions, AOTDeviceArgs);
+            if (!OutputOrErr)
+              return OutputOrErr.takeError();
 
-    SplitModules[I].ModuleFilePath = *OutputOrErr;
-    if (Triple.isNativeCPU()) {
-      // Add to WrappedOutput directly rather than combining this with
-      // the usual pipeline because WrappedOutput holds references and
-      // SplitModules[I].ModuleFilePath will go out of scope too soon.
-      WrappedOutputCallback(*OutputOrErr);
-    }
+            Outputs[I] = *OutputOrErr;
+            SplitModules[I].ModuleFilePath = *OutputOrErr;
+            return Error::success();
+          }))
+    return std::move(Err);
+
+  if (Triple.isNativeCPU()) {
+    // Add to WrappedOutput directly rather than combining this with
+    // the usual pipeline because WrappedOutput holds references and
+    // SplitModules[I].ModuleFilePath will go out of scope too soon.
+    for (StringRef Output : Outputs)
+      WrappedOutputCallback(Output);
   }
 
   return std::move(SplitModules);
