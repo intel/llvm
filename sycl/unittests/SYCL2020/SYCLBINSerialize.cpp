@@ -62,6 +62,16 @@ sycl::unittest::MockDeviceImage Imgs[] = {
     makeImageWithCompileTarget("SYCLBINSerializeKernel", "intel_gpu_pvc")};
 sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
+// Makes the mock device a PVC GPU, so that the intel_gpu_pvc image is used.
+ur_result_t redefinedDeviceGetInfoPVC(void *pParams) {
+  auto Params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*Params.ppropName == UR_DEVICE_INFO_IP_VERSION && *Params.ppPropValue)
+    *static_cast<uint32_t *>(*Params.ppPropValue) = 0x030f0000;
+  if (*Params.ppropName == UR_DEVICE_INFO_TYPE && *Params.ppPropValue)
+    *static_cast<ur_device_type_t *>(*Params.ppPropValue) = UR_DEVICE_TYPE_GPU;
+  return UR_RESULT_SUCCESS;
+}
+
 // Strips the OffloadBinary wrapper that ext_oneapi_get_content emits and
 // returns a string_view over the contained raw SYCLBIN bytes. Returns
 // std::nullopt if the wrapper does not parse cleanly; callers should ASSERT
@@ -115,6 +125,8 @@ stripOffloadWrapper(const std::vector<char> &Bytes) {
 // confirm the property survived.
 TEST(SYCLBINSerialize, CompileTargetRoundTrip) {
   sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoPVC);
 
   const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::context Ctx{Dev};
@@ -222,6 +234,8 @@ TEST(SYCLBINSerialize, BundleStateRoundTripObject) {
 // inspection alone (e.g. CompileTargetRoundTrip) does not catch.
 TEST(SYCLBINSerialize, ImageBytesRoundTrip) {
   sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoPVC);
 
   const sycl::device Dev = sycl::platform().get_devices()[0];
   sycl::context Ctx{Dev};
