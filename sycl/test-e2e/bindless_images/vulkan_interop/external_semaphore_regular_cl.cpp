@@ -21,9 +21,9 @@
 
 // Verify that external semaphore wait and signal operations work on an
 // in-order queue backed by regular (non-immediate) command lists. A timeline
-// semaphore provides equivalent coverage on both platforms while avoiding
-// Linux binary semaphore sharing issue CMPLRLLVM-78008. The trace checks ensure
-// that the status query does not hide a wait incorrectly left in the batch.
+// semaphore provides equivalent coverage on both platforms while avoiding a
+// known Linux binary semaphore sharing issue. The trace window ends before
+// status queries so they cannot hide a wait left in the batch.
 
 #include "sycl_vulkan_setup.hpp"
 #include <chrono>
@@ -94,14 +94,17 @@ int main() {
 
   try {
     std::cerr << "SUBMISSION TRACE BEGIN" << std::endl;
-    q.single_task([]() {});
+    sycl::event precedingEvent = q.single_task([]() {});
     sycl::event waitEvent =
         q.ext_oneapi_wait_external_semaphore(syclSem, VulkanSignalValue);
+    std::cerr << "SUBMISSION TRACE END" << std::endl;
 
+    if (!waitForCompletion(precedingEvent))
+      failWithoutCleanup(
+          "Work preceding the external semaphore wait did not complete.");
     if (!remainsIncomplete(waitEvent))
       failWithoutCleanup(
           "The external semaphore wait completed before Vulkan signaled it.");
-    std::cerr << "SUBMISSION TRACE END" << std::endl;
 
     VkSemaphoreSignalInfo signalInfo = {
         VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO};

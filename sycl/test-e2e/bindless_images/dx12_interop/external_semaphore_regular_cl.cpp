@@ -22,7 +22,8 @@
 
 // Verify that external semaphore wait and signal operations work on an
 // in-order queue backed by regular (non-immediate) command lists. The trace
-// checks ensure that the status query does not hide a wait left in the batch.
+// window ends before status queries so they cannot hide a wait left in the
+// batch.
 
 #include "d3d12_setup.hpp"
 #include <chrono>
@@ -107,14 +108,17 @@ int main() {
   try {
     const uint64_t D3DSignalValue = extFence.fenceValue + 1;
     std::cerr << "SUBMISSION TRACE BEGIN" << std::endl;
-    q.single_task([]() {});
+    sycl::event precedingEvent = q.single_task([]() {});
     sycl::event waitEvent =
         q.ext_oneapi_wait_external_semaphore(syclSem, D3DSignalValue);
+    std::cerr << "SUBMISSION TRACE END" << std::endl;
 
+    if (!waitForCompletion(precedingEvent))
+      failWithoutCleanup(
+          "Work preceding the external semaphore wait did not complete.");
     if (!remainsIncomplete(waitEvent))
       failWithoutCleanup(
           "The external semaphore wait completed before D3D12 signaled it.");
-    std::cerr << "SUBMISSION TRACE END" << std::endl;
 
     signalExportableFence(d3dCtx, extFence);
     if (!waitForCompletion(waitEvent))
