@@ -1,3 +1,7 @@
+// Checks that linking with huge device code input warns about possible
+// 32-bit relocation overflow, and that the warning can be suppressed with
+// -flink-huge-device-code or -Wno-large-device-kernel.
+//
 // The warning is emitted when the real linker Command actually executes
 // (its inputs don't exist yet at job-construction time, so this can't be
 // tested with -### like sycl-flink-huge-device-code.cpp). Dummy "object"
@@ -29,6 +33,8 @@
 // RUN: %clangxx -fsycl %t-small.o -o %t.out > %t-small.log 2>&1 || true
 // RUN: FileCheck --check-prefix=NO-WARN --allow-empty %s < %t-small.log
 
-// WARN: warning: total SYCL device code size is {{[0-9.]+}} GB ({{[0-9]+}} bytes); the host link may fail with 'relocation truncated to fit' or 'PC-relative offset overflow' because 32-bit PC-relative relocations cannot reach past 2 GB; add '-flink-huge-device-code' to the link command line (not only the compile line) to place device code sections via a custom linker script
+// RUN: rm -f %t-big.o
 
-// NO-WARN-NOT: total SYCL device code size
+// WARN: warning: total link input size of {{[0-9.]+}} GB ({{[0-9]+}} bytes) may overflow 32-bit relocations in the host link; consider linking with '-flink-huge-device-code'
+
+// NO-WARN-NOT: total link input size

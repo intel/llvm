@@ -272,10 +272,10 @@ void tools::gnutools::StaticLibTool::ConstructJob(
 
 // Link-input size above which some relocations are truncated.
 // -flink-huge-device-code works around it.
-static constexpr uint64_t SYCLHugeDeviceCodeWarnThreshold = 1ull << 30; // 1GB
+static constexpr uint64_t HugeLinkInputWarnThreshold = 1ull << 30; // 1GiB
 
 // Best-effort: skips non-filename inputs (e.g. linker flags).
-static uint64_t getTotalSYCLDeviceCodeSize(ArrayRef<InputInfo> Inputs) {
+static uint64_t getTotalLinkInputSize(ArrayRef<InputInfo> Inputs) {
   uint64_t Total = 0;
 
   for (const InputInfo &II : Inputs)
@@ -288,7 +288,7 @@ static uint64_t getTotalSYCLDeviceCodeSize(ArrayRef<InputInfo> Inputs) {
   return Total;
 }
 
-static std::string formatDeviceCodeSize(uint64_t Bytes) {
+static std::string formatSize(uint64_t Bytes) {
   double GB = static_cast<double>(Bytes) / (1024.0 * 1024.0 * 1024.0);
   std::string Str;
   llvm::raw_string_ostream OS(Str);
@@ -300,27 +300,36 @@ namespace {
 // Checked at Execute() time, not construction time: job construction
 // happens before any job runs, so earlier pipeline stages (e.g.
 // unbundling) haven't written their outputs yet.
-class SYCLHugeDeviceCodeCheckCommand : public Command {
+class HugeLinkInputCheckCommand : public Command {
   const Driver &D;
 
 public:
-  SYCLHugeDeviceCodeCheckCommand(const Driver &D, const Action &Source,
-                                 const Tool &Creator,
-                                 ResponseFileSupport ResponseSupport,
-                                 const char *Executable,
-                                 const llvm::opt::ArgStringList &Arguments,
-                                 ArrayRef<InputInfo> Inputs,
-                                 ArrayRef<InputInfo> Outputs = {})
+  HugeLinkInputCheckCommand(const Driver &D, const Action &Source,
+                            const Tool &Creator,
+                            ResponseFileSupport ResponseSupport,
+                            const char *Executable,
+                            const llvm::opt::ArgStringList &Arguments,
+                            ArrayRef<InputInfo> Inputs,
+                            ArrayRef<InputInfo> Outputs = {})
       : Command(Source, Creator, ResponseSupport, Executable, Arguments, Inputs,
                 Outputs),
         D(D) {}
 
   int Execute(ArrayRef<std::optional<StringRef>> Redirects, std::string *ErrMsg,
               bool *ExecutionFailed) const override {
-    uint64_t DeviceCodeSize = getTotalSYCLDeviceCodeSize(getInputInfos());
-    if (DeviceCodeSize > SYCLHugeDeviceCodeWarnThreshold)
-      D.Diag(diag::warn_drv_sycl_huge_device_code)
-          << formatDeviceCodeSize(DeviceCodeSize);
+    uint64_t InputSize = getTotalLinkInputSize(getInputInfos());
+    if (InputSize > HugeLinkInputWarnThreshold) {
+      D.Diag(diag::warn_drv_huge_device_code) << formatSize(InputSize);
+      // -Werror promoted this to an error: don't run the real link, just
+      // report failure like any other failed build step.
+      if (D.getDiags().getDiagnosticLevel(diag::warn_drv_huge_device_code,
+                                          SourceLocation()) >=
+          DiagnosticsEngine::Error) {
+        if (ExecutionFailed)
+          *ExecutionFailed = false;
+        return 1;
+      }
+    }
     return Command::Execute(Redirects, ErrMsg, ExecutionFailed);
   }
 };
@@ -617,12 +626,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  // Deferred to Command::Execute(); see SYCLHugeDeviceCodeCheckCommand above.
-  bool WarnOnHugeSYCLDeviceCode =
-      Args.hasArg(options::OPT_fsycl, options::OPT_offload_targets_EQ) &&
-      !Args.hasFlag(options::OPT_flink_huge_device_code,
-                    options::OPT_fno_link_huge_device_code, false);
-
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_r)) {
     if (!Args.hasArg(options::OPT_nodefaultlibs)) {
       if (IsStatic || IsStaticPIE)
@@ -742,8 +745,12 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addAllArgs(CmdArgs, {options::OPT_T});
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
-  if (WarnOnHugeSYCLDeviceCode)
-    C.addCommand(std::make_unique<SYCLHugeDeviceCodeCheckCommand>(
+
+  // Deferred to Command::Execute(); see HugeLinkInputCheckCommand above.
+  if (Args.hasArg(options::OPT_fsycl, options::OPT_offload_targets_EQ) &&
+      !Args.hasFlag(options::OPT_flink_huge_device_code,
+                    options::OPT_fno_link_huge_device_code, false))
+    C.addCommand(std::make_unique<HugeLinkInputCheckCommand>(
         D, JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs,
         Output));
   else
