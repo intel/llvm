@@ -16,17 +16,21 @@
 
 namespace ur::level_zero::v2 {
 
-ur_event_handle_t event_pool::allocate() {
+ur_event_handle_t event_pool::allocate(bool forceCreate) {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<ur_mutex> lock(mutex);
 
-  auto it = std::find_if(
-      freelist.rbegin(), freelist.rend(), [](ur_event_handle_t event) {
-        return !event->isCounter() ||
-               ZE_CALL_NOCHECK(zeEventQueryStatus, (event->getZeEvent())) ==
-                   ZE_RESULT_SUCCESS;
-      });
+  auto it =
+      forceCreate
+          ? freelist.rend()
+          : std::find_if(freelist.rbegin(), freelist.rend(),
+                         [](ur_event_handle_t event) {
+                           return !event->isCounter() ||
+                                  ZE_CALL_NOCHECK(zeEventQueryStatus,
+                                                  (event->getZeEvent())) ==
+                                      ZE_RESULT_SUCCESS;
+                         });
 
   ur_event_handle_t event;
   if (it == freelist.rend()) {
