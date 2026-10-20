@@ -266,6 +266,29 @@ jobs:
       binaries_artifact: 'e2e_bin_new_offload_model'
       testing_mode: 'run-only'
 
+  E2E-cuda13:
+    needs: [build]
+    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    permissions:
+      contents: write
+      packages: read
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: NVIDIA/CUDA 13.1
+      runner: '["Linux", "cuda13"]'
+      image: ghcr.io/${{ github.repository }}/ubuntu2404_build_cuda13:latest
+      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+      target_devices: cuda:gpu
+      extra_lit_opts: >-
+        --param sycl_build_targets=nvidia
+        --param cxx_flags="-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 -Wno-unused-command-line-argument"
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      testing_mode: 'full'
+      ur_cuda_adapter_rebuild: 'true'
+
 
   test-perf:
     needs: [build, detect_changes]

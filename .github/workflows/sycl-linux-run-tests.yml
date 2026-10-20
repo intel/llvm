@@ -92,6 +92,14 @@ on:
         default: 'false'
         required: False
 
+      ur_cuda_adapter_rebuild:
+        description: |
+          Rebuild the UR CUDA adapter with the CUDA toolkit from the image and
+          replace the one in the toolchain before running tests.
+        type: string
+        default: 'false'
+        required: False
+
       benchmark_upload_results:
         description: |
           Set to true to upload results to git repository storing benchmarking
@@ -320,6 +328,22 @@ jobs:
         rm -f ${{ inputs.toolchain_artifact_filename }}
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - name: Checkout Unified Runtime
+      if: inputs.ur_cuda_adapter_rebuild == 'true'
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        path: ur-src
+        ref: ${{ inputs.repo_ref || github.sha }}
+        sparse-checkout: unified-runtime
+    - name: Rebuild UR CUDA adapter with the image's CUDA toolkit
+      if: inputs.ur_cuda_adapter_rebuild == 'true'
+      run: |
+        cmake -G Ninja -S ur-src/unified-runtime -B ur-build \
+          -DCMAKE_BUILD_TYPE=Release -DUR_BUILD_ADAPTER_CUDA=ON \
+          -DUR_ENABLE_TRACING=ON -DUR_BUILD_TESTS=OFF -DUR_BUILD_EXAMPLES=OFF
+        grep -E "^CUDAToolkit_VERSION" ur-build/CMakeCache.txt
+        cmake --build ur-build --target ur_adapter_cuda
+        cp -P ur-build/lib/libur_adapter_cuda.so* toolchain/lib/
     - name: Download SYCL toolchain using release tag
       if: inputs.toolchain_release_tag != ''
       env:
