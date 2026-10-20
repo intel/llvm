@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_external_semaphore_import, aspect-usm_shared_allocations
+// REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: aspect-ext_intel_device_info_luid
 // REQUIRES: windows, level_zero
 
@@ -10,10 +10,19 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/23249
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
-// RUN: env UR_L0_BATCH_SIZE=8 %{run} %t.exe
+// RUN: env UR_L0_BATCH_SIZE=8 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.exe \
+// RUN:   2>&1 | FileCheck --check-prefixes=CHECK%if level_zero_v2_adapter %{,CHECK-V2%} %else %{,CHECK-V1%} %s
+//
+// CHECK-LABEL: SUBMISSION TRACE BEGIN
+// CHECK-V1: zeCommandQueueExecuteCommandLists
+// CHECK-V1: zeCommandQueueExecuteCommandLists
+// CHECK-V2: zeCommandListImmediateAppendCommandListsExp
+// CHECK-V2: zeCommandListImmediateAppendCommandListsExp
+// CHECK-LABEL: SUBMISSION TRACE END
 
 // Verify that external semaphore wait and signal operations work on an
-// in-order queue backed by regular (non-immediate) command lists.
+// in-order queue backed by regular (non-immediate) command lists. The trace
+// checks ensure that the status query does not hide a wait left in the batch.
 
 #include "d3d12_setup.hpp"
 #include <chrono>
@@ -22,12 +31,10 @@
 #include <cstring>
 #include <iostream>
 #include <string>
-#include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/properties/queue_properties.hpp>
-#include <sycl/usm.hpp>
 #include <thread>
 
 #define WIN32_LEAN_AND_MEAN
@@ -54,22 +61,6 @@ D3D12Context createSyclD3D12Context(const sycl::device &device) {
 [[noreturn]] void failWithoutCleanup(const std::string &message) {
   std::cerr << message << std::endl;
   std::_Exit(EXIT_FAILURE);
-}
-
-using MarkerAtomicRef =
-    sycl::atomic_ref<int, sycl::memory_order::relaxed,
-                     sycl::memory_scope::system,
-                     sycl::access::address_space::global_space>;
-
-bool waitForMarker(int *marker) {
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (MarkerAtomicRef(*marker).load() == 0) {
-    if (std::chrono::steady_clock::now() >= deadline)
-      return false;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-  return true;
 }
 
 bool remainsIncomplete(const sycl::event &event) {
@@ -112,21 +103,18 @@ int main() {
           syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
   syclexp::external_semaphore syclSem =
       syclexp::import_external_semaphore(semDesc, device, context);
-  int *marker = sycl::malloc_shared<int>(1, q);
-  MarkerAtomicRef(*marker).store(0);
 
   try {
     const uint64_t D3DSignalValue = extFence.fenceValue + 1;
-    q.single_task([=]() { MarkerAtomicRef(*marker).store(1); });
+    std::cerr << "SUBMISSION TRACE BEGIN" << std::endl;
+    q.single_task([]() {});
     sycl::event waitEvent =
         q.ext_oneapi_wait_external_semaphore(syclSem, D3DSignalValue);
 
-    if (!waitForMarker(marker))
-      failWithoutCleanup(
-          "The external semaphore wait did not submit the preceding batch.");
     if (!remainsIncomplete(waitEvent))
       failWithoutCleanup(
           "The external semaphore wait completed before D3D12 signaled it.");
+    std::cerr << "SUBMISSION TRACE END" << std::endl;
 
     signalExportableFence(d3dCtx, extFence);
     if (!waitForCompletion(waitEvent))
@@ -155,7 +143,6 @@ int main() {
     failWithoutCleanup(e.what());
   }
 
-  sycl::free(marker, q);
   syclexp::release_external_semaphore(syclSem, device, context);
   cleanupExportableFence(extFence);
   if (d3dCtx.fenceEvent)

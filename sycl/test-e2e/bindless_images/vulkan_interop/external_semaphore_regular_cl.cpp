@@ -1,5 +1,4 @@
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
-// REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: vulkan && level_zero
 
 // Regular command-list external semaphore support requires these driver
@@ -10,12 +9,21 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/23249
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
-// RUN: env UR_L0_BATCH_SIZE=8 %{run} %t.out
+// RUN: env UR_L0_BATCH_SIZE=8 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out \
+// RUN:   2>&1 | FileCheck --check-prefixes=CHECK%if level_zero_v2_adapter %{,CHECK-V2%} %else %{,CHECK-V1%} %s
+//
+// CHECK-LABEL: SUBMISSION TRACE BEGIN
+// CHECK-V1: zeCommandQueueExecuteCommandLists
+// CHECK-V1: zeCommandQueueExecuteCommandLists
+// CHECK-V2: zeCommandListImmediateAppendCommandListsExp
+// CHECK-V2: zeCommandListImmediateAppendCommandListsExp
+// CHECK-LABEL: SUBMISSION TRACE END
 
 // Verify that external semaphore wait and signal operations work on an
 // in-order queue backed by regular (non-immediate) command lists. A timeline
 // semaphore provides equivalent coverage on both platforms while avoiding
-// Linux binary semaphore sharing issue CMPLRLLVM-78008.
+// Linux binary semaphore sharing issue CMPLRLLVM-78008. The trace checks ensure
+// that the status query does not hide a wait incorrectly left in the batch.
 
 #include "sycl_vulkan_setup.hpp"
 #include <chrono>
@@ -23,11 +31,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/properties/queue_properties.hpp>
-#include <sycl/usm.hpp>
 #include <thread>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -35,22 +41,6 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 [[noreturn]] void failWithoutCleanup(const std::string &message) {
   std::cerr << message << std::endl;
   std::_Exit(EXIT_FAILURE);
-}
-
-using MarkerAtomicRef =
-    sycl::atomic_ref<int, sycl::memory_order::relaxed,
-                     sycl::memory_scope::system,
-                     sycl::access::address_space::global_space>;
-
-bool waitForMarker(int *marker) {
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (MarkerAtomicRef(*marker).load() == 0) {
-    if (std::chrono::steady_clock::now() >= deadline)
-      return false;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-  return true;
 }
 
 bool remainsIncomplete(const sycl::event &event) {
@@ -101,20 +91,17 @@ int main() {
 #endif
   syclexp::external_semaphore syclSem =
       syclexp::import_external_semaphore(desc, device, context);
-  int *marker = sycl::malloc_shared<int>(1, q);
-  MarkerAtomicRef(*marker).store(0);
 
   try {
-    q.single_task([=]() { MarkerAtomicRef(*marker).store(1); });
+    std::cerr << "SUBMISSION TRACE BEGIN" << std::endl;
+    q.single_task([]() {});
     sycl::event waitEvent =
         q.ext_oneapi_wait_external_semaphore(syclSem, VulkanSignalValue);
 
-    if (!waitForMarker(marker))
-      failWithoutCleanup(
-          "The external semaphore wait did not submit the preceding batch.");
     if (!remainsIncomplete(waitEvent))
       failWithoutCleanup(
           "The external semaphore wait completed before Vulkan signaled it.");
+    std::cerr << "SUBMISSION TRACE END" << std::endl;
 
     VkSemaphoreSignalInfo signalInfo = {
         VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO};
@@ -150,7 +137,6 @@ int main() {
     failWithoutCleanup(e.what());
   }
 
-  sycl::free(marker, q);
   syclexp::release_external_semaphore(syclSem, device, context);
   vkDestroySemaphore(vkCtx.device, vkSem, nullptr);
   cleanupVulkanContext(vkCtx);
