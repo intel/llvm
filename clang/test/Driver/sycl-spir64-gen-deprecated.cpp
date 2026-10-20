@@ -16,6 +16,9 @@
 // RUN:   -fsycl-targets=intel_gpu_pvc,spir64_gen \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device dg2" %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefixes=WARN,WARN-XS -DOPT=-fsycl-targets=
+// Diagnosed also without a -device option, e.g. at a compile-only (-c) step.
+// RUN: %clangxx -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:   -c %s 2>&1 | FileCheck %s --check-prefix=WARN -DOPT=-fsycl-targets=
 // WARN: warning: option '[[OPT]]spir64_gen' is deprecated and will be removed in a future release, use '[[OPT]]intel_gpu_<arch>' instead [-Wdeprecated]
 // WARN-TRIPLE: warning: option '-fsycl-targets=spir64_gen-unknown-unknown' is deprecated and will be removed in a future release, use '-fsycl-targets=intel_gpu_<arch>' instead [-Wdeprecated]
 // WARN-XS: warning: option '-Xsycl-target-backend=spir64_gen' is deprecated and will be removed in a future release, use '-Xsycl-target-backend=intel_gpu_<arch>' instead [-Wdeprecated]
@@ -51,6 +54,8 @@
 // RUN: not %clangxx -### -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
 // RUN:   -Xsycl-target-backend=spir64_gen "-options -extra" %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=ERR-XS
+// RUN: not %clangxx -### -fsycl --offload-new-driver -fsycl-targets=spir64_gen \
+// RUN:   -c %s 2>&1 | FileCheck %s --check-prefix=ERR
 // ERR: error: '-fsycl-targets=spir64_gen' is not supported with the new offloading model; use '-fsycl-targets=intel_gpu_<arch>' instead
 // ERR-TRIPLE: error: '-fsycl-targets=spir64_gen-unknown-unknown' is not supported with the new offloading model; use '-fsycl-targets=intel_gpu_<arch>' instead
 // ERR-XS: error: '-Xsycl-target-backend=spir64_gen' is not supported with the new offloading model; use '-Xsycl-target-backend=intel_gpu_<arch>' instead

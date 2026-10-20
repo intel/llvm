@@ -1292,12 +1292,14 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
   // old offloading model.
   if (IsSYCL) {
     const Driver &D = C.getDriver();
-    auto IsSPIRGenTarget = [&](StringRef Val) {
-      llvm::Triple TT = D.getSYCLDeviceTriple(Val);
+    // Target is a SYCL target as given on the command line, e.g. spir64_gen,
+    // spir64_gen-unknown-unknown or intel_gpu_pvc.
+    auto IsSPIRGenTarget = [&](StringRef Target) {
+      llvm::Triple TT = D.getSYCLDeviceTriple(Target);
       return TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen;
     };
-    auto DiagnoseSPIRGenTarget = [&](StringRef Spelling, StringRef Val) {
-      std::string Opt = (Spelling + Val).str();
+    auto DiagnoseSPIRGenTarget = [&](StringRef Spelling, StringRef Target) {
+      std::string Opt = (Spelling + Target).str();
       std::string Replacement = (Spelling + "intel_gpu_<arch>").str();
       if (D.getUseNewOffloadingDriver())
         D.Diag(diag::err_drv_not_supported_new_model) << Opt << Replacement;
@@ -1311,9 +1313,9 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
       // Report the spelling the user wrote, e.g. -fsycl-targets=.
       StringRef Spelling =
           A->getAlias() ? A->getAlias()->getSpelling() : A->getSpelling();
-      for (StringRef Val : A->getValues())
-        if (IsSPIRGenTarget(Val))
-          DiagnoseSPIRGenTarget(Spelling, Val);
+      for (StringRef Target : A->getValues())
+        if (IsSPIRGenTarget(Target))
+          DiagnoseSPIRGenTarget(Spelling, Target);
     }
     for (const Arg *A : C.getInputArgs().filtered(
              options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_frontend_EQ,
