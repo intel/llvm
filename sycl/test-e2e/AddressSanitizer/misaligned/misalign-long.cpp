@@ -7,7 +7,7 @@
 // RUN: %{run} not --crash %t3.out 2>&1 | FileCheck %s
 // An unlimited stack selects Linux's legacy mmap layout, allowing Shared USM
 // addresses below the usual PVC range starting at 0x700000000000.
-// RUN: %if gpu %{ %{run} not --crash sh -c 'ulimit -s unlimited && exec "$@"' sh %t3.out 2>&1 | FileCheck %s %}
+// RUN: %if arch-intel_gpu_pvc %{ %{run} not --crash sh -c 'ulimit -s unlimited && exec "$@"' sh %t3.out 2>&1 | FileCheck %s %}
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
