@@ -15,6 +15,7 @@
 #include "device.hpp"
 #include "queue.hpp"
 #include "ur2offload.hpp"
+#include <utility>
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     [[maybe_unused]] ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -85,7 +86,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  if (--hQueue->RefCount == 0) {
+  const uint32_t RefCount = --hQueue->RefCount;
+
+  // Events retain their queue. If the active barrier is the queue's only
+  // remaining owner, drop the queue-owned event reference to break the cycle.
+  if (RefCount == 1 && hQueue->Barrier) {
+    auto Barrier = std::exchange(hQueue->Barrier, nullptr);
+    return urEventRelease(Barrier);
+  }
+
+  if (RefCount == 0) {
     for (auto *Q : hQueue->OffloadQueues) {
       if (!Q) {
         break;

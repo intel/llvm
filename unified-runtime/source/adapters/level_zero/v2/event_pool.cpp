@@ -14,20 +14,14 @@
 
 namespace ur::level_zero::v2 {
 
-static constexpr size_t EVENTS_BURST = 64;
-
 ur_event_handle_t event_pool::allocate() {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<ur_mutex> lock(mutex);
 
   if (freelist.empty()) {
-    auto start = events.size();
-    auto end = start + EVENTS_BURST;
-    for (; start < end; ++start) {
-      events.emplace_back(hContext, provider->allocate(), this);
-      freelist.push_back(&events.at(start));
-    }
+    events.emplace_back(hContext, provider->allocate(), this);
+    freelist.push_back(&events.back());
   }
 
   auto event = freelist.back();

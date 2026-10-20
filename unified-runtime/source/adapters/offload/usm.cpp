@@ -16,33 +16,56 @@
 #include "ur2offload.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(ur_context_handle_t hContext,
-                                                   const ur_usm_desc_t *,
+                                                   const ur_usm_desc_t *pDesc,
                                                    ur_usm_pool_handle_t,
                                                    size_t size, void **ppMem) {
-  OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
-                              OL_ALLOC_TYPE_HOST, size, ppMem));
+  if (pDesc && pDesc->align) {
+    OL_RETURN_ON_ERR(olMemAllocAlignedHost(hContext->OffloadContext,
+                                           hContext->Device->OffloadDevice,
+                                           size, pDesc->align, ppMem));
+  } else {
+    OL_RETURN_ON_ERR(olMemAllocHost(hContext->OffloadContext,
+                                    hContext->Device->OffloadDevice, size,
+                                    ppMem));
+  }
 
   hContext->AllocTypeMap.insert_or_assign(
       *ppMem, alloc_info_t{OL_ALLOC_TYPE_HOST, size});
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
-    ur_context_handle_t hContext, ur_device_handle_t, const ur_usm_desc_t *,
-    ur_usm_pool_handle_t, size_t size, void **ppMem) {
-  OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
-                              OL_ALLOC_TYPE_DEVICE, size, ppMem));
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                 const ur_usm_desc_t *pDesc, ur_usm_pool_handle_t, size_t size,
+                 void **ppMem) {
+  if (pDesc && pDesc->align) {
+    OL_RETURN_ON_ERR(
+        olMemAllocAligned(hContext->OffloadContext, hDevice->OffloadDevice,
+                          OL_ALLOC_TYPE_DEVICE, size, pDesc->align, ppMem));
+  } else {
+    OL_RETURN_ON_ERR(olMemAlloc(hContext->OffloadContext,
+                                hDevice->OffloadDevice, OL_ALLOC_TYPE_DEVICE,
+                                size, ppMem));
+  }
 
   hContext->AllocTypeMap.insert_or_assign(
       *ppMem, alloc_info_t{OL_ALLOC_TYPE_DEVICE, size});
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
-    ur_context_handle_t hContext, ur_device_handle_t, const ur_usm_desc_t *,
-    ur_usm_pool_handle_t, size_t size, void **ppMem) {
-  OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
-                              OL_ALLOC_TYPE_MANAGED, size, ppMem));
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                 const ur_usm_desc_t *pDesc, ur_usm_pool_handle_t, size_t size,
+                 void **ppMem) {
+  if (pDesc && pDesc->align) {
+    OL_RETURN_ON_ERR(
+        olMemAllocAligned(hContext->OffloadContext, hDevice->OffloadDevice,
+                          OL_ALLOC_TYPE_MANAGED, size, pDesc->align, ppMem));
+  } else {
+    OL_RETURN_ON_ERR(olMemAlloc(hContext->OffloadContext,
+                                hDevice->OffloadDevice, OL_ALLOC_TYPE_MANAGED,
+                                size, ppMem));
+  }
 
   hContext->AllocTypeMap.insert_or_assign(
       *ppMem, alloc_info_t{OL_ALLOC_TYPE_MANAGED, size});
@@ -51,8 +74,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
+  auto Result = olMemFree(hContext->OffloadContext, pMem);
+  if (Result) {
+    return offloadResultToUR(Result);
+  }
   hContext->AllocTypeMap.erase(pMem);
-  return offloadResultToUR(olMemFree(pMem));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(

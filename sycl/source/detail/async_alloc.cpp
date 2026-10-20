@@ -66,8 +66,11 @@ void checkAsyncMallocKind(sycl::usm::alloc Kind) {
 }
 
 void checkNotNativeRecording(detail::queue_impl &Queue, const char *FuncName) {
-  // Allocations are not supported in graph native recording mode.
-  if (Queue.isNativeRecording())
+  // Allocations are not supported in graph native recording mode. The backend
+  // is only queried if some queue in this context has started native
+  // recording, as this queue cannot be capturing otherwise.
+  if (Queue.getContextImpl().isNativeRecordingActive() &&
+      Queue.isNativeRecording())
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           std::string(FuncName) +
                               " is not supported in native recording mode.");
@@ -98,10 +101,15 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
     alloc = Graph->getMemPool().malloc(size, kind, DepNodes);
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
+    // The backend event of the allocation is also needed if the submission
+    // cannot bypass the scheduler: the event of the scheduler command then
+    // represents the allocation, and it can be handed out, e.g. as the last
+    // event of an in-order queue.
+    const bool EventNeeded = h.eventNeeded() || !h.impl->canBypassScheduler();
     Adapter.call<sycl::errc::runtime,
                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, (ur_usm_pool_handle_t)0, size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
+        UREvents.data(), &alloc, EventNeeded ? &Event : nullptr);
   }
 
   // Async malloc must return a void* immediately.
@@ -162,10 +170,12 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                        detail::getSyclObjImpl(pool).get());
   } else {
     ur_queue_handle_t Q = h.impl->get_queue().getHandleRef();
+    // See async_malloc for why the event can be needed by the scheduler.
+    const bool EventNeeded = h.eventNeeded() || !h.impl->canBypassScheduler();
     Adapter.call<sycl::errc::runtime,
                  sycl::detail::UrApiKind::urEnqueueUSMDeviceAllocExp>(
         Q, memPoolImpl.get_handle(), size, nullptr, UREvents.size(),
-        UREvents.data(), &alloc, &Event);
+        UREvents.data(), &alloc, EventNeeded ? &Event : nullptr);
   }
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the event from the alloc.

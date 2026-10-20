@@ -48,8 +48,8 @@ jobs:
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         repository: llvm/llvm-project
-        # llvm-project main as of Sep 7, 2026.
-        ref: 8436dd4a2bfe57d0b3fb6c9c11c69d75c1d1bccb
+        # llvm-project main as of Sep 28, 2026.
+        ref: bc4c516f6e324d147eaeea1bd7d58eb57d03a671
         persist-credentials: false
         path: llvm-project
 

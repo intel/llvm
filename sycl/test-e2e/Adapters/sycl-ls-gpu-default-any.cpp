@@ -4,7 +4,7 @@
 // RUN: %{run-unfiltered-devices} env --unset=SYCL_DEVICE_FILTER --unset=ONEAPI_DEVICE_SELECTOR sycl-ls --verbose | \
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM
 
-// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL|HIP}}
+// CHECK-GPU-BUILTIN: gpu_selector_v{{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL|HIP}}
 // clang-format off
 // CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}{{Level-Zero|CUDA|OpenCL|HIP}}
 // clang-format on

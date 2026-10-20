@@ -16,9 +16,13 @@
 #include <detail/buffer_impl.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -406,6 +410,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   EventCompleted = false;
   MSPtr->cleanupCommands({});
   ASSERT_FALSE(MockAuxResourceDeleted);
+  ASSERT_TRUE(MSPtr->hasDeferredResources());
 
   EventCompleted = true;
   // Acquire lock to keep deferred mem obj from releasing so that they can be
@@ -415,9 +420,315 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     MSPtr->cleanupCommands({});
     ASSERT_TRUE(MockAuxResourceDeleted);
     ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 1u);
+    ASSERT_TRUE(MSPtr->hasDeferredResources());
   }
 
   MSPtr->cleanupCommands({});
   ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);
+  ASSERT_FALSE(MSPtr->hasDeferredResources());
+}
+
+// Check that event::wait() releases auxiliary resources of completed commands
+// without any further scheduler activity.
+TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOnWait) {
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urEventGetInfo",
+                                            &redefinedEventGetInfo);
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+
+  MockScheduler *MSPtr = new MockScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  detail::EventImplPtr EventImplPtr;
+  bool MockAuxResourceDeleted = false;
+  EventCompleted = false;
+  {
+    MockHandlerCustomFinalize MockCGH(QueueImpl,
+                                      /*CallerNeedsEvent=*/true);
+    kernel_bundle KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(
+            QueueImpl.get_context());
+    auto ExecBundle = sycl::build(KernelBundle);
+    MockCGH.use_kernel_bundle(ExecBundle);
+    MockCGH.addReduction(
+        std::make_shared<MockAuxResource>(MockAuxResourceDeleted));
+    MockCGH.single_task<TestKernel>([] {});
+    std::unique_ptr<detail::CG> CG = MockCGH.finalize();
+
+    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImpl, /*EventNeeded=*/true);
+  }
+  ASSERT_FALSE(MockAuxResourceDeleted);
+  ASSERT_TRUE(MSPtr->hasDeferredResources());
+
+  EventCompleted = true;
+  EventImplPtr->wait();
+  ASSERT_TRUE(MockAuxResourceDeleted);
+  ASSERT_FALSE(MSPtr->hasDeferredResources());
+}
+
+class AuxiliaryCleanupScheduler : public MockScheduler {
+public:
+  using MockScheduler::cleanupAuxiliaryResources;
+  using MockScheduler::registerAuxiliaryResources;
+};
+
+int EventStatusQueries = 0;
+ur_result_t countEventStatusQueries(void *pParams) {
+  auto Params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  if (*Params.ppropName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    ++EventStatusQueries;
+    *static_cast<ur_event_status_t *>(*Params.ppPropValue) =
+        UR_EVENT_STATUS_SUBMITTED;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(SchedulerTest, WaitCleanupDoesNotPollPendingAuxiliaryEvents) {
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urEventGetInfo",
+                                            &countEventStatusQueries);
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+
+  std::vector<std::unique_ptr<int>> Handles;
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  constexpr int EventCount = 32;
+  std::vector<detail::EventImplPtr> PendingEvents;
+  std::vector<detail::EventImplPtr> CompletedEvents;
+  int Released = 0;
+  for (int I = 0; I < EventCount; ++I) {
+    auto Pending = detail::event_impl::create_device_event(QueueImpl);
+    Handles.push_back(std::make_unique<int>());
+    Pending->setHandle(
+        reinterpret_cast<ur_event_handle_t>(Handles.back().get()));
+    MSPtr->registerAuxiliaryResources(Pending, {});
+    PendingEvents.push_back(std::move(Pending));
+
+    auto Completed = detail::event_impl::create_completed_host_event();
+    std::shared_ptr<const void> Resource(new int{},
+                                         [&Released](const void *Ptr) {
+                                           delete static_cast<const int *>(Ptr);
+                                           ++Released;
+                                         });
+    MSPtr->registerAuxiliaryResources(Completed, {Resource});
+    CompletedEvents.push_back(std::move(Completed));
+  }
+
+  EventStatusQueries = 0;
+  for (const auto &Event : CompletedEvents)
+    Event->wait();
+  EXPECT_EQ(Released, EventCount);
+  EXPECT_EQ(EventStatusQueries, 0);
+  EXPECT_TRUE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, WaitDoesNotReleaseIncompleteAuxiliaryEvent) {
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  auto Pending = detail::event_impl::create_incomplete_host_event();
+  bool ResourceDeleted = false;
+  MSPtr->registerAuxiliaryResources(
+      Pending, {std::make_shared<MockAuxResource>(ResourceDeleted)});
+
+  Pending->wait();
+  EXPECT_FALSE(ResourceDeleted);
+  Pending->setComplete();
+  Pending->wait();
+  EXPECT_TRUE(ResourceDeleted);
+}
+
+TEST_F(SchedulerTest, QueueWaitReleasesCompletedAuxiliaryResources) {
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+
+  auto Completed = detail::event_impl::create_completed_host_event();
+  auto Pending = detail::event_impl::create_incomplete_host_event();
+  bool CompletedResourceDeleted = false;
+  bool PendingResourceDeleted = false;
+  MSPtr->registerAuxiliaryResources(
+      Completed, {std::make_shared<MockAuxResource>(CompletedResourceDeleted)});
+  MSPtr->registerAuxiliaryResources(
+      Pending, {std::make_shared<MockAuxResource>(PendingResourceDeleted)});
+
+  auto Unrelated = detail::event_impl::create_completed_host_event();
+  Unrelated->wait();
+  EXPECT_FALSE(CompletedResourceDeleted);
+
+  Queue.wait();
+  EXPECT_TRUE(CompletedResourceDeleted);
+  EXPECT_FALSE(PendingResourceDeleted);
+  EXPECT_TRUE(MSPtr->hasDeferredResources());
+
+  Pending->setComplete();
+  Queue.wait();
+  EXPECT_TRUE(PendingResourceDeleted);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, AuxiliaryResourcesReleasedOutsideMutex) {
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  auto Completed = detail::event_impl::create_completed_host_event();
+  auto Pending = detail::event_impl::create_incomplete_host_event();
+  auto NestedWait = detail::event_impl::create_completed_host_event();
+  bool NestedWaitFinished = false;
+
+  MSPtr->registerAuxiliaryResources(Pending, {});
+  std::shared_ptr<const void> Resource(
+      new int{}, [NestedWait, &NestedWaitFinished](const void *Ptr) {
+        delete static_cast<const int *>(Ptr);
+        NestedWait->wait();
+        NestedWaitFinished = true;
+      });
+  MSPtr->registerAuxiliaryResources(Completed, {Resource});
+  Resource.reset();
+
+  MSPtr->cleanupAuxiliaryResources(detail::NON_BLOCKING);
+  EXPECT_TRUE(NestedWaitFinished);
+  EXPECT_TRUE(MSPtr->hasDeferredResources());
+
+  Pending->setComplete();
+  MSPtr->cleanupAuxiliaryResources(detail::NON_BLOCKING);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, BlockingAuxiliaryResourcesReleasedOutsideMutex) {
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  auto NestedWait = detail::event_impl::create_completed_host_event();
+  int NestedWaits = 0;
+
+  for (int I = 0; I < 3; ++I) {
+    auto Completed = detail::event_impl::create_completed_host_event();
+    std::shared_ptr<const void> Resource(
+        new int{}, [NestedWait, &NestedWaits](const void *Ptr) {
+          delete static_cast<const int *>(Ptr);
+          NestedWait->wait();
+          ++NestedWaits;
+        });
+    MSPtr->registerAuxiliaryResources(Completed, {Resource});
+  }
+
+  MSPtr->cleanupAuxiliaryResources(detail::BLOCKING);
+  EXPECT_EQ(NestedWaits, 3);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, SlowPathWaitReleasesResourcesDeferredByCleanup) {
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
+
+  auto *MSPtr = new AuxiliaryCleanupScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  bool ResourceDeleted = false;
+  auto *Cmd =
+      new MockCommandWithCallback(&QueueImpl, getMockRequirement(), [&] {
+        auto Completed = detail::event_impl::create_completed_host_event();
+        MSPtr->registerAuxiliaryResources(
+            Completed, {std::make_shared<MockAuxResource>(ResourceDeleted)});
+      });
+  detail::EventImplPtr Event = Cmd->getEvent();
+  ASSERT_EQ(Event->getHandle(), nullptr);
+
+  Event->wait();
+  EXPECT_TRUE(ResourceDeleted);
+  EXPECT_FALSE(MSPtr->hasDeferredResources());
+}
+
+TEST_F(SchedulerTest, SchedulerAccessWaitsForReplacement) {
+  auto *MSPtr = new MockScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  detail::GlobalHandler &GlobalHandler = detail::GlobalHandler::instance();
+
+  std::mutex Mutex;
+  std::condition_variable CV;
+  bool AccessAcquired = false;
+  bool ReleaseAccess = false;
+  bool AccessWasValid = false;
+  std::thread AccessThread([&] {
+    auto Access = detail::GlobalHandler::getSchedulerAccess();
+    AccessWasValid = Access.get() == MSPtr;
+    {
+      std::lock_guard<std::mutex> Lock{Mutex};
+      AccessAcquired = true;
+    }
+    CV.notify_one();
+
+    std::unique_lock<std::mutex> Lock{Mutex};
+    CV.wait(Lock, [&] { return ReleaseAccess; });
+  });
+
+  {
+    std::unique_lock<std::mutex> Lock{Mutex};
+    if (!CV.wait_for(Lock, std::chrono::seconds(5),
+                     [&] { return AccessAcquired; })) {
+      Lock.unlock();
+      {
+        std::lock_guard<std::mutex> ReleaseLock{Mutex};
+        ReleaseAccess = true;
+      }
+      CV.notify_one();
+      AccessThread.join();
+      FAIL() << "scheduler access thread did not acquire its guard";
+      return;
+    }
+  }
+  if (!AccessWasValid) {
+    {
+      std::lock_guard<std::mutex> Lock{Mutex};
+      ReleaseAccess = true;
+    }
+    CV.notify_one();
+    AccessThread.join();
+    FAIL() << "scheduler access guard did not refer to the attached scheduler";
+    return;
+  }
+
+  std::atomic<bool> ReplacementComplete{false};
+  std::thread ReplacementThread([&] {
+    GlobalHandler.attachScheduler(nullptr);
+    ReplacementComplete.store(true, std::memory_order_release);
+  });
+
+  const auto Deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  bool AccessClosed = false;
+  while (std::chrono::steady_clock::now() < Deadline) {
+    auto Access = detail::GlobalHandler::getSchedulerAccess();
+    if (!Access.get()) {
+      AccessClosed = true;
+      break;
+    }
+    std::this_thread::yield();
+  }
+  EXPECT_TRUE(AccessClosed);
+  if (AccessClosed) {
+    EXPECT_FALSE(ReplacementComplete.load(std::memory_order_acquire));
+  }
+
+  {
+    std::lock_guard<std::mutex> Lock{Mutex};
+    ReleaseAccess = true;
+  }
+  CV.notify_one();
+  AccessThread.join();
+  ReplacementThread.join();
+
+  EXPECT_TRUE(ReplacementComplete.load(std::memory_order_acquire));
+  GlobalHandler.attachScheduler(new MockScheduler());
+  auto ReopenedAccess = detail::GlobalHandler::getSchedulerAccess();
+  EXPECT_NE(ReopenedAccess.get(), nullptr);
 }
 } // anonymous namespace

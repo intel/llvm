@@ -3,9 +3,12 @@
 // REQUIRES: spirv-to-ir-wrapper, sycl-post-link
 // -------
 // Generate .o file as linker wrapper input.
+// These objects are built in RDC mode on purpose: they carry the packaged
+// device code that the clang-linker-wrapper runs below consume.
 //
 // RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t.o
 // RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg2 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu_multi.o
 // RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code  -o %t_aot_cpu.o
 // RUN: %clang %s -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -nocudalib -fno-sycl-libspirv -c --offload-new-driver -o %t_nvptx.o
 // RUN: %clang %s -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
@@ -338,6 +341,33 @@
 // CHK-DEVLINK-CMDS-NEXT: clang{{.*}} -c -o [[CLANGOUT:.*]] [[WRAPPEROUT]].bc
 // CHK-DEVLINK-CMDS-NEXT: "{{.*cp|copy}}" [[CLANGOUT]] /dev/null
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
+
+// Verify that with --emit-fatbin-only (-fno-sycl-rdc compile step) the wrapper
+// module is copied to the output as bitcode, without compiling it or calling
+// the host linker.
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.syclfb %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY %s
+// CHK-FATBIN-ONLY: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
+// CHK-FATBIN-ONLY-NEXT: offload-wrapper: output: [[WRAPPEROUT:.*]].bc, input: {{.*}}
+// CHK-FATBIN-ONLY-NEXT: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.syclfb
+// CHK-FATBIN-ONLY-NOT: "{{.*}}/ld"
+
+// With several GPU architectures, all their images are wrapped into a single
+// wrapper module.
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.multi.syclfb %t_aot_gpu_multi.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-MULTI %s
+// CHK-FATBIN-ONLY-MULTI-DAG: ocloc{{.*}} -device pvc{{.*}} -output [[PVC:[^ ]+]]
+// CHK-FATBIN-ONLY-MULTI-DAG: ocloc{{.*}} -device dg2{{.*}} -output [[DG2:[^ ]+]]
+// CHK-FATBIN-ONLY-MULTI: offload-wrapper: output: [[WRAPPEROUT:.*]].bc,{{.*}} input: [[DG2]],{{.*}} input: [[PVC]],
+// CHK-FATBIN-ONLY-MULTI-NOT: offload-wrapper:
+// CHK-FATBIN-ONLY-MULTI: "{{.*cp|copy}}" [[WRAPPEROUT]].bc {{.*}}.multi.syclfb
+// CHK-FATBIN-ONLY-MULTI-NOT: "{{.*}}/ld"
+// RUN: not clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.mixed.syclfb %t_aot_gpu.o %t_aot_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-MIXED %s
+// CHK-FATBIN-ONLY-MIXED: error: --no-sycl-rdc does not support multiple SYCL target triples ('{{.*}}' and '{{.*}}')
+// A SYCL input without a target triple is diagnosed.
+// RUN: %clang -cc1 -triple spir64-unknown-unknown -emit-llvm-bc -x c /dev/null -o %t_notriple.bc
+// RUN: llvm-offload-binary -o %t_notriple.fat --image=file=%t_notriple.bc,kind=sycl,triple=
+// RUN: %clang -cc1 -triple x86_64-unknown-linux-gnu -emit-obj -x c /dev/null -o %t_notriple.o -fembed-offload-object=%t_notriple.fat
+// RUN: not clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o %t.notriple.syclfb %t_notriple.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-FATBIN-ONLY-NOTRIPLE %s
+// CHK-FATBIN-ONLY-NOTRIPLE: error: --no-sycl-rdc requires a target triple for every SYCL input
 
 // Verify list of commands when syclbin is used
 // RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s

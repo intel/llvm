@@ -8,8 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
-#include "ur2offload.hpp"
 #include <unified-runtime/ur_api.h>
+#include <vector>
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
@@ -18,11 +18,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ol_context_handle_t OffloadContext = nullptr;
-  ol_device_handle_t OffloadDevice = (*phDevices)->OffloadDevice;
-  if (auto Res = olCreateContext(1, &OffloadDevice, &OffloadContext)) {
-    return offloadResultToUR(Res);
+  std::vector<ol_device_handle_t> OffloadDevices;
+  OffloadDevices.reserve(DeviceCount);
+  for (uint32_t I = 0; I < DeviceCount; ++I) {
+    OffloadDevices.push_back(phDevices[I]->OffloadDevice);
   }
+
+  ol_context_handle_t OffloadContext;
+  OL_RETURN_ON_ERR(
+      olCreateContext(DeviceCount, OffloadDevices.data(), &OffloadContext));
 
   auto Ctx = new ur_context_handle_t_(*phDevices, OffloadContext);
   *phContext = Ctx;
@@ -60,6 +64,7 @@ urContextRetain(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
   if (--hContext->RefCount == 0) {
+    OL_RETURN_ON_ERR(olDestroyContext(hContext->OffloadContext));
     delete hContext;
   }
   return UR_RESULT_SUCCESS;

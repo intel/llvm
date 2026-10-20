@@ -553,10 +553,13 @@ static void addSYCLDeviceSanitizerLibs(
     if (SYCLTargetStr.starts_with("spir64_x86_64"))
       return AOT_CPU;
 
-    if (SYCLTargetStr == "intel_gpu_pvc")
+    // Resolve intel_gpu_* so that every alias of a device (e.g.
+    // intel_gpu_12_60_7 for pvc) selects the same library.
+    StringRef GenDevice = SYCL::gen::resolveGenDevice(SYCLTargetStr);
+    if (GenDevice == "pvc")
       return AOT_PVC;
 
-    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+    if (GenDevice == "dg2" || GenDevice.starts_with("acm_g"))
       return AOT_DG2;
 
     if (SYCLTargetStr.starts_with("spir64_gen")) {
@@ -1746,12 +1749,10 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
   }
 }
 
-void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
-                                              const llvm::opt::ArgList &Args,
-                                              llvm::opt::ArgStringList &CmdArgs,
-                                              const JobAction &JA,
-                                              const ToolChain &HostTC,
-                                              StringRef Device) const {
+llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    const JobAction &JA, const ToolChain &HostTC, StringRef Device) const {
+  llvm::opt::ArgStringList CmdArgs;
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // Default device AOT: -g -cl-opt-disable
@@ -1881,25 +1882,6 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // -ftarget-compile-fast AOT
     if (Args.hasArg(options::OPT_ftarget_compile_fast))
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    // -ftarget-export-symbols, also implied for -fsyclbin=input/object so
-    // that AOT-compiled native images keep cross-image SYCL_EXTERNAL
-    // symbols externally visible for runtime resolution via
-    // zeModuleDynamicLink. Users who want a fully-linked, internalized
-    // native image should use -fsyclbin=executable instead. The conflict
-    // case (-fsyclbin=input/object with
-    // -fno-sycl-allow-device-image-dependencies) is diagnosed earlier in
-    // the linker-wrapper construction; here we only need to keep the
-    // implication aligned with the device-image-dependencies setting so
-    // that an explicit opt-out for non-SYCLBIN AOT scenarios is honored.
-    bool SYCLBINImpliesExportSymbols = false;
-    if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
-      StringRef State = A->getValue();
-      SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
-    }
-    if (Args.hasFlag(options::OPT_ftarget_export_symbols,
-                     options::OPT_fno_target_export_symbols,
-                     SYCLBINImpliesExportSymbols))
-      BeArgs.push_back("-library-compilation");
     // -foffload-fp32-prec-[sqrt/div]
     if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
         Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
@@ -1920,11 +1902,11 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     }
   }
   if (BeArgs.empty())
-    return;
+    return CmdArgs;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch) {
     for (StringRef A : BeArgs)
       CmdArgs.push_back(Args.MakeArgString(A));
-    return;
+    return CmdArgs;
   }
   if (IsGen) {
     SmallString<128> BeOpt;
@@ -1943,6 +1925,43 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(BeOpt));
     }
   }
+  return CmdArgs;
+}
+
+llvm::opt::ArgStringList
+SYCLToolChain::getSPIRVLinkOptions(const llvm::Triple &Triple,
+                                   const llvm::opt::ArgList &Args) const {
+  llvm::opt::ArgStringList CmdArgs;
+  if (Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen)
+    return CmdArgs;
+
+  // Exporting symbols is a linker option. SYCLBIN input/object
+  // images need externally visible SYCL_EXTERNAL symbols for resolution via
+  // zeModuleDynamicLink. An explicit opt-out takes precedence; the conflict
+  // with -fno-sycl-allow-device-image-dependencies is diagnosed by the driver.
+  bool SYCLBINImpliesExportSymbols = false;
+  if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+    StringRef State = A->getValue();
+    SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
+  }
+  if (Args.hasFlag(options::OPT_ftarget_export_symbols,
+                   options::OPT_fno_target_export_symbols,
+                   SYCLBINImpliesExportSymbols)) {
+    CmdArgs.push_back("-options");
+    CmdArgs.push_back("-library-compilation");
+  }
+  return CmdArgs;
+}
+
+void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
+                                              const llvm::opt::ArgList &Args,
+                                              llvm::opt::ArgStringList &CmdArgs,
+                                              const JobAction &JA,
+                                              const ToolChain &HostTC,
+                                              StringRef Device) const {
+  llvm::append_range(
+      CmdArgs, getSPIRVCompilationOptions(Triple, Args, JA, HostTC, Device));
+  llvm::append_range(CmdArgs, getSPIRVLinkOptions(Triple, Args));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(

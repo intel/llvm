@@ -1066,14 +1066,16 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    // There are no explicit restrictions in L0 programming guide, so assume all
-    // are supported
     ur_memory_scope_capability_flags_t result =
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+
+    // System scope requires device atomics on host memory.
+    if (Device->ZeDeviceMemoryAccessProperties->hostAllocCapabilities &
+        ZE_MEMORY_ACCESS_CAP_FLAG_ATOMIC)
+      result |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
 
     return ReturnValue(result);
   }
@@ -1121,9 +1123,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    ur_queue_flags_t queue_flags = UR_QUEUE_FLAG_DISCARD_EVENTS |
-                                   UR_QUEUE_FLAG_SUBMISSION_BATCHED |
-                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+    ur_queue_flags_t queue_flags =
+        UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+        UR_QUEUE_FLAG_PROFILING_ENABLE | UR_QUEUE_FLAG_DISCARD_EVENTS |
+        UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH |
+        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE |
+        UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP;
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
@@ -1132,6 +1137,18 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(static_cast<ur_bool_t>(true));
+  }
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    constexpr ze_device_fp_atomic_ext_flags_t Required =
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_MIN_MAX |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_MIN_MAX;
+    return ReturnValue(static_cast<ur_bool_t>(
+        (Device->ZeDeviceFloatAtomicExtProperties->fp16Flags & Required) ==
+        Required));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
@@ -2069,6 +2086,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &Properties));
       };
 
+  ZeDeviceFloatAtomicExtProperties.Compute =
+      [ZeDevice,
+       Platform = Platform](ze_float_atomic_ext_properties_t &Properties) {
+        if (!Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME))
+          return; // leave zero-initialized flags
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query float atomic "
+                 "properties, error code: {}",
+                 ZeResult);
+      };
+
   ZeDeviceMemoryProperties.Compute =
       [ZeDevice](
           std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
@@ -2140,6 +2173,36 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         P.pNext = &Properties;
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
+
+  ZeQueuePriorityRange.Compute = [this,
+                                  ZeDevice](ze_queue_priority_range &Range) {
+    auto GetPriorityLevels =
+        Platform->ZeQueuePriorityExt.zeDeviceGetPriorityLevels;
+    if (!GetPriorityLevels)
+      return;
+    // The function is loaded directly from the driver, so it expects a driver
+    // handle rather than a loader handle.
+    ze_device_handle_t DriverDevice = nullptr;
+    if (ZE_CALL_NOCHECK(zelLoaderTranslateHandle,
+                        (ZEL_HANDLE_DEVICE, ZeDevice,
+                         reinterpret_cast<void **>(&DriverDevice))) !=
+            ZE_RESULT_SUCCESS ||
+        ZE_CALL_NOCHECK(GetPriorityLevels,
+                        (DriverDevice, &Range.Lowest, &Range.Highest)) !=
+            ZE_RESULT_SUCCESS)
+      return;
+    // A single level or an empty range means there are no levels to choose
+    // from.
+    if (Range.Highest >= Range.Lowest)
+      return;
+    // The UR API guarantees that the range contains the default priority 0.
+    if (Range.Highest > 0 || Range.Lowest < 0) {
+      UR_LOG(WARN, "Ignoring queue priority range [{}, {}] without 0.",
+             Range.Highest, Range.Lowest);
+      return;
+    }
+    Range.Supported = true;
+  };
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =

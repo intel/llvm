@@ -157,6 +157,10 @@ public:
     return std::get<std::reference_wrapper<graph_impl>>(MQueueOrGraph).get();
   }
 
+  /// \return true if the command group can be submitted to the backend
+  ///         directly, bypassing the scheduler.
+  bool canBypassScheduler();
+
   // Make the following methods templates to avoid circular dependencies for the
   // includes.
   template <typename Self = handler_impl> detail::device_impl &get_device() {
@@ -188,9 +192,6 @@ public:
 
   /// Storage for lambda/function when using HostTask
   std::shared_ptr<detail::HostTask> MHostTask;
-  /// The list of valid SYCL events that need to complete
-  /// before barrier command can be executed
-  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   /// True if MCodeLoc is sycl entry point code location
   bool MIsTopCodeLoc = true;

@@ -106,6 +106,9 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_offload_bundler_not_found : Error<
+  "cannot find 'clang-offload-bundler' in '%0', which is required to inspect "
+  "'%1' for offload device code">;
 def err_drv_sycl_no_rdc_multiple_targets : Error<
   "'%0' is not supported with multiple SYCL offloading targets">;
 
@@ -492,6 +495,8 @@ def warn_drv_sycl_target_missing : Warning<
   InGroup<SyclTarget>;
 def err_drv_no_rdc_sycl_target_missing : Error<
   "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
+def err_drv_sycl_no_rdc_unsupported : Error<
+  "'%0' is not supported with '%1' when using the new offloading model">;
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-non-user-code option can be used only in conjunction with %0">;
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
