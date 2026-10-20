@@ -65,6 +65,25 @@ int8_t llvm::offloading::binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   }
 }
 
+Expected<SYCLBinaryImageFormat>
+llvm::offloading::int8ToBinaryImageFormat(int8_t Format) {
+  switch (Format) {
+  case 0:
+    return SYCLBinaryImageFormat::BIF_None;
+  case 1:
+    return SYCLBinaryImageFormat::BIF_Native;
+  case 2:
+    return SYCLBinaryImageFormat::BIF_SPIRV;
+  case 3:
+    return SYCLBinaryImageFormat::BIF_LLVMBC;
+  case 4:
+    return SYCLBinaryImageFormat::BIF_Compressed;
+  default:
+    return createStringError("invalid SYCL image format '" +
+                             Twine(static_cast<int>(Format)) + "'");
+  }
+}
+
 namespace {
 
 /// Wrapper helper class that creates all LLVM IRs wrapping given images.
@@ -842,30 +861,14 @@ llvm::offloading::readSYCLImages(MemoryBufferRef Buffer) {
                     Binary->getString(CompileOptionsKey),
                     Binary->getString(LinkOptionsKey));
 
-    unsigned Format = 0;
+    int8_t Format = 0;
     if (Binary->getString(FormatKey).getAsInteger(10, Format))
       return createStringError("invalid SYCL image format '" +
                                Binary->getString(FormatKey) + "'");
-    switch (Format) {
-    case 0:
-      Image.Format = SYCLBinaryImageFormat::BIF_None;
-      break;
-    case 1:
-      Image.Format = SYCLBinaryImageFormat::BIF_Native;
-      break;
-    case 2:
-      Image.Format = SYCLBinaryImageFormat::BIF_SPIRV;
-      break;
-    case 3:
-      Image.Format = SYCLBinaryImageFormat::BIF_LLVMBC;
-      break;
-    case 4:
-      Image.Format = SYCLBinaryImageFormat::BIF_Compressed;
-      break;
-    default:
-      return createStringError("invalid SYCL image format '" + Twine(Format) +
-                               "'");
-    }
+    auto FormatOrErr = int8ToBinaryImageFormat(Format);
+    if (!FormatOrErr)
+      return FormatOrErr.takeError();
+    Image.Format = *FormatOrErr;
     Images.emplace_back(std::move(Image));
   }
   return std::move(Images);

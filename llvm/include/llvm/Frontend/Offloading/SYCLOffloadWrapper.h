@@ -42,6 +42,9 @@ enum class SYCLBinaryImageFormat {
 /// Returns the ABI value of \p Format shared with the SYCL runtime.
 int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format);
 
+/// Returns the SYCL image format for an ABI value, or an error if invalid.
+Expected<SYCLBinaryImageFormat> int8ToBinaryImageFormat(int8_t Format);
+
 /// Misc property with the pre-compression format; mirrored in SYCL RT.
 constexpr char OriginalFormatPropName[] = "originalFormat";
 
