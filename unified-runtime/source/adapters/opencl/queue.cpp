@@ -102,8 +102,39 @@ ur_result_t ur_queue_handle_t_::makeWithNative(native_type NativeQueue,
           hNativeHandle, nullptr, nullptr, &Device));
       UrDevice = cast(Device);
     }
+    ur_queue_flags_t PriorityFlags = 0;
+    oclv::OpenCLVersion Version;
+    UR_RETURN_ON_FAILURE(UrDevice->Platform->getPlatformVersion(Version));
+    bool PrioritySupported = false;
+    // CL_QUEUE_PRIORITY_KHR is a creation property, not a queue-info query.
+    // OpenCL 3.0 adds the query for the original creation properties array.
+    if (Version >= oclv::V3_0)
+      UR_RETURN_ON_FAILURE(
+          UrDevice->supportsQueuePriorities(PrioritySupported));
+    if (PrioritySupported) {
+      size_t PropertiesSize = 0;
+      CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+          NativeQueue, CL_QUEUE_PROPERTIES_ARRAY, 0, nullptr, &PropertiesSize));
+      if (PropertiesSize) {
+        std::vector<cl_queue_properties> Properties(
+            PropertiesSize / sizeof(cl_queue_properties));
+        CL_RETURN_ON_FAILURE(
+            clGetCommandQueueInfo(NativeQueue, CL_QUEUE_PROPERTIES_ARRAY,
+                                  PropertiesSize, Properties.data(), nullptr));
+        for (size_t I = 0; I + 1 < Properties.size() && Properties[I]; I += 2) {
+          if (Properties[I] == CL_QUEUE_PRIORITY_KHR) {
+            if (Properties[I + 1] == CL_QUEUE_PRIORITY_LOW_KHR)
+              PriorityFlags = UR_QUEUE_FLAG_PRIORITY_LOW;
+            else if (Properties[I + 1] == CL_QUEUE_PRIORITY_HIGH_KHR)
+              PriorityFlags = UR_QUEUE_FLAG_PRIORITY_HIGH;
+            break;
+          }
+        }
+      }
+    }
     auto URQueue = std::make_unique<ur_queue_handle_t_>(NativeQueue, UrContext,
                                                         UrDevice, false);
+    URQueue->PriorityFlags = PriorityFlags;
     Queue = cast(URQueue.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
