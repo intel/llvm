@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/abi_check.hpp>
 #include <sycl/detail/string.hpp>
 
 #include <string>

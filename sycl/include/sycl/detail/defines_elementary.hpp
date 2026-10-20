@@ -117,28 +117,6 @@
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
 
-#define __SYCL_ABI_PACKING_ERROR                                               \
-  "Structure packing is incompatible with the supported SYCL runtime ABI. "    \
-  "Remove -fpack-struct or -Zp, and do not include SYCL headers inside "       \
-  "#pragma pack. Apply packing only to user-defined types instead."
-
-#ifndef __SYCL_DEVICE_ONLY__
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-// Detect host packing incompatible with the supported runtime ABI using only
-// built-in types.
-struct abi_packing_check {
-  char Byte;
-  void *Pointer;
-};
-static_assert(alignof(abi_packing_check) == alignof(void *),
-              __SYCL_ABI_PACKING_ERROR);
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-#endif
-
 // MSVC doesn't support #warning and we cannot use other methods to report a
 // warning from inside a system header (which SYCL is considered to be).
 #if defined(SYCL_FALLBACK_ASSERT) && (!defined(_MSC_VER) || defined(__clang__))

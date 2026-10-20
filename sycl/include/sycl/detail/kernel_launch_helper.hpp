@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/abi_check.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
