@@ -2,7 +2,8 @@
 
 // REQUIRES: spirv-to-ir-wrapper, sycl-post-link
 
-/// Verify which section carries the SYCL device binary in the host object.
+/// Verify that no-RDC emits image address/size records in .tgtimg, while RDC
+/// embeds device code for linking in .llvm.offloading.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib -fno-gpu-rdc \
 // RUN:   -c %s -o %t.nordc.o
 // RUN: llvm-readelf -S %t.nordc.o \
