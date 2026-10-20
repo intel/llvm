@@ -33,7 +33,7 @@ ur::opencl::ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
   cl_uint NumPlatforms = 0;
   cl_int Result = ocl::clGetPlatformIDs_ptr(0, nullptr, &NumPlatforms);
   if (Result != CL_SUCCESS || NumPlatforms == 0) {
-    UR_LOG(INFO, "CL No platforms found (Result = {})", Result);
+    UR_LOG(INFO, "OpenCL: No platforms found (Result = {})", Result);
     // No platforms found — unload immediately. This adapter never escapes
     // urAdapterGet, so no teardown paths can hold function pointers yet.
     ocl::unloadOCLLibrary();

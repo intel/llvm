@@ -468,9 +468,10 @@ int main(int argc, char **argv) {
 
     // In verbose mode, if UR logging has not already been enabled by the user,
     // enable the printing of any errors related to adapter loading.
-    constexpr const char *Loggers[] = {"UR_LOG_LOADER",  "UR_LOG_CUDA",
-                                       "UR_LOG_HIP",     "UR_LOG_NATIVE_CPU",
-                                       "UR_LOG_OFFLOAD", "UR_LOG_OPENCL"};
+    constexpr const char *Loggers[] = {"UR_LOG_LOADER",    "UR_LOG_CUDA",
+                                       "UR_LOG_HIP",       "UR_LOG_NATIVE_CPU",
+                                       "UR_LOG_OFFLOAD",   "UR_LOG_OPENCL",
+                                       "UR_LOG_LEVEL_ZERO"};
     std::vector<const char *> SetLoggers;
 
     if (verbose) {
@@ -554,23 +555,26 @@ int main(int argc, char **argv) {
 
       if (SeenBackends.count(backend::opencl) == 0) {
         std::cout
-            << "Missing OpenCL platforms or devices can be diagnosed using "
-               "the clinfo tool."
+            << "If you expect OpenCL devices to be present, the clinfo "
+               "tool can be used to diagnose configuration issues with OpenCL."
             << std::endl;
       }
       if (SeenBackends.count(backend::ext_oneapi_cuda) == 0) {
-        std::cout << "Missing CUDA platforms or devices can be diagnosed using "
-                     "nvidia-smi."
-                  << std::endl;
+        std::cout
+            << "If you expect CUDA devices to be present, the nvidia-smi tool "
+               "can be used to diagnose configuration issues with CUDA."
+            << std::endl;
       }
       if (SeenBackends.count(backend::ext_oneapi_hip) == 0) {
-        std::cout << "Missing HIP platforms or devices can be diagnosed using "
-                     "rocminfo or amd-smi."
+        std::cout << "If you expect HIP devices to be present, the rocminfo or "
+                     "amd-smi tools can be used to diagnose configuration "
+                     "issues with HIP."
                   << std::endl;
       }
       if (SeenBackends.count(backend::ext_oneapi_level_zero) == 0) {
-        std::cout << "Missing Level Zero platforms or devices can be diagnosed "
-                     "by setting ZE_ENABLE_LOADER_DEBUG_TRACE=1."
+        std::cout << "If you expect Level Zero devices to be present, setting "
+                     "ZE_ENABLE_LOADER_DEBUG_TRACE=1 can be used to diagnose "
+                     "configuration issues by the loader."
                   << std::endl;
       }
 #ifdef __linux__

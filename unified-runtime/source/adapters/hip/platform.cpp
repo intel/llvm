@@ -88,7 +88,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t, ur_platform_handle_t *phPlatforms,
               ScopedDevice Active(
                   ur::hip::adapter->Platform->Devices.front().get());
             }
-            UR_LOG(INFO, "HIP Initialized {} platforms", NumPlatforms);
+            UR_LOG(INFO, "HIP: found {} platforms", NumPlatforms);
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
             ur::hip::adapter->Platform->Devices.clear();

@@ -166,7 +166,7 @@ ur_result_t urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
         }
         Adapter->NumPlatforms =
             static_cast<uint32_t>(Adapter->URPlatforms.size());
-        UR_LOG(INFO, "CL Initialized {} platforms", Adapter->NumPlatforms);
+        UR_LOG(INFO, "OpenCL: found {} platforms", Adapter->NumPlatforms);
       } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
       } catch (...) {
