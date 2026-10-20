@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_LIB_CODEGEN_CGLOOPINFO_H
 #define LLVM_CLANG_LIB_CODEGEN_CGLOOPINFO_H
 
+#include "clang/CodeGenUtils/LoopAttributes.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DebugLoc.h"
@@ -33,126 +34,9 @@ class CodeGenOptions;
 class ValueDecl;
 namespace CodeGen {
 
-/// Attributes that may be specified on loops.
-struct LoopAttributes {
-  explicit LoopAttributes(bool IsParallel = false);
-  void clear();
-
-  /// Generate llvm.loop.parallel metadata for loads and stores.
-  bool IsParallel;
-
-  /// State of loop vectorization or unrolling.
-  enum LVEnableState { Unspecified, Enable, Disable, Full };
-
-  /// Value for llvm.loop.vectorize.enable metadata.
-  LVEnableState VectorizeEnable;
-
-  /// Value for llvm.loop.unroll.* metadata (enable, disable, or full).
-  LVEnableState UnrollEnable;
-
-  /// Value for llvm.loop.unroll_and_jam.* metadata (enable, disable, or full).
-  LVEnableState UnrollAndJamEnable;
-
-  /// Value for llvm.loop.vectorize.predicate metadata
-  LVEnableState VectorizePredicateEnable;
-
-  /// Value for llvm.loop.vectorize.width metadata.
-  unsigned VectorizeWidth;
-
-  // Value for llvm.loop.vectorize.scalable.enable
-  LVEnableState VectorizeScalable;
-
-  /// Value for llvm.loop.interleave.count metadata.
-  unsigned InterleaveCount;
-
-  // SYCLIVDepInfo represents a group of arrays that have the same IVDep safelen to
-  // them. The arrays contained in it will later be referred to from the same
-  // "llvm.loop.parallel_access_indices" metadata node.
-  struct SYCLIVDepInfo {
-    unsigned SafeLen;
-    mutable llvm::SmallVector<std::pair<const ValueDecl *, llvm::MDNode *>, 4>
-        Arrays;
-    SYCLIVDepInfo(unsigned SL) : SafeLen(SL) {}
-    SYCLIVDepInfo(unsigned SL, const ValueDecl *A, llvm::MDNode *MD) : SafeLen(SL) {
-      Arrays.emplace_back(A, MD);
-    }
-
-    bool hasArray(const ValueDecl *Array) const {
-      return Arrays.end() != getArrayPairItr(Array);
-    }
-
-    decltype(Arrays)::iterator getArrayPairItr(const ValueDecl *Array) {
-      return find_if(Arrays,
-                     [Array](const auto &Pair) { return Pair.first == Array; });
-    }
-
-    decltype(Arrays)::iterator getArrayPairItr(const ValueDecl *Array) const {
-      return find_if(Arrays,
-                     [Array](const auto &Pair) { return Pair.first == Array; });
-    }
-
-    void eraseArray(const ValueDecl *Array) {
-      assert(hasArray(Array) && "Precondition of EraseArray is HasArray");
-      Arrays.erase(getArrayPairItr(Array));
-    }
-
-    bool isSafeLenGreaterOrEqual(unsigned OtherSL) const {
-      return SafeLen == 0 || (OtherSL != 0 && SafeLen >= OtherSL);
-    }
-  };
-
-  // Value for llvm.loop.parallel_access_indices metadata, for the arrays that
-  // weren't put into a specific ivdep item.
-  std::optional<SYCLIVDepInfo> GlobalSYCLIVDepInfo;
-  // Value for llvm.loop.parallel_access_indices metadata, for array
-  // specifications.
-  llvm::SmallVector<SYCLIVDepInfo, 4> ArraySYCLIVDepInfo;
-
-  /// Value for llvm.loop.ii.count metadata.
-  unsigned SYCLIInterval;
-
-  /// Value for llvm.loop.max_concurrency.count metadata.
-  std::optional<unsigned> SYCLMaxConcurrencyNThreads;
-
-  /// Flag for llvm.loop.intel.pipelining.enable, i32 0 metadata.
-  bool SYCLLoopPipeliningDisable;
-
-  /// Value for llvm.loop.max_interleaving.count metadata.
-  std::optional<unsigned> SYCLMaxInterleavingNInvocations;
-
-  /// Value for llvm.loop.intel.speculated.iterations.count metadata.
-  std::optional<unsigned> SYCLSpeculatedIterationsNIterations;
-
-  // Value for llvm.loop.intel.max_reinvocation_delay metadata.
-  std::optional<unsigned> SYCLMaxReinvocationDelayNCycles;
-
-  /// Flag for llvm.loop.intel.pipelining.enable, i32 1 metadata.
-  bool SYCLLoopPipeliningEnable;
-
-  /// llvm.unroll.
-  unsigned UnrollCount;
-
-  /// llvm.unroll.
-  unsigned UnrollAndJamCount;
-
-  /// Value for llvm.loop.distribute.enable metadata.
-  LVEnableState DistributeEnable;
-
-  /// Value for llvm.loop.pipeline.disable metadata.
-  bool PipelineDisabled;
-
-  /// Value for llvm.licm.disable metadata.
-  bool LICMDisabled;
-
-  /// Value for llvm.loop.pipeline.iicount metadata.
-  unsigned PipelineInitiationInterval;
-
-  /// Value for 'llvm.loop.align' metadata.
-  unsigned CodeAlign;
-
-  /// Value for whether the loop is required to make progress.
-  bool MustProgress;
-};
+/// Attributes that may be specified on loops. The state, and how it is
+/// determined from the loop's attributes, is shared with CIR CodeGen.
+using LoopAttributes = clang::CodeGenUtils::LoopAttributes;
 
 /// Information used when generating a structured loop.
 class LoopInfo {
