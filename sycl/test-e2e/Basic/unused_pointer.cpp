@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
   {
     sycl::buffer<int, 1> buf(&data, 1);
     queue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class test>([=]() { acc[0] = obj.data; });
     });
   }

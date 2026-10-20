@@ -15,10 +15,36 @@
 
 /// UR queue mapping on physical memory allocations used in virtual memory
 /// management.
-/// TODO: Implement.
 ///
 struct ur_physical_mem_handle_t_ : ur::hip::handle_base {
-  ur::RefCount RefCount;
+  using native_type = hipMemGenericAllocationHandle_t;
 
-  ur_physical_mem_handle_t_() : handle_base() {}
+  ur::RefCount RefCount;
+  native_type PhysicalMem;
+  ur_context_handle_t_ *Context;
+  ur_device_handle_t Device;
+  size_t Size;
+  ur_physical_mem_properties_t Properties;
+
+  ur_physical_mem_handle_t_(native_type PhysMem, ur_context_handle_t_ *Ctx,
+                            ur_device_handle_t Device, size_t Size,
+                            ur_physical_mem_properties_t Properties)
+      : handle_base(), PhysicalMem(PhysMem), Context(Ctx), Device(Device),
+        Size(Size), Properties(Properties) {
+    urContextRetain(Context);
+  }
+
+  ~ur_physical_mem_handle_t_() { urContextRelease(Context); }
+
+  native_type get() const noexcept { return PhysicalMem; }
+
+  ur_context_handle_t_ *getContext() const noexcept { return Context; }
+
+  ur_device_handle_t_ *getDevice() const noexcept { return Device; }
+
+  size_t getSize() const noexcept { return Size; }
+
+  ur_physical_mem_properties_t getProperties() const noexcept {
+    return Properties;
+  }
 };

@@ -50,6 +50,14 @@ inputs:
     type: string
     required: False
     default: ""
+  liboffload_artifact:
+    type: string
+    required: False
+    default: ""
+  liboffload_artifact_filename:
+    type: string
+    required: False
+    default: ""
 
 runs:
   # composite actions don't make use of 'name', so copy-paste steps' names as a comment in the first line of each step
@@ -277,18 +285,34 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
 
       echo "::endgroup::"
+  - name: Download liboffload
+    if: inputs.liboffload_artifact != ''
+    uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+    with:
+      name: ${{ inputs.liboffload_artifact }}
+  - name: Extract liboffload
+    if: inputs.liboffload_artifact != ''
+    shell: bash
+    env:
+      LIBOFFLOAD_ARTIFACT_FILENAME: ${{ inputs.liboffload_artifact_filename }}
+    run: |
+      mkdir -p liboffload
+      tar -I zstd -xf "$LIBOFFLOAD_ARTIFACT_FILENAME" -C liboffload
+      rm -f -- "$LIBOFFLOAD_ARTIFACT_FILENAME"
   - name: Run dpsycl-ls
     shell: bash
     run: |
       # Run dpsycl-ls
       dpsycl-ls --verbose
   - name: Build and run benchmarks
+    id: run_benchmarks
     shell: bash
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       LLVM_BENCHMARKS_USE_GDB: ${{ inputs.gdb_mode }}
       CR_BUILD_REF: ${{ steps.establish_outputs.outputs.CR_BUILD_REF }}
+      LIBOFFLOAD_ARTIFACT: ${{ inputs.liboffload_artifact }}
     run: |
       # Build and run benchmarks
 
@@ -301,6 +325,11 @@ runs:
 
       echo "::endgroup::"
       echo "::group::run_benchmarks"
+
+      offload_args=()
+      if [ -n "$LIBOFFLOAD_ARTIFACT" ]; then
+        offload_args=(--offload-prefix "$(realpath ./liboffload)")
+      fi
 
       numactl --cpunodebind "$NUMA_NODE" --membind "$NUMA_NODE" \
       ./devops/scripts/benchmarks/main.py "$BENCH_WORKDIR" \
@@ -316,6 +345,7 @@ runs:
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
         $([[ -n "${CR_BUILD_REF}" ]] && echo "--compute-runtime ${CR_BUILD_REF}" || echo '') \
+        "${offload_args[@]}" \
         ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
@@ -367,6 +397,16 @@ runs:
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
       done
+  - name: Upload github summaries as artifact
+    if: ${{ !cancelled() && steps.run_benchmarks.outcome != 'skipped' }}
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+    with:
+      name: benchmark-summaries-${{ env.SAVE_NAME }}
+      path: |
+        ./github_summary_exe.md
+        ./github_summary_reg.md
+      if-no-files-found: ignore
+      retention-days: 7
   - name: Push benchmarks results
     if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
     shell: bash
@@ -374,8 +414,14 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
       BENCHMARK_RESULTS_BRANCH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_BRANCH }}
+      LIBOFFLOAD_ARTIFACT: ${{ inputs.liboffload_artifact }}
     run: |
       # Push benchmarks results
+      offload_args=()
+      if [ -n "$LIBOFFLOAD_ARTIFACT" ]; then
+        offload_args=(--offload-prefix "$(realpath ./liboffload)")
+      fi
+
       cd "${BENCHMARK_RESULTS_REPO_PATH}"
       git config user.name "github-actions[bot]"
       git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -416,6 +462,7 @@ runs:
           --output-html remote \
           --results-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
           --output-dir "${BENCHMARK_RESULTS_REPO_PATH}/" \
+          "${offload_args[@]}" \
           --dry-run
         cd -
       done

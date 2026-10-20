@@ -93,8 +93,8 @@ int main() {
       kernel TestKernel(clKernel, TestQueue.get_context());
 
       TestQueue.submit([&](handler &cgh) {
-        auto a_acc = BufA.get_access<access::mode::read>(cgh);
-        auto b_acc = BufB.get_access<access::mode::write>(cgh);
+        auto a_acc = BufA.get_access<access_mode::read>(cgh);
+        auto b_acc = BufB.get_access<access_mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, b_acc);
 
@@ -159,9 +159,9 @@ int main() {
       kernel TestKernel(clKernel, TestQueue.get_context());
 
       TestQueue.submit([&](handler &cgh) {
-        auto a_acc = BufA.get_access<access::mode::read>(cgh);
-        auto b_acc = BufB.get_access<access::mode::write>(cgh);
-        auto c_acc = BufC.get_access<access::mode::write>(cgh);
+        auto a_acc = BufA.get_access<access_mode::read>(cgh);
+        auto b_acc = BufB.get_access<access_mode::write>(cgh);
+        auto c_acc = BufC.get_access<access_mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, b_acc);
         cgh.set_arg(2, c_acc);
@@ -241,8 +241,8 @@ int main() {
       kernel TestKernel2(clKernel2, TestQueue.get_context());
 
       TestQueue.submit([&](handler &cgh) {
-        auto a_acc = BufA.get_access<access::mode::read>(cgh);
-        auto b_acc = BufB.get_access<access::mode::write>(cgh);
+        auto a_acc = BufA.get_access<access_mode::read>(cgh);
+        auto b_acc = BufB.get_access<access_mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, b_acc);
 
@@ -250,8 +250,8 @@ int main() {
       });
 
       TestQueue.submit([&](handler &cgh) {
-        auto a_acc = BufA.get_access<access::mode::read>(cgh);
-        auto c_acc = BufC.get_access<access::mode::write>(cgh);
+        auto a_acc = BufA.get_access<access_mode::read>(cgh);
+        auto c_acc = BufC.get_access<access_mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, c_acc);
 
@@ -314,13 +314,13 @@ int main() {
 
     // Test offsets
     {
-      auto host_acc = subbuf_copy->get_access<sycl::access::mode::read>();
+      auto host_acc = subbuf_copy->get_access<sycl::access_mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
       assert(host_acc[0] == 256 && "Invalid subbuffer origin");
     }
 
     Q.submit([&](sycl::handler &cgh) {
-      auto acc = subbuf_copy->get_access<sycl::access::mode::write>(cgh);
+      auto acc = subbuf_copy->get_access<sycl::access_mode::write>(cgh);
       cgh.set_args(acc);
       cgh.single_task(kernel_sycl);
     });
@@ -328,7 +328,7 @@ int main() {
     Q.wait_and_throw();
 
     {
-      auto host_acc = subbuf_copy->get_access<sycl::access::mode::read>();
+      auto host_acc = subbuf_copy->get_access<sycl::access_mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
       assert(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
     }

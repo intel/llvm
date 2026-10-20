@@ -54,7 +54,23 @@ ur_result_t CreateProviderPool(int cuDevice, void *cuContext,
                                umf_usm_memory_type_t type,
                                umf_memory_provider_handle_t *provider,
                                umf_memory_pool_handle_t *pool);
+
+// Per-adapter translator for umf2urResult's provider-specific error path.
+namespace {
+[[maybe_unused]] inline ur_result_t
+cudaGetProviderNativeError(const char *providerName, int32_t error) {
+  if (strcmp(providerName, "CUDA") == 0) {
+    return mapErrorUR(static_cast<CUresult>(error));
+  }
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace
 } // namespace umf
+
+#define UMF_GET_PROVIDER_NATIVE_ERROR ::umf::cudaGetProviderNativeError
+
+#include <cstring>
+#include <umf_helpers.hpp>
 
 namespace ur::cuda {
 struct ddi_getter {

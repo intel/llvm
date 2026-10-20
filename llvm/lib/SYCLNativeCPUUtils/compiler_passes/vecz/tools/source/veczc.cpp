@@ -450,7 +450,9 @@ int main(const int argc, const char *const argv[]) {
   // Write the resulting module.
   llvm::ModulePassManager printMPM;
   if (WriteTextual) {
-    printMPM.addPass(llvm::PrintModulePass(Out->os()));
+    printMPM.addPass(llvm::PrintModulePass(
+        Out->os(), /*Banner=*/"", /*ShouldPreserveUseListOrder=*/false,
+        /*EmitSummaryIndex=*/false, /*ShouldRenumberMetadata=*/true));
   } else {
     printMPM.addPass(llvm::BitcodeWriterPass(Out->os()));
   }

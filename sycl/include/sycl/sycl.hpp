@@ -101,6 +101,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
+#include <sycl/ext/intel/experimental/maximum_registers_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -131,12 +132,15 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_physical_memory.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 #include <sycl/ext/oneapi/experimental/register_host_memory.hpp>
+#include <sycl/ext/oneapi/experimental/reusable_events.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_kernel_bundle.hpp>
 #include <sycl/ext/oneapi/experimental/syclbin_properties.hpp>
@@ -153,7 +157,10 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/owner_less.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Deprecated compatibility header for sycl::ext::oneapi::sub_group.
 #include <sycl/ext/oneapi/sub_group.hpp>
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
@@ -162,5 +169,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/khr/dynamic_addrspace_cast.hpp>
 #include <sycl/khr/free_function_commands.hpp>
 #include <sycl/khr/group_interface.hpp>
+#include <sycl/khr/max_work_group_queries.hpp>
+#include <sycl/khr/properties.hpp>
 #include <sycl/khr/static_addrspace_cast.hpp>
 #include <sycl/khr/work_item_queries.hpp>

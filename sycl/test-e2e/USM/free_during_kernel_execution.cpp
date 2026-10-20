@@ -23,7 +23,7 @@ int main() {
   auto *USM = sycl::malloc_host<int>(1, Queue.get_context());
 
   Queue.submit([&](sycl::handler &cgh) {
-    auto Accessor = Buffer.get_access<sycl::access::mode::write>(cgh);
+    auto Accessor = Buffer.get_access<sycl::access_mode::write>(cgh);
     cgh.single_task<KernelA>([=]() {
       for (int I = 0; I < N; ++I) {
         Accessor[I] = I;

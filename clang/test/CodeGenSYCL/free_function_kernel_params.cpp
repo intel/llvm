@@ -58,9 +58,9 @@ template void ff_6(KArgWithPtrArray<TestArrSize> KArg);
 // GLOB-AS: %struct.__generated_KArgWithPtrArray = type { [3 x ptr addrspace(1)], [3 x i32], [3 x i32] }
 // GLOB-AS: %struct.KArgWithPtrArray = type { [3 x ptr addrspace(4)], [3 x i32], [3 x i32] }
 // GLOB-AS: define dso_local spir_kernel void @{{.*}}__sycl_kernel{{.*}}(ptr noundef byval(%struct.NoPointers) align 4 %__arg_S1, ptr noundef byval(%struct.__generated_Pointers) align 8 %__arg_S2, ptr noundef byval(%struct.__generated_Agg) align 8 %__arg_S3)
-// GLOB-AS: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_6{{.*}}(ptr noundef byval(%struct.__generated_KArgWithPtrArray) align 8 %__arg_KArg)
+// GLOB-AS: define weak_odr spir_kernel void @{{.*}}__sycl_kernel_ff_6{{.*}}(ptr noundef byval(%struct.__generated_KArgWithPtrArray) align 8 %__arg_KArg)
 // GEN-AS: define dso_local spir_kernel void @{{.*}}__sycl_kernel{{.*}}(ptr noundef byval(%struct.NoPointers) align 4 %__arg_S1, ptr noundef byval(%struct.Pointers) align 8 %__arg_S2, ptr noundef byval(%struct.Agg) align 8 %__arg_S3)
-// GEN-AS: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_6{{.*}}(ptr noundef byval(%struct.KArgWithPtrArray) align 8 %__arg_KArg)
+// GEN-AS: define weak_odr spir_kernel void @{{.*}}__sycl_kernel_ff_6{{.*}}(ptr noundef byval(%struct.KArgWithPtrArray) align 8 %__arg_KArg)
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
@@ -98,7 +98,7 @@ void ff_8(sycl::local_accessor<DataT, 1> lacc) {
 
 template void ff_8(sycl::local_accessor<float, 1> lacc);
 
-// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_8{{.*}}(ptr addrspace(3) noundef align 4 %__arg_Ptr, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %__arg_AccessRange, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %__arg_MemRange, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %__arg_Offset)
+// CHECK: define weak_odr spir_kernel void @{{.*}}__sycl_kernel_ff_8{{.*}}(ptr addrspace(3) noundef align 4 %__arg_Ptr, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %__arg_AccessRange, ptr noundef byval(%"struct.sycl::_V1::range") align 4 %__arg_MemRange, ptr noundef byval(%"struct.sycl::_V1::id") align 4 %__arg_Offset)
 // CHECK:  %__arg_Ptr.addr = alloca ptr addrspace(3), align 8
   // CHECK-NEXT: %lacc = alloca %"class.sycl::_V1::local_accessor", align 4
   // CHECK-NEXT: %agg.tmp = alloca %"struct.sycl::_V1::range", align 4

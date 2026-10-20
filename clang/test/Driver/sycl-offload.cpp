@@ -79,17 +79,17 @@
 /// ###########################################################################
 
 /// Check warning for duplicate offloading targets.
-// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown,spir64-unknown-unknown  %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown,spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
 // CHK-DUPLICATES: warning: offloading target 'spir64-unknown-unknown' is similar to target 'spir64-unknown-unknown' already specified; will be ignored
 
-// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES-GPU %s
 // CHK-DUPLICATES-GPU: warning: offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// No duplicate warning should be emitted for 'like' triples but different
 /// arch targets.
-// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
+// RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DIFF-GPU %s
 // CHK-DIFF-GPU-NOT: warning: offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
@@ -129,11 +129,11 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -155,9 +155,9 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2 %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver -fsycl-targets=spirv64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES-2 %s
 // CHK-PHASES-2: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES-2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -185,7 +185,7 @@
 
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-LIB %s
 // CHK-PHASES-LIB: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-LIB: 1: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -206,7 +206,7 @@
 
 /// Check the phases when using and multiple source files
 // RUN:   echo " " > %t.cpp
-// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s %t.cpp 2>&1 \
+// RUN:   %clang -ccc-print-phases -lsomelib -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s %t.cpp 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES-FILES %s
 // CHK-PHASES-FILES: 0: input, "somelib", object, (host-sycl)
 // CHK-PHASES-FILES: 1: input, "[[INPUT1:.+\.cpp]]", c++, (host-sycl)
@@ -259,20 +259,21 @@
 
 /// ###########################################################################
 
-/// Check for default linking of -lsycl with -fsycl --offload-new-driver usage
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+/// Check for default linking of libsycl.so with -fsycl --offload-new-driver usage
+// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -implicit-check-not="-lsycl" -check-prefix=CHECK-LD-SYCL %s
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-SYCL: "-lsycl"
+// CHECK-LD-SYCL: "{{.*}}libsycl.so"
+// CHECK-LD-SYCL-SAME: "{{.*}}libsycl-devicelib-host.a"
 
 /// Check no SYCL runtime is linked with -nolibsycl
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nolibsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOLIBSYCL %s
 // CHECK-LD-NOLIBSYCL: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOLIBSYCL-NOT: "-lsycl"
+// CHECK-LD-NOLIBSYCL-NOT: "libsycl.so"
 
 /// Check no SYCL runtime is linked with -nostdlib
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -nostdlib -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-NOSTDLIB %s
 // CHECK-LD-NOSTDLIB: "{{.*}}ld{{(.exe)?}}"
-// CHECK-LD-NOSTDLIB-NOT: "-lsycl"
+// CHECK-LD-NOSTDLIB-NOT: "libsycl.so"
 
 /// Check for default linking of syclN.lib with -fsycl --offload-new-driver usage
 // RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
@@ -328,7 +329,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS %s
-// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO1" "--device-compiler=sycl:spir64-unknown-unknown=-DFOO2"
+// CHK-TOOLS-OPTS: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-DFOO1" "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-DFOO2"
 
 /// Check for implied options (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
@@ -348,7 +349,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
-// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=-DFOO1" "--device-linker=sycl:spir64-unknown-unknown=-DFOO2"
+// CHK-TOOLS-OPTS2: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-DFOO1" "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-DFOO2"
 
 /// -fsycl-range-rounding settings
 ///
@@ -395,7 +396,7 @@
 /// ###########################################################################
 
 /// Verify that triple-boundarch pairs are correct with multi-targetting
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -416,7 +417,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: assembler, {15}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: clang-linker-wrapper, {16}, image, (host-sycl)
 
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:     -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN:     -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
 // RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
@@ -444,7 +445,7 @@
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64,nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -661,7 +662,7 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
-// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=-DFOO" "--device-linker=sycl:spir64-unknown-unknown=-DFOO2"
+// SYCL_TARGET_OPT: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64-unknown-unknown=--jit-compiler-options=-DFOO" "--device-linker=sycl:spir64-unknown-unknown=--jit-linker-options=-DFOO2"
 
 /// ###########################################################################
 
@@ -670,8 +671,8 @@
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT,SYCL_TARGET_OPT_GPU %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
-// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_x86_64-unknown-unknown=-DFOO"
-// SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--device-compiler=sycl:spir64_gen-unknown-unknown=-DFOO"
+// SYCL_TARGET_OPT_CPU: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_x86_64-unknown-unknown=--opencl-aot-options=-DFOO"
+// SYCL_TARGET_OPT_GPU: clang-linker-wrapper{{.*}} "--device-linker=sycl:spir64_gen-unknown-unknown=--ocloc-options=-DFOO"
 
 /// ###########################################################################
 

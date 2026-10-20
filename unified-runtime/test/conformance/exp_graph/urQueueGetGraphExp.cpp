@@ -96,11 +96,6 @@ struct urQueueGetGraphExpMultiQueueTest
     // Fork-join was initially broken with zeCommandListGetGraph
     std::tuple<size_t, size_t, size_t> minL0DriverVersion = {1, 15, 38146};
     SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform, device);
-
-    // Fork-join with out-of-order queue broken due to multi command list capture bug
-    if (getQueueFlag() & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-      UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-    }
   }
   void TearDown() override {
     bool isCaptureEnabled = false;

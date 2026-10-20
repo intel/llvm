@@ -1,4 +1,4 @@
-// REQUIRES: arch-intel_gpu_pvc, ocloc
+// REQUIRES: arch-intel_gpu_pvc, ocloc, target-spir
 
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc %s -o %t.out
 // RUN: %{run} %t.out

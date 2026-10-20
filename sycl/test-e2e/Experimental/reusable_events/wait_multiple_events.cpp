@@ -34,7 +34,7 @@ int main() {
 
   // Launch on q1
   q1.submit([&](sycl::handler &cgh) {
-    auto acc = buf1.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf1.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class MultiQ1>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc[idx] = acc[idx] * 3; });
   });
@@ -42,7 +42,7 @@ int main() {
 
   // Launch on q2
   q2.submit([&](sycl::handler &cgh) {
-    auto acc = buf2.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf2.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class MultiQ2>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc[idx] = acc[idx] * 5; });
   });
@@ -54,9 +54,9 @@ int main() {
 
   // Combine results on q3
   q3.submit([&](sycl::handler &cgh) {
-    auto acc1 = buf1.get_access<sycl::access::mode::read>(cgh);
-    auto acc2 = buf2.get_access<sycl::access::mode::read>(cgh);
-    auto acc_result = buf_result.get_access<sycl::access::mode::write>(cgh);
+    auto acc1 = buf1.get_access<sycl::access_mode::read>(cgh);
+    auto acc2 = buf2.get_access<sycl::access_mode::read>(cgh);
+    auto acc_result = buf_result.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class MultiQ3>(sycl::range<1>(N), [=](sycl::id<1> idx) {
       acc_result[idx] = acc1[idx] + acc2[idx];
     });

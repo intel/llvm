@@ -123,7 +123,7 @@ template <typename T>
 void handler::ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
                                 size_t Width, size_t Height) {
   throwIfActionIsCreated();
-  static_assert(is_device_copyable<T>::value,
+  static_assert(detail::check_if_device_copyable_v<T>,
                 "Pattern must be device copyable");
   if (Width > DestPitch)
     throw sycl::exception(sycl::make_error_code(errc::invalid),

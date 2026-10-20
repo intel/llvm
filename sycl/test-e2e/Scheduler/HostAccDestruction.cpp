@@ -20,7 +20,7 @@ int main() {
     sycl::queue q;
     auto host_acc = buf.get_host_access();
     q.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.parallel_for<class SingleTask>(
           sycl::range<1>{size}, [=](sycl::id<1> id) { (void)acc[id]; });
     });

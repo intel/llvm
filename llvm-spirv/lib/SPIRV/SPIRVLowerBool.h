@@ -59,19 +59,19 @@ public:
   virtual void visitSExtInst(llvm::SExtInst &I);
   virtual void visitUIToFPInst(llvm::UIToFPInst &I);
   virtual void visitSIToFPInst(llvm::SIToFPInst &I);
+  virtual void visitICmpInst(llvm::ICmpInst &I);
   bool runLowerBool(llvm::Module &M);
 
 private:
   llvm::LLVMContext *Context;
 };
 
-class SPIRVLowerBoolPass : public llvm::PassInfoMixin<SPIRVLowerBoolPass>,
-                           public SPIRVLowerBoolBase {
+class SPIRVLowerBoolPass
+    : public llvm::RequiredPassInfoMixin<SPIRVLowerBoolPass>,
+      public SPIRVLowerBoolBase {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
-
-  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerBoolLegacy : public llvm::ModulePass,

@@ -20,7 +20,11 @@ size_t getSafeMaxWGSize(size_t MaxWGSize, size_t MemSize, size_t OneElemSize) {
   size_t MaxNumElems = MemSize / OneElemSize;
   if ((MaxNumElems & (MaxNumElems - 1)) != 0)
     MaxNumElems--; // Need 1 additional element in mem if not pow of 2
-  return std::min(MaxNumElems / 2, MaxWGSize);
+  // Match the runtime's reduGetMaxWGSize() for memory-limited reductions.
+  size_t WGSize = std::min(MaxNumElems, MaxWGSize);
+  if (WGSize >= 4 && MaxNumElems < MaxWGSize * 2)
+    WGSize /= 2;
+  return WGSize;
 }
 
 template <typename Name, typename T, int Dim, class BinaryOperation>
@@ -52,7 +56,7 @@ int test(queue &Q, T Identity) {
 
   // Compute.
   Q.submit([&](handler &CGH) {
-    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto In = InBuf.template get_access<access_mode::read>(CGH);
     CGH.parallel_for<Name>(NDRange, sycl::reduction(OutBuf, CGH, Identity, BOp),
                            [=](nd_item<1> NDIt, auto &Sum) {
                              if (NDIt.get_global_linear_id() < NWorkItems)
@@ -66,15 +70,16 @@ int test(queue &Q, T Identity) {
   return checkResults(Q, BOp, NDRange, ComputedOut, CorrectOut);
 }
 
-template <typename T> struct BigCustomVec : public CustomVec<T> {
+template <typename T, size_t Size = 512>
+struct BigCustomVec : public CustomVec<T> {
   BigCustomVec() : CustomVec<T>() {}
   BigCustomVec(T X, T Y) : CustomVec<T>(X, Y) {}
   BigCustomVec(T V) : CustomVec<T>(V) {}
-  unsigned char OtherData[512 - sizeof(CustomVec<T>)];
+  unsigned char OtherData[Size - sizeof(CustomVec<T>)];
 };
 
-template <class T> struct BigCustomVecPlus {
-  using CV = BigCustomVec<T>;
+template <class T, size_t Size = 512> struct BigCustomVecPlus {
+  using CV = BigCustomVec<T, Size>;
   CV operator()(const CV &A, const CV &B) const {
     return CV(A.X + B.X, A.Y + B.Y);
   }
@@ -88,6 +93,10 @@ int main() {
 
   using BCV = BigCustomVec<long long>;
   NumErrors += test<class A2, BCV, 1, BigCustomVecPlus<long long>>(Q, BCV(0));
+
+  using CV96 = BigCustomVec<long long, 96>;
+  NumErrors +=
+      test<class A3, CV96, 1, BigCustomVecPlus<long long, 96>>(Q, CV96(0));
 
   printFinalStatus(NumErrors);
   return NumErrors;

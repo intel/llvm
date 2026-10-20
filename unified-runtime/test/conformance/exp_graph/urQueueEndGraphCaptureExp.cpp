@@ -31,6 +31,31 @@ TEST_P(urQueueEndGraphCaptureExpTest, SuccessAfterQueueOperations) {
   ASSERT_EQ(graph, capturedGraph);
 }
 
+// Regression test for out-of-order queue bug where a reusable event passed to
+// urEnqueueEventsWaitWithBarrierExt during capture was replaced with a newly
+// allocated event.
+TEST_P(urQueueEndGraphCaptureExpTest, SuccessBarrierExtWithReusableEvent) {
+  ur_exp_event_desc_t desc{UR_STRUCTURE_TYPE_EXP_EVENT_DESC, nullptr, 0};
+  uur::raii::Event reusable{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, reusable.ptr()));
+  ur_event_handle_t original = reusable;
+
+  ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
+
+  ur_exp_enqueue_ext_properties_t props{
+      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+  ur_result_t result = urEnqueueEventsWaitWithBarrierExt(
+      queue, &props, 0, nullptr, reusable.ptr());
+
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &capturedGraph));
+  ASSERT_EQ(graph, capturedGraph);
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(result);
+  ASSERT_EQ(original, reusable.get());
+}
+
 TEST_P(urQueueEndGraphCaptureExpTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urQueueEndGraphCaptureExp(nullptr, &graph));

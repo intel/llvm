@@ -53,10 +53,10 @@ void g() {
 // DEVICE: define spir_kernel void @_ZTSN2QL3dg2MUlvE_E
 // DEVICE: call spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
 // DEVICE: define internal spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
-// DEVICE: define spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
+// DEVICE: define weak_odr spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
 // DEVICE: call spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
 // DEVICE: define linkonce_odr spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
-// DEVICE: define spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
+// DEVICE: define weak_odr spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
 // DEVICE: call spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 // DEVICE: define linkonce_odr spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 
@@ -76,9 +76,9 @@ void g() {
 // MSVC: define dso_local spir_kernel void @_ZTSN2QL3dg2MUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
 // MSVC: define internal spir_func noundef i32 @_ZNK2QL3dg2MUlvE_clEv
-// MSVC: define dso_local spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
+// MSVC: define weak_odr spir_kernel void @_ZTSN2QL10dg_inline1MUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
 // MSVC: define linkonce_odr spir_func noundef i32 @_ZNK2QL10dg_inline1MUlvE_clEv
-// MSVC: define dso_local spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
+// MSVC: define weak_odr spir_kernel void @_ZTSN2QL11dg_templateILi3EEMUlvE_E
 // MSVC: call spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv
 // MSVC: define linkonce_odr spir_func noundef i32 @_ZNK2QL11dg_templateILi3EEMUlvE_clEv

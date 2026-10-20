@@ -65,7 +65,7 @@ void test_normalized_mirrored_linear_sampler(image_channel_order ChanOrder,
     // - create an image
     image<1> image_1D(ChanOrder, ChanType, ImgRange_1D);
     event E_Setup = Q.submit([&](handler &cgh) {
-      auto image_acc = image_1D.get_access<pixelT, access::mode::write>(cgh);
+      auto image_acc = image_1D.get_access<pixelT, access_mode::write>(cgh);
       cgh.single_task<class setupUnormLinear>([=]() {
         image_acc.write(0, leftEdge);
         image_acc.write(1, body);
@@ -82,8 +82,8 @@ void test_normalized_mirrored_linear_sampler(image_channel_order ChanOrder,
     auto Norm_Mirror_Linear_sampler = sampler(normalized, mirrored, linear);
 
     event E_Test = Q.submit([&](handler &cgh) {
-      auto image_acc = image_1D.get_access<pixelT, access::mode::read>(cgh);
-      auto test_acc = testResults.get_access<access::mode::write>(cgh);
+      auto image_acc = image_1D.get_access<pixelT, access_mode::read>(cgh);
+      auto test_acc = testResults.get_access<access_mode::write>(cgh);
 
       cgh.single_task<class im1D_norm_linear>([=]() {
         int i = 0; // the index for writing into the testResult buffer.

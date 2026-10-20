@@ -8,11 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/assert.hpp>             // for __SYCL_ASSERT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/exception.hpp>
-#endif
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t
@@ -30,27 +27,27 @@ public:
   /* The following constructor is only available in the array struct
    * specialization where: dimensions==1 */
   template <int N = dimensions>
-  array(typename std::enable_if_t<(N == 1), size_t> dim0 = 0)
+  array(typename std::enable_if_t<(N == 1), size_t> dim0 = 0) noexcept
       : common_array{dim0} {}
 
   /* The following constructors are only available in the array struct
    * specialization where: dimensions==2 */
   template <int N = dimensions>
-  array(typename std::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
+  array(typename std::enable_if_t<(N == 2), size_t> dim0, size_t dim1) noexcept
       : common_array{dim0, dim1} {}
 
   template <int N = dimensions, std::enable_if_t<(N == 2), size_t> = 0>
-  array() : array(0, 0) {}
+  array() noexcept : array(0, 0) {}
 
   /* The following constructors are only available in the array struct
    * specialization where: dimensions==3 */
   template <int N = dimensions>
   array(typename std::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
-        size_t dim2)
+        size_t dim2) noexcept
       : common_array{dim0, dim1, dim2} {}
 
   template <int N = dimensions, std::enable_if_t<(N == 3), size_t> = 0>
-  array() : array(0, 0, 0) {}
+  array() noexcept : array(0, 0, 0) {}
 
   // Conversion operators to derived classes
   operator sycl::id<dimensions>() const {
@@ -61,17 +58,17 @@ public:
     return result;
   }
 
-  size_t get(int dimension) const {
+  size_t get(int dimension) const noexcept {
     check_dimension(dimension);
     return common_array[dimension];
   }
 
-  size_t &operator[](int dimension) {
+  size_t &operator[](int dimension) noexcept {
     check_dimension(dimension);
     return common_array[dimension];
   }
 
-  size_t operator[](int dimension) const {
+  size_t operator[](int dimension) const noexcept {
     check_dimension(dimension);
     return common_array[dimension];
   }
@@ -105,13 +102,9 @@ public:
 
 protected:
   size_t common_array[dimensions];
-  __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
-#ifndef __SYCL_DEVICE_ONLY__
-    if (dimension >= dimensions || dimension < 0) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Index out of range");
-    }
-#endif
+  __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const noexcept {
+    __SYCL_ASSERT(dimension >= 0 && dimension < dimensions &&
+                  "Index out of range");
     (void)dimension;
   }
 };

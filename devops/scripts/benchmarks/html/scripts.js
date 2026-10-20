@@ -1047,11 +1047,12 @@ function processBarChartsData() {
 function getLayerTags(metadata) {
     const layerTags = new Set();
     if (metadata?.tags) {
-        metadata.tags.forEach(tag => {
-            if (tag.startsWith('SYCL') || tag.startsWith('UR') || tag === 'L0') {
-                layerTags.add(tag);
-            }
-        });
+      metadata.tags.forEach(tag => {
+        if (tag.startsWith('SYCL') || tag.startsWith('UR') || tag === 'L0' ||
+            tag === 'OFFLOAD') {
+          layerTags.add(tag);
+        }
+      });
     }
     return layerTags;
 }

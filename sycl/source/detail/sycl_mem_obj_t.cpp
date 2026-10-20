@@ -143,8 +143,15 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
 void SYCLMemObjT::updateHostMemory() {
   // Don't try updating host memory when shutting down.
   if ((MUploadDataFunctor != nullptr) && MNeedWriteBack &&
-      GlobalHandler::instance().isOkToDefer())
-    MUploadDataFunctor();
+      GlobalHandler::instance().isOkToDefer()) {
+    // A failing write-back is reported as an asynchronous exception by
+    // Scheduler::addCopyBack and must not skip the removal of the memory
+    // record below, otherwise the record and the commands it owns are leaked.
+    try {
+      MUploadDataFunctor();
+    } catch (...) {
+    }
+  }
 
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.

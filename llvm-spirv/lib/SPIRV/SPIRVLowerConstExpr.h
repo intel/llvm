@@ -36,7 +36,7 @@ private:
 };
 
 class SPIRVLowerConstExprPass
-    : public llvm::PassInfoMixin<SPIRVLowerConstExprPass>,
+    : public llvm::RequiredPassInfoMixin<SPIRVLowerConstExprPass>,
       public SPIRVLowerConstExprBase {
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
@@ -44,8 +44,6 @@ public:
     return runLowerConstExpr(M) ? llvm::PreservedAnalyses::none()
                                 : llvm::PreservedAnalyses::all();
   }
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace SPIRV

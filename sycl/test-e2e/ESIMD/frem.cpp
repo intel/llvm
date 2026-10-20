@@ -38,9 +38,9 @@ template <typename T> bool test(queue q) {
     buffer<T, 1> bufc(C, range<1>(Size));
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.template get_access<access::mode::read>(cgh);
-      auto PB = bufb.template get_access<access::mode::read>(cgh);
-      auto PC = bufc.template get_access<access::mode::write>(cgh);
+      auto PA = bufa.template get_access<access_mode::read>(cgh);
+      auto PB = bufb.template get_access<access_mode::read>(cgh);
+      auto PC = bufc.template get_access<access_mode::write>(cgh);
       cgh.single_task([=]() SYCL_ESIMD_KERNEL {
         using namespace sycl::ext::intel::esimd;
         unsigned int offset = 0;

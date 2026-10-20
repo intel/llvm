@@ -145,36 +145,29 @@ the "tag" command.
 In either case, the event's status becomes
 `info::event_command_status::complete` when all commands submitted to the queue
 prior to the call to `submit_profiling_tag` have completed.
-The event's `info::event_profiling::command_submit` timestamp reflects the
-time at which `submit_profiling_tag` is called.
-The event's `info::event_profiling::command_end` timestamp reflects the time
-at which the event enters the "complete" state.
-The event's `info::event_profiling::command_start` timestamp reflects the time
-that the profiling tag command starts executing.
-This timestamp is between the `info::event_profiling::command_submit` and
-`info::event_profiling::command_end` timestamps.
+
+Because the operation represented by the event is an empty command, the
+`info::event_profiling::command_start` timestamp is equivalent to the
+`info::event_profiling::command_end` timestamp, which reflects the time at which
+the event becomes signaled (enters the "compete" state).
+Applications are discouraged from using the
+`info::event_profiling::command_submit` timestamp, whose value is some time
+between the point when the host thread calls `submit_profiling_tag` and the
+`command_start` timestamp.
+
+[_Note:_ An implementation may simply set all three timestamps to the same
+value.
+_{endnote}_]
 
 It is unspecified whether the event ever has the
 `info::event_command_status::running` status.
 Implementations are encouraged to transition the event directly from the
-"submitted" status to the "complete" status and are encouraged to set the
-"command_start" timestamp to the same value as the "command_end" timestamp.
+"submitted" status to the "complete" status.
 
 _Throws:_ A synchronous `exception` with the `errc::invalid` error code if
 the queue's device does not have the aspect `ext_oneapi_queue_profiling_tag`
 and the queue was not constructed with the `property::queue::enable_profiling`
 property.
-
-[_Note:_ In order to understand why the "command_start" and "command_end"
-timestamps are encouraged to be the same, think of the barrier as an empty
-kernel with an implicit set of dependencies on all previous commands in the
-same queue.
-This theoretical kernel starts executing when the dependencies are resolved.
-Since the kernel is empty, the end time is the same as the start time.
-The "command_start" and "command_end" timestamps are not required to be the
-same, though, in order to accommodate an implementation where the barrier is
-implemented by submitting an actual kernel, which has non-zero execution time.
-_{endnote}_]
 |====
 
 

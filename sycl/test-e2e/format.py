@@ -185,10 +185,24 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
     getMatchedXFail = getMatchedUnsupported
 
+    target_sg_sizes = {
+        "target-spir": {"sg-8", "sg-16", "sg-32"},
+        "target-nvidia": {"sg-32"},
+        "target-amd": {"sg-16", "sg-32", "sg-64"},
+    }
+
+    def per_target_features(self, config, t):
+        extra = set(self.target_sg_sizes.get(t, set()))
+        if t in config.spir_family_targets:
+            extra.add("spir-family")
+        return extra
+
     def select_build_targets_for_test(self, test):
         supported_targets = set()
         for t in test.config.sycl_build_targets:
-            features = test.config.available_features.union({t})
+            features = test.config.available_features.union(
+                {t}, self.per_target_features(test.config, t)
+            )
             if self.getMissingRequiresBuildOnly(features, test.requires):
                 continue
             if self.getMatchedUnsupportedBuildOnly(features, test.unsupported):
@@ -208,7 +222,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             t
             for t in supported_targets
             if not self.getMatchedXFail(
-                test.config.available_features.union({t}), test.xfails
+                test.config.available_features.union(
+                    {t}, self.per_target_features(test.config, t)
+                ),
+                test.xfails,
             )
         ]
 
@@ -288,15 +305,50 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 build_targets.add(test.config.backend_to_target[backend])
 
         triples = set(test.config.target_to_triple[t] for t in build_targets)
-        test.config.available_features = test.config.available_features.union(
-            build_targets
-        )
+        features_for_test = test.config.available_features.union(build_targets)
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
 
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
 
+        # %aot_options expands to the AOT flags for the matched triple of this
+        # test instance. spir64 is included here (not just spir64_gen) because
+        # intel/llvm CI only runs a spir64 configuration for AOT tests, not a
+        # dedicated spir64_gen one; drop spir64 once that exists:
+        # https://github.com/intel/llvm/issues/23380.
+        #
+        # CPU vs GPU AOT comes from test.requires, not the matched triple:
+        # target_to_triple has no spir64_x86_64, and build-only mode has no
+        # selected device to query a cpu/gpu role from either.
+        matched_spir_triple = next(
+            (t for t in triples if t in ("spir64", "spir64_gen")), None
+        )
+        if matched_spir_triple in ("spir64", "spir64_gen"):
+            requires_cpu = any(r in test.requires for r in ("cpu", "any-device-is-cpu"))
+            requires_gpu = any(r in test.requires for r in ("gpu", "any-device-is-gpu"))
+            if requires_cpu and requires_gpu:
+                if any("%aot_options" in getattr(d, "command", "") for d in script):
+                    return lit.Test.Result(
+                        lit.Test.UNRESOLVED,
+                        "Test requires both cpu and gpu and uses %aot_options, "
+                        "which is ambiguous; don't use %aot_options in this test",
+                    )
+            if requires_cpu:
+                aot_options = "-fsycl-targets=spir64_x86_64"
+            else:
+                aot_options = (
+                    "-fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "
+                    + test.config.gpu_aot_target_opts
+                )
+        else:
+            aot_options = ""
+        substitutions.append(("%aot_options", aot_options))
+
         sycl_target_opts = "-fsycl-targets=%{sycl_triple}"
+        if "target-spir_gen" in build_targets:
+            sycl_target_opts += " -Xsycl-target-backend=spir64_gen {}".format(
+                test.config.gpu_aot_target_opts
+            )
         if "target-amd" in build_targets:
             hip_arch_opts = (
                 " -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={}".format(
@@ -438,7 +490,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 )
         script = new_script
 
-        conditions = {feature: True for feature in test.config.available_features}
+        conditions = {feature: True for feature in features_for_test}
         script = lit.TestRunner.applySubstitutions(
             script,
             substitutions,
@@ -461,7 +513,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             return code
 
         if len(triples) == 1 and test.config.test_mode == "build-only":
-            result.code = map_result(test.config.available_features, result.code)
+            result.code = map_result(features_for_test, result.code)
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)

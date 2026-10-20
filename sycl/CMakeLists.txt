@@ -536,11 +536,25 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
-     unified-memory-framework
      unified-runtime-loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+# The "unified-memory-framework" component (libumf) is only built (see
+# UR_UMF_REQUIRED in unified-runtime/source/common/CMakeLists.txt) when an
+# enabled backend actually links against it: level_zero, level_zero_v2, cuda,
+# and hip. native_cpu and offload implement USM allocation themselves and do
+# not use UMF. Deploying it unconditionally (e.g. on a macOS build that only
+# enables "opencl", which never references UMF) would either package an
+# unused library or, worse, race with a "umf" target that ninja has no
+# reason to build, causing an install failure.
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS OR
+    "level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS OR
+    "cuda" IN_LIST SYCL_ENABLE_BACKENDS OR
+    "hip" IN_LIST SYCL_ENABLE_BACKENDS)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS unified-memory-framework)
+endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS clang-nvlink-wrapper)
@@ -570,25 +584,33 @@ if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
 endif()
 
-set(libclc_enabled FALSE)
-foreach(target IN LISTS LLVM_RUNTIME_TARGETS)
-  if("libclc" IN_LIST RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES)
-    set(libclc_enabled TRUE)
-    break()
-  endif()
+include(GetTargetsBuildingLLVMRuntime)
+get_targets_building_llvm_runtime(libclc libclc_targets)
+get_targets_building_llvm_runtime(compiler-rt compiler-rt_targets)
+
+foreach(target IN LISTS libclc_targets)
+  add_dependencies(sycl-toolchain libclc-${target})
+  # libspirv is built in a sub invocation of cmake (called the runtimes build) for each target
+  # separately.
+  # We need a special component name to refer to the sub-directory where we need to take
+  # the just-built libspir-v builtins from.
+  # The first part of the name comes from the directory name where the runtime build occurs:
+  # build/runtimes/runtimes-<target>, then separated by "::" is the component name to install
+  # from that sub-directory.
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libspirv-builtins)
 endforeach()
 
-if(libclc_enabled)
-  add_dependencies(sycl-toolchain libclc)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
-endif()
+# Currently, we only enable compiler-rt builtin library for spirv64 targets
+foreach(target IN LISTS compiler-rt_targets)
+  add_dependencies(sycl-toolchain builtins-${target})
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS builtins-${target})
+endforeach()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  if(NOT libclc_enabled)
-    message(FATAL_ERROR
-      "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
-  endif()
+  if(NOT ("nvptx64-nvidia-cuda" IN_LIST libclc_targets))
+    message(FATAL_ERROR "CUDA support requires building \"libclc\" for the NVPTX target")
+  endif() # INTEL
 
   add_dependencies(sycl-toolchain ur_adapter_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
@@ -596,9 +618,8 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  if(NOT libclc_enabled)
-    message(FATAL_ERROR
-      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  if(NOT ("amdgcn-amd-amdhsa" IN_LIST libclc_targets))
+    message(FATAL_ERROR "HIP support requires building \"libclc\" for the AMDGCN target")
   endif()
 
   if(NOT TARGET lld AND "${SYCL_BUILD_UR_HIP_PLATFORM}" STREQUAL "AMD")
@@ -648,16 +669,23 @@ endfunction()
 
 foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
   message(STATUS "Adding component ${component} to deploy")
-  if("${component}" MATCHES "libspirv-builtins")
-    foreach(tgt IN LISTS LLVM_RUNTIME_TARGETS)
-      if("libclc" IN_LIST RUNTIMES_${tgt}_LLVM_ENABLE_RUNTIMES)
-        set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
-        sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc")
-      endif()
-    endforeach()
+  if("${component}" MATCHES "^runtimes-(.*)::(.*)")
+    set(tgt "${CMAKE_MATCH_1}")
+    set(component "${CMAKE_MATCH_2}")
+    set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
+    sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc-${tgt}")
   else()
     set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
-    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "")
+    set(COMPONENT_DEPS "")
+    if("${component}" STREQUAL "unified-memory-framework" AND TARGET umf)
+      # Only present in SYCL_TOOLCHAIN_DEPLOY_COMPONENTS when an enabled
+      # backend actually links UMF (see the gate above), in which case the
+      # "umf" target always exists too. Depend on it explicitly so ninja is
+      # guaranteed to build libumf* before this install step deploys it,
+      # regardless of parallel build ordering.
+      set(COMPONENT_DEPS "umf")
+    endif()
+    sycl_add_install_command("${component}" "${component}" "${INSTALL_SCRIPT}" "${COMPONENT_DEPS}")
   endif()
 endforeach()
 

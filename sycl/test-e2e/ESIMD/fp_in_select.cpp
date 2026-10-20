@@ -31,7 +31,7 @@ bool test(queue q, bool flag) {
     buffer<int, 1> buf(output, range<1>(1));
 
     q.submit([&](handler &cgh) {
-      auto acc = buf.get_access<access::mode::write>(cgh);
+      auto acc = buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<KernelID>(sycl::range<1>{1},
                                  [=](id<1> i) SYCL_ESIMD_KERNEL {

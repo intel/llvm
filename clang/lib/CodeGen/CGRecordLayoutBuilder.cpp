@@ -21,6 +21,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/CodeGenUtils/CodeGenUtils.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
@@ -107,11 +108,6 @@ struct CGRecordLowering {
   bool isDiscreteBitFieldABI() const {
     return Context.getTargetInfo().getCXXABI().isMicrosoft() ||
            D->isMsStruct(Context);
-  }
-
-  /// Helper function to check if we are targeting AAPCS.
-  bool isAAPCS() const {
-    return Context.getTargetInfo().getABI().starts_with("aapcs");
   }
 
   /// Helper function to check if the target machine is BigEndian.
@@ -410,7 +406,10 @@ RecordDecl::field_iterator
 CGRecordLowering::accumulateBitFields(bool isNonVirtualBaseType,
                                       RecordDecl::field_iterator Field,
                                       RecordDecl::field_iterator FieldEnd) {
-  if (isDiscreteBitFieldABI()) {
+  // If fine-grained-bitfield-accesses is enabled, we do not want to
+  // do the contiguous collection of bitfields.
+  if (isDiscreteBitFieldABI() &&
+      !Types.getCodeGenOpts().FineGrainedBitfieldAccesses) {
     // Run stores the first element of the current run of bitfields. FieldEnd is
     // used as a special value to note that we don't have a current run. A
     // bitfield run is a contiguous collection of bitfields that can be stored
@@ -517,7 +516,7 @@ CGRecordLowering::accumulateBitFields(bool isNonVirtualBaseType,
   // include padding when we've advanced to a subsequent bitfield run.
   RecordDecl::field_iterator Begin = FieldEnd;
   CharUnits BeginOffset;
-  uint64_t BitSizeSinceBegin;
+  uint64_t BitSizeSinceBegin = 0;
 
   // The (non-inclusive) end of the largest acceptable access unit we've found
   // since Begin. If this is Begin, we're gathering the initial set of bitfields
@@ -526,7 +525,8 @@ CGRecordLowering::accumulateBitFields(bool isNonVirtualBaseType,
   // available padding characters.
   RecordDecl::field_iterator BestEnd = Begin;
   CharUnits BestEndOffset;
-  bool BestClipped; // Whether the representation must be in a byte array.
+  // Whether the representation must be in a byte array.
+  bool BestClipped = false;
 
   for (;;) {
     // AtAlignedBoundary is true iff Field is the (potential) start of a new
@@ -753,7 +753,8 @@ void CGRecordLowering::accumulateBases() {
 /// Enforcing the width restriction can be disabled using
 /// -fno-aapcs-bitfield-width.
 void CGRecordLowering::computeVolatileBitfields() {
-  if (!isAAPCS() || !Types.getCodeGenOpts().AAPCSBitfieldWidth)
+  if (!CodeGenUtils::isAAPCS(Context.getTargetInfo()) ||
+      !Types.getCodeGenOpts().AAPCSBitfieldWidth)
     return;
 
   for (auto &I : BitFields) {

@@ -11,12 +11,12 @@
 
 #include <unified-runtime/ur_api.h>
 
-#include "../platform.hpp"
-#include "../ur_interface_loader.hpp"
+#include "../common/platform.hpp"
 #include "context.hpp"
 #include "event.hpp"
+#include "ur_interface_loader.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v2 {
 
 namespace {
 
@@ -26,13 +26,14 @@ constexpr size_t kIpcEventHandleDataSize =
 
 } // namespace
 
-ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
+ur_result_t urIPCGetEventHandleExp(::ur_event_handle_t hEventOpque,
                                    void **ppIPCEventHandleData,
                                    size_t *pIPCEventHandleDataSizeRet) try {
-  UR_ASSERT(hEvent, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hEventOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(ppIPCEventHandleData && pIPCEventHandleDataSizeRet,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
+  auto hEvent = v2_cast(hEventOpque);
   std::shared_lock<ur_shared_mutex> lock(hEvent->Mutex);
 
   UR_ASSERT(hEvent->isIpcCapable() && !hEvent->isIpcImported(),
@@ -52,7 +53,7 @@ ur_result_t urIPCGetEventHandleExp(ur_event_handle_t hEvent,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urIPCPutEventHandleExp(ur_context_handle_t /*hContext*/,
+ur_result_t urIPCPutEventHandleExp(::ur_context_handle_t /*hContext*/,
                                    void *pIPCEventHandleData) try {
   UR_ASSERT(pIPCEventHandleData, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // Free the buffer allocated by urIPCGetEventHandleExp via RAII.
@@ -63,15 +64,18 @@ ur_result_t urIPCPutEventHandleExp(ur_context_handle_t /*hContext*/,
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t hContext,
+ur_result_t urIPCOpenEventHandleExp(::ur_context_handle_t hContextOpque,
                                     const void *pIPCEventHandleData,
                                     size_t ipcEventHandleDataSize,
-                                    ur_event_handle_t *phEvent) try {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pIPCEventHandleData && phEvent,
+                                    ::ur_event_handle_t *phEventOpque) try {
+  UR_ASSERT(hContextOpque, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pIPCEventHandleData && phEventOpque,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(ipcEventHandleDataSize == kIpcEventHandleDataSize,
             UR_RESULT_ERROR_INVALID_VALUE);
+
+  auto hContext = v2_cast(hContextOpque);
+  auto phEvent = v2_cast(phEventOpque);
 
   // The driver consumes the handle by value.
   ze_ipc_event_counter_based_handle_t handle =
@@ -92,4 +96,4 @@ ur_result_t urIPCOpenEventHandleExp(ur_context_handle_t hContext,
   return exceptionToResult(std::current_exception());
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

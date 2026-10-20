@@ -220,8 +220,6 @@ private:
   llvm::IntegerType *getSizetType(unsigned AS = 0);
   std::vector<SPIRVValue *> transValue(const std::vector<Value *> &Values,
                                        SPIRVBasicBlock *BB);
-  std::vector<SPIRVWord> transValue(const std::vector<Value *> &Values,
-                                    SPIRVBasicBlock *BB, SPIRVEntry *Entry);
   SPIRVInstruction *transBinaryInst(BinaryOperator *B, SPIRVBasicBlock *BB);
   SPIRVInstruction *transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB);
   SPIRVInstruction *transLifetimeIntrinsicInst(Op OC, IntrinsicInst *Intrinsic,
@@ -271,7 +269,7 @@ private:
                                                    Function *F);
 };
 
-class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass> {
+class LLVMToSPIRVPass : public RequiredPassInfoMixin<LLVMToSPIRVPass> {
 public:
   LLVMToSPIRVPass(SPIRVModule *SMod) : SMod(SMod) {}
 
@@ -282,8 +280,6 @@ public:
     return PassInstance.runLLVMToSPIRV(M) ? llvm::PreservedAnalyses::none()
                                           : llvm::PreservedAnalyses::all();
   }
-
-  static bool isRequired() { return true; }
 
 private:
   SPIRVModule *SMod;

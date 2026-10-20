@@ -97,10 +97,11 @@ struct PrintingPolicy {
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
-        CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
+        CleanUglifiedParameters(false), ResolveDecltype(false),
+        EntireContentsOfLargeArray(true), PrettyEnums(true),
         UseEnumerators(true), UseFullyQualifiedEnumerators(false),
-        UseHLSLTypes(LO.HLSL), SuppressDeclAttributes(false),
-        SuppressLambdaBody(false) {}
+        UseHLSLTypes(LO.HLSL),
+        SuppressDeclAttributes(false), SuppressLambdaBody(false) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -426,10 +427,22 @@ struct PrintingPolicy {
   LLVM_PREFERRED_TYPE(bool)
   unsigned CleanUglifiedParameters : 1;
 
+  /// Whether to print the type a non-dependent `decltype(expr)` resolves to,
+  /// rather than the `decltype` specifier itself. Intended for display
+  /// contexts such as code completion, where `int` is more informative than
+  /// `decltype(x)`; it does not describe how the type was spelled.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ResolveDecltype : 1;
+
   /// Whether to print the entire array initializers, especially on non-type
   /// template parameters, no matter how many elements there are.
   LLVM_PREFERRED_TYPE(bool)
   unsigned EntireContentsOfLargeArray : 1;
+
+  /// Whether to print enumerators with a matching enumerator name or via cast
+  //  of an integer.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned PrettyEnums : 1;
 
   /// Whether to print enumerator non-type template parameters with a matching
   /// enumerator name or via cast of an integer.

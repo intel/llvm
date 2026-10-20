@@ -9,16 +9,16 @@
 // into the driver.
 
 // RUN: %clang --target=x86_64-pc-windows-msvc -fms-compatibility-version=19.29.30159 \
-// RUN:   --offload-new-driver -fsycl -E -o %t.ii %s -### 2>&1 \
+// RUN:   --offload-new-driver -fsycl --no-offloadlib -fno-sycl-instrument-device-code -E -o %t.ii %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix CREATE %s
 // CREATE: llvm-offload-binary{{.*}} "-o" "{{.*}}.ii"
 // CREATE-SAME: "--image=file={{.*}}.ii,triple=spir64-unknown-unknown,arch=generic,kind=sycl"
 // CREATE-SAME: "--image=file={{.*}}.ii,triple=x86_64-pc-windows-msvc19.29.30159,arch=generic,kind=host"
 
 // RUN: %clang --target=x86_64-pc-windows-msvc -fms-compatibility-version=19.29.30159 \
-// RUN:   --offload-new-driver -fsycl -E -o %t.ii %s
+// RUN:   --offload-new-driver -fsycl --no-offloadlib -fno-sycl-instrument-device-code -E -o %t.ii %s
 // RUN: %clang --target=x86_64-pc-windows-msvc -fms-compatibility-version=19.29.30159 \
-// RUN:   --offload-new-driver -fsycl -c %t.ii -### 2>&1 \
+// RUN:   --offload-new-driver -fsycl --no-offloadlib -fno-sycl-instrument-device-code -c %t.ii -### 2>&1 \
 // RUN:   | FileCheck -check-prefix USE %s
 // USE: llvm-offload-binary{{.*}} "[[MAINFILE:.+\.ii]]"
 // USE-SAME: "--image=file={{.*}}.ii,triple=spir64-unknown-unknown,arch=generic,kind=sycl"

@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   Analysis
   BitReader
   BitWriter
+  CodeGen
   CodeGenTypes
   Core
   Coroutines
@@ -166,6 +167,10 @@ add_clang_library(clangCodeGen
   TrapReasonBuilder.cpp
   VarBypassDetector.cpp
 
+  DISABLE_PCH_REUSE # PCH contains private headers
+  PRECOMPILE_HEADERS
+  [["pch.h"]]
+
   DEPENDS
   ${codegen_deps}
   vt_gen
@@ -178,6 +183,7 @@ add_clang_library(clangCodeGen
   clangAST
   clangAnalysis
   clangBasic
+  clangCodeGenUtils
   clangFrontend
   clangLex
   clangSema

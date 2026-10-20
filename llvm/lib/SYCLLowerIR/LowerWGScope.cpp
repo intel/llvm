@@ -510,7 +510,7 @@ static void materializeLocalsInWIScopeBlocksImpl(
     BasicBlock *BB = LeaderBB->splitBasicBlock(LeaderBBFront, "LeaderMat");
     // Add a barrier to the original block:
     Instruction *At =
-        spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
+        spirv::genWGBarrier(*BB->getFirstNonPHIIt(), TT)->getNextNode();
 
     for (AllocaInst *L : *P.second.get()) {
       auto MapEntry = Local2Shadow.find(L);
@@ -731,7 +731,7 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // PFWI lambda object:
   for (auto &C : PrivMemCaptures) {
     GetElementPtrInst *NewGEP = cast<GetElementPtrInst>(C.second->clone());
-    NewGEP->insertBefore(PFWICall);
+    NewGEP->insertBefore(PFWICall->getIterator());
     IRBuilder<> Bld(PFWICall->getContext());
     Bld.SetInsertPoint(PFWICall);
     Value *Val = C.first;
@@ -821,7 +821,7 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
     // don't have side effects and must never be guarded with the WG leader
     // test. Note that there should be no allocas in local address space at this
     // point - they must have been converted to globals.
-    Instruction *I = BB.getFirstNonPHI();
+    Instruction *I = &*BB.getFirstNonPHIIt();
 
     for (; I->getOpcode() == Instruction::Alloca ||
            I->getOpcode() == Instruction::AddrSpaceCast ||

@@ -75,7 +75,7 @@ void write_type_order(char *HostPtr, const s::image_channel_order ImgOrder,
     s::image<1> Img(HostPtr, ImgOrder, ImgType, s::range<1>{10});
     s::queue Queue;
     Queue.submit([&](s::handler &cgh) {
-      auto WriteAcc = Img.get_access<WriteDataT, s::access::mode::write>(cgh);
+      auto WriteAcc = Img.get_access<WriteDataT, s::access_mode::write>(cgh);
       cgh.single_task<
           class kernel_class<WriteDataT, static_cast<int>(ImgType), 0>>(
           [=]() { WriteAcc.write(Coord, Color); });
@@ -95,8 +95,8 @@ void check_read_type_order(char *HostPtr, const s::image_channel_order ImgOrder,
     s::queue Queue;
     s::buffer<ReadDataT, 1> ReadDataBuf(&ReadData, s::range<1>(1));
     Queue.submit([&](s::handler &cgh) {
-      auto ReadAcc = Img.get_access<ReadDataT, s::access::mode::read>(cgh);
-      s::accessor<ReadDataT, 1, s::access::mode::write> ReadDataBufAcc(
+      auto ReadAcc = Img.get_access<ReadDataT, s::access_mode::read>(cgh);
+      s::accessor<ReadDataT, 1, s::access_mode::write> ReadDataBufAcc(
           ReadDataBuf, cgh);
 
       cgh.single_task<

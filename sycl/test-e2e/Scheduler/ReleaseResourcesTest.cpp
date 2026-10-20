@@ -14,7 +14,7 @@
 
 #include "../helpers.hpp"
 
-using sycl_access_mode = sycl::access::mode;
+using sycl_access_mode = sycl::access_mode;
 
 int main() {
   bool Failed = false;

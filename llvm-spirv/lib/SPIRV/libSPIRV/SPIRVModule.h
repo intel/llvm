@@ -142,6 +142,8 @@ public:
                               const std::string &) = 0;
   void setInvalid() { IsValid = false; }
   bool isModuleValid() { return IsValid; }
+  void setVectorCompute(bool E) { IsVectorCompute = E; }
+  bool isVectorCompute() const { return IsVectorCompute; }
 
   // Module query functions
   virtual SPIRVAddressingModelKind getAddressingModel() = 0;
@@ -604,12 +606,20 @@ public:
     return TranslationOpts.shouldEmitFunctionPtrAddrSpace();
   }
 
+  const SPIRV::TranslatorOpts &getTranslationOpts() const noexcept {
+    return TranslationOpts;
+  }
+
   unsigned mapAddrSpace(unsigned SPIRAS) const noexcept {
     return TranslationOpts.mapAddrSpace(SPIRAS);
   }
 
   const SPIRV::AddrSpaceMap *getAddrSpaceMap() const noexcept {
     return TranslationOpts.getAddrSpaceMap();
+  }
+
+  llvm::StringRef getTargetTripleOverride() const noexcept {
+    return TranslationOpts.getSPIRVTargetTriple();
   }
 
   unsigned getFunctionProgramAddrSpace() const noexcept {
@@ -681,6 +691,7 @@ protected:
 
 private:
   bool IsValid;
+  bool IsVectorCompute = false;
 };
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT

@@ -74,7 +74,7 @@ int run_test_b(int v) {
     sycl::queue deviceQueue;
     sycl::buffer<int, 1> buf(arr, 1);
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class kernel_b>([=]() { acc[0] *= 3; });
     });
   }
@@ -99,7 +99,7 @@ int run_test_a(int v) {
     sycl::queue deviceQueue;
     sycl::buffer<int, 1> buf(arr, 1);
     deviceQueue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
       cgh.single_task<class kernel_a>([=]() { acc[0] *= 2; });
     });
   }

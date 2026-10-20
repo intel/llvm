@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS>
-void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
+void assert_ops_ref(host_accessor<T, 2, access_mode::read> mat,
                     const float ref) {
   for (size_t i = 0; i < NUM_ROWS; i++)
     for (size_t j = 0; j < NUM_COLS; j++) {

@@ -21,7 +21,7 @@ int main() {
     for (auto &e : el)
       throw e;
   });
-  if (q.get_device().get_info<info::device::usm_shared_allocations>()) {
+  if (q.get_device().has(aspect::usm_shared_allocations)) {
     float *src = (float *)malloc_shared(sizeof(float) * count, q.get_device(),
                                         q.get_context());
     float *dest = (float *)malloc_shared(sizeof(float) * count, q.get_device(),

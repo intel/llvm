@@ -4,6 +4,8 @@
 // REQUIRES: arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31
 // UNSUPPORTED: windows
 // UNSUPPORTED-INTENDED: Cross-process IPC test relies on POSIX semantics.
+// UNSUPPORTED: linux && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23243
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -79,7 +81,8 @@ static int producer(const std::string &Exe) {
        "repeat_signal2_ready", "repeat_consumed2", "repeat_consumer_failed",
        "repeat_producer_done", "repeat_consumer_done"});
 
-  sycl::event Evt = exp::make_event(Ctx, exp::properties{exp::enable_ipc});
+  sycl::event Evt =
+      exp::make_event(Ctx, exp::properties{exp::enable_ipc{true}});
   ipc::handle EvtHandle = ipc::event::get(Evt);
 
   int *Buf = sycl::malloc_device<int>(NumElems, Q);

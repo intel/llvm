@@ -52,6 +52,14 @@ constexpr uint32_t ASAN_MAX_WG_LOCAL = 8192;
 
 constexpr uint32_t ASAN_MAX_SG_PRIVATE = 256;
 
+// Size of the local memory window shadowed for each work-group. Must be a power
+// of two and no less than the local memory size of any supported device: DG2 is
+// 64KB, PVC and BMG are 128KB. Used by both the host (AllocLocalShadow) and the
+// device (MemToShadow_*), which must agree on the stride.
+constexpr uint32_t ASAN_SLM_SIZE = 128 * 1024;
+static_assert(ASAN_SLM_SIZE != 0 && (ASAN_SLM_SIZE & (ASAN_SLM_SIZE - 1)) == 0,
+              "ASAN_SLM_SIZE must be a power of two");
+
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct AsanRuntimeData {
@@ -113,8 +121,9 @@ constexpr int8_t kUnknownMagic = (int8_t)0xff;
 
 constexpr int8_t kZeroMagic = 0;
 
-constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
-constexpr auto kSPIR_AsanSpirKernelMetadata = "__AsanKernelMetadata";
+constexpr auto kSPIR_AsanDeviceGlobalMetadataPrefix =
+    "__AsanDeviceGlobalMetadata_";
+constexpr auto kSPIR_AsanSpirKernelMetadataPrefix = "__AsanKernelMetadata_";
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer

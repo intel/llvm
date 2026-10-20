@@ -55,22 +55,28 @@ TEST(KernelEnqueue, InteropKernel) {
   platform Plt = sycl::platform();
   queue Q;
 
+  // The mock treats the native handle as a dummy handle and retains/releases
+  // it, so it has to be passed by value and the reference owned by the test
+  // released once the kernel is gone.
   ur_native_handle_t Handle = mock::createDummyHandle<ur_native_handle_t>();
   auto KernelCL = reinterpret_cast<typename sycl::backend_traits<
-      sycl::backend::opencl>::template input_type<sycl::kernel>>(&Handle);
-  auto Kernel =
-      sycl::make_kernel<sycl::backend::opencl>(KernelCL, Q.get_context());
+      sycl::backend::opencl>::template input_type<sycl::kernel>>(Handle);
+  {
+    auto Kernel =
+        sycl::make_kernel<sycl::backend::opencl>(KernelCL, Q.get_context());
 
-  auto TestLambda = [&](std::size_t ThreadId) {
-    Q.submit([&](sycl::handler &CGH) {
-       for (std::size_t I = 0; I < NArgs; ++I)
-         CGH.set_arg(I, ThreadId);
-       CGH.single_task(Kernel);
-     }).wait();
-  };
+    auto TestLambda = [&](std::size_t ThreadId) {
+      Q.submit([&](sycl::handler &CGH) {
+         for (std::size_t I = 0; I < NArgs; ++I)
+           CGH.set_arg(I, ThreadId);
+         CGH.single_task(Kernel);
+       }).wait();
+    };
 
-  for (std::size_t I = 0; I < LaunchCount; ++I) {
-    ThreadPool Pool(ThreadCount, TestLambda);
+    for (std::size_t I = 0; I < LaunchCount; ++I) {
+      ThreadPool Pool(ThreadCount, TestLambda);
+    }
   }
+  mock::releaseDummyHandle(Handle);
 }
 } // namespace

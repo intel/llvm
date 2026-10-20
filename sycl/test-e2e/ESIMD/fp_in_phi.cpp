@@ -38,8 +38,8 @@ bool test(queue q, bool flag) {
     buffer<int, 1> y_buf(Y.data(), Y.size());
 
     q.submit([&](handler &cgh) {
-      auto o_acc = o_buf.get_access<access::mode::write>(cgh);
-      auto y_acc = y_buf.get_access<access::mode::write>(cgh);
+      auto o_acc = o_buf.get_access<access_mode::write>(cgh);
+      auto y_acc = y_buf.get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<KernelID>(sycl::range<1>{1},
                                  [=](id<1> i) SYCL_ESIMD_KERNEL {

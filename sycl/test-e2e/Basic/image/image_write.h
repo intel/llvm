@@ -35,15 +35,15 @@ bool test1d_coord(s::queue myQueue, dataT *hostPtr, coordT coord,
     s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
+      auto imageAcc = image.get_access<dataT, s::access_mode::write>(cgh);
       cgh.single_task<test_1d_write_class<dataT>>(
           [=]() { imageAcc.write(coord, colour); });
     });
 
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
-      s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
-                                                                  cgh);
+      auto imageAcc = image.get_access<dataT, s::access_mode::read>(cgh);
+      s::accessor<dataT, 1, s::access_mode::write> resultDataAcc(resultDataBuf,
+                                                                 cgh);
 
       cgh.single_task<test_1d_read_class<dataT>>([=]() {
         dataT RetColor = imageAcc.read(coord);
@@ -81,16 +81,16 @@ bool test2d_coord(s::queue myQueue, dataT *hostPtr, coordT coord,
     s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
+      auto imageAcc = image.get_access<dataT, s::access_mode::write>(cgh);
 
       cgh.single_task<test_2d_write_class<dataT>>(
           [=]() { imageAcc.write(coord, colour); });
     });
 
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
-      s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
-                                                                  cgh);
+      auto imageAcc = image.get_access<dataT, s::access_mode::read>(cgh);
+      s::accessor<dataT, 1, s::access_mode::write> resultDataAcc(resultDataBuf,
+                                                                 cgh);
 
       cgh.single_task<test_2d_read_class<dataT>>([=]() {
         dataT RetColor = imageAcc.read(coord);
@@ -128,15 +128,15 @@ bool test3d_coord(s::queue myQueue, dataT *hostPtr, coordT coord,
     s::buffer<dataT, 1> resultDataBuf(&resultData, s::range<1>(1));
 
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc = image.get_access<dataT, s::access::mode::write>(cgh);
+      auto imageAcc = image.get_access<dataT, s::access_mode::write>(cgh);
       cgh.single_task<test_3d_write_class<dataT>>(
           [=]() { imageAcc.write(coord, colour); });
     });
 
     myQueue.submit([&](s::handler &cgh) {
-      auto imageAcc = image.get_access<dataT, s::access::mode::read>(cgh);
-      s::accessor<dataT, 1, s::access::mode::write> resultDataAcc(resultDataBuf,
-                                                                  cgh);
+      auto imageAcc = image.get_access<dataT, s::access_mode::read>(cgh);
+      s::accessor<dataT, 1, s::access_mode::write> resultDataAcc(resultDataBuf,
+                                                                 cgh);
 
       cgh.single_task<test_3d_read_class<dataT>>([=]() {
         dataT RetColor = imageAcc.read(coord);

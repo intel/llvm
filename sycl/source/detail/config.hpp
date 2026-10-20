@@ -173,6 +173,48 @@ private:
   }
 };
 
+// Enabled only by the value 1, matching CUDA_LAUNCH_BLOCKING.
+template <> class SYCLConfig<SYCL_LAUNCH_BLOCKING> {
+  using BaseT = SYCLConfigBase<SYCL_LAUNCH_BLOCKING>;
+
+public:
+  static bool get() {
+    static bool Enabled = [] {
+      const char *ValStr = BaseT::getRawValue();
+      return ValStr && std::string(ValStr) == "1";
+    }();
+    return Enabled;
+  }
+};
+
+// SYCL_DUMP_IMAGES controls dumping of device image binaries to files:
+// unset or 0 - dumping is disabled.
+// 2 - dump only the device images actually used at runtime.
+// Any other value - dump all device images loaded into the runtime.
+template <> class SYCLConfig<SYCL_DUMP_IMAGES> {
+  using BaseT = SYCLConfigBase<SYCL_DUMP_IMAGES>;
+  enum Level { Off = 0, All = 1, UsedOnly = 2 };
+
+public:
+  static bool dumpUsedOnly() { return getLevel() == UsedOnly; }
+  static bool dumpAll() { return getLevel() == All; }
+
+private:
+  static unsigned int getLevel() {
+    static unsigned int Value = []() -> unsigned int {
+      const char *ValStr = BaseT::getRawValue();
+      if (!ValStr)
+        return Off;
+      // An explicit 0 disables dumping. Any value other than 2, including a
+      // non-numeric one, keeps the historical "dump all images" behavior.
+      if (std::string(ValStr) == "0")
+        return Off;
+      return std::atoi(ValStr) == UsedOnly ? UsedOnly : All;
+    }();
+    return Value;
+  }
+};
+
 template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>;
 

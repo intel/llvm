@@ -13,6 +13,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/handler.hpp>
+#include <sycl/kernel.hpp>
 #include <sycl/queue.hpp>
 
 #include <algorithm>
@@ -316,6 +317,14 @@ void submit_kernel_direct_without_event_impl(
   detail::getSyclObjImpl(Queue)->submit_kernel_direct_without_event(
       RangeView, HostKernel, DeviceKernelInfo, DepEvents, Props, CodeLoc,
       IsTopCodeLoc);
+}
+
+void submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, sycl::span<const detail::KernelArgView> Args,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  detail::getSyclObjImpl(Queue)->submit_kernel_obj_direct_without_event(
+      RangeView, detail::getSyclObjImpl(Kernel), Args, CodeLoc, IsTopCodeLoc);
 }
 
 event submit_graph_direct_with_event_impl(

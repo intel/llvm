@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// UNSUPPORTED: windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22576
-
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 32x33
 
@@ -134,8 +131,7 @@ inline D3D12ImageResources createExportableImageWrite(D3D12Context &ctx,
   texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
   // KEY DIFFERENCE: Unordered Access is required for SYCL to write to the image
-  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS |
-                  D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
   D3D12_HEAP_PROPERTIES defaultHeap = {D3D12_HEAP_TYPE_DEFAULT};
 
@@ -190,9 +186,8 @@ int runTest(
   }
 
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

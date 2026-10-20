@@ -20,7 +20,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
@@ -227,8 +226,7 @@ static cl::opt<bool> ClInstrumentWrites(
 
 static cl::opt<bool>
     ClUseStackSafety("asan-use-stack-safety", cl::Hidden, cl::init(true),
-                     cl::Hidden, cl::desc("Use Stack Safety analysis results"),
-                     cl::Optional);
+                     cl::Hidden, cl::desc("Use Stack Safety analysis results"));
 
 static cl::opt<bool> ClInstrumentAtomics(
     "asan-instrument-atomics",
@@ -479,13 +477,11 @@ static cl::opt<bool> ClSpirCheckShadowBounds(
     "asan-spir-shadow-bounds",
     cl::desc("Enable checking shadow bounds on SPIR-V target"), cl::Hidden,
     cl::init(false));
-static SmallSet<unsigned, 8> SrcAddrSpaces;
+
 static cl::list<unsigned> ClAddrSpaces(
     "asan-instrument-address-spaces",
     cl::desc("Only instrument variables in the specified address spaces."),
-    cl::Hidden, cl::CommaSeparated, cl::callback([](const unsigned &AddrSpace) {
-      SrcAddrSpaces.insert(AddrSpace);
-    }));
+    cl::Hidden, cl::CommaSeparated);
 
 // Debug flags.
 
@@ -887,7 +883,7 @@ struct AddressSanitizer {
   void instrumentMop(ObjectSizeOffsetVisitor &ObjSizeVis,
                      InterestingMemoryOperand &O, bool UseCalls,
                      const DataLayout &DL, RuntimeCallInserter &RTCI);
-  void instrumentPointerComparisonOrSubtraction(Instruction *I,
+  bool instrumentPointerComparisonOrSubtraction(Instruction *I,
                                                 RuntimeCallInserter &RTCI);
   void instrumentAddress(Instruction *OrigIns, Instruction *InsertBefore,
                          Value *Addr, MaybeAlign Alignment,
@@ -1298,10 +1294,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   /// Collect Alloca instructions we want (and can) handle.
   void visitAllocaInst(AllocaInst &AI) {
     // FIXME: Handle scalable vectors instead of ignoring them.
-    const Type *AllocaType = AI.getAllocatedType();
-    const auto *STy = dyn_cast<StructType>(AllocaType);
-    if (!ASan.isInterestingAlloca(AI) || isa<ScalableVectorType>(AllocaType) ||
-        (STy && STy->containsHomogeneousScalableVectorTypes())) {
+    if (!ASan.isInterestingAlloca(AI) || AI.isScalable()) {
       if (AI.isStaticAlloca()) {
         // Skip over allocas that are present *before* the first instrumented
         // alloca, we don't want to move those around.
@@ -1447,7 +1440,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
                                  bool HasESIMD) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
-  SmallVector<uint8_t, 256> KernelNamesBytes;
 
   const auto &DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
@@ -1485,7 +1477,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
-      KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString(
           M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
 
@@ -1509,9 +1500,11 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  std::string AsanKernelMetadataName =
+      ("__AsanKernelMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__AsanKernelMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, AsanKernelMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
   // Add device global attributes
@@ -1519,9 +1512,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
   AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
-  AsanSpirKernelMetadata->addAttribute(
-      "sycl-unique-id",
-      computeKernelMetadataUniqueId("__AsanKernelMetadata", KernelNamesBytes));
+  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       AsanKernelMetadataName);
   AsanSpirKernelMetadata->setDSOLocal(true);
 
   // Handle SpirFixupKernels
@@ -1871,8 +1863,8 @@ static bool isSupportedAddrspace(const Triple &TargetTriple, Value *Addr) {
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   unsigned int AddrSpace = PtrTy->getPointerAddressSpace();
 
-  if (!SrcAddrSpaces.empty())
-    return SrcAddrSpaces.count(AddrSpace);
+  if (!ClAddrSpaces.empty())
+    return is_contained(ClAddrSpaces, AddrSpace);
 
   if (TargetTriple.isAMDGPU())
     return !isUnsupportedAMDGPUAddrspace(Addr);
@@ -1887,6 +1879,12 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
         AsanMemToShadow,
         {Shadow, ConstantInt::get(IRB.getInt32Ty(), AddressSpace)},
         "shadow_ptr");
+  }
+  if (TargetTriple.isOSDarwin() &&
+      TargetTriple.getArch() == llvm::Triple::aarch64) {
+    // Strip MTE-tag bits before translating to shadow address
+    Shadow = IRB.CreateAnd(Shadow,
+                           ConstantInt::get(IntptrTy, ~(uint64_t(0x0f) << 56)));
   }
   // Shadow >> scale
   Shadow = IRB.CreateLShr(Shadow, Mapping.Scale);
@@ -2073,10 +2071,8 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
   if (!Inserted)
     return It->getSecond();
 
-  bool IsInteresting =
-      (AI.getAllocatedType()->isSized() &&
-       // alloca() may be called with 0 size, ignore it.
-       ((!AI.isStaticAlloca()) || !getAllocaSizeInBytes(AI).isZero()) &&
+  bool IsInteresting = // alloca() may be called with 0 size, ignore it.
+      (((!AI.isStaticAlloca()) || !getAllocaSizeInBytes(AI).isZero()) &&
        // We are only interested in allocas not promotable to registers.
        // Promotable allocas are common under -O0.
        (!ClSkipPromotableAllocas || !isAllocaPromotable(&AI)) &&
@@ -2263,7 +2259,7 @@ void AddressSanitizer::getInterestingMemoryOperands(
 }
 
 static bool isPointerOperand(Value *V) {
-  return V->getType()->isPointerTy() || isa<PtrToIntInst>(V);
+  return V->getType()->isPointerTy() || isa<PtrToIntInst, PtrToAddrInst>(V);
 }
 
 // This is a rough heuristic; it may cause both false positives and
@@ -2307,16 +2303,50 @@ bool AddressSanitizer::GlobalIsLinkerInitialized(GlobalVariable *G) {
   return true;
 }
 
-void AddressSanitizer::instrumentPointerComparisonOrSubtraction(
+static bool isPointerPairOperand(Value *V, Type *IntptrTy) {
+  Type *Ty = V->getType();
+  if (Ty->isPtrOrPtrVectorTy())
+    return true;
+  return Ty->isIntOrIntVectorTy() &&
+         Ty->getScalarSizeInBits() == IntptrTy->getScalarSizeInBits();
+}
+
+bool AddressSanitizer::instrumentPointerComparisonOrSubtraction(
     Instruction *I, RuntimeCallInserter &RTCI) {
+  Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
+  if (!isPointerPairOperand(Param[0], IntptrTy) ||
+      !isPointerPairOperand(Param[1], IntptrTy))
+    return false;
+
   IRBuilder<> IRB(I);
   FunctionCallee F = isa<ICmpInst>(I) ? AsanPtrCmpFunction : AsanPtrSubFunction;
-  Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
-  for (Value *&i : Param) {
-    if (i->getType()->isPointerTy())
-      i = IRB.CreatePointerCast(i, IntptrTy);
+
+  if (const auto *Ty = Param[0]->getType(); Ty->isVectorTy()) {
+    const auto *VTy = dyn_cast<FixedVectorType>(Ty);
+    // TODO: Add support for scalable vectors if possible.
+    if (!VTy)
+      return false;
+
+    assert(Param[0]->getType() == Param[1]->getType() &&
+           "invalid vector pointer pair instrumentation operands");
+    for (unsigned Index = 0, NumElements = VTy->getNumElements();
+         Index != NumElements; ++Index) {
+      Value *ScalarParam[2] = {
+          IRB.CreatePointerCast(
+              IRB.CreateExtractElement(Param[0], IRB.getInt32(Index)),
+              IntptrTy),
+          IRB.CreatePointerCast(
+              IRB.CreateExtractElement(Param[1], IRB.getInt32(Index)),
+              IntptrTy)};
+      RTCI.createRuntimeCall(IRB, F, ScalarParam);
+    }
+    return true;
   }
+
+  for (Value *&P : Param)
+    P = IRB.CreatePointerCast(P, IntptrTy);
   RTCI.createRuntimeCall(IRB, F, Param);
+  return true;
 }
 
 static void doInstrumentAddress(AddressSanitizer *Pass, Instruction *I,
@@ -2729,12 +2759,22 @@ void ModuleAddressSanitizer::poisonOneInitializer(Function &GlobalInit) {
   // Add a call to poison all external globals before the given function starts.
   Value *ModuleNameAddr =
       ConstantExpr::getPointerCast(getOrCreateModuleName(), IntptrTy);
-  IRB.CreateCall(AsanPoisonGlobals, ModuleNameAddr);
+  CallInst *CallBefore = IRB.CreateCall(AsanPoisonGlobals, ModuleNameAddr);
+  if (DISubprogram *SP = GlobalInit.getSubprogram())
+    CallBefore->setDebugLoc(
+        DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP));
 
   // Add calls to unpoison all globals before each return instruction.
   for (auto &BB : GlobalInit)
-    if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator()))
-      CallInst::Create(AsanUnpoisonGlobals, "", RI->getIterator());
+    if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
+      CallInst *CallAfter =
+          CallInst::Create(AsanUnpoisonGlobals, "", RI->getIterator());
+      if (RI->getDebugLoc())
+        CallAfter->setDebugLoc(RI->getDebugLoc());
+      else if (DISubprogram *SP = GlobalInit.getSubprogram())
+        CallAfter->setDebugLoc(
+            DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP));
+    }
 }
 
 void ModuleAddressSanitizer::createInitializerPoisonCalls() {
@@ -3130,9 +3170,11 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  std::string AsanDeviceGlobalMetadataName =
+      ("__AsanDeviceGlobalMetadata_" + computeMetadataUniqueId(M)).str();
   GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, AsanDeviceGlobalMetadataName, nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 
@@ -4253,8 +4295,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   }
 
   for (auto *Inst : PointerComparisonsOrSubtracts) {
-    instrumentPointerComparisonOrSubtraction(Inst, RTCI);
-    FunctionModified = true;
+    FunctionModified |= instrumentPointerComparisonOrSubtraction(Inst, RTCI);
   }
 
   if (ChangedStack || !NoReturnCalls.empty())
@@ -4788,9 +4829,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
     replaceDbgDeclare(AI, LocalStackBaseAlloca, DIB, DIExprFlags, Desc.Offset);
     Value *NewAllocaPtr = IRB.CreatePtrAdd(
         LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset));
-    NewAllocaPtr = TargetTriple.isSPIROrSPIRV()
-                       ? IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType())
-                       : NewAllocaPtr;
+    if (NewAllocaPtr->getType() != AI->getType())
+      NewAllocaPtr = IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType());
     AI->replaceAllUsesWith(NewAllocaPtr);
     NewAllocaPtrs.push_back(NewAllocaPtr);
   }

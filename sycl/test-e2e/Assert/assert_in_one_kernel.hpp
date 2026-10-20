@@ -19,7 +19,7 @@ void assertTest() {
 
   queue Q;
   Q.submit([&](handler &CGH) {
-    auto Acc = Buf.template get_access<mode::read_write>(CGH);
+    auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class TheKernel>(
         numOfItems, [=](item<1> Item) { kernelFunc(&Acc[0], Item[0]); });

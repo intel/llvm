@@ -3,8 +3,14 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-73525
+// Sporadic Linux failures until NEO build 39809; close the issue once CI runs.
+// https://github.com/intel/llvm/issues/22858
+// REQUIRES-INTEL-DRIVER: lin: 39809
+
+// Independent of the driver gate above: on Windows the writes land at the
+// wrong offsets in an imported OPTIMAL-tiled 1D image (float/1ch/32: 8 of 32).
+// XFAIL: windows && run-mode
+// XFAIL-TRACKER: GSD-12373
 
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
@@ -55,17 +61,14 @@
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32
 // RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32
 
-// On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339  We need driver version 38362 or later.
-
-// RUN-IF: !level_zero, %{run} %t.out --type float --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type half --channels 2 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int32 --channels 4 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint32 --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int16 --channels 2 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint16 --channels 4 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type uint8 --channels 1 32 --semaphores
-// RUN-IF: !level_zero, %{run} %t.out --type int8 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type float --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type half --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type int32 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type uint32 --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type int16 --channels 2 32 --semaphores
+// RUN: %{run} %t.out --type uint16 --channels 4 32 --semaphores
+// RUN: %{run} %t.out --type uint8 --channels 1 32 --semaphores
+// RUN: %{run} %t.out --type int8 --channels 4 32 --semaphores
 
 
 /*
@@ -93,7 +96,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <optional>
 #include <string>
@@ -165,7 +168,7 @@ int runTest(
                           : getVulkanFormat<T>(channels);
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, 1, 1};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_1D, tiling);
@@ -216,9 +219,8 @@ int runTest(
   }
 
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

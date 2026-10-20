@@ -5,6 +5,7 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   SpecializationConstant.cpp
   KernelBundle.cpp
   KernelBundleStateFiltering.cpp
+  KhrPropertiesKernelBundle.cpp
   KernelID.cpp
   HasExtension.cpp
   IsCompatible.cpp
@@ -18,5 +19,6 @@ add_sycl_unittest(SYCL2020Tests OBJECT
   SYCLBINSerializeMulti.cpp
   SYCLBINSerializeOverrides.cpp
   SYCLBINSerializeSpecConst.cpp
+  PropertySetIOOrder.cpp
 )
 

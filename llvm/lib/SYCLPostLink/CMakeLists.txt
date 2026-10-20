@@ -2,6 +2,7 @@ add_llvm_component_library(LLVMSYCLPostLink
   ComputeModuleRuntimeInfo.cpp
   ESIMDPostSplitProcessing.cpp
   ModuleSplitter.cpp
+  SanitizerPostSplitProcessing.cpp
   SpecializationConstants.cpp
   SYCLPostLink.cpp
   Utils.cpp

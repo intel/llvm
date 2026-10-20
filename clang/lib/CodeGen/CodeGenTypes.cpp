@@ -102,6 +102,11 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
 /// But the size does need to be exactly right or else things like struct
 /// layout will break.
 llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T) {
+  if (const auto *ArrayTy = dyn_cast<ConstantArrayType>(T.getTypePtr())) {
+    llvm::Type *ElementTy = ConvertTypeForMem(ArrayTy->getElementType());
+    return llvm::ArrayType::get(ElementTy, ArrayTy->getZExtSize());
+  }
+
   if (T->isConstantMatrixType()) {
     const Type *Ty = Context.getCanonicalType(T).getTypePtr();
     const ConstantMatrixType *MT = cast<ConstantMatrixType>(Ty);
@@ -303,30 +308,6 @@ void CodeGenTypes::RefreshTypeCacheForClass(const CXXRecordDecl *RD) {
     TypeCache.clear();
     RecordsWithOpaqueMemberPointers.clear();
   }
-}
-
-static llvm::Type *getTypeForFormat(llvm::LLVMContext &VMContext,
-                                    const llvm::fltSemantics &format,
-                                    bool UseNativeHalf = false) {
-  if (&format == &llvm::APFloat::IEEEhalf()) {
-    if (UseNativeHalf)
-      return llvm::Type::getHalfTy(VMContext);
-    else
-      return llvm::Type::getInt16Ty(VMContext);
-  }
-  if (&format == &llvm::APFloat::BFloat())
-    return llvm::Type::getBFloatTy(VMContext);
-  if (&format == &llvm::APFloat::IEEEsingle())
-    return llvm::Type::getFloatTy(VMContext);
-  if (&format == &llvm::APFloat::IEEEdouble())
-    return llvm::Type::getDoubleTy(VMContext);
-  if (&format == &llvm::APFloat::IEEEquad())
-    return llvm::Type::getFP128Ty(VMContext);
-  if (&format == &llvm::APFloat::PPCDoubleDouble())
-    return llvm::Type::getPPC_FP128Ty(VMContext);
-  if (&format == &llvm::APFloat::x87DoubleExtended())
-    return llvm::Type::getX86_FP80Ty(VMContext);
-  llvm_unreachable("Unknown float format!");
 }
 
 llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
@@ -539,17 +520,15 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       break;
 
     case BuiltinType::Float16:
-      ResultType =
-          getTypeForFormat(getLLVMContext(), Context.getFloatTypeSemantics(T),
-                           /* UseNativeHalf = */ true);
+      ResultType = llvm::Type::getFloatingPointTy(
+          getLLVMContext(), Context.getFloatTypeSemantics(T));
       break;
 
     case BuiltinType::Half:
-      // Half FP can either be storage-only (lowered to i16) or native.
-      ResultType = getTypeForFormat(
-          getLLVMContext(), Context.getFloatTypeSemantics(T),
-          Context.getLangOpts().NativeHalfType ||
-              !Context.getTargetInfo().useFP16ConversionIntrinsics());
+      // Half FP can either be storage-only (lowered to i16 for ABI purposes) or
+      // native.
+      ResultType = llvm::Type::getFloatingPointTy(
+          getLLVMContext(), Context.getFloatTypeSemantics(T));
       break;
     case BuiltinType::LongDouble:
       LongDoubleReferenced = true;
@@ -559,9 +538,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     case BuiltinType::Double:
     case BuiltinType::Float128:
     case BuiltinType::Ibm128:
-      ResultType = getTypeForFormat(getLLVMContext(),
-                                    Context.getFloatTypeSemantics(T),
-                                    /* UseNativeHalf = */ false);
+      ResultType = llvm::Type::getFloatingPointTy(
+          getLLVMContext(), Context.getFloatTypeSemantics(T));
       break;
 
     case BuiltinType::NullPtr:
@@ -677,6 +655,10 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
 #include "clang/Basic/HLSLIntangibleTypes.def"
       ResultType = CGM.getHLSLRuntime().convertHLSLSpecificType(Ty);
       break;
+#define SPIRV_TYPE(Name, Id, SingletonId)                                      \
+  case BuiltinType::Id:                                                        \
+    return llvm::TargetExtType::get(getLLVMContext(), "spirv.Event");
+#include "clang/Basic/SPIRVTypes.def"
     case BuiltinType::Dependent:
 #define BUILTIN_TYPE(Id, SingletonId)
 #define PLACEHOLDER_TYPE(Id, SingletonId) \
@@ -724,6 +706,10 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       }
     }
 
+    if (ETy.getAddressSpace() == LangAS::wasm_funcref) {
+      ResultType = CGM.getTargetCodeGenInfo().getWasmFuncrefReferenceType();
+      break;
+    }
     unsigned AS = getTargetAddressSpace(ETy);
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
 

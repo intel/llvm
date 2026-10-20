@@ -35,10 +35,10 @@ int main() {
     buffer<int> EScanBuf(EScan.data(), N);
     buffer<int> IScanBuf(IScan.data(), N);
     q.submit([&](handler &h) {
-      auto Input = InputBuf.get_access<access::mode::read>(h);
-      auto Sum = SumBuf.get_access<access::mode::write>(h);
-      auto EScan = EScanBuf.get_access<access::mode::write>(h);
-      auto IScan = IScanBuf.get_access<access::mode::write>(h);
+      auto Input = InputBuf.get_access<access_mode::read>(h);
+      auto Sum = SumBuf.get_access<access_mode::write>(h);
+      auto EScan = EScanBuf.get_access<access_mode::write>(h);
+      auto IScan = IScanBuf.get_access<access_mode::write>(h);
       h.parallel_for<back_to_back>(nd_range<1>(N, N), [=](nd_item<1> it) {
         size_t i = it.get_global_id(0);
         auto g = it.get_group();

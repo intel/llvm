@@ -47,6 +47,9 @@ replaced by the sycl_ext_oneapi_enqueue_functions extension: see link:../experim
 *Shipping software products should stop using APIs defined in this
 specification and use this alternative instead.*
 
+// __INTEL_PREVIEW_BREAKING_CHANGES: Move this specification to the "removed"
+// folder when the feature is removed at the next breaking changes window.
+
 == Version
 
 Revision: 1

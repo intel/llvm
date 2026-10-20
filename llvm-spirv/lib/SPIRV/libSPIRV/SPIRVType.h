@@ -99,6 +99,7 @@ public:
   bool isTypeSampledImage() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
+  bool isTypeVectorIdEXT() const;
   bool isTypeCooperativeMatrixKHR() const;
   bool isTypeVectorInt() const;
   bool isTypeVectorFloat() const;
@@ -250,6 +251,8 @@ public:
     if (isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
         isTypeFloat(8, FPEncodingFloat8E5M2EXT))
       return ExtensionID::SPV_EXT_float8;
+    if (isTypeFloat(4, FPEncodingFloat4E2M1EXT))
+      return ExtensionID::SPV_EXT_ocp_microscaling_types;
     if (isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL))
       return ExtensionID::SPV_INTEL_float4;
     return {};
@@ -270,6 +273,8 @@ public:
     } else if (isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
                isTypeFloat(8, FPEncodingFloat8E5M2EXT)) {
       CV.push_back(CapabilityFloat8EXT);
+    } else if (isTypeFloat(4, FPEncodingFloat4E2M1EXT)) {
+      CV.push_back(CapabilityFloat4EXT);
     } else if (isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL)) {
       CV.push_back(internal::CapabilityFloat4E2M1INTEL);
     }
@@ -298,14 +303,16 @@ protected:
     assert((BitWidth == 4 || BitWidth == 8 || BitWidth == 16 ||
             BitWidth == 32 || BitWidth == 64) &&
            "Invalid bit width");
-    assert(
-        (FloatingPointEncoding == FPEncodingMax ||
-         (BitWidth == 16 && FloatingPointEncoding == FPEncodingBFloat16KHR) ||
-         (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E4M3EXT) ||
-         (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E5M2EXT) ||
-         (BitWidth == 4 &&
-          FloatingPointEncoding == internal::FPEncodingFloat4E2M1INTEL)) &&
-        "Invalid floating point encoding");
+    bool ValidEncoding =
+        FloatingPointEncoding == FPEncodingMax ||
+        (BitWidth == 16 && FloatingPointEncoding == FPEncodingBFloat16KHR) ||
+        (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E4M3EXT) ||
+        (BitWidth == 8 && FloatingPointEncoding == FPEncodingFloat8E5M2EXT) ||
+        (BitWidth == 4 && FloatingPointEncoding == FPEncodingFloat4E2M1EXT) ||
+        (BitWidth == 4 &&
+         FloatingPointEncoding == internal::FPEncodingFloat4E2M1INTEL);
+    assert(ValidEncoding && "Invalid floating point encoding");
+    (void)ValidEncoding;
   }
 
 private:
@@ -439,10 +446,17 @@ public:
     if (CompCount == 8 || CompCount == 16)
       V.push_back(CapabilityVector16);
 
-    if (Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
-      if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
-          (CompCount > 8 && CompCount < 16) || CompCount > 16)
+    if (CompCount == 1 || (CompCount > 4 && CompCount < 8) ||
+        (CompCount > 8 && CompCount < 16) || CompCount > 16) {
+      // A VectorCompute module keeps using CapabilityVectorAnyINTEL;
+      // otherwise use multi-vendor LongVectorEXT
+      if (!Module->isVectorCompute() &&
+          Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector))
+        V.push_back(CapabilityLongVectorEXT);
+      else if (Module->isAllowedToUseExtension(
+                   ExtensionID::SPV_INTEL_vector_compute))
         V.push_back(CapabilityVectorAnyINTEL);
+    }
     return V;
   }
 
@@ -456,7 +470,8 @@ protected:
     SPIRVEntry::validate();
     CompType->validate();
 #ifndef NDEBUG
-    if (!(Module->isAllowedToUseExtension(
+    if (!Module->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector) &&
+        !(Module->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_vector_compute))) {
       assert(CompCount == 2 || CompCount == 3 || CompCount == 4 ||
              CompCount == 8 || CompCount == 16);
@@ -538,6 +553,47 @@ protected:
 private:
   SPIRVType *ElemType; // Element Type
   SPIRVId Length;      // Array Length
+};
+
+class SPIRVTypeVectorIdEXT : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypeVectorIdEXT(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheCompType,
+                       SPIRVId TheCompCount)
+      : SPIRVType(M, 4, OpTypeVectorIdEXT, TheId), CompType(TheCompType),
+        ComponentCount(TheCompCount) {
+    validate();
+  }
+  // Incomplete constructor
+  SPIRVTypeVectorIdEXT()
+      : SPIRVType(OpTypeVectorIdEXT), CompType(nullptr),
+        ComponentCount(SPIRVID_INVALID) {}
+
+  SPIRVType *getComponentType() const { return CompType; }
+  SPIRVValue *getComponentCount() const { return getValue(ComponentCount); }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    SPIRVCapVec V(getComponentType()->getRequiredCapability());
+    V.push_back(CapabilityLongVectorEXT);
+    return V;
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_EXT_long_vector;
+  }
+
+  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    std::vector<SPIRVEntry *> Operands{CompType,
+                                       (SPIRVEntry *)getComponentCount()};
+    return Operands;
+  }
+
+  _SPIRV_DCL_ENCDEC
+  void validate() const override;
+
+private:
+  SPIRVType *CompType;
+  SPIRVId ComponentCount;
 };
 
 class SPIRVTypeOpaque : public SPIRVType {
@@ -655,6 +711,7 @@ public:
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     return std::vector<SPIRVEntry *>(1, get<SPIRVType>(SampledType));
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC9(Id, SampledType, Desc.Dim, Desc.Depth, Desc.Arrayed,
@@ -800,6 +857,8 @@ public:
     MemberTypeIdVec.resize(WordCount - FixedWC);
   }
 
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
+
   // TODO: Should we attach operands of continued instructions as well?
   std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
     std::vector<SPIRVEntry *> Operands(MemberTypeIdVec.size());
@@ -872,6 +931,7 @@ public:
       Operands.push_back(getEntry(I));
     return Operands;
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   _SPIRV_DEF_ENCDEC3(Id, ReturnType, ParamTypeIdVec)
@@ -1224,7 +1284,8 @@ public:
     else if (CompType->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
              CompType->isTypeFloat(8, FPEncodingFloat8E5M2EXT))
       CV.push_back(CapabilityFloat8CooperativeMatrixEXT);
-    else if (CompType->isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL))
+    else if (CompType->isTypeFloat(4, FPEncodingFloat4E2M1EXT) ||
+             CompType->isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL))
       CV.push_back(internal::CapabilityFloat4E2M1CooperativeMatrixINTEL);
     return CV;
   }

@@ -86,7 +86,6 @@ if(UR_STATIC_ADAPTER_OPENCL)
     target_link_libraries(${TARGET_NAME} PRIVATE
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::common
-        ${PROJECT_NAME}::umf
         Threads::Threads
     )
     # OpenCL-Headers is header-only; use its include path directly to avoid
@@ -103,7 +102,6 @@ else()
     target_link_libraries(${TARGET_NAME} PRIVATE
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::common
-        ${PROJECT_NAME}::umf
         Threads::Threads
         OpenCL-Headers
         ${OpenCL_LIBRARY}

@@ -1,0 +1,23 @@
+; Test that llvm-spirv gracefully rejects a SPIR-V module with an unknown
+; opcode (9999) at module scope.
+;
+; The raw word !75535 encodes WordCount=1, OpCode=9999.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o /dev/null 2>&1 | FileCheck %s
+
+; CHECK: input SPIR-V module has an invalid or unknown opcode 9999
+
+; SPIR-V
+; Version: 1.0
+               OpCapability Kernel
+               OpCapability Addresses
+               OpMemoryModel Physical32 OpenCL
+       %void = OpTypeVoid
+               !75535
+    %fn_type = OpTypeFunction %void
+       %func = OpFunction %void None %fn_type
+      %label = OpLabel
+               OpReturn
+               OpFunctionEnd

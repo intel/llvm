@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -30,7 +30,7 @@ int main() {
   if (!expectException(
           [&]() {
             Queue.submit([&](handler &CGH) {
-              auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+              auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
               CGH.parallel_for(sycl::range<1>{N},
                                [=](sycl::id<1> Idx) { Acc[Idx] = 0; });
             });

@@ -25,7 +25,7 @@ int main() {
     assert(!KB.has_kernel(KernelID3));
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
       Cgh.single_task<Kern1>([=]() { Acc[0] = 1; });
     });
   }
@@ -44,7 +44,7 @@ int main() {
     assert(!KB.has_kernel(KernelID3));
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
       Cgh.single_task<Kern2>([=]() { Acc[0] = 2; });
     });
   }
@@ -63,7 +63,7 @@ int main() {
     assert(!KB.has_kernel(KernelID2));
 
     Q.submit([&](sycl::handler &Cgh) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
       Cgh.single_task<Kern3>([=]() { Acc[0] = 3; });
     });
   }

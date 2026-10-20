@@ -28,7 +28,9 @@ class Builder;
 /// call or to the corresponding parallel_for_work_group call.
 ///
 /// \ingroup sycl_api
-template <int Dimensions> class h_item {
+
+template <int Dimensions>
+class __SYCL2020_DEPRECATED("Deprecated in SYCL 2020") h_item {
 public:
   static constexpr int dimensions = Dimensions;
 
@@ -36,7 +38,11 @@ public:
 
   h_item(const h_item &hi) = default;
 
+  h_item(h_item &&hi) = default;
+
   h_item &operator=(const h_item &hi) = default;
+
+  h_item &operator=(h_item &&hi) = default;
 
   /* -- public interface members -- */
   item<Dimensions, false> get_global() const { return globalItem; }

@@ -1,4 +1,4 @@
-// REQUIRES: opencl || level_zero, gpu, ocloc
+// REQUIRES: opencl || level_zero, gpu, ocloc, target-spir
 // UNSUPPORTED: arch-intel_gpu_dg2
 // UNSUPPORTED-INTENDED: see https://github.com/intel/llvm/pull/20643
 

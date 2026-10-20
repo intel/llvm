@@ -7,9 +7,6 @@
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: GSD-12357
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22272
-
 /*
     Run all the vulkan formats through a write test. Note this is unsampled
    only, you can't "write" with the image sampler.
@@ -81,7 +78,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <optional>
 #include <string>
@@ -152,7 +149,7 @@ int runTest(
                           : getVulkanFormat<T>(channels);
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, (uint32_t)height, 1};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_2D, tiling);
@@ -203,9 +200,8 @@ int runTest(
   }
 
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::
@@ -248,10 +244,21 @@ int runTest(
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
+
+    // When the Vulkan image was created with LINEAR tiling, its row stride is
+    // not guaranteed to match SYCL's tightly-packed default. Query Vulkan for
+    // the actual row pitch and forward it to the image_descriptor so adapters
+    // that can honor a user-supplied pitch (e.g. L0) use the right stride.
+    // vkGetImageSubresourceLayout is only defined for LINEAR tiling; leave the
+    // pitch at 0 (tightly-packed) for OPTIMAL tiling.
+    size_t rowPitch = useLinear ? getRowPitch(vkCtx, imgRes.image) : 0;
+
     // bindless image ranges use (x,y,z) order,
     // differening from SYCL 2020 "fastest incrementing" convention.
-    syclexp::image_descriptor imgDesc(sycl::range<2>(width, height), channels,
-                                      syclType);
+    syclexp::image_descriptor imgDesc(
+        sycl::range<2>(width, height), channels, syclType,
+        syclexp::image_type::standard, /*num_levels=*/1, /*array_size=*/1,
+        /*num_samples=*/0, /*row_pitch=*/rowPitch);
     syclexp::image_mem_handle devHandle = syclexp::map_external_image_memory(
         extMem, imgDesc, q.get_device(), q.get_context());
     syclexp::unsampled_image_handle unsampledHandle = syclexp::create_image(

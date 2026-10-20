@@ -20,7 +20,7 @@ namespace kernels {
 
 template <class T, size_t Dim>
 using sycl_global_accessor =
-    sycl::accessor<T, Dim, sycl::access::mode::read_write,
+    sycl::accessor<T, Dim, sycl::access_mode::read_write,
                    sycl::access::target::global_buffer>;
 
 class TestKernel {
@@ -110,7 +110,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   auto launch_range = sycl::nd_range<1>{sycl::range<1>{NumWorkItems},
                                         sycl::range<1>{workGroupSize}};
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
      if constexpr (KernelName::HasLocalMemory) {
        sycl::local_accessor<value_type, 1> loc_acc{
            sycl::range<1>{workGroupSize}, cgh};
@@ -142,7 +142,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
                                    sycl::range<1>{workGroupSize}};
 
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
      if constexpr (KernelName::HasLocalMemory) {
        sycl::local_accessor<value_type, 1> loc_acc{sycl::range<1>{localSize},
                                                    cgh};
@@ -179,7 +179,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
                                      sycl::range<1>{workGroupSize}};
 
     q.submit([&](sycl::handler &cgh) {
-       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+       auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
        if constexpr (KernelName::HasLocalMemory) {
          sycl::local_accessor<value_type, 1> loc_acc{sycl::range<1>{localSize},
                                                      cgh};

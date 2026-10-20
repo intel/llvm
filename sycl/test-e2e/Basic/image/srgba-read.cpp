@@ -53,8 +53,8 @@ void test_rd(image_channel_order ChanOrder, image_channel_type ChanType) {
 
     Q.submit([&](handler &cgh) {
       auto image_acc =
-          image_2D.get_access<accessorPixelT, access::mode::read>(cgh);
-      auto test_acc = testResults.get_access<access::mode::write>(cgh);
+          image_2D.get_access<accessorPixelT, access_mode::read>(cgh);
+      auto test_acc = testResults.get_access<access_mode::write>(cgh);
 
       cgh.single_task<class im2D_rw>([=]() {
         int i = 0; // the index for writing into the testResult buffer.

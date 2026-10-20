@@ -27,8 +27,8 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
     buffer<struct Data, 1> syclbuf(G);
     buffer<size_t> sgsizebuf(1);
     Queue.submit([&](handler &cgh) {
-      auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
-      auto syclacc = syclbuf.get_access<access::mode::read_write>(cgh);
+      auto sgsizeacc = sgsizebuf.get_access<access_mode::read_write>(cgh);
+      auto syclacc = syclbuf.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class sycl_subgr>(NdRange, [=](nd_item<1> NdItem) {
         sycl::sub_group SG = NdItem.get_sub_group();
         syclacc[NdItem.get_global_id()].local_id = SG.get_local_id().get(0);

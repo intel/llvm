@@ -69,14 +69,14 @@ void testFreeFunctionKernel(sycl::queue &q, sycl::context &ctx,
                             sycl::range<Dimensions> WorkGroupSize,
                             Properties props, size_t bytes) {
 
-  size_t maxWGs =
-      syclex::get_kernel_info<Func,
-                              sycl::info::kernel::max_num_work_groups_sync>(
-          q, WorkGroupSize, props, bytes);
-  size_t maxWGs1 =
-      syclex::get_kernel_info<Func,
-                              sycl::info::kernel::max_num_work_groups_sync>(
-          ctx, dev, WorkGroupSize, props, bytes);
+  size_t maxWGs = syclex::get_kernel_info<
+      Func,
+      sycl::ext::oneapi::experimental::info::kernel::max_num_work_groups_sync>(
+      q, WorkGroupSize, props, bytes);
+  size_t maxWGs1 = syclex::get_kernel_info<
+      Func,
+      sycl::ext::oneapi::experimental::info::kernel::max_num_work_groups_sync>(
+      ctx, dev, WorkGroupSize, props, bytes);
   assert(maxWGs == maxWGs1);
   // Construct an nd-range which launches the maximum number of work-groups.
   sycl::range<Dimensions> GlobalRange = WorkGroupSize;
@@ -109,18 +109,18 @@ void testLambdaKernel(sycl::queue &q, sycl::context &ctx, sycl::device &dev,
   auto bundle =
       sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctx);
   const sycl::kernel k = bundle.template get_kernel<KernelName>();
-  size_t maxWGs =
-      syclex::get_kernel_info<KernelName,
-                              sycl::info::kernel::max_num_work_groups_sync>(
-          q, WorkGroupSize, props, bytes);
-  size_t maxWGs1 =
-      syclex::get_kernel_info<KernelName,
-                              sycl::info::kernel::max_num_work_groups_sync>(
-          ctx, dev, WorkGroupSize, props, bytes);
-  size_t maxWGs2 =
-      syclex::get_kernel_info<KernelName,
-                              sycl::info::kernel::max_num_work_groups_sync>(
-          ctx, dev, WorkGroupSize, props, bytes);
+  size_t maxWGs = syclex::get_kernel_info<
+      KernelName,
+      sycl::ext::oneapi::experimental::info::kernel::max_num_work_groups_sync>(
+      q, WorkGroupSize, props, bytes);
+  size_t maxWGs1 = syclex::get_kernel_info<
+      KernelName,
+      sycl::ext::oneapi::experimental::info::kernel::max_num_work_groups_sync>(
+      ctx, dev, WorkGroupSize, props, bytes);
+  size_t maxWGs2 = syclex::get_kernel_info<
+      KernelName,
+      sycl::ext::oneapi::experimental::info::kernel::max_num_work_groups_sync>(
+      ctx, dev, WorkGroupSize, props, bytes);
   assert(maxWGs == maxWGs1);
   assert(maxWGs == maxWGs2);
 

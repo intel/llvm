@@ -22,9 +22,6 @@
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>
 #include <sycl/detail/core.hpp>
 
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)                    \
-  __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)
-
 using namespace sycl;
 
 const char *getArchName(const device &Device) {
@@ -143,5 +140,3 @@ int main() {
 
   return 0;
 }
-
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS

@@ -62,6 +62,7 @@ runs:
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
       -DDPCPP_INSTALL_DIR="$(dirname $(which dpclang++))/.." \
       -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+      -DDPCPP_ENABLE_PREVIEW_CHANGES=OFF \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that

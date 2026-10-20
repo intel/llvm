@@ -16,7 +16,7 @@
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <vector>
 
-constexpr auto sycl_write = sycl::access::mode::write;
+constexpr auto sycl_write = sycl::access_mode::write;
 #define SIMD 16
 
 int test_tanh(float x) {

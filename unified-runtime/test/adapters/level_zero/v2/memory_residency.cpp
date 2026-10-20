@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// RUN: %with-v2 ZES_ENABLE_SYSMAN=1 ./memory_residency-test
+// RUN: %with-v2 ZES_ENABLE_SYSMAN=1 SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 ./memory_residency-test
 // REQUIRES: v2
 
 #include "uur/fixtures.h"

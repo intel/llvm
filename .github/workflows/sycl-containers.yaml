@@ -89,6 +89,9 @@ jobs:
           - name: Build + Intel Drivers Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
             tag: latest
+          - name: Build + Intel LTS Drivers Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_lts_drivers
+            tag: latest
           - name: Build + Intel Drivers Ubuntu 24.04 Docker image
             file: ubuntu2404_intel_drivers
             tag: latest

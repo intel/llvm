@@ -33,13 +33,16 @@ struct ur_kernel_handle_t_ : handle_base {
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t_ *Program,
                       ur_context_handle_t_ *Context)
       : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {
-    ur::opencl::urProgramRetain(cast(Program));
-    ur::opencl::urContextRetain(cast(Context));
-
+    // Look the extension up before taking any reference: it allocates, so it
+    // can throw, and a throwing constructor leaves no destructor to undo the
+    // retains below.
     cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
         Context->CLContext,
         cast(ur::cl::getAdapter())->fnCache.clSetKernelArgMemPointerINTELCache,
         cl_ext::SetKernelArgMemPointerName, &clSetKernelArgMemPointerINTEL);
+
+    ur::opencl::urProgramRetain(cast(Program));
+    ur::opencl::urContextRetain(cast(Context));
   }
 
   ~ur_kernel_handle_t_() {

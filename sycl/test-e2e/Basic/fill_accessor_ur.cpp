@@ -20,7 +20,7 @@ void testFill_Buffer1D() {
     sycl::queue q;
     std::cout << "start testFill_Buffer1D" << std::endl;
     q.submit([&](sycl::handler &cgh) {
-      auto acc1D = buffer_1D.get_access<sycl::access::mode::write>(cgh);
+      auto acc1D = buffer_1D.get_access<sycl::access_mode::write>(cgh);
       // should stage urEnqueueMemBufferFill
       cgh.fill(acc1D, float{1});
     });
@@ -29,7 +29,7 @@ void testFill_Buffer1D() {
     std::cout << "start testFill_Buffer1D -- OFFSET" << std::endl;
     q.submit([&](sycl::handler &cgh) {
       auto acc1DOffset =
-          buffer_1D.get_access<sycl::access::mode::write>(cgh, {4}, {2});
+          buffer_1D.get_access<sycl::access_mode::write>(cgh, {4}, {2});
       // despite being offset, should stage urEnqueueMemBufferFill
       cgh.fill(acc1DOffset, float{2});
     });
@@ -50,7 +50,7 @@ void testFill_Buffer2D() {
     sycl::queue q;
     std::cout << "start testFill_Buffer2D" << std::endl;
     q.submit([&](sycl::handler &cgh) {
-      auto acc2D = buffer_2D.get_access<sycl::access::mode::write>(cgh);
+      auto acc2D = buffer_2D.get_access<sycl::access_mode::write>(cgh);
       // should stage urEnqueueMemBufferFill
       cgh.fill(acc2D, float{3});
     });
@@ -59,7 +59,7 @@ void testFill_Buffer2D() {
     std::cout << "start testFill_Buffer2D -- OFFSET" << std::endl;
     q.submit([&](sycl::handler &cgh) {
       auto acc2D =
-          buffer_2D.get_access<sycl::access::mode::write>(cgh, {8, 12}, {2, 2});
+          buffer_2D.get_access<sycl::access_mode::write>(cgh, {8, 12}, {2, 2});
       // "ranged accessor" will have to be handled by custom kernel:
       // urEnqueueKernelLaunchWithArgsExp
       cgh.fill(acc2D, float{4});
@@ -81,7 +81,7 @@ void testFill_Buffer3D() {
     sycl::queue q;
     std::cout << "start testFill_Buffer3D" << std::endl;
     q.submit([&](sycl::handler &cgh) {
-      auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(cgh);
+      auto acc3D = buffer_3D.get_access<sycl::access_mode::write>(cgh);
       // should stage urEnqueueMemBufferFill
       cgh.fill(acc3D, float{5});
     });
@@ -89,7 +89,7 @@ void testFill_Buffer3D() {
 
     std::cout << "start testFill_Buffer3D -- OFFSET" << std::endl;
     q.submit([&](sycl::handler &cgh) {
-      auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(
+      auto acc3D = buffer_3D.get_access<sycl::access_mode::write>(
           cgh, {4, 8, 12}, {3, 3, 3});
       // "ranged accessor" will have to be handled by custom kernel:
       // urEnqueueKernelLaunchWithArgsExp
@@ -113,7 +113,7 @@ void testFill_ZeroDim() {
     sycl::queue q;
     std::cout << "start testFill_ZeroDim" << std::endl;
     q.submit([&](sycl::handler &cgh) {
-      sycl::accessor<float, 0, sycl::access::mode::write> Acc0(Buffer, cgh);
+      sycl::accessor<float, 0, sycl::access_mode::write> Acc0(Buffer, cgh);
       cgh.fill(Acc0, float{1});
     });
     q.wait();

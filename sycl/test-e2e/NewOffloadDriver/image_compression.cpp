@@ -65,7 +65,7 @@ int main() {
   int retCode = 0;
   queue q;
 
-  if (!q.get_device().get_info<info::device::usm_shared_allocations>())
+  if (!q.get_device().has(aspect::usm_shared_allocations))
     return 0;
 
   int *p = malloc_shared<int>(1, q);

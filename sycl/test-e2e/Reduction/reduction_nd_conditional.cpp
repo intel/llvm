@@ -41,7 +41,7 @@ int test(queue &Q, T Identity, size_t WGSize, size_t NWItems) {
 
   // Compute.
   Q.submit([&](handler &CGH) {
-    auto In = InBuf.template get_access<access::mode::read>(CGH);
+    auto In = InBuf.template get_access<access_mode::read>(CGH);
     auto Redu = sycl::reduction(OutBuf, CGH, Identity, BOp);
     CGH.parallel_for<Name>(NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
       size_t I = NDIt.get_global_linear_id();

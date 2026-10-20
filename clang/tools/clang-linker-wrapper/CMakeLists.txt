@@ -8,13 +8,13 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
   Analysis
   Passes
-  Plugins
   IRReader
   Object
   Option
   Support
   TargetParser
   CodeGen
+  Demangle
   LTO
   FrontendOffloading
   SYCLLowerIR

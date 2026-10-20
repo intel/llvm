@@ -29,8 +29,8 @@ int main() {
   int InitA = 4;
   int InitB = -4;
   auto RootNode = Graph.add([&](handler &CGH) {
-    auto AccA = BufA.get_access<access::mode::write>(CGH);
-    auto AccB = BufB.get_access<access::mode::write>(CGH);
+    auto AccA = BufA.get_access<access_mode::write>(CGH);
+    auto AccB = BufB.get_access<access_mode::write>(CGH);
     CGH.parallel_for(Size, [=](item<1> Item) {
       AccA[Item.get_id()] = InitA;
       AccB[Item.get_id()] = InitB;
@@ -39,14 +39,14 @@ int main() {
 
   int PatternA = 42;
   auto CGFA = [&](handler &CGH) {
-    auto AccA = BufA.get_access<access::mode::read_write>(CGH);
+    auto AccA = BufA.get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(Size,
                      [=](item<1> Item) { AccA[Item.get_id()] += PatternA; });
   };
 
   int PatternB = 0xA;
   auto CGFB = [&](handler &CGH) {
-    auto AccB = BufB.get_access<access::mode::read_write>(CGH);
+    auto AccB = BufB.get_access<access_mode::read_write>(CGH);
     CGH.parallel_for(Size,
                      [=](item<1> Item) { AccB[Item.get_id()] += PatternB; });
   };
@@ -55,8 +55,8 @@ int main() {
   auto DynamicCGNode = Graph.add(DynamicCG);
 
   auto LeafNode = Graph.add([&](handler &CGH) {
-    auto AccA = BufA.get_access<access::mode::read>(CGH);
-    auto AccB = BufB.get_access<access::mode::read>(CGH);
+    auto AccA = BufA.get_access<access_mode::read>(CGH);
+    auto AccB = BufB.get_access<access_mode::read>(CGH);
     CGH.parallel_for(Size, [=](item<1> Item) {
       Ptr[Item.get_id()] = AccA[Item.get_id()] + AccB[Item.get_id()];
     });

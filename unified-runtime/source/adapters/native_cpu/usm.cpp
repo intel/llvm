@@ -14,12 +14,6 @@
 #include "context.hpp"
 #include <cstdlib>
 
-namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
-
 static ur_result_t alloc_helper(ur_context_handle_t hContext,
                                 const ur_usm_desc_t *pUSMDesc, size_t size,
                                 void **ppMem, ur_usm_type_t type) {

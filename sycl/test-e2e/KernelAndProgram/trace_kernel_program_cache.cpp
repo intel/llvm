@@ -1,5 +1,7 @@
 // Tests tracing of in-memory kernel and program cache.
 
+// REQUIRES: jit
+
 // RUN: %{build} -o %t.out
 
 // There should be no tracing output when SYCL_CACHE_IN_MEM is not set

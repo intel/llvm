@@ -104,10 +104,9 @@ getOffloadingEntryInitializer(Module &M, object::OffloadKind Kind,
                               Constant *Addr, StringRef Name, uint64_t Size,
                               uint32_t Flags, uint64_t Data, Constant *AuxAddr);
 
-/// Creates a pair of globals used to iterate the array of offloading entries by
-/// accessing the section variables provided by the linker.
-LLVM_ABI std::pair<GlobalVariable *, GlobalVariable *>
-getOffloadEntryArray(Module &M);
+/// Creates a pair of constants used to iterate the array of offloading entries
+/// by accessing the section variables provided by the linker.
+LLVM_ABI std::pair<Constant *, Constant *> getOffloadEntryArray(Module &M);
 
 namespace amdgpu {
 /// Check if an image is compatible with current system's environment. The
@@ -234,6 +233,23 @@ LLVM_ABI Error containerizeOpenMPSPIRVImage(
     std::unique_ptr<MemoryBuffer> &Binary, llvm::Triple Triple,
     StringRef CompileOpts = "", StringRef LinkOpts = "");
 } // namespace intel
+
+// Default compression level for --compress.
+constexpr int DefaultSYCLCompressionLevel = 10;
+
+/// zstd-compress a SYCL device image.
+/// Errors if zstd is unavailable at build time.
+/// \param Input The uncompressed image bytes.
+/// \param Output Receives the compressed bytes on a hit; left untouched on a
+///        skip.
+/// \param Level zstd compression level.
+/// \param Threshold Skip compression when Input.size() < Threshold.
+/// \param Verbose Emit the "[Compression]" size/level lines to errs().
+/// \returns true if compression ran.
+LLVM_ABI Expected<bool>
+compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
+                        SmallVectorImpl<uint8_t> &Output, int Level = 10,
+                        size_t Threshold = 512, bool Verbose = false);
 } // namespace offloading
 } // namespace llvm
 

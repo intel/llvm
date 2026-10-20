@@ -1,3 +1,6 @@
+// __INTEL_PREVIEW_BREAKING_CHANGES: Remove this specification when the feature
+// is removed at the next breaking changes window.
+
 :dpcpp: pass:[DPC++]
 
 This extension has been deprecated, but the specification is still available

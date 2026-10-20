@@ -61,7 +61,7 @@ int main(void) {
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class SyclKernel>(GlobalRange * LocalRange,
                                          [=](id<1> i) { PA[i] = PA[i] + 1; });
     });
@@ -92,7 +92,7 @@ int main(void) {
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read_write>(cgh);
+      auto PA = bufa.get_access<access_mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernel>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::esimd;

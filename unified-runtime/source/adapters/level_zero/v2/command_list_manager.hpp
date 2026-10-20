@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <ze_api.h>
 
+namespace ur::level_zero::v2 {
 struct ur_mem_buffer_t;
 
 struct wait_list_view {
@@ -45,28 +46,9 @@ struct wait_list_view {
   }
 };
 
-struct graph_capture_tracking_data_t {
-  void enableCapture(ur_exp_graph_handle_t graph) {
-    capturedGraph = graph;
-    enableCapture();
-  }
-  void enableCapture() { active = true; }
-  void disableCapture() {
-    active = false;
-    capturedGraph = nullptr;
-  }
-
-  ur_exp_graph_handle_t getGraph() const { return capturedGraph; }
-  bool isActive() const { return active; }
-
-private:
-  bool active = false;
-  ur_exp_graph_handle_t capturedGraph = nullptr;
-};
-
 struct ur_command_list_manager {
-  ur_command_list_manager(ur_context_handle_t context,
-                          ur_device_handle_t device,
+  ur_command_list_manager(ur_context_handle_t hContext,
+                          ur_device_handle_t hDevice,
                           v2::raii::command_list_unique_handle &&commandList);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
@@ -335,6 +317,6 @@ private:
   std::unordered_set<ur_kernel_handle_t> submittedKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
-
-  graph_capture_tracking_data_t graphCapture;
 };
+
+} // namespace ur::level_zero::v2

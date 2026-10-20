@@ -78,6 +78,44 @@ void SPIRVLowerBoolBase::visitTruncInst(TruncInst &I) {
   }
 }
 
+// SPIR-V has no relational opcode for OpTypeBool, only OpLogicalEqual/NotEqual.
+void SPIRVLowerBoolBase::visitICmpInst(ICmpInst &I) {
+  auto *Op0 = I.getOperand(0);
+  auto *Op1 = I.getOperand(1);
+  if (!isBoolType(Op0->getType()))
+    return;
+  // Every relational predicate reduces to `A & !B` or `A | !B` for some
+  // ordering (A, B) of the operands.
+  Value *A = Op0, *B = Op1;
+  Instruction::BinaryOps Opc;
+  switch (I.getPredicate()) {
+  case CmpInst::ICMP_UGT:
+  case CmpInst::ICMP_SLT:
+    Opc = Instruction::And;
+    break;
+  case CmpInst::ICMP_ULT:
+  case CmpInst::ICMP_SGT:
+    std::swap(A, B);
+    Opc = Instruction::And;
+    break;
+  case CmpInst::ICMP_UGE:
+  case CmpInst::ICMP_SLE:
+    Opc = Instruction::Or;
+    break;
+  case CmpInst::ICMP_ULE:
+  case CmpInst::ICMP_SGE:
+    std::swap(A, B);
+    Opc = Instruction::Or;
+    break;
+  default:
+    return;
+  }
+  auto *NotB = BinaryOperator::CreateNot(B, "", I.getIterator());
+  NotB->setDebugLoc(I.getDebugLoc());
+  auto *NewI = BinaryOperator::Create(Opc, A, NotB, "", I.getIterator());
+  replace(&I, NewI);
+}
+
 void SPIRVLowerBoolBase::handleExtInstructions(Instruction &I) {
   auto *Op = I.getOperand(0);
   if (isBoolType(Op->getType())) {
@@ -99,8 +137,9 @@ void SPIRVLowerBoolBase::handleCastInstructions(Instruction &I) {
     Type *Ty = Type::getInt32Ty(*Context);
     if (auto *VT = dyn_cast<FixedVectorType>(OpTy))
       Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
+    bool IsSigned = I.getOpcode() == Instruction::SIToFP;
     auto *Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-    auto *One = getScalarOrVectorConstantInt(Ty, 1, false);
+    auto *One = getScalarOrVectorConstantInt(Ty, IsSigned ? ~0 : 1, IsSigned);
     assert(Zero && One && "Couldn't create constant int");
     auto *Sel = SelectInst::Create(Op, One, Zero, "", I.getIterator());
     Sel->setDebugLoc(I.getDebugLoc());

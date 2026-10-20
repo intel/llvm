@@ -69,6 +69,11 @@ def ocloc_options_EQ : Joined<["--", "-"], "ocloc-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to ocloc for Intel GPU AOT compilation">;
 
+def ocloc_path_EQ : Joined<["--", "-"], "ocloc-path=">,
+  Flags<[LinkerOnlyOption]>, MetaVarName<"<dir>">,
+  HelpText<"Path to the ocloc tool, which is used for ahead of time "
+           "compilation targeting Intel GPUs">;
+
 def opencl_aot_options_EQ : Joined<["--", "-"], "opencl-aot-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options passed to opencl-aot for Intel CPU AOT compilation">;
@@ -76,7 +81,7 @@ def opencl_aot_options_EQ : Joined<["--", "-"], "opencl-aot-options=">,
 def module_split_mode_EQ : Joined<["--", "-"], "module-split-mode=">,
   Flags<[LinkerOnlyOption]>, MetaVarName<"<mode>">,
   HelpText<"SYCL device code module split mode. Valid values:\n"
-           "- 'source' (default) emits one device image per translation unit that contains "
+           "- 'translation_unit' (default) emits one device image per translation unit that contains "
            "at least one entry point;\n"
            "- 'kernel' emits one device image per kernel function;\n"
-           "- 'none' emits a single device image.">;
+           "- 'link_unit' emits one device image per linking unit.">;

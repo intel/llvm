@@ -19,7 +19,7 @@ int main() {
   sycl::buffer<int, 1> buf(v.data(), v.size());
 
   Q.submit([&](sycl::handler &h) {
-    auto buf_acc = buf.get_access<sycl::access::mode::read_write>(h);
+    auto buf_acc = buf.get_access<sycl::access_mode::read_write>(h);
     auto loc_acc = sycl::local_accessor<int>(group_size, h);
     h.parallel_for<class MyKernel>(
         sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {

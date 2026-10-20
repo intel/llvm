@@ -82,9 +82,9 @@ bool test_default_values(sycl::queue Queue) {
     add_node(Graph, Queue, ([&](sycl::handler &CGH) {
                CGH.use_kernel_bundle(ExecBundle);
                auto IntAcc =
-                   IntBuffer.get_access<sycl::access::mode::write>(CGH);
+                   IntBuffer.get_access<sycl::access_mode::write>(CGH);
                auto FloatAcc =
-                   FloatBuffer.get_access<sycl::access::mode::write>(CGH);
+                   FloatBuffer.get_access<sycl::access_mode::write>(CGH);
 
                CGH.single_task<TestDefaultValuesKernel>(
                    [=](sycl::kernel_handler KH) {
@@ -205,9 +205,8 @@ bool test_set_and_get_on_device(sycl::queue Queue) {
     add_node(
         Graph, Queue, ([&](sycl::handler &CGH) {
           CGH.use_kernel_bundle(ExecBundle);
-          auto IntAcc = IntBuffer.get_access<sycl::access::mode::write>(CGH);
-          auto FloatAcc =
-              FloatBuffer.get_access<sycl::access::mode::write>(CGH);
+          auto IntAcc = IntBuffer.get_access<sycl::access_mode::write>(CGH);
+          auto FloatAcc = FloatBuffer.get_access<sycl::access_mode::write>(CGH);
 
           CGH.single_task<TestSetAndGetOnDevice>([=](sycl::kernel_handler KH) {
             IntAcc[0] = KH.get_specialization_constant<IntId>();

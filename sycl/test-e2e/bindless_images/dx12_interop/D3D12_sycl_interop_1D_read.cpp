@@ -74,22 +74,19 @@
 
 
 // Semaphore coverage tests
-// On Windows, we require driver 38303 or later to avoid semaphore issues, which the CI does not yet have. 
-// Rather than mark the WHOLE test as requiring 38303, which would mean no testing nowhere,
-// we are limiting it with R U N - I F 
 
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int16 --channels 2 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint16 --channels 1 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint8 --channels 4 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int8 --channels 2 --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type float --channels 4 --sampled --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type half --channels 2 --sampled --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 33x
-// RUN-IF: (!gpu-intel-dg2 && !arch-intel_gpu_bmg_g21), %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 33x
+// RUN: %{run} %t.exe --type float --channels 4 --semaphores 33x
+// RUN: %{run} %t.exe --type half --channels 2 --semaphores 33x
+// RUN: %{run} %t.exe --type int32 --channels 1 --semaphores 33x
+// RUN: %{run} %t.exe --type uint32 --channels 4 --semaphores 33x
+// RUN: %{run} %t.exe --type int16 --channels 2 --semaphores 33x
+// RUN: %{run} %t.exe --type uint16 --channels 1 --semaphores 33x
+// RUN: %{run} %t.exe --type uint8 --channels 4 --semaphores 33x
+// RUN: %{run} %t.exe --type int8 --channels 2 --semaphores 33x
+// RUN: %{run} %t.exe --type float --channels 4 --sampled --semaphores 33x
+// RUN: %{run} %t.exe --type half --channels 2 --sampled --semaphores 33x
+// RUN: %{run} %t.exe --type int32 --channels 1 --sampled --semaphores 33x
+// RUN: %{run} %t.exe --type uint32 --channels 4 --sampled --semaphores 33x
 
 // clang-format on
 #include <iostream>
@@ -192,9 +189,8 @@ int runTest(
 
   // SYCL Import and Verification
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

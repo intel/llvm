@@ -15,7 +15,7 @@ namespace kernels {
 
 template <class T, size_t Dim>
 using sycl_global_accessor =
-    sycl::accessor<T, Dim, sycl::access::mode::read_write,
+    sycl::accessor<T, Dim, sycl::access_mode::read_write,
                    sycl::access::target::global_buffer>;
 class TestKernel {
 public:
@@ -54,7 +54,7 @@ int main() {
   auto launch_range =
       sycl::nd_range<1>{sycl::range<1>{numWorkItems}, sycl::range<1>{1}};
   q.submit([&](sycl::handler &cgh) {
-     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
      cgh.parallel_for<class kernels::TestKernel>(launch_range,
                                                  kernels::TestKernel{acc});
    }).wait();

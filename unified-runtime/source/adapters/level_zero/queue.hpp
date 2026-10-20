@@ -24,12 +24,12 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/device.hpp"
 #include "common/ur_ref_count.hpp"
-#include "device.hpp"
 
-extern "C" {
+namespace ur::level_zero::v1 {
+
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);
-} // extern "C"
 
 struct ur_completion_batch;
 using ur_completion_batch_list = std::list<ur_completion_batch>;
@@ -224,12 +224,13 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_t_ : ur_object {
+struct ur_queue_handle_t_ : ur_object_t {
   ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
                      bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
-                     int ForceComputeIndex = -1);
+                     int ForceComputeIndex = -1,
+                     std::optional<int32_t> Priority = std::nullopt);
 
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
   // PI queue is in general a one to many mapping to L0 native queues.
@@ -371,6 +372,10 @@ struct ur_queue_handle_t_ : ur_object {
 
   // Keeps the properties of this queue.
   ur_queue_flags_t Properties;
+
+  // The priority levels 1, 0 and -1 for the low, normal and high priority
+  // classes. Set by a numeric priority or by the priority flags.
+  int32_t PriorityClass = 0;
 
   // Keeps track of whether we are using Counter-based Events
   bool CounterBasedEventsEnabled = false;
@@ -690,9 +695,6 @@ struct ur_queue_handle_t_ : ur_object {
   // Threshold for cleaning up the EventList for immediate command lists.
   size_t getImmdCmmdListsEventCleanupThreshold();
 
-  // Pointer to the unified handle.
-  ur_queue_handle_t_ *UnifiedHandle;
-
   ur::RefCount RefCount;
 };
 
@@ -738,3 +740,5 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 ur_result_t CleanupEventListFromResetCmdList(
     std::vector<ur_event_handle_t> &EventListToCleanup,
     bool QueueLocked = false);
+
+} // namespace ur::level_zero::v1

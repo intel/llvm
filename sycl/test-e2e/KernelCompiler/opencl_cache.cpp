@@ -53,8 +53,8 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
   sycl::buffer OutputBuf(OutputArray, sycl::range<1>(N));
 
   Q.submit([&](sycl::handler &CGH) {
-    CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
-    CGH.set_arg(1, OutputBuf.get_access<sycl::access::mode::write>(CGH));
+    CGH.set_arg(0, InputBuf.get_access<sycl::access_mode::read>(CGH));
+    CGH.set_arg(1, OutputBuf.get_access<sycl::access_mode::write>(CGH));
     CGH.parallel_for(sycl::range<1>{N}, Kernel);
   });
 

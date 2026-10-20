@@ -3,10 +3,6 @@
 
 // Check that submission time is valid.
 
-// Test fails on hip flakily, disable temprorarily.
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
-
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20248
 

@@ -22,17 +22,17 @@ int main() {
     sycl::buffer<int, 1> buf(v.size());
 
     q.submit([&](sycl::handler &h) {
-       auto A = buf.get_access<sycl::access::mode::write>(h);
+       auto A = buf.get_access<sycl::access_mode::write>(h);
        h.copy(&v[0], A);
      }).wait();
 
     q.submit([&](sycl::handler &h) {
-       auto A = buf.get_access<sycl::access::mode::write>(h);
+       auto A = buf.get_access<sycl::access_mode::write>(h);
        h.fill(A, 1);
      }).wait();
 
     q.submit([&](sycl::handler &h) {
-       auto A = buf.get_access<sycl::access::mode::read_write>(h);
+       auto A = buf.get_access<sycl::access_mode::read_write>(h);
        h.parallel_for<class Test>(
            sycl::nd_range<1>(N + 1, 1),
            [=](sycl::nd_item<1> item) { A[item.get_global_id()] *= 2; });

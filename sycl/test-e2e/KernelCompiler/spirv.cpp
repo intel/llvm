@@ -61,8 +61,8 @@ void testSimpleKernel(sycl::queue &q, const sycl::kernel &kernel,
   sycl::buffer output_buffer(output_array.data(), sycl::range<1>(N));
 
   q.submit([&](sycl::handler &cgh) {
-    cgh.set_arg(0, input_buffer.get_access<sycl::access::mode::read>(cgh));
-    cgh.set_arg(1, output_buffer.get_access<sycl::access::mode::write>(cgh));
+    cgh.set_arg(0, input_buffer.get_access<sycl::access_mode::read>(cgh));
+    cgh.set_arg(1, output_buffer.get_access<sycl::access_mode::write>(cgh));
     cgh.parallel_for(sycl::range<1>{N}, kernel);
   });
 
@@ -98,7 +98,7 @@ void testParam(sycl::queue &q, const sycl::kernel &kernel) {
     cgh.set_arg(1, b_ptr);
     // Pass sycl::accessor for OpTypePointer(CrossWorkgroup) parameter.
     cgh.set_arg(
-        2, output_buffer.template get_access<sycl::access::mode::write>(cgh));
+        2, output_buffer.template get_access<sycl::access_mode::write>(cgh));
     // Pass sycl::local_accessor for OpTypePointer(Workgroup) parameter.
     cgh.set_arg(3, local);
     cgh.parallel_for(sycl::range<1>{1}, kernel);
