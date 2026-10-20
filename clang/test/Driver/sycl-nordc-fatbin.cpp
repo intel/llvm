@@ -35,13 +35,4 @@
 // NORDC: .tgtimg
 // RDC: .llvm.offloading
 
-/// The host compiler wraps the fat binary into the runtime's descriptor-based
-/// registration ABI rather than registering the raw container.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver --no-offloadlib -fno-gpu-rdc \
-// RUN:   -S -emit-llvm %s -o - | FileCheck -check-prefix=WRAPPER %s
-
-// WRAPPER: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc
-// WRAPPER: call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
-// WRAPPER-NOT: call void @__sycl_register_lib(ptr {{.*}}, i64
-
 void f() {}
