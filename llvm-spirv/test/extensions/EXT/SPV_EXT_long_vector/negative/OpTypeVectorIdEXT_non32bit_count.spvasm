@@ -1,0 +1,31 @@
+; OpTypeVectorIdEXT: Component Count must be a constant instruction with scalar
+; 32-bit integer type. Here the count is a 64-bit OpConstant, which the reverse
+; translator must reject.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o %t.bc 2>&1 | FileCheck %s
+
+; CHECK: InvalidInstruction
+; CHECK: TypeVectorIdEXT: component count must have scalar 32-bit integer type
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Int64
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn "test"
+               OpDecorate %fn LinkageAttributes "test" Export
+       %void = OpTypeVoid
+      %ulong = OpTypeInt 64 0
+    %ulong_5 = OpConstant %ulong 5
+      %float = OpTypeFloat 32
+        %vec = OpTypeVectorIdEXT %float %ulong_5
+    %fn_type = OpTypeFunction %void %vec
+         %fn = OpFunction %void None %fn_type
+        %arg = OpFunctionParameter %vec
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd

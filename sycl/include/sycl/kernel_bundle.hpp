@@ -19,6 +19,7 @@
 #include <sycl/handler.hpp>
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
+#include <sycl/khr/properties.hpp>      // for khr properties
 #include <sycl/property_list.hpp>       // for property_list
 #include <sycl/sycl_span.hpp>
 #include <unified-runtime/ur_api.h>
@@ -1008,6 +1009,96 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
       const property_list &PropList = {}) {
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+namespace khr::property::tag {
+struct compile; // tag type, never defined
+struct link;    // tag type, never defined
+struct build;   // tag type, never defined
+} // namespace khr::property::tag
+
+namespace detail {
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForCompile =
+    khr::property::detail::is_property_or_list_for_v<
+        PropertyOrList, khr::property::tag::compile>;
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForLink =
+    khr::property::detail::is_property_or_list_for_v<PropertyOrList,
+                                                     khr::property::tag::link>;
+
+template <typename PropertyOrList>
+inline constexpr bool KhrPropsForBuild =
+    khr::property::detail::is_property_or_list_for_v<PropertyOrList,
+                                                     khr::property::tag::build>;
+} // namespace detail
+
+// sycl_khr_properties compile, link and build overloads. Each mirrors the
+// property_list overload above.
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForCompile<PropertyOrList>>>
+kernel_bundle<bundle_state::object>
+compile(const kernel_bundle<bundle_state::input> &InputBundle,
+        const std::vector<device> &Devs, PropertyOrList) {
+  return compile(InputBundle, Devs, property_list{});
+}
+
+template <
+    typename PropertyOrList,
+    typename = std::enable_if_t<detail::KhrPropsForCompile<PropertyOrList>>>
+kernel_bundle<bundle_state::object>
+compile(const kernel_bundle<bundle_state::input> &InputBundle, PropertyOrList) {
+  return compile(InputBundle, property_list{});
+}
+
+template <typename PropertyOrList,
+          typename = std::enable_if_t<detail::KhrPropsForLink<PropertyOrList>>>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+     const std::vector<device> &Devs, PropertyOrList) {
+  return link(ObjectBundles, Devs, property_list{});
+}
+
+template <typename PropertyOrList,
+          typename = std::enable_if_t<detail::KhrPropsForLink<PropertyOrList>>>
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object> &ObjectBundle,
+     const std::vector<device> &Devs, PropertyOrList) {
+  return link(ObjectBundle, Devs, property_list{});
+}
+
+template <typename PropertyOrList,
+          typename = std::enable_if_t<detail::KhrPropsForLink<PropertyOrList>>>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
+     PropertyOrList) {
+  return link(ObjectBundles, property_list{});
+}
+
+template <typename PropertyOrList,
+          typename = std::enable_if_t<detail::KhrPropsForLink<PropertyOrList>>>
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object> &ObjectBundle, PropertyOrList) {
+  return link(ObjectBundle, property_list{});
+}
+
+template <typename PropertyOrList,
+          typename = std::enable_if_t<detail::KhrPropsForBuild<PropertyOrList>>>
+kernel_bundle<bundle_state::executable>
+build(const kernel_bundle<bundle_state::input> &InputBundle,
+      const std::vector<device> &Devs, PropertyOrList) {
+  return build(InputBundle, Devs, property_list{});
+}
+
+template <typename PropertyOrList,
+          typename = std::enable_if_t<detail::KhrPropsForBuild<PropertyOrList>>>
+kernel_bundle<bundle_state::executable>
+build(const kernel_bundle<bundle_state::input> &InputBundle, PropertyOrList) {
+  return build(InputBundle, property_list{});
+}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 namespace ext::oneapi::experimental {
 
