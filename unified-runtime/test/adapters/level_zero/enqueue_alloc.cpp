@@ -34,14 +34,7 @@ std::ostream &operator<<(std::ostream &os, EnqueueAllocTestParam param) {
   return os;
 }
 
-// Mirrors ur_device_handle_t_::isUsmPoolingDisabled() in
-// adapters/level_zero/common/device.cpp: USM pooling (and therefore the
-// address-reuse optimization it enables) is disabled by the adapter for
-// Xe2-or-newer devices when running on L0 driver
-// UR_L0_USM_POOLING_DISABLED_MIN_DRIVER_MAJOR.MINOR or newer. On such
-// configurations the adapter falls back to a UMF proxy pool, which has no
-// reuse semantics, so tests must not assume a freed allocation's address
-// will be reused.
+// Mirrors how the Level Zero adapter determines whether USM pooling is disabled.
 bool isUsmPoolingDisabledForDevice(ur_device_handle_t device) {
   uint32_t vendorId = 0;
   if (urDeviceGetInfo(device, UR_DEVICE_INFO_VENDOR_ID, sizeof(vendorId),
