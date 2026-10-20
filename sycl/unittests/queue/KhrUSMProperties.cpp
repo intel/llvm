@@ -53,11 +53,13 @@ static_assert(!std::is_constructible_v<sycl::usm_allocator<int, alloc::shared>,
 
 namespace {
 std::map<const void *, ur_usm_type_t> Allocs;
+size_t NumAllocs = 0;
 
 template <typename ParamsT, ur_usm_type_t Type>
 ur_result_t afterUSMAlloc(void *pParams) {
   auto Params = *static_cast<ParamsT *>(pParams);
   Allocs[**Params.pppMem] = Type;
+  ++NumAllocs;
   return UR_RESULT_SUCCESS;
 }
 
@@ -77,6 +79,7 @@ class KhrUSMProperties : public ::testing::Test {
 protected:
   void SetUp() override {
     Allocs.clear();
+    NumAllocs = 0;
     mock::getCallbacks().set_after_callback(
         "urUSMHostAlloc",
         &afterUSMAlloc<ur_usm_host_alloc_params_t, UR_USM_TYPE_HOST>);
@@ -181,7 +184,7 @@ TEST_F(KhrUSMProperties, ParameterizedKindMismatchThrows) {
     });
   }
   // The throwing calls must not allocate.
-  EXPECT_EQ(Allocs.size(), 3u);
+  EXPECT_EQ(NumAllocs, 3u);
 }
 
 TEST_F(KhrUSMProperties, Allocator) {
