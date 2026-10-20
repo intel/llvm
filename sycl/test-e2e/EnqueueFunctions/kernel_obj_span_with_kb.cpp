@@ -22,8 +22,8 @@
 
 #include <vector>
 
-static_assert(SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS >= 3,
-              "These span overloads require version 3 of the extension");
+static_assert(SYCL_EXT_ONEAPI_ENQUEUE_FUNCTIONS >= 2,
+              "These span overloads require version 2 of the extension");
 
 constexpr size_t N = 1024;
 constexpr size_t WGSize = 8;

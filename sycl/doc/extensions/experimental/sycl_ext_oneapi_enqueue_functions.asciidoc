@@ -174,12 +174,8 @@ implementation supports.
 |Initial version of this extension.
 
 |2
-|Adds the `nd_launch` overloads that take a `sycl::nd_range` and the
- arguments of a `sycl::kernel` as a `std::span` of `raw_kernel_arg`.
-
-|3
-|Adds the same overloads for `single_task`, `parallel_for` and `nd_launch`
- with a `launch_config`.
+|Adds the launch function overloads that take the arguments of a
+ `sycl::kernel` as a `std::span` of `raw_kernel_arg`.
 |===
 
 
