@@ -708,13 +708,17 @@ private:
 
 } // end anonymous namespace
 
-MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K,
-                                               bool EC) {
-  const InstrumentationOptions &Opts = InstrumentationOptions::Global;
-  Kernel = valueOr(Opts.msan_kernel, K);
-  TrackOrigins = Opts.msan_track_origins.value_or(Kernel ? 2 : TO);
-  Recover = valueOr(Opts.msan_keep_going, Kernel || R);
-  EagerChecks = valueOr(Opts.msan_eager_checks, EC);
+MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K, bool EC)
+    : Kernel(K), TrackOrigins(TO), Recover(R), EagerChecks(EC) {}
+
+static MemorySanitizerOptions resolveOptions(const InstrumentationOptions &Opts,
+                                             MemorySanitizerOptions O) {
+  O.Kernel = valueOr(Opts.msan_kernel, O.Kernel);
+  O.TrackOrigins =
+      Opts.msan_track_origins.value_or(O.Kernel ? 2 : O.TrackOrigins);
+  O.Recover = valueOr(Opts.msan_keep_going, O.Kernel || O.Recover);
+  O.EagerChecks = valueOr(Opts.msan_eager_checks, O.EagerChecks);
+  return O;
 }
 
 static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
@@ -1204,17 +1208,19 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   // Return early if nosanitize_memory module flag is present for the module.
   if (checkIfAlreadyInstrumented(M, "nosanitize_memory"))
     return PreservedAnalyses::all();
-  const InstrumentationOptions &Opts = InstrumentationOptions::Global;
+  const InstrumentationOptions &Opts =
+      M.getContext().getLibraryOptions().get<InstrumentationOptions>();
+  MemorySanitizerOptions MSanOpts = resolveOptions(Opts, Options);
   bool Modified = false;
   const auto &TargetTriple = Triple(M.getTargetTriple());
 
-  if (!Options.Kernel && !TargetTriple.isSPIROrSPIRV()) {
+  if (!MSanOpts.Kernel && !TargetTriple.isSPIROrSPIRV()) {
     insertModuleCtor(Opts, M);
     Modified = true;
   }
 
   MemorySanitizerOnSpirv MsanSpirv(M);
-  Modified |= MsanSpirv.instrumentModule(Options.TrackOrigins);
+  Modified |= MsanSpirv.instrumentModule(MSanOpts.TrackOrigins);
   // FIXME: W/A skip instrumentation if this module has ESIMD
   if (MsanSpirv.hasESIMD())
     return PreservedAnalyses::none();
@@ -1223,7 +1229,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   for (Function &F : M) {
     if (F.empty())
       continue;
-    MemorySanitizer Msan(Opts, *F.getParent(), MsanSpirv, Options);
+    MemorySanitizer Msan(Opts, *F.getParent(), MsanSpirv, MSanOpts);
     Modified |=
         Msan.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F));
   }
