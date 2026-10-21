@@ -1,22 +1,3 @@
-// RUN: %{build} -o %t.default.out
-// RUN: %{run} %t.default.out
-// RUN: %{build} -ffast-math -o %t.fast-math.out
-// RUN: %{run} %t.fast-math.out
-// RUN: %{build} -fgpu-flush-denormals-to-zero -o %t.flush-denormals.out
-// RUN: %{run} %t.flush-denormals.out
-// RUN: %{build} -foffload-fp32-prec-div -o %t.prec-div.out
-// RUN: %{run} %t.prec-div.out
-// RUN: %{build} -foffload-fp32-prec-sqrt -o %t.prec-sqrt.out
-// RUN: %{run} %t.prec-sqrt.out
-// RUN: %{build} -ffp-contract=fast -o %t.fp-contract.out
-// RUN: %{run} %t.fp-contract.out
-// RUN: %{build} -ffp-contract=on -o %t.fp-contract-on.out
-// RUN: %{run} %t.fp-contract-on.out
-// RUN: %{build} -ffp-contract=fast-honor-pragmas -o %t.fp-contract-fast-honor-pragmas.out
-// RUN: %{run} %t.fp-contract-fast-honor-pragmas.out
-// RUN: %{build} -fgpu-approx-transcendentals -o %t.approx-transcendentals.out
-// RUN: %{run} %t.approx-transcendentals.out
-
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
