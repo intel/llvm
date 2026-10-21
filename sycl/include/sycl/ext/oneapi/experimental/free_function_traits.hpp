@@ -99,14 +99,12 @@ template <typename T> struct is_device_copyable;
 // SYCL_EXT_ONEAPI_KERNEL_FUNCTION((kern<float, 32>), args); this is a
 // fundamental C++ limitation, matching CUDA.
 //
-// SYCL_EXT_ONEAPI_KERNEL_FUNCTION is the only part of the free function kernel
-// API that needs compiler support: it relies on the
-// __builtin_sycl_launch_kernel front-end builtin, which is provided only by the
-// SYCL device compiler (Intel oneAPI DPC++ / clang -fsycl). Everything else in
-// this extension (SYCL_EXT_ONEAPI_FUNCTION_PROPERTY, kernel_function<Func>,
-// nd_launch, single_task) is header-only and works with any host compiler
-// (MSVC, GCC,
-// ...). The macro is therefore gated on __has_builtin:
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION requires support from both the host compiler
+// and the device compiler: it relies on the __builtin_sycl_launch_kernel
+// builtin, with which the host compiler resolves the kernel to launch and the
+// device compiler emits the selected kernel. The remaining APIs of this
+// extension need support only from the device compiler, so they can be used
+// with any host compiler. The macro is therefore gated on __has_builtin:
 //   * When the builtin is available, SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
 //     is defined to 1 and the macro performs the deduction.
 //   * Otherwise the macro expands to a reference to an undeclared,
