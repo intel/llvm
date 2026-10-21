@@ -1,10 +1,7 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=error,note %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 //
-// Checks that misusing khr::properties produces the expected diagnostics.
-// khr::properties holds its properties as private base classes, so misuse also
-// produces base-class errors ("base specifier must name a class" / "base class
-// specified more than once"); those are ignored here since we only assert that
-// the friendly static_assert diagnostics are emitted.
+// Checks that misusing khr::properties produces only the friendly
+// static_assert diagnostics.
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/khr/properties.hpp>

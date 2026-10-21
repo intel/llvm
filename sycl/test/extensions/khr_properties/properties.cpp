@@ -126,6 +126,31 @@ void container() {
   static_assert(!is_property_list_for_v<decltype(mixed), OtherClass>);
 }
 
+// The constructor accepts exactly the encoded properties, in any order.
+using align16_t = std::remove_const_t<decltype(alignment<16>)>;
+using align8_t = std::remove_const_t<decltype(alignment<8>)>;
+static_assert(!std::is_constructible_v<empty_properties_t, int>);
+static_assert(!std::is_convertible_v<int, empty_properties_t>);
+static_assert(
+    std::is_constructible_v<properties<enable_profiling>, enable_profiling>);
+static_assert(!std::is_constructible_v<properties<enable_profiling>>);
+static_assert(!std::is_constructible_v<properties<enable_profiling>,
+                                       enable_profiling, enable_profiling>);
+static_assert(!std::is_constructible_v<properties<enable_profiling>,
+                                       enable_profiling, other_only>);
+static_assert(
+    !std::is_constructible_v<properties<enable_profiling>, other_only>);
+static_assert(!std::is_constructible_v<properties<enable_profiling>, int>);
+static_assert(std::is_constructible_v<properties<enable_profiling, other_only>,
+                                      other_only, enable_profiling>);
+static_assert(std::is_constructible_v<properties<align16_t>, align16_t>);
+static_assert(!std::is_constructible_v<properties<align16_t>, align8_t>);
+static_assert(!std::is_constructible_v<properties<hybrid<1>>, hybrid<2>>);
+static_assert(std::is_copy_constructible_v<properties<enable_profiling>> &&
+              std::is_move_constructible_v<properties<enable_profiling>>);
+static_assert(std::is_same_v<decltype(properties{properties{alignment<16>}}),
+                             properties<align16_t>>);
+
 // Properties and property lists are trivially copyable (sizes: see
 // properties_layout.cpp).
 static_assert(std::is_trivially_copyable_v<enable_profiling>);

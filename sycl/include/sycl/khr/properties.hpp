@@ -130,9 +130,6 @@ struct build_storage<property_storage<Sel...>, P, Rest...>
                                        property_storage<Sel..., P>,
                                        property_storage<Sel...>>,
                     Rest...> {};
-template <typename... All>
-using storage_for = typename build_storage<property_storage<>, All...>::type;
-
 // True if T is a khr::properties list. Used to exclude the list itself from
 // is_property (the list privately inherits its properties, so is_base_of would
 // otherwise report it as a property).
@@ -201,6 +198,45 @@ namespace property::detail {
 template <typename T, typename Class>
 inline constexpr bool is_property_or_list_for_v =
     is_property_for_v<T, Class> || is_property_list_for_v<T, Class>;
+
+template <typename T, typename... Ts>
+inline constexpr int count_same = (0 + ... + int(std::is_same_v<T, Ts>));
+
+// True if no two of `Ps` share a key. Keys are only inspected once every
+// element is known to be a property; non-properties are diagnosed separately.
+template <bool AllProperties, typename... Ps>
+struct unique_keys : std::true_type {};
+template <typename... Ps>
+struct unique_keys<true, Ps...>
+    : std::bool_constant<((count_same<typename Ps::__detail_key_t,
+                                      typename Ps::__detail_key_t...> == 1) &&
+                          ...)> {};
+template <typename... Ps>
+inline constexpr bool has_unique_keys =
+    unique_keys<(is_property_v<Ps> && ...), Ps...>::value;
+
+// True if `Ps` are properties with pairwise distinct keys.
+template <typename... Ps>
+inline constexpr bool valid_properties =
+    (is_property_v<Ps> && ...) && has_unique_keys<Ps...>;
+
+// An invalid list gets empty storage so that only the mandate diagnostics are
+// reported.
+template <typename... All>
+using storage_for =
+    typename std::conditional_t<valid_properties<All...>,
+                                build_storage<property_storage<>, All...>,
+                                std::enable_if<true, property_storage<>>>::type;
+
+// Constructor constraint: every argument is a property and, for a valid list,
+// the arguments are exactly the encoded properties, in any order.
+template <typename List, typename... Args> struct ctor_args_match;
+template <typename... Encoded, typename... Args>
+struct ctor_args_match<properties<Encoded...>, Args...>
+    : std::bool_constant<(is_property_v<Args> && ...) &&
+                         (!valid_properties<Encoded...> ||
+                          (sizeof...(Encoded) == sizeof...(Args) &&
+                           ((count_same<Encoded, Args...> == 1) && ...)))> {};
 } // namespace property::detail
 
 // The properties container.
@@ -213,18 +249,14 @@ class __SYCL_EBO properties
                 "Template arguments of khr::properties must be properties.");
 
   // Mandate: no two properties may share the same key.
-  template <typename Key> static constexpr int key_count() {
-    return (0 + ... +
-            (std::is_same_v<typename EncodedProperties::__detail_key_t, Key>
-                 ? 1
-                 : 0));
-  }
-  static_assert(
-      ((key_count<typename EncodedProperties::__detail_key_t>() == 1) && ...),
-      "Duplicate properties in property list.");
+  static_assert(property::detail::has_unique_keys<EncodedProperties...>,
+                "Duplicate properties in property list.");
 
 public:
-  template <typename... Properties>
+  template <typename... Properties,
+            std::enable_if_t<property::detail::ctor_args_match<
+                                 properties, Properties...>::value,
+                             int> = 0>
   constexpr properties(Properties... props) : storage_t(props...) {}
 
   template <typename PropertyKey> static constexpr bool has_property() {
