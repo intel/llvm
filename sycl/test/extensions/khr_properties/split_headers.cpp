@@ -31,9 +31,16 @@
 struct SomeClass {};
 using sycl::khr::empty_properties_t;
 
+template <typename List, typename Key, typename = void>
+struct can_has_property : std::false_type {};
+template <typename List, typename Key>
+struct can_has_property<
+    List, Key, std::void_t<decltype(List::template has_property<Key>())>>
+    : std::true_type {};
+
 static_assert(
     std::is_same_v<empty_properties_t, decltype(sycl::khr::properties{})>);
-static_assert(!empty_properties_t::has_property<SomeClass>());
+static_assert(!can_has_property<empty_properties_t, SomeClass>::value);
 static_assert(!sycl::khr::is_property_v<SomeClass>);
 static_assert(!sycl::khr::is_property<empty_properties_t>::value);
 static_assert(!sycl::khr::is_property_key_v<SomeClass>);

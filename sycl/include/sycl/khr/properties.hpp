@@ -88,9 +88,10 @@ template <typename Key> struct hybrid_property : property_base<Key> {};
 
 // Retrieval / storage machinery.
 
-// Selects, from a pack of properties, the one whose key is `Key`. Assumes
-// exactly one match (enforced by the "no duplicate key" mandate).
-template <typename Key, typename... Properties> struct property_of_key;
+// Selects, from a pack of properties, the one whose key is `Key`. Assumes at
+// most one match (enforced by the "no duplicate key" mandate); without a match
+// there is no `type`, so `property_of_key_t` is a substitution failure.
+template <typename Key, typename... Properties> struct property_of_key {};
 template <typename Key, typename P, typename... Rest>
 struct property_of_key<Key, P, Rest...>
     : std::conditional_t<std::is_same_v<typename P::__detail_key_t, Key>,
@@ -259,7 +260,9 @@ public:
                              int> = 0>
   constexpr properties(Properties... props) : storage_t(props...) {}
 
-  template <typename PropertyKey> static constexpr bool has_property() {
+  template <typename PropertyKey,
+            std::enable_if_t<is_property_key_v<PropertyKey>, int> = 0>
+  static constexpr bool has_property() {
     return ((std::is_same_v<typename EncodedProperties::__detail_key_t,
                             PropertyKey>) ||
             ...);

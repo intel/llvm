@@ -151,6 +151,46 @@ static_assert(std::is_copy_constructible_v<properties<enable_profiling>> &&
 static_assert(std::is_same_v<decltype(properties{properties{alignment<16>}}),
                              properties<align16_t>>);
 
+// has_property requires a key; get_property requires a key in the list.
+template <typename List, typename Key, typename = void>
+struct can_has : std::false_type {};
+template <typename List, typename Key>
+struct can_has<List, Key,
+               std::void_t<decltype(List::template has_property<Key>())>>
+    : std::true_type {};
+template <typename List, typename Key, typename = void>
+struct can_get : std::false_type {};
+template <typename List, typename Key>
+struct can_get<List, Key,
+               std::void_t<decltype(std::declval<const List &>()
+                                        .template get_property<Key>())>>
+    : std::true_type {};
+template <typename List, typename Key, typename = void>
+struct can_get_static : std::false_type {};
+template <typename List, typename Key>
+struct can_get_static<List, Key,
+                      std::void_t<decltype(List::template get_property<Key>())>>
+    : std::true_type {};
+
+using rt_list_t = properties<enable_profiling, hybrid<1>>;
+using ct_list_t = properties<align16_t>;
+static_assert(can_has<rt_list_t, alignment_key>::value);
+static_assert(!can_has<rt_list_t, int>::value &&
+              !can_has<rt_list_t, enable_profiling>::value &&
+              !can_has<empty_properties_t, int>::value);
+static_assert(can_get<rt_list_t, enable_profiling_key>::value &&
+              can_get<rt_list_t, hybrid_key>::value &&
+              can_get_static<ct_list_t, alignment_key>::value);
+static_assert(!can_get<rt_list_t, other_only_key>::value &&
+              !can_get<rt_list_t, alignment_key>::value &&
+              !can_get<rt_list_t, int>::value &&
+              !can_get<rt_list_t, enable_profiling>::value);
+static_assert(!can_get_static<rt_list_t, alignment_key>::value &&
+              !can_get_static<ct_list_t, alignment_type_key>::value &&
+              !can_get<ct_list_t, enable_profiling_key>::value);
+static_assert(!can_get<empty_properties_t, enable_profiling_key>::value &&
+              !can_get_static<empty_properties_t, alignment_key>::value);
+
 // Properties and property lists are trivially copyable (sizes: see
 // properties_layout.cpp).
 static_assert(std::is_trivially_copyable_v<enable_profiling>);
