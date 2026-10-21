@@ -119,6 +119,18 @@ static_assert(
     is_property_for_v<hybrid<1>, MyClass>);
 static_assert(!is_property_for_v<enable_profiling, OtherClass> &&
               !is_property_for_v<hybrid<1>, OtherClass>);
+static_assert(
+    std::is_base_of_v<std::true_type,
+                      is_property_for<enable_profiling, MyClass>> &&
+    std::is_base_of_v<std::false_type, is_property_for<int, MyClass>>);
+
+// is_property_for has no extra (defaulted) template parameter.
+template <template <typename...> class, typename = void>
+struct takes_three : std::false_type {};
+template <template <typename...> class Trait>
+struct takes_three<Trait, std::void_t<Trait<int, int, void>>> : std::true_type {
+};
+static_assert(!takes_three<is_property_for>::value);
 
 // Container: CTAD, has_property, get_property (runtime, compile-time, hybrid).
 void container() {

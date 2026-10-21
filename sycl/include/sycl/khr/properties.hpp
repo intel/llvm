@@ -196,12 +196,18 @@ template <typename T, typename Class>
 inline constexpr bool is_property_key_for_v =
     is_property_key_for<T, Class>::value;
 
-// A property is for `Class` iff its key is for `Class`.
+namespace property::detail {
 template <typename T, typename Class, typename = void>
-struct is_property_for : std::false_type {};
+struct is_property_for_impl : std::false_type {};
 template <typename T, typename Class>
-struct is_property_for<T, Class, std::enable_if_t<is_property_v<T>>>
-    : is_property_key_for<typename T::__detail_key_t, Class> {};
+struct is_property_for_impl<T, Class, std::enable_if_t<is_property_v<T>>>
+    : std::bool_constant<
+          is_property_key_for_v<typename T::__detail_key_t, Class>> {};
+} // namespace property::detail
+
+// A property is for `Class` iff its key is for `Class`.
+template <typename T, typename Class>
+struct is_property_for : property::detail::is_property_for_impl<T, Class> {};
 template <typename T, typename Class>
 inline constexpr bool is_property_for_v = is_property_for<T, Class>::value;
 
