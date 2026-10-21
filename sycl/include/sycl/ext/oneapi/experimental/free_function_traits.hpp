@@ -104,34 +104,17 @@ template <typename T> struct is_device_copyable;
 // builtin, with which the host compiler resolves the kernel to launch and the
 // device compiler emits the selected kernel. The remaining APIs of this
 // extension need support only from the device compiler, so they can be used
-// with any host compiler. The macro is therefore gated on __has_builtin:
-//   * When the builtin is available, SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
-//     is defined to 1 and the macro performs the deduction.
-//   * Otherwise the macro expands to a reference to an undeclared,
-//     descriptively-named identifier so that *using* it is a clear compile
-//     error at the call site (portable across GCC / Clang / MSVC), while merely
-//     including this header remains valid everywhere.
+// with any host compiler. The macro is therefore defined only when the builtin
+// is available, so applications can test whether it is defined and provide
+// their own fallback when it is not.
 #ifndef __has_builtin
 // Older MSVC (< VS2019 16.1) lacks __has_builtin; treat as "not available".
 #define __has_builtin(x) 0
 #endif
 
 #if __has_builtin(__builtin_sycl_launch_kernel)
-
-#define SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED 1
-
 #define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
   ::sycl::ext::oneapi::experimental::kernel_function<                          \
       __builtin_sycl_launch_kernel(NAME(__VA_ARGS__))>,                        \
       ##__VA_ARGS__
-#else
-
-// No compiler support (e.g. a plain MSVC/GCC host compile without the SYCL
-// device compiler). Expand to an undeclared identifier whose name IS the
-// diagnostic, so any conforming compiler reports a clear "use of undeclared
-// identifier" error pointing at the call site. Including the header is fine;
-// only using the macro fails.
-#define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
-  SYCL_EXT_ONEAPI_KERNEL_FUNCTION_requires_dpcpp_as_the_compiler
-
 #endif

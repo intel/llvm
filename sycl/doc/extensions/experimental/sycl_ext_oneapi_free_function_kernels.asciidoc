@@ -518,9 +518,9 @@ behavior of CUDA's `<<<>>>` launch).  See the examples below.
 This macro requires support from both the host compiler and the device
 compiler: the host compiler resolves the kernel to launch, and the device
 compiler uses the same resolution to emit the selected kernel.  An
-implementation that provides it predefines the macro
-`SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED` to `1`; applications can test for
-this macro to determine whether the feature is available.  The remaining APIs of
+implementation defines the macro only when it provides this support;
+applications can test whether `SYCL_EXT_ONEAPI_KERNEL_FUNCTION` is defined to
+determine whether the feature is available.  The remaining APIs of
 this extension need support only from the device compiler, so they can be used
 with any host compiler.
 
@@ -1180,13 +1180,13 @@ int main() {
 ----
 
 Alternatively, when the implementation defines
-`SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED`, the same launches can name the
+`SYCL_EXT_ONEAPI_KERNEL_FUNCTION`, the same launches can name the
 kernel by its bare identifier and let the compiler deduce the template argument
 or resolve the overload from the launch arguments:
 
 [source,c++]
 ----
-#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
+#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION
   // T is deduced as float / int from the launch arguments.
   syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, fptr));
   syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3, iptr));
@@ -1209,7 +1209,7 @@ template <int Dim, typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dim>))
 void fill(T *ptr, T value) { /* ... */ }
 
-#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
+#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION
   // Ill-formed: Dim cannot be deduced (same as writing fill(fptr, 1.0f)).
   // syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, fptr, 1.0f));
 

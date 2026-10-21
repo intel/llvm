@@ -51,7 +51,7 @@ int main() {
   syclexp::nd_launch(q, sycl::nd_range<1>(1, 1),
                      syclexp::kernel_function<kernel>);
   syclexp::single_task(q, syclexp::kernel_function<ping>, ip);
-#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
+#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION
   syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, ip));
 #endif
   return 0;

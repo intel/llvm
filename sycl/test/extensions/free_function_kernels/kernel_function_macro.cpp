@@ -1,9 +1,11 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify=supported -Xclang -verify-ignore-unexpected=note,warning %s
-// RUN: %clangxx -std=c++17 -I %sycl_include -I %sycl_include/sycl -fsyntax-only -Xclang -verify=unsupported -Xclang -verify-ignore-unexpected=note,warning %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// RUN: %clangxx -std=c++17 -I %sycl_include -I %sycl_include/sycl -fsyntax-only -DEXPECT_UNDEFINED -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
-// With -fsycl the header defines SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED and
-// the macro launches kernels; without the builtin, including the header is
-// valid but using the macro is an error at the call site.
+// With -fsycl the header defines SYCL_EXT_ONEAPI_KERNEL_FUNCTION and the macro
+// launches kernels; without the builtin the header is still valid but does not
+// define the macro.
+
+// expected-no-diagnostics
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
@@ -23,9 +25,11 @@ template <int Dim, typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dim>))
 void fill_dim(T *p, T v) {}
 
-#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
-// supported-no-diagnostics
-static_assert(SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED == 1);
+#if defined(EXPECT_UNDEFINED) == defined(SYCL_EXT_ONEAPI_KERNEL_FUNCTION)
+#error "SYCL_EXT_ONEAPI_KERNEL_FUNCTION is defined in the wrong mode"
+#endif
+
+#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION
 // Version 2 of the extension adds SYCL_EXT_ONEAPI_KERNEL_FUNCTION.
 static_assert(SYCL_EXT_ONEAPI_FREE_FUNCTION_KERNELS >= 2);
 
@@ -35,12 +39,5 @@ void launch(sycl::queue q, sycl::nd_range<1> r, float *p) {
   syclexp::nd_launch(q, r, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, p, 1.0f));
   syclexp::nd_launch(q, r,
                      SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill_dim<1>, p, 1.0f));
-}
-#else
-void launch(float *p) {
-  // clang-format off
-  // unsupported-error@+1 {{undeclared identifier 'SYCL_EXT_ONEAPI_KERNEL_FUNCTION_requires_dpcpp_as_the_compiler'}}
-  (void)SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, p, 1.0f);
-  // clang-format on
 }
 #endif
