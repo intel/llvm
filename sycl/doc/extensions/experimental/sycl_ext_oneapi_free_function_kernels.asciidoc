@@ -515,11 +515,14 @@ type parameter used only in a non-deduced context — must be specified
 explicitly, just as it would be in a direct call to the kernel (this matches the
 behavior of CUDA's `<<<>>>` launch).  See the examples below.
 
-This macro requires support from the device compiler.  An implementation that
-provides it predefines the macro `SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED` to
-`1`; applications can test for this macro to determine whether the feature is
-available.  The remaining APIs of this extension do not require this support and
-are available with any host compiler.
+This macro requires support from both the host compiler and the device
+compiler: the host compiler resolves the kernel to launch, and the device
+compiler uses the same resolution to emit the selected kernel.  An
+implementation that provides it predefines the macro
+`SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED` to `1`; applications can test for
+this macro to determine whether the feature is available.  The remaining APIs of
+this extension need support only from the device compiler, so they can be used
+with any host compiler.
 
 === New kernel bundle member functions
 
