@@ -70,7 +70,7 @@
 
 // Compilation does validate the setting, exactly once. This also keeps the
 // exact diagnostic text above in sync with the driver.
-// RUN: not %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: not %clangxx --target=x86_64-unknown-linux-gnu \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -ftarget-register-alloc-mode=pvc:invalid \
 // RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=INVALID_GRF
