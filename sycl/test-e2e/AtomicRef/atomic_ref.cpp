@@ -1,3 +1,4 @@
+// REQUIRES: arch-intel_gpu_cri
 // RUN: %{build_atomic} -o %t.out
 // RUN: %{run} %t.out
 
