@@ -12,7 +12,7 @@
 // macro. The existing enqueue-function API (nd_launch / single_task taking a
 // kernel_function<Func> selector) is kept unchanged;
 // SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...) expands to
-//   kernel_function<__builtin_sycl_launch_kernel(name, args...)>, args...
+//   kernel_function<__builtin_sycl_launch_kernel(name(args...))>, args...
 // so the compiler deduces the kernel's template arguments / resolves the
 // overload from the launch arguments while the launched SPIR-V kernel remains
 // the real user function (no wrapper). This test exercises single_task and
@@ -93,6 +93,17 @@ void fill(float *p, float v, int n) {
     p[i] = v;
 }
 
+// A kernel that only argument-dependent lookup can find: it is launched by its
+// bare name from outside its namespace, with no using-declaration, and found
+// through the namespace of its parameter type, as in an ordinary call.
+namespace adl {
+struct Data {
+  int v;
+};
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void set_data(Data *d, int v) { d->v = v; }
+} // namespace adl
+
 // A SYCL_EXT_ONEAPI_KERNEL_FUNCTION launch from inside an ordinary function
 // template, so the launch arguments are dependent and the macro's builtin call
 // is deferred to instantiation (regression guard: this dependent-context use
@@ -158,13 +169,11 @@ int main() {
   q.wait();
 
   // Mixed template params: Dim=1 given explicitly (non-deducible), T deduced
-  // from the pointer/value arguments. Paren-wrap fill_val<1> so the macro does
-  // not split on the template-argument comma (harmless here, required in
-  // general).
+  // from the pointer/value arguments.
   for (int i = 0; i < N; ++i)
     y[i] = 0.0f;
-  syclexp::nd_launch(
-      q, r, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((fill_val<1>), y, 7.0f, N));
+  syclexp::nd_launch(q, r,
+                     SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill_val<1>, y, 7.0f, N));
   q.wait();
   for (int i = 0; i < N; ++i)
     assert(y[i] == 7.0f);
@@ -180,6 +189,14 @@ int main() {
   q.wait();
   for (int i = 0; i < N; ++i)
     assert(y[i] == 8.0f);
+
+  // A kernel only argument-dependent lookup can find.
+  adl::Data *d = sycl::malloc_shared<adl::Data>(1, q);
+  d->v = 0;
+  syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(set_data, d, 9));
+  q.wait();
+  assert(d->v == 9);
+  sycl::free(d, q);
 
   // The macro is orthogonal to the launch configuration: it also works with the
   // handler-taking overloads (inside a command group) and with the

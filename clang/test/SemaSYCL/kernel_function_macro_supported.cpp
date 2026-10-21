@@ -1,26 +1,15 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -DHAS_BUILTIN %s
+// RUN: %clang_cc1 -fsycl-is-host -fsyntax-only -verify -DHAS_BUILTIN %s
+// RUN: %clang_cc1 -fsyntax-only -verify %s
 
-// Under the SYCL device compiler the __builtin_sycl_launch_kernel builtin is
-// available, so the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro is enabled and its
-// capability macro SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED is defined. This
-// mirrors the __has_builtin gate the extension header uses so applications can
-// detect the feature portably.
-
-#ifndef __has_builtin
-#define __has_builtin(x) 0
-#endif
-
-#if !__has_builtin(__builtin_sycl_launch_kernel)
-#error "__builtin_sycl_launch_kernel should be available under -fsycl"
-#endif
-
-#if __has_builtin(__builtin_sycl_launch_kernel)
-#define SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED 1
-#endif
-
-#ifndef SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED
-#error "SYCL_EXT_ONEAPI_KERNEL_FUNCTION_SUPPORTED must be defined when the "    \
-       "builtin is available"
-#endif
+// The SYCL headers enable SYCL_EXT_ONEAPI_KERNEL_FUNCTION by testing
+// __has_builtin(__builtin_sycl_launch_kernel). The builtin must be available on
+// both the SYCL device and host sides, and only when compiling SYCL. The header
+// logic itself is tested by
+// sycl/test/extensions/free_function_kernels/kernel_function_macro.cpp.
 
 // expected-no-diagnostics
+
+#if defined(HAS_BUILTIN) != __has_builtin(__builtin_sycl_launch_kernel)
+#error "__builtin_sycl_launch_kernel availability is wrong"
+#endif

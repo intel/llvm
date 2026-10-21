@@ -85,9 +85,11 @@ template <typename T> struct is_device_copyable;
 //
 // The macro expands into two comma-separated arguments of the enclosing enqueue
 // call: the kernel_function<Func> non-type-template selector followed by the
-// same launch arguments. __builtin_sycl_launch_kernel resolves NAME against the
-// argument types (overload resolution / template argument deduction) and
-// evaluates to a pointer to the chosen specialization, which fills the
+// same launch arguments. __builtin_sycl_launch_kernel takes the call
+// NAME(args...), which C++ resolves exactly like a direct call (name lookup
+// including argument-dependent lookup, overload resolution, template argument
+// deduction), and evaluates to a pointer to the chosen specialization, which
+// fills the
 // `auto *Func` template parameter. The launch arguments are then forwarded
 // normally, so the emitted SPIR-V kernel is the real user function (no wrapper)
 // and the launch path is exactly kernel_function<Func>.
@@ -96,17 +98,6 @@ template <typename T> struct is_device_copyable;
 // must still be spelled explicitly, e.g.
 // SYCL_EXT_ONEAPI_KERNEL_FUNCTION((kern<float, 32>), args); this is a
 // fundamental C++ limitation, matching CUDA.
-//
-// The leading unary '+' on the builtin call is load-bearing, not a typo. When
-// SYCL_EXT_ONEAPI_KERNEL_FUNCTION is used inside a template with dependent
-// arguments the builtin call is deferred with a BuiltinFn placeholder callee;
-// deducing this `auto` non-type template argument classifies the argument
-// expression. Wrapping the call in unary '+' makes that argument a
-// UnaryOperator (a plain prvalue that is not classified through
-// CallExpr::getCallReturnType) instead of the dependent CallExpr, which would
-// otherwise assert in the front end. Unary '+' on a function pointer is the
-// identity, so the deduced Func value is unchanged; this keeps the whole
-// feature free of any compiler-side change for the dependent case.
 //
 // SYCL_EXT_ONEAPI_KERNEL_FUNCTION is the only part of the free function kernel
 // API that needs compiler support: it relies on the
@@ -133,7 +124,7 @@ template <typename T> struct is_device_copyable;
 
 #define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
   ::sycl::ext::oneapi::experimental::kernel_function<                          \
-      +__builtin_sycl_launch_kernel(NAME, ##__VA_ARGS__)>,                     \
+      __builtin_sycl_launch_kernel(NAME(__VA_ARGS__))>,                        \
       ##__VA_ARGS__
 #else
 

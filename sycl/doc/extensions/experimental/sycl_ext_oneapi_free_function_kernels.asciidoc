@@ -1210,10 +1210,12 @@ void fill(T *ptr, T value) { /* ... */ }
   // Ill-formed: Dim cannot be deduced (same as writing fill(fptr, 1.0f)).
   // syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, fptr, 1.0f));
 
-  // Specify the non-deducible Dim explicitly; T is still deduced. The extra
-  // parentheses keep the '<...>' comma from being read as a macro-argument
-  // separator.
-  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((fill<1>), fptr, 1.0f));
+  // Specify the non-deducible Dim explicitly; T is still deduced.
+  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill<1>, fptr, 1.0f));
+
+  // A template argument list containing a comma must be parenthesized so the
+  // preprocessor does not split it into separate macro arguments.
+  // syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((tile<1, 16>), fptr, 1.0f));
 #endif
 ----
 

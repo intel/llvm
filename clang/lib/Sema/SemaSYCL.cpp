@@ -5943,89 +5943,71 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
-// Handle __builtin_sycl_launch_kernel(name, launch-args...). The
+// Handle __builtin_sycl_launch_kernel(name(launch-args...)). The
 // SYCL_EXT_ONEAPI_KERNEL_FUNCTION launch macro expands to
 //
-//   kernel_function<__builtin_sycl_launch_kernel(name, args...)>, args...
+//   kernel_function<__builtin_sycl_launch_kernel(name(args...))>, args...
 //
 // so this builtin sits in the `kernel_function<Func>` non-type template
-// parameter slot of an enqueue function. Its job is purely to resolve `name`
-// (a bare, possibly overloaded / templated free-function-kernel name) to a
-// concrete specialization using the launch argument types, and to evaluate to
-// a pointer to it — a constant expression usable as the `auto *Func` NTTP. The
-// same launch arguments are passed positionally to the enqueue function to
-// perform the actual launch; the builtin never evaluates them. Mirrors the
-// CUDA `<<<>>>` front-end approach (build a synthetic call, read the resolved
-// callee), and reuses the real overload-resolution machinery so a bad launch
-// produces ordinary diagnostics at the call site.
+// parameter slot of an enqueue function. Its operand is an ordinary call
+// expression: the parser sees `name(`, so name lookup (including
+// argument-dependent lookup), overload resolution and template argument
+// deduction run exactly as for a direct call, and a bad launch is diagnosed at
+// the call as written. The builtin only reads the selected callee and evaluates
+// to a pointer to it, a constant expression usable as the `auto *Func` NTTP.
+// The call itself is discarded; the same launch arguments are passed
+// positionally to the enqueue function to perform the actual launch.
 ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
-  if (TheCall->getNumArgs() < 1) {
-    // The builtin needs at least the kernel-name argument. This is unreachable
-    // through the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro (NAME is mandatory);
-    // the guard only protects the getArg(0) below for a direct zero-argument
-    // call. Reuse the generic builtin arg-count diagnostic (as the sibling
-    // __builtin_sycl_is_kernel family does) rather than a bespoke one.
+  if (TheCall->getNumArgs() != 1) {
     Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
     return ExprError();
   }
 
-  Expr *KernelNameExpr = TheCall->getArg(0);
-  SmallVector<Expr *, 8> LaunchArgs(TheCall->arguments().begin() + 1,
-                                    TheCall->arguments().end());
+  Expr *KernelCall = TheCall->getArg(0);
 
-  // Depend on template parameters: defer until instantiation. When any launch
-  // argument (or the kernel name) is dependent, Sema::BuildCallExpr has already
-  // created this builtin call with a dependent result type and skipped custom
-  // type checking, so we simply return it; this handler re-runs on the
-  // instantiated, concrete-typed call. The deferred call keeps its BuiltinFn
-  // placeholder callee; the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro wraps the
-  // builtin in a unary plus so the enclosing kernel_function<...> NTTP argument
-  // is a UnaryOperator (a plain prvalue that does not recurse into this
-  // dependent CallExpr) rather than the CallExpr itself, which is what keeps
-  // classification off CallExpr::getCallReturnType and avoids a front-end
-  // crash.
-  if (KernelNameExpr->isTypeDependent() || KernelNameExpr->isValueDependent() ||
-      Expr::hasAnyTypeDependentArguments(LaunchArgs))
+  // Depend on template parameters: defer until instantiation. When the call is
+  // dependent, Sema::BuildCallExpr has already created this builtin call with a
+  // dependent result type and skipped custom type checking, so we simply
+  // return it; this handler re-runs on the instantiated call.
+  if (KernelCall->isTypeDependent() || KernelCall->isValueDependent())
     return TheCall;
 
-  // Build the synthetic call and let overload resolution + deduction run. This
-  // reuses the real C++ machinery so diagnostics (no viable overload,
-  // ambiguity, non-deducible template parameter) are emitted at the launch
-  // site for free.
-  ExprResult Call = SemaRef.BuildCallExpr(/*Scope=*/nullptr, KernelNameExpr,
-                                          KernelNameExpr->getBeginLoc(),
-                                          LaunchArgs, TheCall->getRParenLoc());
-  if (Call.isInvalid())
+  // Overload resolution or deduction failed and was already diagnosed at the
+  // call (BuildCallExpr can return a recovery expression rather than an
+  // invalid one). Nothing to add.
+  if (KernelCall->containsErrors())
     return ExprError();
 
-  auto *ResolvedCall = dyn_cast<CallExpr>(Call.get()->IgnoreImpCasts());
+  // The operand must be a call to a named function. A call through a pointer,
+  // to a member function or to a function object does not name a free
+  // function kernel.
+  auto *CE = dyn_cast<CallExpr>(KernelCall->IgnoreParens());
   FunctionDecl *ResolvedFn =
-      ResolvedCall ? ResolvedCall->getDirectCallee() : nullptr;
-  if (!ResolvedFn)
-    // Overload resolution / deduction failed and already emitted diagnostics
-    // (BuildCallExpr can return a recovery expression rather than an invalid
-    // one), or the name did not resolve to a direct callee. Nothing to add.
+      CE && !isa<CXXMemberCallExpr, CXXOperatorCallExpr>(CE)
+          ? CE->getDirectCallee()
+          : nullptr;
+  if (!ResolvedFn || isa<CXXMethodDecl>(ResolvedFn)) {
+    Diag(KernelCall->getBeginLoc(), diag::err_sycl_launch_kernel_not_a_call);
+    return ExprError();
+  }
+
+  // Selecting a deleted function was already diagnosed at the call.
+  if (ResolvedFn->isDeleted())
     return ExprError();
 
   // Free-function-kernel verification is only meaningful during device
-  // compilation. On the host pass the SYCL driver includes the integration
-  // footer, whose attribute-less redeclaration of the kernel would make
+  // compilation. On the host pass the SYCL driver prepends the integration
+  // header, whose attribute-less forward declaration of the kernel would make
   // isFreeFunction() spuriously fail; the host pass only needs the resolved
   // function pointer for the runtime launch. The device pass performs the real
-  // validation.
-  if (getLangOpts().SYCLIsDevice) {
-    if (!isFreeFunction(ResolvedFn)) {
-      Diag(KernelNameExpr->getBeginLoc(),
-           diag::err_sycl_launch_kernel_not_free_function);
-      Diag(ResolvedFn->getLocation(), diag::note_previous_declaration);
-      return ExprError();
-    }
-
-    // Force instantiation of the specialization so its definition is emitted
-    // and routed into the free-function-kernel collection/emission path exactly
-    // as the explicit kernel_function<Func> form does today. The synthetic Call
-    // above is discarded; no host call to the kernel is emitted.
-    SemaRef.MarkFunctionReferenced(KernelNameExpr->getBeginLoc(), ResolvedFn);
+  // validation. Building the call already marked the kernel referenced, so its
+  // definition is emitted through the free-function-kernel path exactly as for
+  // the explicit kernel_function<Func> form.
+  SourceLocation Loc = CE->getCallee()->getBeginLoc();
+  if (getLangOpts().SYCLIsDevice && !isFreeFunction(ResolvedFn)) {
+    Diag(Loc, diag::err_sycl_launch_kernel_not_free_function);
+    Diag(ResolvedFn->getLocation(), diag::note_declared_at);
+    return ExprError();
   }
 
   // Evaluate to &ResolvedFn: an ordinary function-pointer constant expression
@@ -6034,9 +6016,8 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   // emitted SPIR-V kernel is therefore the real user function (no wrapper) and
   // the runtime launch path is unchanged.
   QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());
-  ExprResult FnRef =
-      SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(), VK_LValue,
-                               KernelNameExpr->getBeginLoc());
+  ExprResult FnRef = SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(),
+                                              VK_LValue, Loc);
   if (FnRef.isInvalid())
     return ExprError();
   return SemaRef.ImpCastExprToType(FnRef.get(), FnPtrTy,

@@ -13964,6 +13964,9 @@ def err_sycl_launch_kernel_not_free_function : Error<
   "the function resolved by '__builtin_sycl_launch_kernel' is not a SYCL free "
   "function kernel; it must be declared with 'sycl-nd-range-kernel' or "
   "'sycl-single-task-kernel' compile time properties">;
+def err_sycl_launch_kernel_not_a_call : Error<
+  "argument to '__builtin_sycl_launch_kernel' must be a call to a SYCL free "
+  "function kernel">;
 def warn_sycl_old_and_new_kernel_attributes : Warning<
   "kernel has both attribute %0 and kernel properties; if the kernel "
   "properties contains the property \"%1\" it will be ignored">,
