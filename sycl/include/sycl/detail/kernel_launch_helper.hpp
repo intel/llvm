@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/abi_check.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
@@ -358,6 +359,11 @@ using KernelPropertyHolderStructTy =
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>,
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>,
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>;
+
+#ifndef __SYCL_DEVICE_ONLY__
+static_assert(alignof(KernelPropertyHolderStructTy) >= alignof(void *),
+              __SYCL_ABI_PACKING_ERROR);
+#endif
 
 template <typename PropertiesT> constexpr void validateKernelProperties() {
   using namespace sycl::ext::oneapi::experimental;

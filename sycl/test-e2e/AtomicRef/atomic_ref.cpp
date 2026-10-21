@@ -1,9 +1,11 @@
 // REQUIRES: arch-intel_gpu_cri
+// RUN: %{build} -DFULL_ATOMIC16_COVERAGE -DFULL_ATOMIC32_COVERAGE -DFULL_ATOMIC64_COVERAGE -fsycl-device-code-split=per_kernel -Xspirv-translator=spir64 -spirv-ext=+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics -o %t.cri.out
+// RUN: %{run} %t.cri.out
 
-// RUN: %{build}  -Xclang -freg-struct-return -Xspirv-translator=spir64 --spirv-ext=+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
+// UNSUPPORTED: any-target-is-nvidia, any-target-is-amd, spirv-backend
 // UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
 
 #include <sycl/atomic_ref.hpp>
@@ -147,22 +149,30 @@ int main() {
   int ret = test_atomic_sub<sycl::half>();
   ret |= test_atomic_sub<unsigned short>();
   ret |= test_atomic_sub<short>();
+#ifdef FULL_ATOMIC16_COVERAGE
   ret |= test_atomic_sub<sycl::ext::oneapi::bfloat16>();
+#endif
 
   ret |= test_atomic_add<sycl::half>();
   ret |= test_atomic_add<unsigned short>();
   ret |= test_atomic_add<short>();
+#ifdef FULL_ATOMIC16_COVERAGE
   ret |= test_atomic_add<sycl::ext::oneapi::bfloat16>();
+#endif
 
   ret |= test_atomic_min<sycl::half>();
   ret |= test_atomic_min<unsigned short>();
   ret |= test_atomic_min<short>();
+#ifdef FULL_ATOMIC16_COVERAGE
   ret |= test_atomic_min<sycl::ext::oneapi::bfloat16>();
+#endif
 
   ret |= test_atomic_max<sycl::half>();
   ret |= test_atomic_max<unsigned short>();
   ret |= test_atomic_max<short>();
+#ifdef FULL_ATOMIC16_COVERAGE
   ret |= test_atomic_max<sycl::ext::oneapi::bfloat16>();
+#endif
 
   ret |= test_atomic_or<unsigned short>();
   ret |= test_atomic_or<short>();

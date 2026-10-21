@@ -14,47 +14,6 @@
 
 namespace ur::level_zero::v2 {
 
-// UR copy of the deprecated
-// zex_intel_queue_copy_operations_offload_hint_exp_desc_t
-typedef struct _ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t {
-  ze_structure_type_ext_t stype; ///< [in] type of this structure
-  const void
-      *pNext; ///< [in][optional] must be null or a pointer to an
-              ///< extension-specific structure (i.e. contains stype and pNext).
-  ze_bool_t
-      copyOffloadEnabled; ///< [in] If set, try to offload copy operations to
-                          ///< different engines. Applicable only for compute
-                          ///< queues. This is only a hint. Driver may ignore it
-                          ///< per append call, based on platform capabilities
-                          ///< or internal heuristics. If not set, driver will
-                          ///< follow default behaviour. Copy operations will be
-                          ///< submitted to same engine as compute operations.
-
-} ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t;
-
-// ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES is
-// deprecated and will be removed
-#ifdef ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
-#define UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES \
-  ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
-#else
-#define UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES \
-  static_cast<ze_structure_type_ext_t>(0x0003001B)
-#endif // ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
-
-} // namespace ur::level_zero::v2
-
-namespace ur::level_zero {
-template <>
-ze_structure_type_ext_t getZexStructureType<
-    ur::level_zero::v2::
-        ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
-  return UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
-}
-} // namespace ur::level_zero
-
-namespace ur::level_zero::v2 {
-
 bool immediate_command_list_descriptor_t::operator==(
     const immediate_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && IsInOrder == rhs.IsInOrder &&
@@ -141,7 +100,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.pNext = &offloadDesc;
     }
 
-    ZexStruct<ze_queue_priority_desc_t> priorityDesc;
+    ZexStruct<ur_ze_queue_priority_desc_t> priorityDesc;
     if (ImmCmdDesc->PriorityLevel.has_value()) {
       // The driver reads both the priority and the deprecated copy offload
       // descriptors from the head of the pNext chain, so they can't be
