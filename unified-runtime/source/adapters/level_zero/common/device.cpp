@@ -2176,32 +2176,26 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 
   ZeQueuePriorityRange.Compute = [this,
                                   ZeDevice](ze_queue_priority_range &Range) {
+    std::optional<std::pair<int32_t, int32_t>> DriverLevels;
+    int32_t Lowest = 0, Highest = 0;
     auto GetPriorityLevels =
         Platform->ZeQueuePriorityExt.zeDeviceGetPriorityLevels;
-    if (!GetPriorityLevels)
-      return;
     // The function is loaded directly from the driver, so it expects a driver
     // handle rather than a loader handle.
     ze_device_handle_t DriverDevice = nullptr;
-    if (ZE_CALL_NOCHECK(zelLoaderTranslateHandle,
+    if (GetPriorityLevels &&
+        ZE_CALL_NOCHECK(zelLoaderTranslateHandle,
                         (ZEL_HANDLE_DEVICE, ZeDevice,
-                         reinterpret_cast<void **>(&DriverDevice))) !=
-            ZE_RESULT_SUCCESS ||
-        ZE_CALL_NOCHECK(GetPriorityLevels,
-                        (DriverDevice, &Range.Lowest, &Range.Highest)) !=
+                         reinterpret_cast<void **>(&DriverDevice))) ==
+            ZE_RESULT_SUCCESS &&
+        ZE_CALL_NOCHECK(GetPriorityLevels, (DriverDevice, &Lowest, &Highest)) ==
             ZE_RESULT_SUCCESS)
-      return;
-    // A single level or an empty range means there are no levels to choose
-    // from.
-    if (Range.Highest >= Range.Lowest)
-      return;
+      DriverLevels = {Lowest, Highest};
     // The UR API guarantees that the range contains the default priority 0.
-    if (Range.Highest > 0 || Range.Lowest < 0) {
-      UR_LOG(WARN, "Ignoring queue priority range [{}, {}] without 0.",
-             Range.Highest, Range.Lowest);
-      return;
-    }
-    Range.Supported = true;
+    if (DriverLevels && (Highest > 0 || Lowest < 0))
+      UR_LOG(WARN, "Ignoring queue priority range [{}, {}] without 0.", Highest,
+             Lowest);
+    Range = makeQueuePriorityRange(DriverLevels);
   };
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
