@@ -911,20 +911,20 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// NOTE: Any changes made here should be reflected in the similarly named
 /// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
-getTripleBasedSPIRVTransOpts(const ArgList &Args,
-                             SmallVector<StringRef, 8> &TranslatorArgs,
+getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
                              const llvm::Triple Triple) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
-  std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
-  if (IsCPU)
-    UnknownIntrinsics += ",llvm.fpbuiltin";
-  TranslatorArgs.push_back(Args.MakeArgString(UnknownIntrinsics));
+  // Use string literals rather than Args.MakeArgString so that this function
+  // does not mutate Args and is safe to call from parallel compilation jobs.
+  TranslatorArgs.push_back(
+      IsCPU ? "-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.fpbuiltin"
+            : "-spirv-allow-unknown-intrinsics=llvm.genx.");
 
   // Disable all the extensions by default
-  std::string ExtArg("-spirv-ext=-all");
-  ExtArg +=
+  static constexpr char ExtArg[] =
+      "-spirv-ext=-all"
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
       ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr"
@@ -953,7 +953,7 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_INTEL_fp_max_error"
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
-  TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
+  TranslatorArgs.push_back(ExtArg);
 }
 
 /// Run LLVM to SPIR-V translation.
@@ -971,7 +971,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getTripleBasedSPIRVTransOpts(Args, CmdArgs, Triple);
+  getTripleBasedSPIRVTransOpts(CmdArgs, Triple);
   for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ))
     CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");
@@ -2239,22 +2239,33 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
                     M.LinkOptions = CompileLinkOptions.second;
                   });
 
-  // Split modules are independent, so compile them in parallel. The number of
-  // jobs is controlled by --wrapper-jobs.
   SmallVector<StringRef> Outputs(SplitModules.size());
-  if (Error Err = parallelForEachError(
-          llvm::seq<size_t>(0, SplitModules.size()), [&](size_t I) -> Error {
-            Expected<StringRef> OutputOrErr = compileDeviceAndBundle(
-                SplitModules[I].ModuleFilePath, LinkerArgs, Triple,
-                BackendOptions, AOTDeviceArgs);
-            if (!OutputOrErr)
-              return OutputOrErr.takeError();
+  auto CompileModule = [&](size_t I) -> Error {
+    Expected<StringRef> OutputOrErr =
+        compileDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs,
+                               Triple, BackendOptions, AOTDeviceArgs);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
 
-            Outputs[I] = *OutputOrErr;
-            SplitModules[I].ModuleFilePath = *OutputOrErr;
-            return Error::success();
-          }))
-    return std::move(Err);
+    Outputs[I] = *OutputOrErr;
+    SplitModules[I].ModuleFilePath = *OutputOrErr;
+    return Error::success();
+  };
+
+  // Split modules are independent, so for SPIR/SPIR-V targets compile them in
+  // parallel. The number of jobs is controlled by --wrapper-jobs. Other
+  // targets go through generic::clang, which synthesizes strings in the
+  // shared LinkerArgs via MakeArgString and is therefore not thread safe, so
+  // they are compiled serially.
+  if (Triple.isSPIROrSPIRV()) {
+    if (Error Err = parallelForEachError(
+            llvm::seq<size_t>(0, SplitModules.size()), CompileModule))
+      return std::move(Err);
+  } else {
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I)
+      if (Error Err = CompileModule(I))
+        return std::move(Err);
+  }
 
   if (Triple.isNativeCPU()) {
     // Add to WrappedOutput directly rather than combining this with
