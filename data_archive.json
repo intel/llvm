@@ -988273,11 +988273,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988291,11 +988291,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988309,11 +988309,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988327,11 +988327,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988345,11 +988345,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988363,11 +988363,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988381,11 +988381,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988399,11 +988399,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988417,11 +988417,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988435,11 +988435,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988453,11 +988453,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988471,11 +988471,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988489,11 +988489,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988507,11 +988507,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988525,11 +988525,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988543,11 +988543,11 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988561,12 +988561,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988580,12 +988580,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988599,12 +988599,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988618,12 +988618,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988637,12 +988637,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988656,12 +988656,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988675,12 +988675,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988694,12 +988694,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988713,12 +988713,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988732,12 +988732,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988751,12 +988751,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988770,12 +988770,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988789,12 +988789,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988808,12 +988808,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988827,12 +988827,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988846,12 +988846,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
         "L0",
+        "micro",
         "OFFLOAD",
-        "UR",
+        "submit",
         "SYCL",
-        "micro"
+        "UR"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988864,13 +988864,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
         "latency",
         "memory",
-        "proxy",
+        "L0",
         "submit",
         "graph",
-        "L0"
+        "UR",
+        "proxy"
       ],
       "range_min": null,
       "range_max": null,
@@ -988883,13 +988883,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
         "latency",
         "memory",
-        "proxy",
+        "L0",
         "submit",
         "graph",
-        "L0"
+        "UR",
+        "proxy"
       ],
       "range_min": null,
       "range_max": null,
@@ -988902,12 +988902,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
-        "SYCL",
         "latency",
         "submit",
         "L0",
-        "micro"
+        "micro",
+        "SYCL",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -988920,12 +988920,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
-        "SYCL",
         "latency",
         "submit",
         "L0",
-        "micro"
+        "micro",
+        "SYCL",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -988938,10 +988938,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "latency",
         "submit",
-        "micro"
+        "micro",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -988955,12 +988955,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -988974,12 +988974,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -988993,12 +988993,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989012,12 +989012,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989031,12 +989031,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989050,12 +989050,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989069,12 +989069,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989088,12 +989088,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989107,12 +989107,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989126,12 +989126,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989145,12 +989145,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989164,12 +989164,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989183,12 +989183,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989202,12 +989202,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989221,12 +989221,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989240,12 +989240,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989259,12 +989259,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989278,12 +989278,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989297,12 +989297,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989316,12 +989316,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989335,12 +989335,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989354,12 +989354,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989373,12 +989373,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989392,12 +989392,12 @@
       "unstable": null,
       "tags": [
         "latency",
-        "submit",
-        "graph",
         "L0",
-        "UR",
+        "micro",
+        "submit",
         "SYCL",
-        "micro"
+        "graph",
+        "UR"
       ],
       "range_min": null,
       "range_max": null,
@@ -989410,11 +989410,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "latency",
-        "finalize",
         "micro",
-        "graph"
+        "SYCL",
+        "graph",
+        "finalize"
       ],
       "range_min": null,
       "range_max": null,
@@ -989427,11 +989427,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "latency",
-        "finalize",
         "micro",
-        "graph"
+        "SYCL",
+        "graph",
+        "finalize"
       ],
       "range_min": null,
       "range_max": null,
@@ -989483,9 +989483,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989498,9 +989498,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989513,9 +989513,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989528,9 +989528,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989543,9 +989543,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989558,9 +989558,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989573,9 +989573,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989588,9 +989588,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989603,9 +989603,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989618,9 +989618,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989633,9 +989633,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989648,9 +989648,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989663,9 +989663,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989678,9 +989678,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989693,9 +989693,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989708,9 +989708,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989723,9 +989723,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989738,9 +989738,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989753,9 +989753,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989768,9 +989768,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989783,9 +989783,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989798,9 +989798,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989813,9 +989813,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989828,9 +989828,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989843,9 +989843,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989858,9 +989858,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989873,9 +989873,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989888,9 +989888,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989903,9 +989903,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989918,9 +989918,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989933,9 +989933,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989948,9 +989948,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989963,9 +989963,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989978,9 +989978,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -989993,9 +989993,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990008,9 +990008,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990023,9 +990023,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990038,9 +990038,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990053,9 +990053,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990068,9 +990068,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990083,9 +990083,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990098,9 +990098,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990113,9 +990113,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990128,9 +990128,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990143,9 +990143,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990158,9 +990158,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990173,9 +990173,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990188,9 +990188,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990203,9 +990203,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990218,9 +990218,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990233,9 +990233,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990248,9 +990248,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990263,9 +990263,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990278,9 +990278,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990293,9 +990293,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990308,9 +990308,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990323,9 +990323,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990338,9 +990338,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "pytorch",
-        "L0"
+        "L0",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990353,8 +990353,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990367,8 +990367,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990381,8 +990381,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990395,8 +990395,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990409,8 +990409,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990423,8 +990423,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990437,8 +990437,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990451,8 +990451,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990465,8 +990465,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990479,8 +990479,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990493,8 +990493,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990507,8 +990507,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990521,8 +990521,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990535,8 +990535,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990549,8 +990549,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990563,8 +990563,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "pytorch"
+        "pytorch",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990577,9 +990577,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
         "latency",
         "memory",
+        "UR",
         "micro"
       ],
       "range_min": null,
@@ -990593,9 +990593,9 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
         "latency",
         "memory",
+        "UR",
         "micro"
       ],
       "range_min": null,
@@ -990609,10 +990609,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "latency",
         "memory",
-        "micro"
+        "micro",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -990625,10 +990625,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
         "latency",
         "memory",
-        "micro"
+        "micro",
+        "SYCL"
       ],
       "range_min": null,
       "range_max": null,
@@ -999069,5 +999069,7 @@
   "flamegraphData": {
     "runs": {}
   },
-  "defaultCompareNames": []
+  "defaultCompareNames": [
+    "Baseline_PVC_L0v2"
+  ]
 }
