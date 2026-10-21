@@ -220,6 +220,22 @@ static_assert(!can_get_static<rt_list_t, alignment_key>::value &&
 static_assert(!can_get<empty_properties_t, enable_profiling_key>::value &&
               !can_get_static<empty_properties_t, alignment_key>::value);
 
+// Runtime, hybrid and compile-time values read back from a constexpr list,
+// including one whose arguments are in a different order than its type.
+constexpr properties values{enable_profiling{false}, hybrid<3>{4},
+                            other_only{7}, alignment<16>};
+static_assert(!values.get_property<enable_profiling_key>().value);
+static_assert(values.get_property<hybrid_key>().x == 3 &&
+              values.get_property<hybrid_key>().y == 4);
+static_assert(
+    std::is_same_v<decltype(values.get_property<hybrid_key>()), hybrid<3>>);
+static_assert(values.get_property<other_only_key>().value == 7);
+static_assert(values.get_property<alignment_key>().value == 16);
+constexpr properties<other_only, enable_profiling> permuted{
+    enable_profiling{true}, other_only{5}};
+static_assert(permuted.get_property<other_only_key>().value == 5 &&
+              permuted.get_property<enable_profiling_key>().value);
+
 // Properties and property lists are trivially copyable (sizes: see
 // properties_layout.cpp).
 static_assert(std::is_trivially_copyable_v<enable_profiling>);

@@ -9,8 +9,7 @@
 //
 // Checks that each header in the sycl_khr_properties header table
 // (sec:khr-properties-header-files) provides the APIs listed for it. Each RUN
-// line tests one header in isolation. Rows whose APIs take a properties list
-// also include <sycl/khr/properties.hpp>, after the header under test.
+// line tests one header in isolation.
 
 // expected-no-diagnostics
 
@@ -58,8 +57,6 @@ static_assert(
 #elif HEADER == 3
 #include <sycl/khr/split_headers/context.hpp>
 
-#include <sycl/khr/properties.hpp>
-
 #include <vector>
 
 void test(const sycl::device &Dev, const sycl::platform &Plt,
@@ -77,8 +74,6 @@ void test(const sycl::device &Dev, const sycl::platform &Plt,
 
 #elif HEADER == 4
 #include <sycl/khr/split_headers/queue.hpp>
-
-#include <sycl/khr/properties.hpp>
 
 namespace kp = sycl::khr::property;
 
@@ -108,8 +103,6 @@ void test(const sycl::device &Dev, const sycl::context &Ctx,
 
 #elif HEADER == 5
 #include <sycl/khr/split_headers/usm.hpp>
-
-#include <sycl/khr/properties.hpp>
 
 namespace kp = sycl::khr::property;
 using sycl::khr::empty_properties_t;
@@ -168,8 +161,6 @@ void test(const sycl::device &Dev, const sycl::context &Ctx,
 #elif HEADER == 6
 #include <sycl/khr/split_headers/reduction.hpp>
 
-#include <sycl/khr/properties.hpp>
-
 namespace kp = sycl::khr::property;
 
 static_assert(sycl::khr::is_property_for_v<kp::initialize_to_identity,
@@ -188,8 +179,6 @@ void test(int *Ptr, sycl::span<int, 4> Span) {
 
 #elif HEADER == 7
 #include <sycl/khr/split_headers/kernel_bundle.hpp>
-
-#include <sycl/khr/properties.hpp>
 
 #include <vector>
 
@@ -221,8 +210,6 @@ void test(
 
 #elif HEADER == 8
 #include <sycl/khr/split_headers/stream.hpp>
-
-#include <sycl/khr/properties.hpp>
 
 void test(sycl::handler &CGH) {
   sycl::stream S(1024, 256, CGH, sycl::khr::properties{});
