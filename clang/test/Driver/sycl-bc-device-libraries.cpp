@@ -91,6 +91,14 @@
 // CHECK-LIB-LOC-NATIVECPU-SAME: "--bitcode-library=native_cpu={{.*}}SYCL{{[/\\]+}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}dpcpp-7{{[/\\]+}}sycl{{[/\\]+}}libsycl-nativecpu_utils.bc"
 // CHECK-LIB-LOC-NATIVECPU-SAME: "-sycl-device-library-location={{.*}}SYCL{{[/\\]+}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}dpcpp-7{{[/\\]+}}sycl"
 
+/// Check that a missing NativeCPU device library is diagnosed.
+// RUN: not %clang -### -fsycl --offload-new-driver --target=x86_64-unknown-linux-gnu \
+// RUN:   -ccc-install-dir %t.nonexistent/bin \
+// RUN:   -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked \
+// RUN:   -fsycl-targets=native_cpu \
+// RUN:   %s 2>&1 | FileCheck -check-prefix=CHECK-NATIVECPU-MISSING %s
+// CHECK-NATIVECPU-MISSING: cannot find expected SYCL device library 'libsycl-nativecpu_utils.bc'
+
 /// When the library cannot be found, fall back to <driver>/../lib.
 // RUN: %clang -### -fsycl --offload-new-driver --target=x86_64-unknown-linux-gnu \
 // RUN:   -ccc-install-dir %t.nonexistent/bin \
