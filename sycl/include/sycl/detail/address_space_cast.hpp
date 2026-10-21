@@ -22,9 +22,9 @@ inline constexpr bool
 address_space_cast_is_possible(access::address_space Src,
                                access::address_space Dst) {
   // constant_space is unique and is not interchangeable with any other.
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   auto constant_space = access::address_space::constant_space;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
   if (Src == constant_space || Dst == constant_space)
     return Src == Dst;
 

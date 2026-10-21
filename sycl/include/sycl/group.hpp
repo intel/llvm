@@ -307,7 +307,7 @@ public:
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
@@ -319,7 +319,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
-__SYCL_SUPPRESS_DEPRECATED_POP
+    __SYCL_SUPPRESS_DEPRECATED_POP
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory

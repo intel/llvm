@@ -761,7 +761,7 @@ private:
 #endif
 
 public:
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       image_format Format, const range<Dimensions> &Range,
       const property_list &PropList = {},
@@ -776,9 +776,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       image_format Format, const range<Dimensions> &Range, AllocatorT Allocator,
       const property_list &PropList = {},
@@ -794,9 +794,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   unsampled_image(
@@ -814,9 +814,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   unsampled_image(
@@ -836,9 +836,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       void *HostPointer, image_format Format, const range<Dimensions> &Range,
       const property_list &PropList = {},
@@ -853,9 +853,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       void *HostPointer, image_format Format, const range<Dimensions> &Range,
       AllocatorT Allocator, const property_list &PropList = {},
@@ -871,9 +871,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   unsampled_image(
@@ -891,9 +891,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   unsampled_image(
@@ -913,9 +913,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       std::shared_ptr<void> &HostPointer, image_format Format,
       const range<Dimensions> &Range, const property_list &PropList = {},
@@ -930,9 +930,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       std::shared_ptr<void> &HostPointer, image_format Format,
       const range<Dimensions> &Range, AllocatorT Allocator,
@@ -949,9 +949,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   unsampled_image(
@@ -970,9 +970,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   unsampled_image(
@@ -992,7 +992,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList = khr::empty_properties_t,
@@ -1199,7 +1199,7 @@ private:
 #endif
 
 public:
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   sampled_image(
       const void *HostPointer, image_format Format, image_sampler Sampler,
       const range<Dimensions> &Range, const property_list &PropList = {},
@@ -1214,9 +1214,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
         detail::rangeToArray(Range).data(), Format, Sampler);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   sampled_image(
@@ -1235,9 +1235,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
         detail::rangeToArray(Range).data(), Format, Sampler);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   sampled_image(
       std::shared_ptr<const void> &HostPointer, image_format Format,
       image_sampler Sampler, const range<Dimensions> &Range,
@@ -1253,9 +1253,9 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format, Sampler);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
   sampled_image(
@@ -1274,7 +1274,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format, Sampler);
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList = khr::empty_properties_t,

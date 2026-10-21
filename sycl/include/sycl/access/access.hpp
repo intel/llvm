@@ -121,16 +121,16 @@ inline constexpr mode_target_tag_t<access_mode::write, target::host_task>
 namespace detail {
 
 constexpr bool isTargetHostAccess(access::target T) {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   return T == access::target::host_buffer || T == access::target::host_image;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 }
 
 constexpr bool modeNeedsOldData(access::mode m) {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   return m == access::mode::read || m == access::mode::write ||
          m == access::mode::read_write || m == access::mode::atomic;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 }
 
 constexpr bool modeWritesNewData(access::mode m) {
@@ -168,10 +168,10 @@ template <> struct TargetToAS<access::target::local> {
 };
 
 template <> struct TargetToAS<access::target::constant_buffer> {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static access::address_space AS =
       access::address_space::constant_space;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 };
 
 template <typename ElementType, access::address_space addressSpace>
@@ -236,10 +236,10 @@ template <class T> struct deduce_AS_impl<__OPENCL_LOCAL_AS__ T> {
 };
 
 template <class T> struct deduce_AS_impl<__OPENCL_CONSTANT_AS__ T> {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   static constexpr access::address_space value =
       access::address_space::constant_space;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 };
 
 template <class T>

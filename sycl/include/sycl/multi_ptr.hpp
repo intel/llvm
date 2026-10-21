@@ -39,10 +39,10 @@ struct LegacyPointerTypes {
 // with the unsupported space.
 template <typename ElementType>
 struct LegacyPointerTypes<ElementType, access::address_space::constant_space> {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   using decorated_type = typename detail::DecoratedType<
       ElementType, access::address_space::constant_space>::type;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
   using pointer_t = decorated_type *;
   using const_pointer_t = decorated_type const *;
 };
@@ -62,10 +62,10 @@ struct LegacyReferenceTypes {
 template <typename ElementType>
 struct LegacyReferenceTypes<ElementType,
                             access::address_space::constant_space> {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   using decorated_type = typename detail::DecoratedType<
       ElementType, access::address_space::constant_space>::type;
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
   using reference_t = decorated_type &;
   using const_reference_t = decorated_type &;
 };
@@ -262,7 +262,7 @@ public:
     m_Pointer = nullptr;
     return *this;
   }
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       access::address_space OtherSpace, access::decorated OtherIsDecorated,
       typename =
@@ -273,8 +273,8 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
     m_Pointer = detail::static_address_cast<Space>(Other.get_decorated());
     return *this;
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       access::address_space OtherSpace, access::decorated OtherIsDecorated,
       typename =
@@ -285,7 +285,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
     m_Pointer = detail::static_address_cast<Space>(std::move(Other.m_Pointer));
     return *this;
   }
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   reference operator*() const { return *m_Pointer; }
   pointer operator->() const { return get(); }
@@ -571,11 +571,11 @@ public:
   // Legacy has a different interface.
   static_assert(DecorateAddress != access::decorated::legacy);
   // constant_space is only supported in legacy multi_ptr.
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   static_assert(Space != access::address_space::constant_space,
                 "SYCL 2020 multi_ptr does not support the deprecated "
                 "constant_space address space.");
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
@@ -823,7 +823,7 @@ public:
             Accessor.get_pointer().get())) {}
 
   // Only if Space == local_space || generic_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -834,7 +834,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space
   template <int dimensions>
@@ -842,7 +842,7 @@ __SYCL_SUPPRESS_DEPRECATED_POP
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -852,7 +852,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, access::decorated::legacy> from
@@ -881,7 +881,7 @@ __SYCL_SUPPRESS_DEPRECATED_POP
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space and element type is const
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int dimensions, access::mode Mode,
             access::placeholder isPlaceholder, typename PropertyListT,
             access::address_space _Space = Space, typename ET = ElementType,
@@ -894,7 +894,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      target::local, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space and element type is const
   template <int dimensions, access::address_space _Space = Space,
@@ -909,7 +909,7 @@ __SYCL_SUPPRESS_DEPRECATED_POP
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space and element type is const
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -921,7 +921,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      target::constant_buffer, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // TODO: This constructor is the temporary solution for the existing problem
   // with conversions from multi_ptr<ElementType, Space,
@@ -1128,7 +1128,7 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1139,10 +1139,10 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions,
       access::address_space _Space = Space,
@@ -1151,10 +1151,10 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == constant_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1164,7 +1164,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   using ReturnPtr = detail::const_if_const_AS<Space, void> *;
   // Returns the underlying OpenCL C pointer
@@ -1293,7 +1293,7 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1304,10 +1304,10 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions,
       access::address_space _Space = Space,
@@ -1316,10 +1316,10 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == constant_space
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1329,7 +1329,7 @@ __SYCL_SUPPRESS_DEPRECATED_PUSH
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-__SYCL_SUPPRESS_DEPRECATED_POP
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }

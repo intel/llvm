@@ -44,10 +44,10 @@ __SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 namespace detail {
 inline std::string_view get_backend_name_no_vendor(backend Backend) {
   switch (Backend) {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
   case backend::host:
     return "host";
-__SYCL_SUPPRESS_DEPRECATED_POP
+    __SYCL_SUPPRESS_DEPRECATED_POP
   case backend::opencl:
     return "opencl";
   case backend::ext_oneapi_level_zero:
