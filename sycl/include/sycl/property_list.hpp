@@ -90,18 +90,12 @@ public:
 // sycl_khr_properties into an old-style property_list.
 class PropertyListBuilder {
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
-  std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
 
 public:
   template <typename DataLessPropT> void add() {
     MDataLessProps.set(DataLessPropT::getKind());
   }
-  void add(std::shared_ptr<PropertyWithDataBase> Prop) {
-    MPropsWithData.push_back(std::move(Prop));
-  }
-  property_list finalize() {
-    return property_list(MDataLessProps, MPropsWithData);
-  }
+  property_list finalize() { return property_list(MDataLessProps, {}); }
 };
 } // namespace detail
 

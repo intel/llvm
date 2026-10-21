@@ -266,7 +266,7 @@ properties(Properties... props) -> properties<Properties...>;
 using empty_properties_t = decltype(properties{});
 
 // The concrete named properties defined by this extension are declared in the
-// SYCL object headers they apply to (queue.hpp, buffer.hpp, image.hpp, ...),
+// SYCL object headers they apply to (queue.hpp, context.hpp, usm.hpp, ...),
 // which include this engine header. This keeps the engine free of the
 // dependencies those properties may carry.
 
