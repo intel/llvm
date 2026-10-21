@@ -47,8 +47,6 @@
 using namespace llvm;
 using namespace llvm::object;
 
-static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
-
 // Mark all our options with this category, everything else (except for -version
 // and -help) will be hidden.
 static cl::OptionCategory
@@ -88,11 +86,6 @@ int main(int argc, const char **argv) {
       "Takes\nhost image as input and produces bitcode files, one per offload "
       "target, with\nreferences to symbols that must be defined in target "
       "images.\n");
-
-  if (Help) {
-    cl::PrintHelpMessage();
-    return 0;
-  }
 
   // The number of output files and targets should match.
   if (Targets.size() != Outputs.size()) {
