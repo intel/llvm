@@ -37,7 +37,11 @@ struct Base {
 };
 struct Derived : Base {}; // expected-note {{called by 'Derived'}}
 
+// FIXME: intel/llvm currently lacks the deferred-diagnostic deduplication of
+// upstream #185926 (reverted downstream, see CMPLRLLVM-74216). Until it is
+// relanded, call stack notes read 'called by' instead of 'which is called by'.
+// Restore the upstream expectations when the deduplication is relanded.
 __global__ void ctor_kernel() {
-  HasMember h; // expected-note {{which is called by 'ctor_kernel'}}
-  Derived d;   // expected-note {{which is called by 'ctor_kernel'}}
+  HasMember h; // expected-note {{called by 'ctor_kernel'}}
+  Derived d;   // expected-note {{called by 'ctor_kernel'}}
 }
