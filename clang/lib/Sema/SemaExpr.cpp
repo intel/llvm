@@ -6001,6 +6001,10 @@ ExprResult Sema::BuildCXXDefaultArgExpr(SourceLocation CallLoc,
           /*SkipImmediateInvocations=*/NestedDefaultChecking))
     return ExprError();
 
+  if (getLangOpts().CUDA)
+    CUDA().checkRTTIInDefaultInit(Param, Init ? Init : Param->getDefaultArg(),
+                                  CallLoc);
+
   return CXXDefaultArgExpr::Create(Context, InitializationContext->Loc, Param,
                                    Init, InitializationContext->Context);
 }
@@ -6069,6 +6073,9 @@ ExprResult Sema::BuildCXXDefaultInitInternal(SourceLocation Loc,
       Field->setInvalidDecl();
     return ExprError();
   }
+
+  if (getLangOpts().CUDA)
+    CUDA().checkRTTIInDefaultInit(Field, InClassInit, Loc);
 
   // CWG2631
   // An immediate invocation that is not evaluated where it appears is
