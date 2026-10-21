@@ -22,6 +22,7 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
                                      uint32_t Flags) {
   const bool EnableProfiling = Flags & make_event_flag_enable_profiling;
   const bool EnableIPC = Flags & make_event_flag_enable_ipc;
+  const bool LowPower = Flags & make_event_flag_low_power;
 
   // enable_profiling and enable_ipc are mutually exclusive.
   if (EnableProfiling && EnableIPC) {
@@ -50,6 +51,7 @@ __SYCL_EXPORT sycl::event make_event(const sycl::context &ctxt,
   EventImpl.setContextImpl(ContextImpl);
   EventImpl.setProfilingEnabled(EnableProfiling);
   EventImpl.setIPCEnabled(EnableIPC);
+  EventImpl.setLowPower(LowPower);
 
   // The backend UR event is created lazily on first signal or first
   // ipc::event::get.

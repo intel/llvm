@@ -357,8 +357,15 @@ GetMask<sycl::sub_group>(sycl::sub_group Group) {
 }
 
 #ifdef __SYCL_DEVICE_ONLY__
+// This helper wraps the convergent __spirv_GroupNonUniformBallot builtin, whose
+// result depends on which work-items are active in the block that executes it.
+// It must be inlined into the caller so the ballot is emitted in the same
+// (potentially divergent) basic block as the call site; otherwise, e.g. at -O0
+// where nothing is inlined, the builtin executes in a separate function where
+// the backend sees all work-items as active and returns a wrong mask.
 template <typename Group>
-ext::oneapi::sub_group_mask commonGroupBallotImpl(Group G, bool Predicate) {
+__SYCL_ALWAYS_INLINE ext::oneapi::sub_group_mask
+commonGroupBallotImpl(Group G, bool Predicate) {
   auto Res = __spirv_GroupNonUniformBallot(
       sycl::detail::spirv::group_scope<Group>::value, Predicate);
   ext::oneapi::sub_group_mask::BitsType Val = Res[0];
@@ -383,17 +390,22 @@ ext::oneapi::sub_group_mask commonGroupBallotImpl(Group G, bool Predicate) {
 
 namespace ext::oneapi {
 
+// Must be inlined into the caller: it wraps a convergent ballot builtin whose
+// result depends on the set of work-items active in the calling block. See the
+// comment on detail::commonGroupBallotImpl.
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Group>
-std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
-                     std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
-                 sub_group_mask>
+__SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
+                         std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+                     sub_group_mask>
 #else
 template <typename Group>
-std::enable_if_t<std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
-                 sub_group_mask>
+__SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+                     sub_group_mask>
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
-group_ballot([[maybe_unused]] Group g, [[maybe_unused]] bool predicate) {
+    group_ballot([[maybe_unused]] Group g, [[maybe_unused]] bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::commonGroupBallotImpl(g, predicate);
 #else

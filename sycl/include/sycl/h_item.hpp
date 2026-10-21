@@ -38,7 +38,11 @@ public:
 
   h_item(const h_item &hi) = default;
 
+  h_item(h_item &&hi) = default;
+
   h_item &operator=(const h_item &hi) = default;
+
+  h_item &operator=(h_item &&hi) = default;
 
   /* -- public interface members -- */
   item<Dimensions, false> get_global() const { return globalItem; }

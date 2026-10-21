@@ -2,9 +2,6 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: linux || windows
-// UNSUPPORTED-TRACKER: VSRI-6896
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // clang-format off
@@ -35,7 +32,7 @@
     ./vsr_3d_test.bin --linear --type unorm8 16x16x16
 */
 // clang-format on
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <iostream>
 
 #include <optional>
@@ -121,7 +118,7 @@ int runTest(
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
   // Setup Vulkan
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, (uint32_t)height, (uint32_t)depth};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_3D, tiling);
@@ -140,9 +137,8 @@ int runTest(
   // SYCL Import and Verification
   namespace syclexp = sycl::ext::oneapi::experimental;
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

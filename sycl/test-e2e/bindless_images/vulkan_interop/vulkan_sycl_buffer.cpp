@@ -46,7 +46,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <numeric>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
             << " | Type: " << (useDmaBuf ? "DMA_BUF" : "OPAQUE") << std::endl;
 
   // VULKAN SETUP
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkDeviceSize bufferSize = numElements * sizeof(uint32_t);
 
   // Create Input and Output Buffers
@@ -271,9 +271,8 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

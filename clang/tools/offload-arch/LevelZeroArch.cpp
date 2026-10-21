@@ -11,10 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Twine.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
+#include "llvm/TargetParser/IntelGPUTargetParser.h"
 #include <cstdio>
 #include <string>
 
@@ -158,46 +158,12 @@ static bool loadLevelZero() {
     }                                                                          \
   } while (0)
 
-// A GMDID packs the architecture, release and revision of the GPU IP.
-static constexpr uint32_t GMDIDArchitectureShift = 22;
-static constexpr uint32_t GMDIDReleaseShift = 14;
-static constexpr uint32_t GMDIDReleaseMask = 0xff;
-static constexpr uint32_t GMDIDRevisionMask = 0x3f;
-
-// Human-friendly names of the known Intel GPU architectures, keyed by the
-// architecture and release components of the GMDID.  Several devices can share
-// an architecture and a release, in which case the first of them names the
-// whole group.
-static constexpr struct {
-  uint32_t Architecture;
-  uint32_t Release;
-  const char *Name;
-} IntelGPUArchNames[] = {
-#define INTEL_GPU_ARCH(ARCHITECTURE, RELEASE, NAME)                            \
-  {ARCHITECTURE, RELEASE, NAME},
-#include "IntelGPUArch.def"
-};
-
-// Translate a GMDID into an architecture name that is a legal --offload-arch
-// parameter.  Known architectures get a human-friendly name, which covers
-// almost every device a user is likely to have; anything else gets a numeric
-// name built from all three components of the GMDID.
+// Translate a GPU IP version into an architecture name that is a legal
+// --offload-arch parameter. A device that has no name in the table is named
+// after its version.
 std::string getIntelGPUArchName(uint32_t IPVersion) {
-  uint32_t Architecture = IPVersion >> GMDIDArchitectureShift;
-  uint32_t Release = (IPVersion >> GMDIDReleaseShift) & GMDIDReleaseMask;
-  uint32_t Revision = IPVersion & GMDIDRevisionMask;
-
-  for (const auto &Entry : IntelGPUArchNames)
-    if (Entry.Architecture == Architecture && Entry.Release == Release)
-      return Entry.Name;
-
-  // A device this build has never heard of still has to be named, so that it
-  // can be used with a compiler that predates it.  The numeric name spells out
-  // the revision as well, because it is the only thing left to distinguish two
-  // steppings of an architecture that has no entry above.
-  return ("xe_" + Twine(Architecture) + "." + Twine(Release) + "." +
-          Twine(Revision))
-      .str();
+  StringRef Name = IntelGPU::getArchName(IPVersion);
+  return Name.empty() ? IntelGPU::getNumericArchName(IPVersion) : Name.str();
 }
 
 int printGPUsByLevelZero() {
@@ -234,12 +200,11 @@ int printGPUsByLevelZero() {
       DeviceProperties.pNext = &IPVersion;
       CALL_ZE_AND_CHECK(zeDeviceGetProperties, Device, &DeviceProperties);
 
-      // A driver that does not support the extension leaves the chained
-      // structure untouched, in which case there is no architecture to name.
       if (IPVersion.ipVersion == 0) {
         if (Verbose)
-          llvm::errs() << "Unable to query the IP version of device '"
-                       << DeviceProperties.name << "'\n";
+          llvm::errs()
+              << "warning: skipping device '" << DeviceProperties.name
+              << "': the device does not support Device IP Version Extension\n";
         continue;
       }
 

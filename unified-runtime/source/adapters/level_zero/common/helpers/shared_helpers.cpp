@@ -252,6 +252,10 @@ template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
 template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
   return ZE_STRUCTURE_TYPE_EVENT_DESC;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_event_sync_mode_desc_t>() {
+  return ZE_STRUCTURE_TYPE_EVENT_SYNC_MODE_DESC;
+}
 template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
   return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
 }
@@ -355,6 +359,10 @@ ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_CACHELINE_SIZE_EXT;
 }
 template <>
+ze_structure_type_t getZeStructureType<ze_float_atomic_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_FLOAT_ATOMIC_EXT_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<
     ze_command_list_append_launch_kernel_param_cooperative_desc_t>() {
   return ZE_STRUCTURE_TYPE_COMMAND_LIST_APPEND_PARAM_COOPERATIVE_DESC;
@@ -388,6 +396,10 @@ template <>
 ze_structure_type_ext_t
 getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
+}
+template <>
+ze_structure_type_ext_t getZexStructureType<ze_queue_priority_desc_t>() {
+  return ZE_STRUCTURE_TYPE_QUEUE_PRIORITY_DESC;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

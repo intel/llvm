@@ -20,11 +20,6 @@ ur_result_t urMemoryExportAllocExportableMemoryExp(
   auto hContext = common_cast(hContextOpque);
   auto hDevice = common_cast(hDeviceOpque);
 
-  UR_ASSERT(handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD ||
-                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT ||
-                handleTypeToExport == UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-
   ze_external_memory_export_desc_t MemExportDesc{};
   MemExportDesc.stype = ZE_STRUCTURE_TYPE_EXTERNAL_MEMORY_EXPORT_DESC;
 

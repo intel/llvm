@@ -33,7 +33,8 @@ class VectorizationUnit;
 
 /// @brief Vectorization pass where scalar instructions that need it are
 /// packetized, starting from leaves.
-class PacketizationPass : public llvm::PassInfoMixin<PacketizationPass> {
+class PacketizationPass
+    : public llvm::OptionalPassInfoMixin<PacketizationPass> {
 public:
   /// @brief Create a new packetization pass object.
   PacketizationPass() = default;

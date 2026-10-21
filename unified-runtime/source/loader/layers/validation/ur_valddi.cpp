@@ -4023,6 +4023,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -4107,6 +4111,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4236,6 +4244,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4368,6 +4380,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -4464,6 +4480,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4601,6 +4621,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -4702,6 +4726,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -4796,6 +4824,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -4888,6 +4920,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -4994,6 +5030,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5086,6 +5126,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5156,6 +5200,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5247,6 +5295,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5336,6 +5388,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5415,6 +5471,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5469,6 +5529,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5576,6 +5640,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
       pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
                    numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5680,6 +5748,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
                      height, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5766,6 +5838,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -5850,6 +5926,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -5939,6 +6019,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -6025,6 +6109,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6140,6 +6228,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6814,6 +6906,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -6889,6 +6985,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -6968,6 +7068,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -7033,6 +7137,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -7882,6 +7990,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
       pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
       numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -8711,6 +8823,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
   ur_result_t result = pfnSignalExternalSemaphoreExp(
       hQueue, hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
       phEventWaitList, phEvent);
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
 
   return result;
 }
@@ -11300,6 +11416,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -11697,6 +11817,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
   return result;
 }
 
@@ -11963,6 +12087,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueGraphExp(
   if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
       phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
   }
 
   return result;
@@ -13879,8 +14007,13 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     }
   }
 
+  // Not part of full validation: it changes when commands run.
+  if (enabledLayerNames.count(nameLaunchBlocking)) {
+    enableLaunchBlocking = true;
+  }
+
   if (!enableParameterValidation && !enableLeakChecking &&
-      !enableLifetimeValidation) {
+      !enableLifetimeValidation && !enableLaunchBlocking) {
     return result;
   }
 

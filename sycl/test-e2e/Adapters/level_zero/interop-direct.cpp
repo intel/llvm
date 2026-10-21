@@ -195,10 +195,12 @@ int main() {
     return 1;
   }
 
-  int data[3] = {7, 8, 0};
-  buffer<int, 1> bufData{data, 3};
-  buffer<int, 1> bufDataCQ{data, 3};
-  buffer<int, 1> bufDataCL{data, 3};
+  int dataSycl[3] = {7, 8, 0};
+  int dataCQ[3] = {7, 8, 0};
+  int dataCL[3] = {7, 8, 0};
+  buffer<int, 1> bufData{dataSycl, 3};
+  buffer<int, 1> bufDataCQ{dataCQ, 3};
+  buffer<int, 1> bufDataCL{dataCL, 3};
   range<1> dataCount{3};
 
   queue SyclQueue;
@@ -231,29 +233,35 @@ int main() {
                        [=](id<1> Id) { numbers[Id] += deviceData[0]; });
     });
     host_accessor hostOutCQ{bufDataCQ, read_only};
-    std::cout << "GPU Result from Standard Q = {" << hostOut[0] << ", "
-              << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
+    std::cout << "GPU Result from Standard Q = {" << hostOutCQ[0] << ", "
+              << hostOutCQ[1] << ", " << hostOutCQ[2] << "}" << std::endl;
 
     // Try interop queue with immediate commandlist
-    InteropQueueCQ.copy<int>(addend, deviceData, 2).wait();
-    InteropQueueCQ.submit([&](handler &cgh) {
+    InteropQueueCL.copy<int>(addend, deviceData, 2).wait();
+    InteropQueueCL.submit([&](handler &cgh) {
       accessor numbers{bufDataCL, cgh, read_write};
       cgh.single_task(
           [=]() { numbers[2] += numbers[0] + numbers[1] + deviceData[1]; });
     });
     host_accessor hostOutCL{bufDataCL, read_only};
-    std::cout << "GPU Result from Immediate Q = {" << hostOut[0] << ", "
-              << hostOut[1] << ", " << hostOut[2] << "}" << std::endl;
+    std::cout << "GPU Result from Immediate Q = {" << hostOutCL[0] << ", "
+              << hostOutCL[1] << ", " << hostOutCL[2] << "}" << std::endl;
   }
 
   free(deviceData, InteropContext);
 
   // Check results
-  buffer<int, 1> bufDataResult{data, 3};
-  host_accessor hostResult{bufDataResult, read_only};
-  if (hostResult[0] != 13 || hostResult[1] != 14 || hostResult[2] != 73) {
-    std::cout << "Test failed, expected final result to be {" << hostResult[0]
-              << ", " << hostResult[1] << ", " << hostResult[2] << "}"
+  host_accessor hostResult{bufData, read_only};
+  host_accessor hostResultCQ{bufDataCQ, read_only};
+  host_accessor hostResultCL{bufDataCL, read_only};
+  if (hostResult[0] != 10 || hostResult[1] != 11 || hostResult[2] != 3 ||
+      hostResultCQ[0] != 10 || hostResultCQ[1] != 11 || hostResultCQ[2] != 3 ||
+      hostResultCL[0] != 7 || hostResultCL[1] != 8 || hostResultCL[2] != 51) {
+    std::cout << "Test failed. Results: SYCL Q = {" << hostResult[0] << ", "
+              << hostResult[1] << ", " << hostResult[2] << "}, Standard Q = {"
+              << hostResultCQ[0] << ", " << hostResultCQ[1] << ", "
+              << hostResultCQ[2] << "}, Immediate Q = {" << hostResultCL[0]
+              << ", " << hostResultCL[1] << ", " << hostResultCL[2] << "}"
               << std::endl;
     return 1;
   }

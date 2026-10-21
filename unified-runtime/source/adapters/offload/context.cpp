@@ -9,6 +9,7 @@
 
 #include "context.hpp"
 #include <unified-runtime/ur_api.h>
+#include <vector>
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
@@ -17,7 +18,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  auto Ctx = new ur_context_handle_t_(*phDevices);
+  std::vector<ol_device_handle_t> OffloadDevices;
+  OffloadDevices.reserve(DeviceCount);
+  for (uint32_t I = 0; I < DeviceCount; ++I) {
+    OffloadDevices.push_back(phDevices[I]->OffloadDevice);
+  }
+
+  ol_context_handle_t OffloadContext;
+  OL_RETURN_ON_ERR(
+      olCreateContext(DeviceCount, OffloadDevices.data(), &OffloadContext));
+
+  auto Ctx = new ur_context_handle_t_(*phDevices, OffloadContext);
   *phContext = Ctx;
   return UR_RESULT_SUCCESS;
 }
@@ -53,12 +64,12 @@ urContextRetain(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
   if (--hContext->RefCount == 0) {
+    OL_RETURN_ON_ERR(olDestroyContext(hContext->OffloadContext));
     delete hContext;
   }
   return UR_RESULT_SUCCESS;
 }
 
-// Offload currently doesn't have an equivalent to context handles
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle(ur_context_handle_t, ur_native_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

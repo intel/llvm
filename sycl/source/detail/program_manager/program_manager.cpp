@@ -366,17 +366,21 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
                Dev.get_info<info::device::vendor_id>() == 0x8086;
       });
   if (!CompileOptsEnv) {
+    // Frontend options may be repeated (e.g. once from the image metadata and
+    // once from clang-linker-wrapper), so map every occurrence.
     static const char *TargetCompileFast = "-ftarget-compile-fast";
     if (auto Pos = CompileOpts.find(TargetCompileFast);
         Pos != std::string::npos) {
       const char *BackendOption = nullptr;
       if (IsIntelGPU)
         PlatformImpl.getBackendOption(TargetCompileFast, &BackendOption);
+      std::string_view Replacement =
+          (IsIntelGPU && BackendOption) ? BackendOption : "";
       auto OptLen = strlen(TargetCompileFast);
-      if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
-        CompileOpts.replace(Pos, OptLen, BackendOption);
-      else
-        CompileOpts.erase(Pos, OptLen);
+      do {
+        CompileOpts.replace(Pos, OptLen, Replacement);
+        Pos = CompileOpts.find(TargetCompileFast, Pos + Replacement.size());
+      } while (Pos != std::string::npos);
     }
     static const std::string TargetRegisterAllocMode =
         "-ftarget-register-alloc-mode=";
@@ -414,7 +418,11 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       if (auto Pos = CompileOpts.find(Opt); Pos != std::string::npos) {
         const char *BackendOption = nullptr;
         PlatformImpl.getBackendOption(std::string(Opt).c_str(), &BackendOption);
-        CompileOpts.replace(Pos, Opt.length(), BackendOption);
+        std::string_view Replacement = BackendOption ? BackendOption : "";
+        do {
+          CompileOpts.replace(Pos, Opt.length(), Replacement);
+          Pos = CompileOpts.find(Opt, Pos + Replacement.size());
+        } while (Pos != std::string::npos);
       }
     }
   }
@@ -539,8 +547,24 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
   return UR_DEVICE_BINARY_TARGET_UNKNOWN;
 }
 
+// An image with a compile_target was built for that device architecture only,
+// so it only matches a device of that architecture. Images without a
+// compile_target are not filtered here.
+static bool doesCompileTargetMatchDevice(const RTDeviceBinaryImage &Img,
+                                         const device_impl &Dev) {
+  const RTDeviceBinaryImage::PropertyRange &Range = Img.getDeviceRequirements();
+  const bool HasCompileTarget =
+      std::any_of(Range.begin(), Range.end(), [](const auto &Prop) {
+        return Prop->Name == std::string_view("compile_target");
+      });
+  return !HasCompileTarget || doesImageTargetMatchDevice(Img, Dev);
+}
+
 static bool compatibleWithDevice(const RTDeviceBinaryImage *BinImage,
                                  const device_impl &DeviceImpl) {
+  if (!doesCompileTargetMatchDevice(*BinImage, DeviceImpl))
+    return false;
+
   adapter_impl &Adapter = DeviceImpl.getAdapter();
 
   const ur_device_handle_t &URDeviceHandle = DeviceImpl.getHandleRef();
@@ -783,7 +807,8 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         // virtual function set and it is incompatible, then we should link its
         // "dummy" version to avoid link errors about unresolved external
         // symbols.
-        if (doesDevSupportDeviceRequirements(Dev, *BinImage))
+        if (doesDevSupportDeviceRequirements(Dev, *BinImage) &&
+            doesCompileTargetMatchDevice(*BinImage, Dev))
           DeviceImagesToLink.insert(BinImage);
       }
     }
@@ -1434,11 +1459,20 @@ const RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   std::lock_guard<std::mutex> ImgMapsGuard(m_ImgMapsMutex);
-  std::vector<sycl_device_binary> RawImgs(ImageSet.size());
-  auto ImageIterator = ImageSet.begin();
-  for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
+  // Skip images built for another device architecture.
+  std::vector<const RTDeviceBinaryImage *> Imgs;
+  for (const RTDeviceBinaryImage *Img : ImageSet)
+    if (doesCompileTargetMatchDevice(*Img, DeviceImpl))
+      Imgs.push_back(Img);
+  if (Imgs.empty())
+    throw exception(make_error_code(errc::runtime),
+                    "No device image is built for the selected device's "
+                    "architecture");
+
+  std::vector<sycl_device_binary> RawImgs(Imgs.size());
+  for (size_t i = 0; i < Imgs.size(); i++)
     RawImgs[i] = reinterpret_cast<sycl_device_binary>(
-        const_cast<sycl_device_binary>(&(*ImageIterator)->getRawData()));
+        const_cast<sycl_device_binary>(&Imgs[i]->getRawData()));
   uint32_t ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
@@ -1452,15 +1486,14 @@ const RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   ContextImpl.getAdapter().call<UrApiKind::urDeviceSelectBinary>(
       DeviceImpl.getHandleRef(), UrBinaries.data(), UrBinaries.size(), &ImgInd);
 
-  ImageIterator = ImageSet.begin();
-  std::advance(ImageIterator, ImgInd);
+  const RTDeviceBinaryImage *SelectedImg = Imgs[ImgInd];
 
   if constexpr (DbgProgMgr > 0) {
-    std::cerr << "selected device image: " << &(*ImageIterator)->getRawData()
+    std::cerr << "selected device image: " << &SelectedImg->getRawData()
               << "\n";
-    (*ImageIterator)->print();
+    SelectedImg->print();
   }
-  return **ImageIterator;
+  return *SelectedImg;
 }
 
 // Check if device image is compressed.
@@ -1613,11 +1646,17 @@ void ProgramManager::cacheKernelWorkGroupDynamicLocalMem(
     }
 }
 
+static exception getNoKernelException(std::string_view KernelName) {
+  return exception(make_error_code(errc::runtime),
+                   "No kernel named " + std::string(KernelName) + " was found");
+}
+
 DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(Info.Name));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throw getNoKernelException(Info.Name);
   It->second.setCompileTimeInfoIfNeeded(Info);
   return It->second;
 }
@@ -1626,7 +1665,8 @@ DeviceKernelInfo &
 ProgramManager::getDeviceKernelInfo(std::string_view KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto It = m_DeviceKernelInfoMap.find(std::string(KernelName));
-  assert(It != m_DeviceKernelInfoMap.end());
+  if (It == m_DeviceKernelInfoMap.end())
+    throw getNoKernelException(KernelName);
   return It->second;
 }
 

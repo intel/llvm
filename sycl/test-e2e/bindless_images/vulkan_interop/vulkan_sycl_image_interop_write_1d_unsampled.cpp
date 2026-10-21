@@ -3,15 +3,17 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-73525
+// Sporadic Linux failures until NEO build 39809; close the issue once CI runs.
+// https://github.com/intel/llvm/issues/22858
+// REQUIRES-INTEL-DRIVER: lin: 39809
+
+// Independent of the driver gate above: on Windows the writes land at the
+// wrong offsets in an imported OPTIMAL-tiled 1D image (float/1ch/32: 8 of 32).
+// XFAIL: windows && run-mode
+// XFAIL-TRACKER: GSD-12373
 
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
-
-// Sporadic failures observed on Linux across all Intel platforms.
-// UNSUPPORTED: linux && level_zero
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22858
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
@@ -94,7 +96,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 
 #include <optional>
 #include <string>
@@ -166,7 +168,7 @@ int runTest(
                           : getVulkanFormat<T>(channels);
   std::cout << "VK Format: " << getFormatString(vkFormat) << std::endl;
 
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkExtent3D extent = {(uint32_t)width, 1, 1};
   ImageResources imgRes =
       createExportableImage(vkCtx, extent, vkFormat, VK_IMAGE_TYPE_1D, tiling);
@@ -217,9 +219,8 @@ int runTest(
   }
 
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

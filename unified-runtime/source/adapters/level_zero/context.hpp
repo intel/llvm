@@ -37,24 +37,6 @@ struct l0_command_list_cache_info {
   bool IsImmediate = false;
 };
 
-typedef uint32_t ze_intel_event_sync_mode_exp_flags_t;
-typedef enum _ze_intel_event_sync_mode_exp_flag_t {
-  ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT = ZE_BIT(0),
-  ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT = ZE_BIT(1),
-  ZE_INTEL_EVENT_SYNC_MODE_EXP_EXP_FLAG_FORCE_UINT32 = 0x7fffffff
-
-} ze_intel_event_sync_mode_exp_flag_t;
-
-#define ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC                       \
-  (ze_structure_type_t)0x00030016
-
-typedef struct _ze_intel_event_sync_mode_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-
-  ze_intel_event_sync_mode_exp_flags_t syncModeFlags;
-} ze_intel_event_sync_mode_exp_desc_t;
-
 extern const bool UseUSMAllocator;
 
 struct ur_context_handle_t_ : ur_context_common_t {

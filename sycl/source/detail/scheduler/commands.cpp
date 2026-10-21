@@ -22,6 +22,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/ur_utils.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
@@ -523,6 +524,9 @@ Command::Command(
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
   MEvent->setCommand(this);
+  if (MQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MQueue->getContextImpl().isNativeRecordingActive());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -3710,13 +3714,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
+
     std::vector<ur_event_handle_t> UrEvents =
-        getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
+        HasEventMode
+            ? Command::getUrEvents(MPreparedDepsEvents,
+                                   /*CommandQueue=*/nullptr, isHostTask())
+            : RawEvents;
+
     if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
+      // Nothing to synchronize with: no dependency contributed a native event,
+      // so the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3730,16 +3739,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     adapter_impl &Adapter = MQueue->getAdapter();
-    // User can specify explicit dependencies via depends_on call that we should
-    // honor here. It is very important for cross queue dependencies. Adding
-    // them to the barrier wait list since barrier w/ wait list waits only for
-    // the events provided in wait list and we can just extend the list.
-    UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
-
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3750,17 +3753,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Profiling tag requires a valid queue");
     adapter_impl &Adapter = MQueue->getAdapter();
 
-    bool IsInOrderQueue = MQueue->isInOrder();
-    ur_event_handle_t *TimestampDeps = nullptr;
-    size_t NumTimestampDeps = 0;
-
-    // TO DO - once the following WA removed: to change call to call_nocheck and
-    // return operation result to Command::enqueue (see other CG types). Set
-    // UREvent to EventImpl only for successful case.
+    const bool IsInOrderQueue = MQueue->isInOrder();
 
     // If the queue is not in-order, the implementation will need to first
     // insert a marker event that the timestamp waits for.
     ur_event_handle_t PreTimestampMarkerEvent{};
+    std::optional<OwnedUrEvent> OwnedPreTimestampMarkerEvent;
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
     if (!IsInOrderQueue) {
       // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
       //        Use that instead once it has been fixed.
@@ -3769,29 +3769,57 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      OwnedPreTimestampMarkerEvent.emplace(PreTimestampMarkerEvent, Adapter,
+                                           /*TakeOwnership=*/true);
       TimestampDeps = &PreTimestampMarkerEvent;
       NumTimestampDeps = 1;
     }
 
-    Adapter.call<UrApiKind::urEnqueueTimestampRecordingExp>(
-        MQueue->getHandleRef(),
-        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+    // Try to record a device timestamp natively. Not every backend can do so:
+    // the OpenCL backend can only record a reliable timestamp on a
+    // profiling-enabled queue (see intel/llvm#22229). When the recording is
+    // unsupported we fall back to a plain barrier, whose event still carries
+    // (best-effort) profiling information and provides the same ordering.
+    ur_result_t TimestampResult =
+        Adapter.call_nocheck<UrApiKind::urEnqueueTimestampRecordingExp>(
+            MQueue->getHandleRef(),
+            /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!IsInOrderQueue) {
-      // We also need to release the timestamp event from the marker.
-      Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PostTimestampBarrierEvent{};
-      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-          MQueue->getHandleRef(),
-          /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
-      Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      if (!IsInOrderQueue) {
+        // The pre-timestamp barrier already provides the required ordering and
+        // profiling information, so reuse its event instead of submitting a
+        // second barrier.
+        if (Event)
+          *Event = OwnedPreTimestampMarkerEvent->TransferOwnership();
+      } else {
+        // An in-order queue has no pre-timestamp barrier to reuse.
+        if (auto Result =
+                Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+                    MQueue->getHandleRef(),
+                    /*num_events_in_wait_list=*/0,
+                    /*event_wait_list=*/nullptr, Event);
+            Result != UR_RESULT_SUCCESS)
+          return Result;
+      }
+    } else {
+      if (TimestampResult != UR_RESULT_SUCCESS)
+        return TimestampResult;
+
+      // If the queue is not in-order, we need to insert a barrier. This barrier
+      // does not need output events as it will implicitly enforce the following
+      // enqueue is blocked until it finishes.
+      if (!IsInOrderQueue) {
+        // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we
+        //        do not pass an output event to the UR call. Once that is
+        //        fixed, this immediately-deleted event can be removed.
+        ur_event_handle_t PostTimestampBarrierEvent{};
+        Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+            MQueue->getHandleRef(),
+            /*num_events_in_wait_list=*/0,
+            /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+        Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+      }
     }
 
     SetEventHandleOrDiscard();

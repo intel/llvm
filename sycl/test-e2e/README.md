@@ -472,10 +472,15 @@ to only run the compilation stage, or the execution stage respectively.
   unknown in `build-only` is found in the `E2EExpr.py`.
 
   The triples to compile in this mode are set via the `sycl_build_targets` lit
-  parameter. Valid build targets are: `spir`,`nvidia`, `amd`, `native_cpu`.
-  These correspond to `spir64`, `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, and
-  `native_cpu` triples respectively. Each build target should be separated with
-  a semicolon. This parameter is set to `all` by default, which enables
+  parameter. Valid build targets are: `spir`, `nvidia`, `amd`, `native_cpu`,
+  `spir_gen`, `spir_x86_64`. These correspond to `spir64`,
+  `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, `native_cpu`, `spir64_gen`, and
+  `spir64_x86_64` triples respectively. `spir_gen` and `spir_x86_64` select the
+  AOT-only GPU and CPU triples respectively, rather than the JIT `spir64`
+  triple; `spir_gen` compilation also passes the `GPU_AOT_TARGET_OPTS`/
+  `gpu_aot_target_opts` options (see above) to
+  `-Xsycl-target-backend=spir64_gen`. Each build target should be separated
+  with a semicolon. This parameter is set to `all` by default, which enables
   autodetection for the available build targets. A test can be marked as
   requiring, or not supporting a particular triple via the `target-*` features.
   Build targets are selected if they are able to pass the test's requirements

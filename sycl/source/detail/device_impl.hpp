@@ -1220,6 +1220,30 @@ public:
                         "ext_intel_max_lanes_per_hw_thread aspect");
       return get_info_impl<UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD>();
     }
+    CASE(ext::intel::info::device::ip_version) {
+      if (!has(aspect::ext_intel_device_info_ip_version))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_ip_version aspect");
+      return get_info_impl<UR_DEVICE_INFO_IP_VERSION>();
+    }
+    CASE(ext::intel::info::device::igca) {
+      if (!has(aspect::ext_intel_igca))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the ext_intel_igca aspect");
+
+      ur_device_igca_feature_flags_t Flags =
+          get_info_impl<UR_DEVICE_INFO_IGCA_FEATURE_SET>();
+      uint64_t FeatureSets = 0;
+      if (Flags & UR_DEVICE_IGCA_FEATURE_FLAG_RENDER)
+        FeatureSets |= ext::intel::info::igca_feature_set_render;
+      if (Flags & UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE)
+        FeatureSets |= ext::intel::info::igca_feature_set_compute;
+
+      return ext::intel::info::igca{
+          static_cast<int>(get_info_impl<UR_DEVICE_INFO_IGCA_TARGET>()),
+          FeatureSets};
+    }
 
     // khr device traits (defined under sycl/khr/...).
 
@@ -1404,6 +1428,13 @@ public:
     }
     CASE(ext_intel_max_lanes_per_hw_thread) {
       return has_info_desc(UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD);
+    }
+    CASE(ext_intel_device_info_ip_version) {
+      return has_info_desc(UR_DEVICE_INFO_IP_VERSION);
+    }
+    CASE(ext_intel_igca) {
+      return has_info_desc(UR_DEVICE_INFO_IGCA_TARGET) &&
+             has_info_desc(UR_DEVICE_INFO_IGCA_FEATURE_SET);
     }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
     CASE(ext_oneapi_native_assert) {
@@ -1624,8 +1655,8 @@ public:
           .value_or(0);
     }
     CASE(ext_oneapi_atomic16) {
-      // Likely L0 doesn't check it properly. Need to double-check.
-      return has_extension("cl_ext_float_atomics");
+      return get_info_impl_nocheck<UR_DEVICE_INFO_FP16_ATOMIC>().value_or(
+          false);
     }
     CASE(ext_oneapi_virtual_functions) {
       // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem
@@ -2459,7 +2490,7 @@ private:
           aspect::ext_intel_xe_clusters_per_region,
           aspect::ext_intel_xe_cores_per_cluster,
           aspect::ext_intel_eus_per_xe_core,
-          aspect::ext_intel_max_lanes_per_hw_thread>>
+          aspect::ext_intel_max_lanes_per_hw_thread, aspect::ext_intel_igca>>
       MCache;
 
   const size_t MIndexWithinPlatform = 0;

@@ -1,11 +1,14 @@
 // REQUIRES: level_zero
 //
+// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
+// so the matching zeEventDestroy calls are reported as a negative leak there.
+// Ignore negative leaks on Windows until the loader is updated.
+// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
+//
 // RUN: %{build} -o %t.out
 //
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out wait  2>&1 | FileCheck %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s
-//
-// CHECK-NOT: LEAK
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out wait  2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 ONEAPI_DEVICE_SELECTOR='level_zero:*' %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
 //
 // The test is to check that there are no leaks reported with the embedded
 // UR_L0_LEAKS_DEBUG=1 ( %{l0_leak_check} )  testing capability.

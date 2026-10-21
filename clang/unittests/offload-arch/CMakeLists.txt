@@ -1,5 +1,6 @@
 set(OffloadArchTestSources
   OffloadArchTest.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/offload-arch/AMDGPUArchByKFD.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/offload-arch/LevelZeroArch.cpp
   )
 
@@ -12,6 +13,9 @@ add_distinct_clang_unittest(OffloadArchTests
   ${OffloadArchTestSources}
   CLANG_LIBS
     clangBasic
+  LINK_LIBS
+    LLVMTestingSupport
   LLVM_COMPONENTS
     Support
+    TargetParser
   )
