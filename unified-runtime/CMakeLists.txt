@@ -99,6 +99,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 # There's little reason not to generate the compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# LLVM sets this for in-tree builds; standalone builds need it as well.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+
 include(Assertions)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
