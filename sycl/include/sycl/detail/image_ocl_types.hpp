@@ -552,6 +552,7 @@ inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
 template <int Dimensions, access::mode AccessMode, access::target AccessTarget>
 struct opencl_image_type;
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 // Creation of dummy ocl types for host_image targets.
 // These dummy ocl types are needed by the compiler parser for the compilation
 // of host application code with __SYCL_DEVICE_ONLY__ macro set.
@@ -560,6 +561,8 @@ struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
   using type =
       opencl_image_type<Dimensions, AccessMode, access::target::host_image> *;
 };
+__SYCL_SUPPRESS_DEPRECATED_PUSH
+
 template <typename T> struct sampled_opencl_image_type<T *> {
   using type = void *;
 };

@@ -393,17 +393,21 @@ public:
     return rev_iterator(begin());
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
   __as_bytes() const noexcept {
     return span<const byte, _Extent * sizeof(element_type)>{
         reinterpret_cast<const byte *>(data()), size_bytes()};
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   _SYCL_SPAN_INLINE_VISIBILITY span<byte, _Extent * sizeof(element_type)>
   __as_writable_bytes() const noexcept {
     return span<byte, _Extent * sizeof(element_type)>{
         reinterpret_cast<byte *>(data()), size_bytes()};
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 private:
   pointer __data;
@@ -586,15 +590,19 @@ public:
     return rev_iterator(begin());
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
   __as_bytes() const noexcept {
     return {reinterpret_cast<const byte *>(data()), size_bytes()};
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   _SYCL_SPAN_INLINE_VISIBILITY span<byte, dynamic_extent>
   __as_writable_bytes() const noexcept {
     return {reinterpret_cast<byte *>(data()), size_bytes()};
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 private:
   pointer __data;

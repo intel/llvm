@@ -171,11 +171,13 @@ int main() {
       sycl::accessor acc_2(buf_data, cgh, sycl::range<1>(8), sycl::no_init);
       sycl::accessor acc_3(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
                            sycl::no_init);
+      __SYCL_SUPPRESS_DEPRECATED_PUSH
       sycl::accessor acc_4(buf_data, cgh, sycl::read_constant);
       sycl::accessor acc_5(buf_data, cgh, sycl::range<1>(8),
                            sycl::read_constant);
       sycl::accessor acc_6(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
                            sycl::read_constant);
+      __SYCL_SUPPRESS_DEPRECATED_POP
       sycl::accessor acc_7(buf_data, cgh, sycl::write_only, sycl::no_init);
       sycl::accessor acc_8(buf_data, cgh, sycl::range<1>(8), sycl::write_only,
                            sycl::no_init);
@@ -186,11 +188,13 @@ int main() {
       auto acc_2 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::no_init);
       auto acc_3 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
                                        sycl::no_init);
+      __SYCL_SUPPRESS_DEPRECATED_PUSH
       auto acc_4 = buf_data.get_access(cgh, sycl::read_constant);
       auto acc_5 =
           buf_data.get_access(cgh, sycl::range<1>(8), sycl::read_constant);
       auto acc_6 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
                                        sycl::read_constant);
+      __SYCL_SUPPRESS_DEPRECATED_POP
       auto acc_7 = buf_data.get_access(cgh, sycl::write_only, sycl::no_init);
       auto acc_8 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::write_only,
                                        sycl::no_init);
@@ -241,10 +245,12 @@ int main() {
     sycl::accessor acc_2(buf_data, sycl::range<1>(8), sycl::no_init);
     sycl::accessor acc_3(buf_data, sycl::range<1>(8), sycl::id<1>(1),
                          sycl::no_init);
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
     sycl::accessor acc_4(buf_data, sycl::read_constant);
     sycl::accessor acc_5(buf_data, sycl::range<1>(8), sycl::read_constant);
     sycl::accessor acc_6(buf_data, sycl::range<1>(8), sycl::id<1>(1),
                          sycl::read_constant);
+    __SYCL_SUPPRESS_DEPRECATED_POP
     sycl::accessor acc_7(buf_data, sycl::write_only, sycl::no_init);
     sycl::accessor acc_8(buf_data, sycl::range<1>(8), sycl::write_only,
                          sycl::no_init);
@@ -255,10 +261,12 @@ int main() {
     auto acc_2 = buf_data.get_access(sycl::range<1>(8), sycl::no_init);
     auto acc_3 =
         buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1), sycl::no_init);
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
     auto acc_4 = buf_data.get_access(sycl::read_constant);
     auto acc_5 = buf_data.get_access(sycl::range<1>(8), sycl::read_constant);
     auto acc_6 = buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1),
                                      sycl::read_constant);
+    __SYCL_SUPPRESS_DEPRECATED_POP
     auto acc_7 = buf_data.get_access(sycl::write_only, sycl::no_init);
     auto acc_8 =
         buf_data.get_access(sycl::range<1>(8), sycl::write_only, sycl::no_init);

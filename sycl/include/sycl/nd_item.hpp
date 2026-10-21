@@ -71,7 +71,9 @@ public:
     size_t LinId = 0;
     id<Dimensions> Index = get_global_id();
     range<Dimensions> Extent = get_global_range();
+__SYCL_SUPPRESS_DEPRECATED_PUSH
     id<Dimensions> Offset = get_offset();
+__SYCL_SUPPRESS_DEPRECATED_POP
     if (1 == Dimensions) {
       LinId = Index[0] - Offset[0];
     } else if (2 == Dimensions) {
@@ -198,14 +200,18 @@ public:
   }
 
   nd_range<Dimensions> get_nd_range() const noexcept {
+__SYCL_SUPPRESS_DEPRECATED_PUSH
     return nd_range<Dimensions>(get_global_range(), get_local_range(),
                                 get_offset());
+__SYCL_SUPPRESS_DEPRECATED_POP
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
+__SYCL_SUPPRESS_DEPRECATED_POP
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = _V1::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
@@ -215,6 +221,7 @@ public:
 
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <access::mode accessMode = access::mode::read_write>
   __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(
@@ -224,6 +231,7 @@ public:
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
+__SYCL_SUPPRESS_DEPRECATED_POP
 #if __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory

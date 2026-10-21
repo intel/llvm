@@ -141,7 +141,9 @@ struct image_sampler {
 } // namespace _V1
 } // namespace sycl
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <>
 struct std::hash<sycl::sampler>
     : public sycl::detail::sycl_obj_hash<sycl::sampler,
                                          false /*SupportedOnDevice*/> {};
+__SYCL_SUPPRESS_DEPRECATED_POP

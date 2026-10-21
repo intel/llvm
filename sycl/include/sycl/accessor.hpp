@@ -290,7 +290,9 @@ class accessor_common {
 protected:
   constexpr static access::address_space AS = TargetToAS<AccessTarget>::AS;
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
+__SYCL_SUPPRESS_DEPRECATED_POP
   constexpr static bool IsHostTask = AccessTarget == access::target::host_task;
   // SYCL2020 4.7.6.9.4.3
   // IsPlaceHolder template parameter has no bearing on whether the accessor
@@ -307,17 +309,23 @@ protected:
   // TODO: SYCL 2020 deprecates four of the target enum values
   // and replaces them with 2 (device and host_task). May want
   // to change these constexpr.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsGlobalBuf =
       AccessTarget == access::target::global_buffer;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsConstantBuf =
       AccessTarget == access::target::constant_buffer;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsAccessAnyWrite =
       AccessMode == access::mode::write ||
       AccessMode == access::mode::read_write ||
       AccessMode == access::mode::discard_write ||
       AccessMode == access::mode::discard_read_write;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
   static constexpr bool IsConst = std::is_const_v<DataT>;
@@ -325,7 +333,9 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsAccessAtomic = AccessMode == access::mode::atomic;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   using RefType = detail::const_if_const_AS<AS, DataT> &;
   using ConstRefType = const DataT &;
@@ -398,6 +408,7 @@ constexpr access::mode deduceAccessMode() {
     return access::mode::write;
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   if constexpr (std::is_same_v<
                     MayBeTag1,
                     mode_target_tag_t<access::mode::read,
@@ -408,6 +419,7 @@ constexpr access::mode deduceAccessMode() {
                                       access::target::constant_buffer>>) {
     return access::mode::read;
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   if constexpr (std::is_same_v<MayBeTag1,
                                mode_target_tag_t<access::mode::read,
@@ -430,6 +442,7 @@ constexpr access::mode deduceAccessMode() {
   return access::mode::read_write;
 }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::target deduceAccessTarget(access::target defaultTarget) {
   if constexpr (std::is_same_v<
@@ -442,6 +455,7 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                                       access::target::constant_buffer>>) {
     return access::target::constant_buffer;
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   if constexpr (
       std::is_same_v<MayBeTag1, mode_target_tag_t<access::mode::read,
@@ -603,18 +617,22 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
   friend sycl::detail::ImplUtils;
 
 protected:
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::constant_buffer ||
                  AccessTarget == access::target::host_buffer ||
                  AccessTarget == access::target::host_task),
                 "Expected buffer type");
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   static_assert((AccessTarget == access::target::global_buffer ||
                  AccessTarget == access::target::host_buffer ||
                  AccessTarget == access::target::host_task) ||
                     (AccessTarget == access::target::constant_buffer &&
                      AccessMode == access::mode::read),
                 "Access mode can be only read for constant buffers");
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   static_assert(detail::IsPropertyListT<PropertyListT>::value,
                 "PropertyListT must be accessor_property_list");
@@ -679,6 +697,7 @@ protected:
   static access::mode getAdjustedMode(const PropertyListT &PropertyList) {
     access::mode AdjustedMode = AccessMode;
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
     if (PropertyList.template has_property<property::no_init>() ||
         PropertyList.template has_property<property::noinit>()) {
       if (AdjustedMode == access::mode::write) {
@@ -686,6 +705,7 @@ protected:
       } else if (AdjustedMode == access::mode::read_write) {
         AdjustedMode = access::mode::discard_read_write;
       }
+__SYCL_SUPPRESS_DEPRECATED_POP
     }
 
     return AdjustedMode;
@@ -1666,6 +1686,7 @@ public:
     return *(getQualifiedPtr() + LinearIndex);
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions,
             typename = std::enable_if_t<AccessMode != access_mode::atomic &&
                                         !IsAccessReadOnly && Dims == 0>>
@@ -1673,7 +1694,9 @@ public:
     *getQualifiedPtr() = Other;
     return *this;
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions,
             typename = std::enable_if_t<AccessMode != access_mode::atomic &&
                                         !IsAccessReadOnly && Dims == 0>>
@@ -1681,6 +1704,7 @@ public:
     *getQualifiedPtr() = std::move(Other);
     return *this;
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   template <int Dims = Dimensions,
             typename = std::enable_if_t<(Dims > 0) &&
@@ -1690,6 +1714,7 @@ public:
     return getQualifiedPtr()[LinearIndex];
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions>
   operator typename std::enable_if_t<
       Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
@@ -1698,7 +1723,9 @@ public:
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions>
   typename std::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
                             atomic<DataT, AS>>
@@ -1707,7 +1734,9 @@ public:
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions>
   typename std::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                             atomic<DataT, AS>>
@@ -1716,11 +1745,13 @@ public:
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 1)>>
   auto operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
@@ -1728,6 +1759,7 @@ public:
   std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   template <
       access::target AccessTarget_ = AccessTarget,
@@ -1740,12 +1772,14 @@ public:
             getPointerAdjusted()));
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<AccessTarget_ ==
                                         access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
     return constant_ptr<DataT>(getPointerAdjusted());
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   template <access::decorated IsDecorated,
             access::target AccessTarget_ = AccessTarget,
@@ -1765,6 +1799,7 @@ public:
 
   // accessor::has_property for runtime properties is only available in host
   // code. This restriction is not listed in the core spec and will be added in
+
   // future versions.
   template <typename Property>
   typename std::enable_if_t<
@@ -2055,6 +2090,7 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
 /// Local accessor
 ///
 /// \ingroup sycl_api_acc
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class __SYCL_SPECIAL_CLASS local_accessor_base :
@@ -2063,12 +2099,15 @@ class __SYCL_SPECIAL_CLASS local_accessor_base :
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode,
                                    access::target::local, IsPlaceholder> {
+__SYCL_SUPPRESS_DEPRECATED_POP
 protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   using AccessorCommonT =
       detail::accessor_common<DataT, Dimensions, AccessMode,
                               access::target::local, IsPlaceholder>;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   using AccessorCommonT::AS;
 
@@ -2274,6 +2313,7 @@ public:
     return getQualifiedPtr()[Index];
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions>
   operator typename std::enable_if_t<
       Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
@@ -2281,7 +2321,9 @@ public:
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr()));
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions>
   typename std::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
                             atomic<DataT, AS>>
@@ -2290,7 +2332,9 @@ public:
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions>
   typename std::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                             atomic<DataT, AS>>
@@ -2298,6 +2342,7 @@ public:
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + Index));
   }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 1)>>
   typename AccessorCommonT::template AccessorSubscript<
@@ -2315,6 +2360,7 @@ public:
   }
 };
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 // TODO: Remove deprecated specialization once no longer needed
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
@@ -2324,6 +2370,7 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
       public detail::OwnerLessBase<
           accessor<DataT, Dimensions, AccessMode, access::target::local,
                    IsPlaceholder>> {
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   using local_acc =
       local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
@@ -2547,6 +2594,7 @@ private:
   friend class ext::oneapi::experimental::dynamic_local_accessor;
 };
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename DataT, int Dimensions = 1,
           access_mode AccessMode = access_mode::read_write>
 class __SYCL_EBO host_accessor
@@ -2557,10 +2605,12 @@ class __SYCL_EBO host_accessor
 protected:
   using AccessorT = accessor<DataT, Dimensions, AccessMode, target::host_buffer,
                              access::placeholder::false_t>;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
   constexpr static bool IsAccessReadOnly = AccessMode == access::mode::read;
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <typename T, int Dims>
   struct IsSameAsBuffer
       : std::bool_constant<std::is_same_v<T, DataT> && (Dims > 0) &&
@@ -2571,6 +2621,7 @@ protected:
                            access::placeholder::false_t>::ConcreteASPtrType Ptr,
          range<AdjustedDim> AccessRange, range<AdjustedDim> MemRange,
          id<AdjustedDim> Offset) {
+__SYCL_SUPPRESS_DEPRECATED_POP
     AccessorT::__init(Ptr, AccessRange, MemRange, Offset);
   }
 
@@ -2721,19 +2772,23 @@ public:
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                       PropertyList, CodeLoc) {}
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions,
             typename = std::enable_if_t<AccessMode != access_mode::atomic &&
                                         !IsAccessReadOnly && Dims == 0>>
   const host_accessor &
   operator=(const typename AccessorT::value_type &Other) const {
+__SYCL_SUPPRESS_DEPRECATED_POP
     *AccessorT::getQualifiedPtr() = Other;
     return *this;
   }
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions,
             typename = std::enable_if_t<AccessMode != access_mode::atomic &&
                                         !IsAccessReadOnly && Dims == 0>>
   const host_accessor &operator=(typename AccessorT::value_type &&Other) const {
+__SYCL_SUPPRESS_DEPRECATED_POP
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
   }
