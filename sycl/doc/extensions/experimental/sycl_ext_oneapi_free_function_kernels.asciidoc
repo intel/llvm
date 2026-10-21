@@ -497,8 +497,8 @@ nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, fptr));
 single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, fptr));
 ```
 
-The `args` are used only to resolve the kernel; they are not evaluated more than
-once, and the resolved kernel is launched with those same `args`.
+The `args` are used to resolve the kernel name and are also passed when
+launching the kernel.  Each argument is evaluated exactly once.
 
 The return type of the macro is unspecified.  Applications must use it only in
 the argument position of a free function kernel launch function; the result is
