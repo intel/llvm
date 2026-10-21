@@ -6384,8 +6384,6 @@ class OffloadingActionBuilder final {
         llvm::StringMap<StringRef> FoundNormalizedTriples;
         for (StringRef Val : SYCLTargetsValues->getValues()) {
           StringRef UserTargetName(Val);
-          llvm::Triple TT(
-              C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
           // Resolved AOT device name for deduplication across aliases.
           const char *Device = nullptr;
           if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
@@ -6395,7 +6393,6 @@ class OffloadingActionBuilder final {
               continue;
             }
             UserTargetName = "spir64_gen";
-            TT = C.getDriver().getSYCLDeviceTriple("spir64_gen");
             Device = ValidDevice->data();
           } else if (auto ValidDevice = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
             if (ValidDevice->empty()) {
@@ -6404,7 +6401,6 @@ class OffloadingActionBuilder final {
               continue;
             }
             UserTargetName = "nvptx64-nvidia-cuda";
-            TT = C.getDriver().getSYCLDeviceTriple("nvptx64-nvidia-cuda");
             Device = ValidDevice->data();
           } else if (auto ValidDevice = gen::isGPUTarget<gen::AmdGPU>(Val)) {
             if (ValidDevice->empty()) {
@@ -6413,9 +6409,11 @@ class OffloadingActionBuilder final {
               continue;
             }
             UserTargetName = "amdgcn-amd-amdhsa";
-            TT = C.getDriver().getSYCLDeviceTriple("amdgcn-amd-amdhsa");
             Device = ValidDevice->data();
           }
+
+          llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(UserTargetName,
+                                                            SYCLTargetsValues));
 
           // Deduplicate targets: for GPU AOT, use resolved triple + device name
           // since different aliases of the same device (e.g. intel_gpu_pvc vs
