@@ -26,7 +26,9 @@ template <typename... PropsT> class accessor_property_list;
 namespace detail {
 class PropertyValidator;
 class SYCLMemObjT;
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 class PropertyListBuilder;
+#endif
 } // namespace detail
 
 /// Objects of the property_list class are containers for the SYCL properties
@@ -72,7 +74,9 @@ private:
   friend class ext::oneapi::accessor_property_list;
   friend class detail::PropertyValidator;
   friend class detail::SYCLMemObjT;
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   friend class detail::PropertyListBuilder;
+#endif
 };
 
 namespace detail {
@@ -86,6 +90,7 @@ public:
   }
 };
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 // Builds a property_list at runtime. Used to translate runtime-valued
 // sycl_khr_properties into an old-style property_list.
 class PropertyListBuilder {
@@ -97,6 +102,7 @@ public:
   }
   property_list finalize() { return property_list(MDataLessProps, {}); }
 };
+#endif
 } // namespace detail
 
 } // namespace _V1
