@@ -513,7 +513,9 @@ parameter of the kernel that cannot be deduced from `args` — for example a
 non-type template parameter that does not appear in any function parameter, or a
 type parameter used only in a non-deduced context — must be specified
 explicitly, just as it would be in a direct call to the kernel (this matches the
-behavior of CUDA's `<<<>>>` launch).  See the examples below.
+behavior of CUDA's `<<<>>>` launch).  See
+<<launching-by-name-example, Launching a free function kernel by name>> for a
+complete example.
 
 This macro requires support from both the host compiler and the device
 compiler: the host compiler resolves the kernel to launch, and the device
@@ -1179,47 +1181,88 @@ int main() {
 }
 ----
 
-Alternatively, when the implementation defines
-`SYCL_EXT_ONEAPI_KERNEL_FUNCTION`, the same launches can name the
-kernel by its bare identifier and let the compiler deduce the template argument
-or resolve the overload from the launch arguments:
+When the implementation defines `SYCL_EXT_ONEAPI_KERNEL_FUNCTION`, these kernels
+can also be launched by name, letting the compiler deduce the template argument
+or resolve the overload from the launch arguments.  See
+<<launching-by-name-example, Launching a free function kernel by name>>.
+
+[[launching-by-name-example]]
+=== Launching a free function kernel by name
+
+The following example launches free function kernels by name with the
+`SYCL_EXT_ONEAPI_KERNEL_FUNCTION` macro, which requires an implementation that
+defines it.  The kernel's template arguments are deduced and its overloads are
+resolved from the launch arguments, as in an ordinary call to the kernel.  A
+template argument that cannot be deduced is given explicitly.
 
 [source,c++]
 ----
-#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION
-  // T is deduced as float / int from the launch arguments.
+#include <sycl/sycl.hpp>
+namespace syclext = sycl::ext::oneapi;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
+
+template <typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(T start, T *ptr) {
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+  ptr[id] = start + static_cast<T>(id);
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void ping(float *x) { *x = 1.0f; }
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void ping(int *x) { *x = 1; }
+
+// Dim appears in no function parameter, so it cannot be deduced from the
+// launch arguments and must be given explicitly.
+template <int Dim, typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dim>))
+void fill(T *ptr, T value) {
+  size_t id = syclext::this_work_item::get_nd_item<Dim>().get_global_linear_id();
+  ptr[id] = value;
+}
+
+template <int Dim, int Stride, typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dim>))
+void scale(T *ptr, T factor) {
+  size_t id = syclext::this_work_item::get_nd_item<Dim>().get_global_linear_id();
+  if (id % Stride == 0)
+    ptr[id] *= factor;
+}
+
+int main() {
+  sycl::queue q{sycl::property::queue::in_order()};
+
+  float *fptr = sycl::malloc_shared<float>(NUM, q);
+  int *iptr = sycl::malloc_shared<int>(NUM, q);
+  sycl::nd_range ndr{{NUM}, {WGSIZE}};
+
+  // T is deduced as float and as int from the launch arguments.
   syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, fptr));
   syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3, iptr));
 
-  // The correct ping overload is selected from the argument type.
-  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, fptr));
-  syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, iptr));
-#endif
-----
+  // The ping overload is selected from the argument type.
+  syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, fptr));
+  syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ping, iptr));
 
-A template parameter that cannot be deduced from the launch arguments must still
-be specified explicitly — this is a property of standard C++ template argument
-deduction, not a limitation specific to this macro.  For example:
-
-[source,c++]
-----
-// Dim is a non-type template parameter that appears in no function parameter,
-// so it cannot be deduced from the launch arguments.
-template <int Dim, typename T>
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<Dim>))
-void fill(T *ptr, T value) { /* ... */ }
-
-#ifdef SYCL_EXT_ONEAPI_KERNEL_FUNCTION
-  // Ill-formed: Dim cannot be deduced (same as writing fill(fptr, 1.0f)).
-  // syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, fptr, 1.0f));
-
-  // Specify the non-deducible Dim explicitly; T is still deduced.
+  // The non-deducible Dim is given explicitly; T is still deduced. Writing
+  // SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, fptr, 1.0f) would be ill-formed,
+  // just as the call fill(fptr, 1.0f) is.
   syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill<1>, fptr, 1.0f));
 
-  // A template argument list containing a comma must be parenthesized so the
-  // preprocessor does not split it into separate macro arguments.
-  // syclexp::nd_launch(q, ndr, SYCL_EXT_ONEAPI_KERNEL_FUNCTION((tile<1, 16>), fptr, 1.0f));
-#endif
+  // A template argument list containing a comma must be parenthesized so that
+  // the preprocessor does not split it into separate macro arguments.
+  syclexp::nd_launch(q, ndr,
+                     SYCL_EXT_ONEAPI_KERNEL_FUNCTION((scale<1, 2>), fptr, 2.0f));
+
+  q.wait();
+  sycl::free(fptr, q);
+  sycl::free(iptr, q);
+}
 ----
 
 === Using "scratch" work-group local memory
