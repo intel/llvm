@@ -228,7 +228,10 @@ if(UR_ENABLE_TRACING)
         endif()
     endif()
 
-    if (MSVC)
+    if (DEFINED UR_XPTI_TARGET)
+        # Use previously defined version.
+        set(TARGET_XPTI ${UR_XPTI_TARGET})
+    elseif (MSVC)
         set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)

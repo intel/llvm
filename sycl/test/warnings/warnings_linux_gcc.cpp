@@ -1,3 +1,5 @@
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 // REQUIRES: linux
 // RUN: gcc -Wall -Wextra -Werror -DSYCL_DISABLE_FSYCL_SYCLHPP_WARNING -I%sycl_include %s -L%sycl_libs_dir %sycl_lib -lstdc++ -o %t
 

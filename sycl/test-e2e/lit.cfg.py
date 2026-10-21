@@ -123,7 +123,6 @@ for name in possibly_dangerous_env_vars:
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(
     [
-        "PATH",
         "OCL_ICD_FILENAMES",
         "OCL_ICD_VENDORS",
         "CL_CONFIG_DEVICES",
@@ -698,11 +697,6 @@ if platform.system() == "Windows":
         directx_libs = ["/clang:" + l for l in directx_libs]
     config.substitutions.append(("%link-directx", " ".join(directx_libs)))
 
-if not config.gpu_aot_target_opts:
-    config.gpu_aot_target_opts = '"-device *"'
-
-config.substitutions.append(("%gpu_aot_target_opts", config.gpu_aot_target_opts))
-
 if config.dump_ir_supported:
     config.available_features.add("dump_ir")
 
@@ -1055,6 +1049,18 @@ if any(
 ):
     config.available_features.add("jit")
 
+# "spir-family" is true for a build target/device whose triple is any SPIR
+# triple (JIT spir64, or an AOT spir64_gen/spir64_x86_64 variant), for tests
+# that only care "is this a SPIR backend" not which triple specifically. Kept
+# per-target (not a global available_feature) so it doesn't leak onto
+# non-SPIR targets/devices when a build/run combines multiple triples.
+SPIR_FAMILY_TRIPLES = {"spir64", "spir64_gen", "spir64_x86_64"}
+config.spir_family_targets = {
+    target
+    for target in config.sycl_build_targets
+    if config.target_to_triple.get(target) in SPIR_FAMILY_TRIPLES
+}
+
 if config.llvm_main_include_dir:
     lit_config.note("Using device config file built from LLVM")
     config.available_features.add("device-config-file")
@@ -1266,6 +1272,8 @@ for full_name, sycl_device in zip(
     # Add corresponding target feature
     target = config.backend_to_target[be]
     features.add(target)
+    if target in config.spir_family_targets:
+        features.add("spir-family")
 
     if be == "hip":
         if not config.amd_arch:
@@ -1293,6 +1301,38 @@ if amd_arch:
         f"-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch={amd_arch}"
     )
 config.substitutions.append(("%amd_arch_options", amd_arch_flags))
+
+# Intel GPU AOT target(s), as a -fsycl-targets value. Uses the detected Intel
+# GPU architectures, or intel_gpu_dg2 if none are detected (e.g. build-only
+# mode). CI passes the architectures of its run-only runners.
+if not config.gpu_aot_target:
+    intel_gpu_archs = sorted(
+        feature[len("arch-") :]
+        for feature in set().union(*config.sycl_dev_features.values())
+        if feature.startswith("arch-intel_gpu_")
+    )
+    config.gpu_aot_target = ",".join(intel_gpu_archs)
+    if not config.gpu_aot_target:
+        config.gpu_aot_target = "intel_gpu_dg2"
+        lit_config.note(
+            "No Intel GPU detected, defaulting the AOT target to intel_gpu_dg2"
+        )
+lit_config.note("Intel GPU AOT target: {}".format(config.gpu_aot_target))
+config.substitutions.append(("%{gpu_aot_target}", config.gpu_aot_target))
+
+# Extra backend options for Intel GPU AOT compilation, passed for each target in
+# gpu_aot_target. The device is selected by gpu_aot_target instead.
+if "-device" in config.gpu_aot_target_opts.split():
+    lit_config.error(
+        "gpu_aot_target_opts must not contain -device; use gpu_aot_target to "
+        "select the Intel GPU AOT target(s)"
+    )
+config.gpu_aot_backend_opts = ""
+if config.gpu_aot_target_opts:
+    config.gpu_aot_backend_opts = " ".join(
+        "-Xsycl-target-backend={} '{}'".format(target, config.gpu_aot_target_opts)
+        for target in config.gpu_aot_target.split(",")
+    )
 
 if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))

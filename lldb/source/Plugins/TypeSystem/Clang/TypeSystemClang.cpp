@@ -8754,7 +8754,7 @@ bool TypeSystemClang::DumpTypeValue(
         case eFormatBoolean:
         case eFormatBinary:
         case eFormatComplex:
-        case eFormatCString: // NULL terminated C strings
+        case eFormatCString: // null-terminated C strings
         case eFormatDecimal:
         case eFormatEnum:
         case eFormatHex:

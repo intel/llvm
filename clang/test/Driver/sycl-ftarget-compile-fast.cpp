@@ -1,10 +1,10 @@
 // Test -ftarget-compile-fast behaviors
 
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
-// RUN:    -fsycl-targets=spir64_gen -ftarget-compile-fast %s 2>&1 \
+// RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-compile-fast %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=TARGET_COMPILE_FAST_GEN %s
 // RUN: %clang_cl -### --target=x86_64-pc-windows-msvc -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL \
-// RUN:     -fsycl-targets=spir64_gen -ftarget-compile-fast %s 2>&1 \
+// RUN:     -fsycl-targets=intel_gpu_pvc -ftarget-compile-fast %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=TARGET_COMPILE_FAST_GEN %s
 
 // TARGET_COMPILE_FAST_GEN: llvm-offload-binary
