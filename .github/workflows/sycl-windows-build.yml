@@ -34,6 +34,11 @@ on:
         type: string
         default: 3
 
+      toolchain_artifact:
+        type: string
+        required: false
+        default: sycl_windows_default
+
       toolchain_artifact_filename:
         type: string
         default: llvm_sycl.tar.gz
@@ -205,7 +210,7 @@ jobs:
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: sycl_windows_abi_symbols
+        name: ${{ (inputs.toolchain_artifact == '' || inputs.toolchain_artifact == 'sycl_windows_default') && 'sycl_windows_abi_symbols' || format('{0}_abi_symbols', inputs.toolchain_artifact) }}
         path: build/new_sycl_symbols_windows.dump
         retention-days: ${{ inputs.retention-days }}
     - name: Install sycl-toolchain
@@ -239,7 +244,7 @@ jobs:
       if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: sycl_windows_default
+        name: ${{ inputs.toolchain_artifact || 'sycl_windows_default' }}
         path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 

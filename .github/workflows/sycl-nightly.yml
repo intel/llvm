@@ -123,6 +123,35 @@ jobs:
       toolchain_artifact: sycl_linux_libcxx
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
+  build-linux-debug-all-backends:
+    needs: get_date
+    if: github.repository == 'intel/llvm'
+    strategy:
+      fail-fast: false
+      matrix:
+        static: ['ON', 'OFF']
+
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: debug-backends-static-${{ matrix.static }}
+      build_target: all
+      build_configure_extra_args: >-
+        -t Debug
+        --cuda
+        --native_cpu
+        --hip --hip-platform AMD
+        --offload
+        --level_zero_adapter_version ALL
+        -DUR_STATIC_LOADER=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_OPENCL=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0_V2=${{ matrix.static }}
+        -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      toolchain_artifact: linux-debug-backends-static-${{ matrix.static }}
+      toolchain_artifact_filename: sycl_linux_debug.tar.zst
+      retention-days: 3
+
   ubuntu2204_test_nvidia_gen12:
     needs: [ubuntu2204_build]
     name: E2E NVIDIA and GEN12 OCL with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
@@ -359,31 +388,34 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
-  build-win-all-backends:
+  build-win-debug-all-backends:
     needs: get_date
-    uses: ./.github/workflows/sycl-windows-build.yml
     if: github.repository == 'intel/llvm'
-    with:
-      retention-days: 90
-      # We upload both Linux/Windows build via Github's "Releases"
-      # functionality, make sure Linux/Windows names follow the same pattern.
-      toolchain_artifact_filename: sycl_windows.tar.gz
-      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: --cuda --native_cpu -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
-      build_target: all
+    strategy:
+      fail-fast: false
+      matrix:
+        static: ['ON', 'OFF']
 
-  build-win-debug:
-    needs: get_date
     uses: ./.github/workflows/sycl-windows-build.yml
-    if: github.repository == 'intel/llvm'
     with:
-      retention-days: 90
-      # We upload both Linux/Windows build via Github's "Releases"
-      # functionality, make sure Linux/Windows names follow the same pattern.
-      toolchain_artifact_filename: sycl_windows.tar.gz
-      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -t Debug -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      build_cache_suffix: debug-backends-static-${{ matrix.static }}
       build_target: all
+      build_configure_extra_args: >-
+        -t Debug
+        --cuda
+        --native_cpu
+        --hip --hip-platform AMD
+        --offload
+        --level_zero_adapter_version ALL
+        -DUR_STATIC_LOADER=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_OPENCL=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0_V2=${{ matrix.static }}
+        -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=OFF
+        -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      toolchain_artifact: windows-debug-backends-static-${{ matrix.static }}
+      toolchain_artifact_filename: sycl_windows_debug.tar.gz
+      retention-days: 3
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
