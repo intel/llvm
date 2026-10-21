@@ -2,7 +2,7 @@
 // RUN: %{build} %{full_atomic_flags} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: any-target-is-nvidia, any-target-is-amd, spirv-backend
+// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
 // UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
 
 #include <sycl/atomic_ref.hpp>
