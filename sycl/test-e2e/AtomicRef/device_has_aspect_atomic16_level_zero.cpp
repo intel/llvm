@@ -1,5 +1,5 @@
-// REQUIRES: level_zero, level_zero_dev_kit, arch-intel_gpu_cri
-// RUN: %{build} -o %t.out %level_zero_options
+// REQUIRES: level_zero, level_zero_dev_kit
+// RUN: %{build_atomic} -o %t.out %level_zero_options
 // RUN: %{run} %t.out
 
 #include <level_zero/ze_api.h>
