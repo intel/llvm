@@ -169,6 +169,8 @@ static cl::opt<bool>
 extern cl::opt<std::string> UseCtxProfile;
 
 extern cl::opt<bool> EnableMemProfContextDisambiguation;
+
+extern cl::opt<bool> EnableProfcheckInPipeline;
 } // namespace llvm
 
 PipelineTuningOptions::PipelineTuningOptions(
@@ -292,7 +294,7 @@ static void instructionCountersPass(ModulePassManager &MPM,
 static void addPipelineStartPasses(ModulePassManager &MPM,
                                    const PassesOptions &Opts) {
   instructionCountersPass(MPM, /*IsPreOptimization=*/true);
-  if (Opts.enable_profcheck_in_pipeline)
+  if (EnableProfcheckInPipeline)
     MPM.addPass(createModuleToFunctionPassAdaptor(ProfileInjectorPass()));
 }
 
@@ -301,7 +303,7 @@ static void addPipelineStartPasses(ModulePassManager &MPM,
 static void addPipelineEndPasses(ModulePassManager &MPM,
                                  const PassesOptions &Opts) {
   instructionCountersPass(MPM, /*IsPreOptimization=*/false);
-  if (Opts.enable_profcheck_in_pipeline)
+  if (EnableProfcheckInPipeline)
     MPM.addPass(ProfileVerifierPass());
 }
 
