@@ -5943,20 +5943,8 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
-// Handle __builtin_sycl_launch_kernel(name(launch-args...)). The
-// SYCL_EXT_ONEAPI_KERNEL_FUNCTION launch macro expands to
-//
-//   kernel_function<__builtin_sycl_launch_kernel(name(args...))>, args...
-//
-// so this builtin sits in the `kernel_function<Func>` non-type template
-// parameter slot of an enqueue function. Its operand is an ordinary call
-// expression: the parser sees `name(`, so name lookup (including
-// argument-dependent lookup), overload resolution and template argument
-// deduction run exactly as for a direct call, and a bad launch is diagnosed at
-// the call as written. The builtin only reads the selected callee and evaluates
-// to a pointer to it, a constant expression usable as the `auto *Func` NTTP.
-// The call itself is discarded; the same launch arguments are passed
-// positionally to the enqueue function to perform the actual launch.
+// The operand of __builtin_sycl_launch_kernel is an ordinary call, already
+// resolved; the builtin evaluates to a pointer to its callee.
 ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   if (TheCall->getNumArgs() != 1) {
     Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
@@ -5965,22 +5953,15 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
 
   Expr *KernelCall = TheCall->getArg(0);
 
-  // Depend on template parameters: defer until instantiation. When the call is
-  // dependent, Sema::BuildCallExpr has already created this builtin call with a
-  // dependent result type and skipped custom type checking, so we simply
-  // return it; this handler re-runs on the instantiated call.
+  // Resolved again when the call is instantiated.
   if (KernelCall->isTypeDependent() || KernelCall->isValueDependent())
     return TheCall;
 
-  // Overload resolution or deduction failed and was already diagnosed at the
-  // call (BuildCallExpr can return a recovery expression rather than an
-  // invalid one). Nothing to add.
+  // The failed call has already been diagnosed.
   if (KernelCall->containsErrors())
     return ExprError();
 
-  // The operand must be a call to a named function. A call through a pointer,
-  // to a member function or to a function object does not name a free
-  // function kernel.
+  // Free function kernels are non-member functions called directly.
   auto *CE = dyn_cast<CallExpr>(KernelCall->IgnoreParens());
   FunctionDecl *ResolvedFn =
       CE && !isa<CXXMemberCallExpr, CXXOperatorCallExpr>(CE)
@@ -5995,14 +5976,8 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   if (ResolvedFn->isDeleted())
     return ExprError();
 
-  // Free-function-kernel verification is only meaningful during device
-  // compilation. On the host pass the SYCL driver prepends the integration
-  // header, whose attribute-less forward declaration of the kernel would make
-  // isFreeFunction() spuriously fail; the host pass only needs the resolved
-  // function pointer for the runtime launch. The device pass performs the real
-  // validation. Building the call already marked the kernel referenced, so its
-  // definition is emitted through the free-function-kernel path exactly as for
-  // the explicit kernel_function<Func> form.
+  // Checked only on the device side: on the host side the integration header
+  // forward declares the kernel without its properties.
   SourceLocation Loc = CE->getCallee()->getBeginLoc();
   if (getLangOpts().SYCLIsDevice && !isFreeFunction(ResolvedFn)) {
     Diag(Loc, diag::err_sycl_launch_kernel_not_free_function);
@@ -6010,11 +5985,6 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
     return ExprError();
   }
 
-  // Evaluate to &ResolvedFn: an ordinary function-pointer constant expression
-  // (the builtin CallExpr itself is not constant-foldable), usable directly as
-  // the `auto *Func` non-type template parameter of kernel_function<Func>. The
-  // emitted SPIR-V kernel is therefore the real user function (no wrapper) and
-  // the runtime launch path is unchanged.
   QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());
   ExprResult FnRef = SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(),
                                               VK_LValue, Loc);

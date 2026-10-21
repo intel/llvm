@@ -74,39 +74,13 @@ template <typename T> struct is_device_copyable;
 } // namespace _V1
 } // namespace sycl
 
-// CUDA-`<<<>>>`-style bare-name launch. SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME,
-// args...) lets a free function kernel be launched by naming it directly, with
-// the compiler deducing its template arguments / resolving the overload from
-// the launch arguments, while keeping the existing enqueue-function API
-// unchanged:
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...) expands to the
+// kernel_function<Func> argument of a launch function followed by args, where
+// Func is the kernel that the call name(args...) selects:
 //
 //   nd_launch(q, range, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, ptr));
-//   single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(store42, ptr));
 //
-// The macro expands into two comma-separated arguments of the enclosing enqueue
-// call: the kernel_function<Func> non-type-template selector followed by the
-// same launch arguments. __builtin_sycl_launch_kernel takes the call
-// NAME(args...), which C++ resolves exactly like a direct call (name lookup
-// including argument-dependent lookup, overload resolution, template argument
-// deduction), and evaluates to a pointer to the chosen specialization, which
-// fills the
-// `auto *Func` template parameter. The launch arguments are then forwarded
-// normally, so the emitted SPIR-V kernel is the real user function (no wrapper)
-// and the launch path is exactly kernel_function<Func>.
-//
-// Non-deducible template parameters (those appearing in no function parameter)
-// must still be spelled explicitly, e.g.
-// SYCL_EXT_ONEAPI_KERNEL_FUNCTION((kern<float, 32>), args); this is a
-// fundamental C++ limitation, matching CUDA.
-//
-// SYCL_EXT_ONEAPI_KERNEL_FUNCTION requires support from both the host compiler
-// and the device compiler: it relies on the __builtin_sycl_launch_kernel
-// builtin, with which the host compiler resolves the kernel to launch and the
-// device compiler emits the selected kernel. The remaining APIs of this
-// extension need support only from the device compiler, so they can be used
-// with any host compiler. The macro is therefore defined only when the builtin
-// is available, so applications can test whether it is defined and provide
-// their own fallback when it is not.
+// It is defined only when the compiler provides __builtin_sycl_launch_kernel.
 #ifndef __has_builtin
 // Older MSVC (< VS2019 16.1) lacks __has_builtin; treat as "not available".
 #define __has_builtin(x) 0

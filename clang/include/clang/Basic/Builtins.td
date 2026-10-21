@@ -5355,14 +5355,9 @@ def SYCLIsNDRangeKernel : LangBuiltin<"SYCL_LANG"> {
   let Prototype = "bool(...)";
 }
 
-// Takes a call to a (possibly overloaded / templated) free function kernel,
-// resolved by ordinary C++ name lookup (including ADL), overload resolution and
-// template-argument deduction, and evaluates to a pointer to the selected
-// specialization. Used by the SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...)
-// launch macro to fill the `kernel_function<Func>` non-type template parameter
-// of the enqueue functions from a bare kernel name, e.g.
-//   nd_launch(q, range, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, p));
-// The call is consumed only to select the kernel and is never emitted.
+// Takes a call to a SYCL free function kernel and evaluates to a pointer to the
+// function the call selects; the call is not evaluated. Used by the
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro.
 def SYCLLaunchKernel : LangBuiltin<"SYCL_LANG"> {
   let Spellings = ["__builtin_sycl_launch_kernel"];
   let Attributes = [NoThrow, CustomTypeChecking];
