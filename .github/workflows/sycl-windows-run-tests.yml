@@ -43,6 +43,7 @@ on:
         type: string
         default: 'sycl_windows_default'
         required: False
+
       toolchain_artifact_filename:
         type: string
         default: ''
