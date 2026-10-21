@@ -988272,12 +988272,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988290,12 +988290,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988308,12 +988308,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988326,12 +988326,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988344,12 +988344,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988362,12 +988362,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988380,12 +988380,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988398,12 +988398,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988416,12 +988416,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988434,12 +988434,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988452,12 +988452,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988470,12 +988470,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988488,12 +988488,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988506,12 +988506,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988524,12 +988524,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988542,12 +988542,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "L0",
+        "submit",
+        "UR",
         "latency",
         "SYCL",
-        "submit",
-        "micro",
-        "UR",
-        "L0"
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988560,13 +988560,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988579,13 +988579,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988598,13 +988598,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988617,13 +988617,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988636,13 +988636,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988655,13 +988655,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988674,13 +988674,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988693,13 +988693,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988712,13 +988712,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988731,13 +988731,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988750,13 +988750,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988769,13 +988769,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988788,13 +988788,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988807,13 +988807,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988826,13 +988826,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988845,13 +988845,13 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
-        "latency",
-        "OFFLOAD",
-        "SYCL",
+        "L0",
         "submit",
-        "micro",
+        "OFFLOAD",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": 0.0,
       "range_max": null,
@@ -988865,12 +988865,12 @@
       "unstable": null,
       "tags": [
         "UR",
-        "submit",
-        "memory",
-        "latency",
-        "proxy",
+        "graph",
         "L0",
-        "graph"
+        "submit",
+        "latency",
+        "memory",
+        "proxy"
       ],
       "range_min": null,
       "range_max": null,
@@ -988884,12 +988884,12 @@
       "unstable": null,
       "tags": [
         "UR",
-        "submit",
-        "memory",
-        "latency",
-        "proxy",
+        "graph",
         "L0",
-        "graph"
+        "submit",
+        "latency",
+        "memory",
+        "proxy"
       ],
       "range_min": null,
       "range_max": null,
@@ -988902,12 +988902,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "submit",
-        "latency",
-        "micro",
         "UR",
-        "L0"
+        "L0",
+        "latency",
+        "submit",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -988920,12 +988920,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "submit",
-        "latency",
-        "micro",
         "UR",
-        "L0"
+        "L0",
+        "latency",
+        "submit",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -988938,10 +988938,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "submit",
         "SYCL",
-        "micro",
-        "submit"
+        "latency",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -988954,13 +988954,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -988973,13 +988973,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -988992,13 +988992,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989011,13 +989011,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989030,13 +989030,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989049,13 +989049,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989068,13 +989068,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989087,13 +989087,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989106,13 +989106,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989125,13 +989125,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989144,13 +989144,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989163,13 +989163,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989182,13 +989182,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989201,13 +989201,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989220,13 +989220,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989239,13 +989239,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989258,13 +989258,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989277,13 +989277,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989296,13 +989296,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989315,13 +989315,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989334,13 +989334,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989353,13 +989353,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989372,13 +989372,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989391,13 +989391,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989410,13 +989410,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989429,13 +989429,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989448,13 +989448,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989467,13 +989467,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989486,13 +989486,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989505,13 +989505,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989524,13 +989524,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989543,13 +989543,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989562,13 +989562,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989581,13 +989581,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989600,13 +989600,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989619,13 +989619,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989638,13 +989638,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989657,13 +989657,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989676,13 +989676,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989695,13 +989695,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989714,13 +989714,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989733,13 +989733,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989752,13 +989752,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989771,13 +989771,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989790,13 +989790,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989809,13 +989809,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989828,13 +989828,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989847,13 +989847,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "latency",
+        "L0",
         "graph",
-        "SYCL",
         "submit",
-        "micro",
         "UR",
-        "L0"
+        "latency",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989867,10 +989867,10 @@
       "unstable": null,
       "tags": [
         "graph",
-        "SYCL",
         "latency",
-        "micro",
-        "finalize"
+        "finalize",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989884,10 +989884,10 @@
       "unstable": null,
       "tags": [
         "graph",
-        "SYCL",
         "latency",
-        "micro",
-        "finalize"
+        "finalize",
+        "SYCL",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -989940,8 +989940,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -989955,8 +989955,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -989970,8 +989970,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -989985,8 +989985,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990000,8 +990000,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990015,8 +990015,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990030,8 +990030,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990045,8 +990045,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990060,8 +990060,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990075,8 +990075,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990090,8 +990090,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990105,8 +990105,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990120,8 +990120,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990135,8 +990135,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990150,8 +990150,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990165,8 +990165,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990180,8 +990180,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990195,8 +990195,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990210,8 +990210,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990225,8 +990225,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990240,8 +990240,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990255,8 +990255,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990270,8 +990270,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990285,8 +990285,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990300,8 +990300,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990315,8 +990315,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990330,8 +990330,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990345,8 +990345,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990360,8 +990360,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990375,8 +990375,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990390,8 +990390,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990405,8 +990405,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990420,8 +990420,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990435,8 +990435,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990450,8 +990450,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990465,8 +990465,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990480,8 +990480,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990495,8 +990495,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990510,8 +990510,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990525,8 +990525,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990540,8 +990540,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990555,8 +990555,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990570,8 +990570,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990585,8 +990585,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990600,8 +990600,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990615,8 +990615,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990630,8 +990630,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990645,8 +990645,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990660,8 +990660,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990675,8 +990675,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990690,8 +990690,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990705,8 +990705,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990720,8 +990720,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990735,8 +990735,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990750,8 +990750,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990765,8 +990765,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990780,8 +990780,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990795,8 +990795,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990810,8 +990810,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990825,8 +990825,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990840,8 +990840,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990855,8 +990855,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990870,8 +990870,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990885,8 +990885,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990900,8 +990900,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990915,8 +990915,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990930,8 +990930,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990945,8 +990945,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990960,8 +990960,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990975,8 +990975,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -990990,8 +990990,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -991005,8 +991005,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -991020,8 +991020,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -991035,8 +991035,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -991051,8 +991051,8 @@
       "tags": [
         "UR",
         "latency",
-        "memory",
-        "micro"
+        "micro",
+        "memory"
       ],
       "range_min": null,
       "range_max": null,
@@ -991067,8 +991067,8 @@
       "tags": [
         "UR",
         "latency",
-        "memory",
-        "micro"
+        "micro",
+        "memory"
       ],
       "range_min": null,
       "range_max": null,
@@ -991081,10 +991081,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "micro",
         "memory",
-        "latency"
+        "SYCL",
+        "latency",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -991097,10 +991097,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "SYCL",
-        "micro",
         "memory",
-        "latency"
+        "SYCL",
+        "latency",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -995231,23 +995231,6 @@
       "display_name": "UR SubmitGraph out of order with measure completion with events, 32 kernels",
       "explicit_group": "SubmitGraph out of order with measure completion with events, 32 kernels"
     },
-    "graph_api_benchmark_ur SubmitGraph native recording numKernels:4 ioq 1 MeasureCompletionTime 0": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 4 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order, 4 kernels",
-      "explicit_group": "SubmitGraph native recording in order, 4 kernels"
-    },
     "graph_api_benchmark_ur SubmitGraph numKernels:4 ioq 1 MeasureCompletionTime 0": {
       "type": "benchmark",
       "description": "Measures UR performance when executing 4 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
@@ -995264,23 +995247,6 @@
       "range_max": null,
       "display_name": "UR SubmitGraph in order, 4 kernels",
       "explicit_group": "SubmitGraph in order, 4 kernels"
-    },
-    "graph_api_benchmark_ur SubmitGraph native recording with events numKernels:4 ioq 1 MeasureCompletionTime 0": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 4 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with events, 4 kernels",
-      "explicit_group": "SubmitGraph native recording in order with events, 4 kernels"
     },
     "graph_api_benchmark_ur SubmitGraph with events numKernels:4 ioq 1 MeasureCompletionTime 0": {
       "type": "benchmark",
@@ -995299,23 +995265,6 @@
       "display_name": "UR SubmitGraph in order with events, 4 kernels",
       "explicit_group": "SubmitGraph in order with events, 4 kernels"
     },
-    "graph_api_benchmark_ur SubmitGraph native recording numKernels:4 ioq 1 MeasureCompletionTime 1": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 4 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with measure completion, 4 kernels",
-      "explicit_group": "SubmitGraph native recording in order with measure completion, 4 kernels"
-    },
     "graph_api_benchmark_ur SubmitGraph numKernels:4 ioq 1 MeasureCompletionTime 1": {
       "type": "benchmark",
       "description": "Measures UR performance when executing 4 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
@@ -995332,23 +995281,6 @@
       "range_max": null,
       "display_name": "UR SubmitGraph in order with measure completion, 4 kernels",
       "explicit_group": "SubmitGraph in order with measure completion, 4 kernels"
-    },
-    "graph_api_benchmark_ur SubmitGraph native recording with events numKernels:4 ioq 1 MeasureCompletionTime 1": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 4 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with measure completion with events, 4 kernels",
-      "explicit_group": "SubmitGraph native recording in order with measure completion with events, 4 kernels"
     },
     "graph_api_benchmark_ur SubmitGraph with events numKernels:4 ioq 1 MeasureCompletionTime 1": {
       "type": "benchmark",
@@ -995367,23 +995299,6 @@
       "display_name": "UR SubmitGraph in order with measure completion with events, 4 kernels",
       "explicit_group": "SubmitGraph in order with measure completion with events, 4 kernels"
     },
-    "graph_api_benchmark_ur SubmitGraph native recording numKernels:10 ioq 1 MeasureCompletionTime 0": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 10 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order, 10 kernels",
-      "explicit_group": "SubmitGraph native recording in order, 10 kernels"
-    },
     "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 1 MeasureCompletionTime 0": {
       "type": "benchmark",
       "description": "Measures UR performance when executing 10 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
@@ -995400,23 +995315,6 @@
       "range_max": null,
       "display_name": "UR SubmitGraph in order, 10 kernels",
       "explicit_group": "SubmitGraph in order, 10 kernels"
-    },
-    "graph_api_benchmark_ur SubmitGraph native recording with events numKernels:10 ioq 1 MeasureCompletionTime 0": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 10 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with events, 10 kernels",
-      "explicit_group": "SubmitGraph native recording in order with events, 10 kernels"
     },
     "graph_api_benchmark_ur SubmitGraph with events numKernels:10 ioq 1 MeasureCompletionTime 0": {
       "type": "benchmark",
@@ -995435,23 +995333,6 @@
       "display_name": "UR SubmitGraph in order with events, 10 kernels",
       "explicit_group": "SubmitGraph in order with events, 10 kernels"
     },
-    "graph_api_benchmark_ur SubmitGraph native recording numKernels:10 ioq 1 MeasureCompletionTime 1": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 10 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with measure completion, 10 kernels",
-      "explicit_group": "SubmitGraph native recording in order with measure completion, 10 kernels"
-    },
     "graph_api_benchmark_ur SubmitGraph numKernels:10 ioq 1 MeasureCompletionTime 1": {
       "type": "benchmark",
       "description": "Measures UR performance when executing 10 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
@@ -995468,23 +995349,6 @@
       "range_max": null,
       "display_name": "UR SubmitGraph in order with measure completion, 10 kernels",
       "explicit_group": "SubmitGraph in order with measure completion, 10 kernels"
-    },
-    "graph_api_benchmark_ur SubmitGraph native recording with events numKernels:10 ioq 1 MeasureCompletionTime 1": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 10 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with measure completion with events, 10 kernels",
-      "explicit_group": "SubmitGraph native recording in order with measure completion with events, 10 kernels"
     },
     "graph_api_benchmark_ur SubmitGraph with events numKernels:10 ioq 1 MeasureCompletionTime 1": {
       "type": "benchmark",
@@ -995503,23 +995367,6 @@
       "display_name": "UR SubmitGraph in order with measure completion with events, 10 kernels",
       "explicit_group": "SubmitGraph in order with measure completion with events, 10 kernels"
     },
-    "graph_api_benchmark_ur SubmitGraph native recording numKernels:32 ioq 1 MeasureCompletionTime 0": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 32 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order, 32 kernels",
-      "explicit_group": "SubmitGraph native recording in order, 32 kernels"
-    },
     "graph_api_benchmark_ur SubmitGraph numKernels:32 ioq 1 MeasureCompletionTime 0": {
       "type": "benchmark",
       "description": "Measures UR performance when executing 32 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
@@ -995536,23 +995383,6 @@
       "range_max": null,
       "display_name": "UR SubmitGraph in order, 32 kernels",
       "explicit_group": "SubmitGraph in order, 32 kernels"
-    },
-    "graph_api_benchmark_ur SubmitGraph native recording with events numKernels:32 ioq 1 MeasureCompletionTime 0": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 32 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with events, 32 kernels",
-      "explicit_group": "SubmitGraph native recording in order with events, 32 kernels"
     },
     "graph_api_benchmark_ur SubmitGraph with events numKernels:32 ioq 1 MeasureCompletionTime 0": {
       "type": "benchmark",
@@ -995571,23 +995401,6 @@
       "display_name": "UR SubmitGraph in order with events, 32 kernels",
       "explicit_group": "SubmitGraph in order with events, 32 kernels"
     },
-    "graph_api_benchmark_ur SubmitGraph native recording numKernels:32 ioq 1 MeasureCompletionTime 1": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 32 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with measure completion, 32 kernels",
-      "explicit_group": "SubmitGraph native recording in order with measure completion, 32 kernels"
-    },
     "graph_api_benchmark_ur SubmitGraph numKernels:32 ioq 1 MeasureCompletionTime 1": {
       "type": "benchmark",
       "description": "Measures UR performance when executing 32 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
@@ -995604,23 +995417,6 @@
       "range_max": null,
       "display_name": "UR SubmitGraph in order with measure completion, 32 kernels",
       "explicit_group": "SubmitGraph in order with measure completion, 32 kernels"
-    },
-    "graph_api_benchmark_ur SubmitGraph native recording with events numKernels:32 ioq 1 MeasureCompletionTime 1": {
-      "type": "benchmark",
-      "description": "Measures UR performance when executing 32 trivial kernels using graphs. Tests overhead and benefits of graph-based execution.",
-      "notes": null,
-      "unstable": null,
-      "tags": [
-        "graph",
-        "UR",
-        "micro",
-        "submit",
-        "latency"
-      ],
-      "range_min": null,
-      "range_max": null,
-      "display_name": "UR SubmitGraph native recording in order with measure completion with events, 32 kernels",
-      "explicit_group": "SubmitGraph native recording in order with measure completion with events, 32 kernels"
     },
     "graph_api_benchmark_ur SubmitGraph with events numKernels:32 ioq 1 MeasureCompletionTime 1": {
       "type": "benchmark",
@@ -1000630,6 +1000426,6 @@
     "runs": {}
   },
   "defaultCompareNames": [
-    "Baseline_BMG_L0v2"
+    "Baseline_BMG_L0"
   ]
 }
