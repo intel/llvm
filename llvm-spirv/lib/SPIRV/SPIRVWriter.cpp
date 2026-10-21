@@ -3341,8 +3341,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
         BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem || BV->getOpCode() == OpFmaKHR ||
-        IsSPV16Op || IsFC2Op) {
+        BV->getOpCode() == OpFRem || BV->getOpCode() == OpFmaKHR || IsSPV16Op ||
+        IsFC2Op) {
       bool AllowFloatControls2 =
           BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
       bool AllowIntelFpFastMathMode =
@@ -6054,6 +6054,15 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
                               &Dec)) {
+    if (DemangledName == "__spirv_ocl_fmod" &&
+        CI->getFastMathFlags().isFast() &&
+        (CI->getType()->isFloatTy() || CI->getType()->isDoubleTy()))
+      return addDecorations(
+          BM->addBinaryInst(OpFRem, transType(CI->getType()),
+                            transValue(CI->getArgOperand(0), BB),
+                            transValue(CI->getArgOperand(1), BB), BB),
+          Dec);
+
     if (const auto *FirstArg = F->getArg(0)) {
       const auto *Type = FirstArg->getType();
       if (Type->isBFloatTy())
