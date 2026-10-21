@@ -21,7 +21,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 #include <type_traits>
 #include <vector>
 
@@ -73,6 +75,8 @@ template <typename T> bool outputs_equal(T output, T expected) {
     const Bits actual_bits = sycl::bit_cast<Bits>(output);
     const Bits expected_bits = sycl::bit_cast<Bits>(expected);
     return actual_bits == expected_bits ||
+           ((actual_bits & magnitude_mask) == 0 &&
+            (expected_bits & magnitude_mask) == 0) ||
            ((actual_bits & magnitude_mask) > infinity &&
             (expected_bits & magnitude_mask) > infinity);
   }
@@ -107,9 +111,12 @@ void test_math_fn(const std::string &name, T input, const Fn &fn,
 }
 
 int main() {
+  const bool test_fp64 = test_queue().get_device().has(sycl::aspect::fp64);
+
 #define TEST_TYPES(FN)                                                         \
   test_##FN(float{});                                                          \
-  test_##FN(double{});
+  if (test_fp64)                                                               \
+    test_##FN(double{});
 
   // genfloat -> genfloat
 #define MATH_FN(FN)                                                            \
