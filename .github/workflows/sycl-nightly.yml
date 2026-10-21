@@ -323,7 +323,7 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      build_configure_extra_args: --cuda -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
       build_target: all
 
   e2e-win:
@@ -337,7 +337,7 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        gpu_type: ['gen12', 'arc', 'bmg']
+        gpu_type: ['gen12', 'arc', 'bmg', 'cuda']
         include:
           - gpu_type: 'gen12'
             name: Intel Gen12 GPU
@@ -351,11 +351,16 @@ jobs:
             name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
 
+          - gpu_type: 'cuda'
+            name: NVIDIA A100 GPU
+            runner: '["Windows", "cuda"]'
+            target_devices: cuda:gpu
+
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      target_devices: level_zero:gpu
+      target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
