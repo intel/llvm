@@ -13,7 +13,6 @@ function(add_l0_loader_kernels_test name)
     target_link_libraries(${name}-test PRIVATE
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${name}-test PRIVATE
@@ -26,7 +25,6 @@ function(add_l0_loader_devices_test name)
     target_link_libraries(${name}-test PRIVATE
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${name}-test PRIVATE

@@ -135,10 +135,10 @@
 /// case, so the driver emits an error and redirects users to
 /// -fsyclbin=executable.
 // RUN: not %clangxx -fsyclbin=object -fno-sycl-allow-device-image-dependencies \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
 // RUN: not %clangxx -fsyclbin=input -fno-sycl-allow-device-image-dependencies \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
 // CHECK_DEPS_CONFLICT: error: invalid argument '-fno-sycl-allow-device-image-dependencies' not allowed with '-fsyclbin={{input|object}}'
 

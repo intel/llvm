@@ -55,15 +55,15 @@
 // RUN:   -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_JIT %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: not %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=dg2:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_DEVICE %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: not %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=pvc:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_MODE %s
 
-// RUN: not %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: not %clang -### -fsycl --offload-new-driver \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
 
