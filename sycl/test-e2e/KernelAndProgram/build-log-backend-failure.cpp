@@ -1,9 +1,12 @@
 // REQUIRES: gpu
-// RUN: %if cuda %{ \
+// RUN: %if target-nvidia %{ \
 // RUN:   not %{build} -o %t.exe > %t.out 2>&1 && \
 // RUN:   FileCheck %s --check-prefix=CHECK-PTXAS-ERROR --input-file %t.out \
 // RUN: %} %else %{ \
-// RUN:   %{build} -o %t.exe && \
+// RUN:   %{build} -o %t.exe \
+// RUN: %}
+
+// RUN: %if !cuda %{ \
 // RUN:   %{run} %t.exe > %t.out 2>&1 && \
 // RUN:   %{run-aux} FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out \
 // RUN: %}
