@@ -1,5 +1,5 @@
 // REQUIRES: arch-intel_gpu_cri
-// RUN: %{build_atomic} -o %t.out
+// RUN: %{build} %{full_atomic_flags} -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: any-target-is-nvidia, any-target-is-amd, spirv-backend
