@@ -359,6 +359,32 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
+  build-win-all-backends:
+    needs: get_date
+    uses: ./.github/workflows/sycl-windows-build.yml
+    if: github.repository == 'intel/llvm'
+    with:
+      retention-days: 90
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
+      toolchain_artifact_filename: sycl_windows.tar.gz
+      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
+      build_configure_extra_args: --cuda --native_cpu -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      build_target: all
+
+  build-win-debug:
+    needs: get_date
+    uses: ./.github/workflows/sycl-windows-build.yml
+    if: github.repository == 'intel/llvm'
+    with:
+      retention-days: 90
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
+      toolchain_artifact_filename: sycl_windows.tar.gz
+      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
+      build_configure_extra_args: -t Debug -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      build_target: all
+
   cuda-aws-start:
     needs: [ubuntu2204_build]
     if: ${{ !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
