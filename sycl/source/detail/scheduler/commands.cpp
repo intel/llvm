@@ -2728,6 +2728,18 @@ ur_result_t enqueueImpCommandBufferKernel(
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  const bool HasCooperativeAlternative = std::any_of(
+      CommandGroup.MAlternativeKernels.begin(),
+      CommandGroup.MAlternativeKernels.end(), [](const auto &WeakCG) {
+        auto CG = WeakCG.lock();
+        return CG && CG->MKernelIsCooperative;
+      });
+  if (CommandGroup.MKernelIsCooperative || HasCooperativeAlternative) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "Cooperative kernels are not supported by the SYCL Graph extension.");
+  }
+
   // List of fast cache elements to be released after UR call. We don't do
   // anything with them, but they must exist to keep ur_kernel_handle_t-s
   // valid.

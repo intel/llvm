@@ -301,6 +301,15 @@ static ur_result_t urEnqueueKernelLaunch(
                                    pGlobalWorkSize, pLocalWorkSize, hKernel,
                                    HIPFunc, ThreadsPerBlock, BlocksPerGrid));
 
+    if (UseCooperativeLaunch &&
+        !getAttribute(Dev, hipDeviceAttributeCooperativeLaunch)) {
+      const bool IsSingleGroup = BlocksPerGrid[0] == 1 &&
+                                 BlocksPerGrid[1] == 1 && BlocksPerGrid[2] == 1;
+      if (!IsSingleGroup)
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      UseCooperativeLaunch = false;
+    }
+
     ScopedDevice Active(Dev);
 
     uint32_t StreamToken;
