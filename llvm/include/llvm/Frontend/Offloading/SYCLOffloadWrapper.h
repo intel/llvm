@@ -26,7 +26,8 @@ namespace offloading {
 //
 // BIF_Compressed marks a zstd-compressed payload. The runtime re-derives the
 // real format (SPIR-V / LLVM bitcode / native) post-decompression by reading
-// the magic-number, so any pre-compression tag is not preserved.
+// the magic-number, unless the pre-compression format is recorded in the
+// OriginalFormatPropName property.
 enum class SYCLBinaryImageFormat {
   BIF_None,      // Undetermined Image kind
   BIF_Native,    // Native Image kind
@@ -34,6 +35,12 @@ enum class SYCLBinaryImageFormat {
   BIF_LLVMBC,    // LLVM bitcode
   BIF_Compressed // zstd-compressed image; format-of-original unknown
 };
+
+/// Returns the ABI value of \p Format shared with the SYCL runtime.
+int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format);
+
+/// Misc property with the pre-compression format; mirrored in SYCL RT.
+constexpr char OriginalFormatPropName[] = "originalFormat";
 
 struct SYCLImage {
   SYCLImage() = default;

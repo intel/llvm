@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <algorithm>
 #include <cassert>
 #include <list>
 #include <map>
@@ -17,6 +18,7 @@
 #include <unified-runtime/ur_api.h>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "api.hpp"
@@ -73,12 +75,68 @@ struct ze_global_memsize {
   uint64_t value;
 };
 
-// Queue priority range reported by zeDeviceGetPriorityLevels.
+// Queue priority range, see makeQueuePriorityRange.
 struct ze_queue_priority_range {
-  bool Supported;
   int32_t Highest;
+  // Maps to ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW instead of a priority level.
   int32_t Lowest;
+  // Whether the levels above Lowest are the levels of
+  // zeDeviceGetPriorityLevels. Otherwise the range is {1, -1}, and -1 maps to
+  // ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH instead of a priority level.
+  bool HasLevels;
 };
+
+// Makes the queue priority range from the {lowest, highest} levels reported by
+// zeDeviceGetPriorityLevels, if any. The driver levels only cover the context
+// group, while the low priority class uses a separate context below all of
+// them, so it's exposed as an extra lowest level. Without at least two levels
+// around the default priority 0, the range is made of the low, normal and high
+// priority classes instead.
+inline ze_queue_priority_range makeQueuePriorityRange(
+    std::optional<std::pair<int32_t, int32_t>> DriverLevels) {
+  if (!DriverLevels)
+    return {-1, 1, false};
+  const auto [Lowest, Highest] = *DriverLevels;
+  if (Highest >= Lowest || Highest > 0 || Lowest < 0)
+    return {-1, 1, false};
+  return {Highest, Lowest + 1, true};
+}
+
+// The Level Zero priority class and level of a queue.
+struct ze_queue_priority {
+  ze_command_queue_priority_t Class;
+  std::optional<int32_t> Level;
+};
+
+// Returns the Level Zero priority of a queue created with the given flags or,
+// if set, the given numeric priority.
+inline ze_queue_priority
+getZeQueuePriority(const ze_queue_priority_range &Range, ur_queue_flags_t Flags,
+                   std::optional<int32_t> Priority) {
+  if (!Priority) {
+    if (Flags & UR_QUEUE_FLAG_PRIORITY_LOW)
+      return {ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW, std::nullopt};
+    if (!(Flags & UR_QUEUE_FLAG_PRIORITY_HIGH))
+      return {ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt};
+    // The high priority class alone gets the driver's default priority of high
+    // priority queues, which may be below the highest priority level.
+    if (Range.HasLevels)
+      return {ZE_COMMAND_QUEUE_PRIORITY_NORMAL, Range.Highest};
+    return {ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH, std::nullopt};
+  }
+  // Clamp here rather than relying on the driver, so that values mapping to
+  // the same priority also share cached command lists.
+  const int32_t Level = std::clamp(*Priority, Range.Highest, Range.Lowest);
+  // The driver derives the priority class from a priority level, so the
+  // lowest level can only be expressed by the low class without a level.
+  if (Level == Range.Lowest)
+    return {ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW, std::nullopt};
+  if (Range.HasLevels)
+    return {ZE_COMMAND_QUEUE_PRIORITY_NORMAL, Level};
+  return {Level < 0 ? ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_HIGH
+                    : ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
+          std::nullopt};
+}
 
 enum ur_ze_external_memory_desc_type {
   UR_ZE_EXTERNAL_OPAQUE_FD,
@@ -305,13 +363,12 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ZeCache<struct ze_queue_priority_range> ZeQueuePriorityRange;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
-  ZeCache<ZexStruct<ze_intel_device_block_array_exp_properties_t>>
+  ZeCache<ZexStruct<ur_ze_intel_device_block_array_exp_properties_t>>
       ZeDeviceBlockArrayProperties;
-#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeCache<ZeStruct<ze_device_vector_width_properties_ext_t>>
       ZeDeviceVectorWidthPropertiesExt;
-  ZeCache<ZexStruct<ze_intel_xe_device_exp_properties_t>> ZeXEDeviceProperties;
+  ZeCache<ZexStruct<ur_ze_intel_xe_device_exp_properties_t>>
+      ZeXEDeviceProperties;
 
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>

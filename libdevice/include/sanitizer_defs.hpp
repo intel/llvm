@@ -50,11 +50,14 @@ enum ADDRESS_SPACE : uint32_t {
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
 
-extern SYCL_EXTERNAL __SYCL_GLOBAL__ void *
+// The return types have to match the address spaces of the corresponding
+// SPIR-V builtin declarations in clang/lib/Sema/SPIRVBuiltins.td, which use
+// the SYCL address spaces.
+extern SYCL_EXTERNAL void [[clang::sycl_global]] *
 __spirv_GenericCastToPtrExplicit_ToGlobal(void *, int) noexcept;
-extern SYCL_EXTERNAL __SYCL_LOCAL__ void *
+extern SYCL_EXTERNAL void [[clang::sycl_local]] *
 __spirv_GenericCastToPtrExplicit_ToLocal(void *, int) noexcept;
-extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
+extern SYCL_EXTERNAL void [[clang::sycl_private]] *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int) noexcept;
 
 extern SYCL_EXTERNAL __attribute__((convergent)) void

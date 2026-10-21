@@ -234,8 +234,7 @@ class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
   // the constructors' default template arguments.
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForQueue =
-      khr::is_property_for_v<PropertyOrList, queue> ||
-      khr::is_property_list_for_v<PropertyOrList, queue>;
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList, queue>;
 
   template <typename PropertyOrList>
   static property_list khrToPropertyList(const PropertyOrList &Props) {
