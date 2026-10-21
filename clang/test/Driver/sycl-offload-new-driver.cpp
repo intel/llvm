@@ -393,7 +393,7 @@
 /// -fsycl-max-parallel-link-jobs is passed to clang-linker-wrapper as
 /// --wrapper-jobs to compile split device modules in parallel.
 // RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-max-parallel-link-jobs=4 \
-// RUN:          -fsycl-targets=spir64_gen -fsycl-device-code-split=per_kernel \
+// RUN:          -fsycl-targets=intel_gpu_pvc -fsycl-device-code-split=per_kernel \
 // RUN:          --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:          -fno-sycl-libspirv %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHK-PARALLEL-JOBS %s

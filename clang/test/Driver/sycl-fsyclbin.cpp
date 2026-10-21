@@ -152,7 +152,7 @@
 
 /// -fsycl-max-parallel-link-jobs is passed to clang-linker-wrapper when
 /// building a SYCLBIN.
-// RUN: %clangxx -fsyclbin=executable -fsycl-targets=spir64_gen \
+// RUN: %clangxx -fsyclbin=executable -fsycl-targets=intel_gpu_pvc \
 // RUN:   -fsycl-device-code-split=per_kernel -fsycl-max-parallel-link-jobs=24 \
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PARALLEL_JOBS
