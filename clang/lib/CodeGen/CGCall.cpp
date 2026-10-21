@@ -3041,6 +3041,15 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // Remove 'convergent' if requested.
     if (TargetDecl->hasAttr<NoConvergentAttr>())
       FuncAttrs.removeAttribute(llvm::Attribute::Convergent);
+    // Mark speculatable builtins as 'speculatable' and drop the default
+    // 'convergent', unless they are declared 'convergent'. Call sites do not
+    // get 'speculatable', since a definition linked in later may not have it.
+    if (TargetDecl->hasAttr<SpeculatableAttr>() &&
+        !TargetDecl->hasAttr<ConvergentAttr>()) {
+      FuncAttrs.removeAttribute(llvm::Attribute::Convergent);
+      if (!AttrOnCallSite)
+        FuncAttrs.addAttribute(llvm::Attribute::Speculatable);
+    }
   }
 
   // Add "sample-profile-suffix-elision-policy" attribute for internal linkage
@@ -5272,10 +5281,8 @@ void CodeGenFunction::EmitCallArgs(
   // case, there are certain language constructs that require left-to-right
   // evaluation, and in those cases we consider the evaluation order requirement
   // to trump the "destruction order is reverse construction order" guarantee.
-  bool LeftToRight =
-      CGM.getTarget().getCXXABI().areArgsDestroyedLeftToRightInCallee()
-          ? Order == EvaluationOrder::ForceLeftToRight
-          : Order != EvaluationOrder::ForceRightToLeft;
+  bool LeftToRight = CodeGenUtils::shouldEvaluateArgsLeftToRight(
+      Order, CGM.getTarget().getCXXABI());
 
   auto MaybeEmitImplicitObjectSize = [&](unsigned I, const Expr *Arg,
                                          RValue EmittedArg) {

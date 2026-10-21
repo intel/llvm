@@ -72,7 +72,7 @@
 
 /// Only the link step is performed.
 // RUN: %clangxx -fsycl-link \
-// RUN:   --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:   --target=x86_64-unknown-linux-gnu \
 // RUN:   %t/a.syclbin %t/b.syclbin -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "{{.*}}a.syclbin", object, (host-sycl)

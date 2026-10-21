@@ -9679,6 +9679,16 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
     return SmallString<128>(llvm::sys::path::filename(BaseInput));
   };
 
+  StringRef DefaultExt = ".json";
+  StringRef DefaultExtNoDot = "json";
+  if (const Arg *CompressArg =
+          Args.getLastArgNoClaim(options::OPT_ftime_trace_compress_EQ)) {
+    if (StringRef(CompressArg->getValue()) == "zstd") {
+      DefaultExt = ".json.zst";
+      DefaultExtNoDot = "json.zst";
+    }
+  }
+
   SmallString<128> Path;
   if (A->getOption().matches(options::OPT_ftime_trace_EQ)) {
     Path = A->getValue();
@@ -9690,7 +9700,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
           !AlreadyHasOffloadingPrefix) {
         FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
       }
-      llvm::sys::path::replace_extension(FileName, "json");
+      llvm::sys::path::replace_extension(FileName, DefaultExtNoDot);
       llvm::sys::path::append(Path, FileName);
     } else if (JA->isOffloading(Action::OFK_SYCL)) {
       // User specified a file path, but for SYCL we still need per-job
@@ -9703,7 +9713,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
       SmallString<128> FileName(llvm::sys::path::filename(TracePath));
       if (!OffloadingPrefix.empty() && !AlreadyHasOffloadingPrefix)
         FileName = addOffloadingPrefixToPath(FileName, OffloadingPrefix);
-      llvm::sys::path::replace_extension(FileName, "json");
+      llvm::sys::path::replace_extension(FileName, DefaultExtNoDot);
       if (!Dir.empty()) {
         Path = Dir;
         llvm::sys::path::append(Path, FileName);
@@ -9747,7 +9757,7 @@ static void handleTimeTrace(Compilation &C, const ArgList &Args,
         Path = addOffloadingPrefixToPath(Path, OffloadingPrefix);
       }
     }
-    llvm::sys::path::replace_extension(Path, "json");
+    llvm::sys::path::replace_extension(Path, DefaultExtNoDot);
   }
   const char *ResultFile = C.getArgs().MakeArgString(Path);
   C.addTimeTraceFile(ResultFile, JA);

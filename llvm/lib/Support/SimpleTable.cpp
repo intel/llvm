@@ -116,7 +116,7 @@ Error SimpleTable::updateCellValue(StringRef ColName, int Row,
                                    StringRef NewValue) {
   if (getNumColumns() == 0)
     return makeError("empty table");
-  if (Row > getNumRows() || Row < 0)
+  if (Row >= getNumRows() || Row < 0)
     return makeError("row index out of bounds");
   int Col = getColumnId(ColName);
   if (Col < 0)

@@ -83,13 +83,10 @@ ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
 #endif
   }
   case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
-    return ReturnValue(
-        static_cast<ur_bool_t>(hDevice->ZeQueuePriorityRange->Supported));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
   case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
     const auto &Range = hDevice->ZeQueuePriorityRange.get();
-    if (!Range.Supported)
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     return ReturnValue(propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP
                            ? Range.Highest
                            : Range.Lowest);

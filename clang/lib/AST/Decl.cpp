@@ -2876,8 +2876,6 @@ CharUnits VarDecl::getFlexibleArrayInitChars(const ASTContext &Ctx) const {
 
 MemberSpecializationInfo *VarDecl::getMemberSpecializationInfo() const {
   if (isStaticDataMember())
-    // FIXME: Remove ?
-    // return getASTContext().getInstantiatedFromStaticDataMember(this);
     return dyn_cast_if_present<MemberSpecializationInfo *>(
         getASTContext().getTemplateOrSpecializationInfo(this));
   return nullptr;
