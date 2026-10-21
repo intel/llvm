@@ -135,36 +135,5 @@ target_include_directories(LevelZeroLoader-Headers
               "$<BUILD_INTERFACE:${LEVEL_ZERO_EXTRA_INCLUDE_DIRS}>"
               "$<INSTALL_INTERFACE:${LEVEL_ZERO_TARGET_INCLUDE_DIR}>"
 )
-find_path(L0_COMPUTE_RUNTIME_HEADERS
-  NAMES "ze_intel_gpu.h"
-  PATH_SUFFIXES "level_zero"
-)
-if(L0_COMPUTE_RUNTIME_HEADERS)
-    set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${L0_COMPUTE_RUNTIME_HEADERS}")
-    set(COMPUTE_RUNTIME_REPO_PATH "${L0_COMPUTE_RUNTIME_HEADERS}")
-else()
-    set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
-    set(UR_COMPUTE_RUNTIME_TAG 26.18.38308.1)
-
-    include(FetchContent)
-    # Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.
-    FetchContentSparse_Declare(exp-headers ${UR_COMPUTE_RUNTIME_REPO} "${UR_COMPUTE_RUNTIME_TAG}" "level_zero/include")
-    FetchContent_GetProperties(exp-headers)
-    if(NOT exp-headers_POPULATED)
-      FetchContent_Populate(exp-headers)
-    endif()
-    set(COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE "${exp-headers_SOURCE_DIR}")
-    set(COMPUTE_RUNTIME_REPO_PATH "${exp-headers_SOURCE_DIR}/../..")
-endif()
-
-message(STATUS "Using Level Zero include headers from ${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}")
-
-add_library(ComputeRuntimeLevelZero-Headers INTERFACE)
-message(STATUS "Level Zero Adapter: Using Level Zero headers from ${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}")
-target_include_directories(ComputeRuntimeLevelZero-Headers
-    INTERFACE "$<BUILD_INTERFACE:${COMPUTE_RUNTIME_LEVEL_ZERO_INCLUDE}>"
-              "$<BUILD_INTERFACE:${COMPUTE_RUNTIME_REPO_PATH}>"
-              "$<INSTALL_INTERFACE:${LEVEL_ZERO_TARGET_INCLUDE_DIR}>"
-)
 
 set(LEVEL_ZERO_INCLUDE_DIR "${LEVEL_ZERO_INCLUDE_DIR}" CACHE PATH INTERNAL)

@@ -14,7 +14,6 @@ function(link_l0_v2_adapter_sources test)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${test}-test PRIVATE
