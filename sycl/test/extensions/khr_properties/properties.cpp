@@ -20,8 +20,9 @@ struct MyClass {};
 struct OtherClass {};
 
 // Runtime property (convenience base + separate key).
-struct enable_profiling_key : kd::runtime_property_key {};
-struct enable_profiling : kd::runtime_property<enable_profiling_key> {
+struct enable_profiling_key : kd::runtime_property_key<enable_profiling_key> {};
+struct enable_profiling
+    : kd::runtime_property<enable_profiling, enable_profiling_key> {
   bool value;
   constexpr enable_profiling(bool v = true) : value(v) {}
 };
@@ -30,26 +31,25 @@ struct sycl::khr::is_property_key_for<enable_profiling_key, MyClass>
     : std::true_type {};
 
 // Compile-time property with a single non-type value (convenience base).
-struct alignment_key : kd::constant_value_property_key {};
+struct alignment_key : kd::constant_value_property_key<alignment_key> {};
 template <int A>
-inline constexpr alignment_key::__detail_property_t<alignment_key, int, A>
-    alignment;
+inline constexpr alignment_key::__detail_property_t<int, A> alignment;
 template <>
 struct sycl::khr::is_property_key_for<alignment_key, MyClass> : std::true_type {
 };
 
 // Compile-time property with a single type value (convenience base).
-struct alignment_type_key : kd::constant_type_property_key {};
+struct alignment_type_key : kd::constant_type_property_key<alignment_type_key> {
+};
 template <typename T>
-inline constexpr alignment_type_key::__detail_property_t<alignment_type_key, T>
-    alignment_type;
+inline constexpr alignment_type_key::__detail_property_t<T> alignment_type;
 template <>
 struct sycl::khr::is_property_key_for<alignment_type_key, MyClass>
     : std::true_type {};
 
 // Hybrid property (compile-time X, runtime Y) via convenience base.
-struct hybrid_key : kd::hybrid_property_key {};
-template <int X> struct hybrid : kd::hybrid_property<hybrid_key> {
+struct hybrid_key : kd::hybrid_property_key<hybrid_key> {};
+template <int X> struct hybrid : kd::hybrid_property<hybrid<X>, hybrid_key> {
   static constexpr int x = X;
   int y;
   constexpr hybrid(int y) : y(y) {}
@@ -58,8 +58,8 @@ template <>
 struct sycl::khr::is_property_key_for<hybrid_key, MyClass> : std::true_type {};
 
 // Runtime property for OtherClass only (for mixed-class list checks).
-struct other_only_key : kd::runtime_property_key {};
-struct other_only : kd::runtime_property<other_only_key> {
+struct other_only_key : kd::runtime_property_key<other_only_key> {};
+struct other_only : kd::runtime_property<other_only, other_only_key> {
   int value;
   constexpr other_only(int v = 0) : value(v) {}
 };
@@ -69,8 +69,7 @@ struct sycl::khr::is_property_key_for<other_only_key, OtherClass>
 
 // is_property / is_property_key / is_property_key_compile_time.
 static_assert(is_property_v<enable_profiling> && is_property_v<hybrid<1>>);
-static_assert(
-    is_property_v<alignment_key::__detail_property_t<alignment_key, int, 4>>);
+static_assert(is_property_v<alignment_key::__detail_property_t<int, 4>>);
 static_assert(!is_property_v<int> && !is_property_v<enable_profiling_key>);
 static_assert(is_property_key_v<enable_profiling_key> &&
               is_property_key_v<alignment_key> &&
@@ -83,6 +82,27 @@ static_assert(is_property_key_compile_time_v<alignment_key> &&
 static_assert(!is_property_key_compile_time_v<enable_profiling_key> &&
               !is_property_key_compile_time_v<hybrid_key>);
 
+// Only the exact property and key types are classified: not derived classes,
+// classes derived from several properties, or property lists.
+struct derived_property : enable_profiling {};
+struct two_properties : enable_profiling, other_only {};
+struct derived_list : properties<enable_profiling> {};
+struct derived_key : enable_profiling_key {};
+struct derived_ct_key : alignment_key {};
+static_assert(!is_property_v<derived_property> &&
+              !is_property_v<two_properties> && !is_property_v<derived_list> &&
+              !is_property_v<properties<enable_profiling>> &&
+              !is_property_v<empty_properties_t>);
+static_assert(!is_property_for_v<derived_property, MyClass> &&
+              !is_property_for_v<two_properties, MyClass> &&
+              !is_property_for_v<derived_list, MyClass> &&
+              !is_property_list_for_v<derived_list, MyClass>);
+static_assert(!is_property_key_v<derived_key> &&
+              !is_property_key_v<derived_ct_key> &&
+              !is_property_key_compile_time_v<derived_ct_key>);
+static_assert(
+    !std::is_constructible_v<properties<enable_profiling>, derived_property>);
+
 // is_property_key_for / is_property_for, for every property kind.
 static_assert(is_property_key_for_v<enable_profiling_key, MyClass> &&
               is_property_key_for_v<alignment_key, MyClass> &&
@@ -94,11 +114,8 @@ static_assert(!is_property_key_for_v<enable_profiling_key, OtherClass> &&
               !is_property_key_for_v<hybrid_key, OtherClass>);
 static_assert(
     is_property_for_v<enable_profiling, MyClass> &&
-    is_property_for_v<alignment_key::__detail_property_t<alignment_key, int, 4>,
-                      MyClass> &&
-    is_property_for_v<
-        alignment_type_key::__detail_property_t<alignment_type_key, int>,
-        MyClass> &&
+    is_property_for_v<alignment_key::__detail_property_t<int, 4>, MyClass> &&
+    is_property_for_v<alignment_type_key::__detail_property_t<int>, MyClass> &&
     is_property_for_v<hybrid<1>, MyClass>);
 static_assert(!is_property_for_v<enable_profiling, OtherClass> &&
               !is_property_for_v<hybrid<1>, OtherClass>);

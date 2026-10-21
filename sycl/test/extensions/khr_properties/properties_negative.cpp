@@ -9,8 +9,8 @@
 namespace kd = sycl::khr::property::detail;
 using namespace sycl::khr;
 
-struct rt_key : kd::property_key_tag {};
-struct rt : kd::property_base<rt_key> {
+struct rt_key : kd::property_key_base<rt_key, false> {};
+struct rt : kd::property_base<rt, rt_key> {
   int value;
   constexpr rt(int v = 0) : value(v) {}
 };

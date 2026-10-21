@@ -15,26 +15,24 @@
 namespace kd = sycl::khr::property::detail;
 using namespace sycl::khr;
 
-struct rt1_key : kd::runtime_property_key {};
-struct rt1 : kd::runtime_property<rt1_key> {
+struct rt1_key : kd::runtime_property_key<rt1_key> {};
+struct rt1 : kd::runtime_property<rt1, rt1_key> {
   bool value;
   constexpr rt1(bool v = true) : value(v) {}
 };
-struct rt2_key : kd::runtime_property_key {};
-struct rt2 : kd::runtime_property<rt2_key> {
+struct rt2_key : kd::runtime_property_key<rt2_key> {};
+struct rt2 : kd::runtime_property<rt2, rt2_key> {
   bool value;
   constexpr rt2(bool v = true) : value(v) {}
 };
 
-struct ct1_key : kd::constant_value_property_key {};
-template <int A>
-inline constexpr ct1_key::__detail_property_t<ct1_key, int, A> ct1;
-struct ct2_key : kd::constant_value_property_key {};
-template <int A>
-inline constexpr ct2_key::__detail_property_t<ct2_key, int, A> ct2;
+struct ct1_key : kd::constant_value_property_key<ct1_key> {};
+template <int A> inline constexpr ct1_key::__detail_property_t<int, A> ct1;
+struct ct2_key : kd::constant_value_property_key<ct2_key> {};
+template <int A> inline constexpr ct2_key::__detail_property_t<int, A> ct2;
 
-struct hy_key : kd::hybrid_property_key {};
-template <int X> struct hy : kd::hybrid_property<hy_key> {
+struct hy_key : kd::hybrid_property_key<hy_key> {};
+template <int X> struct hy : kd::hybrid_property<hy<X>, hy_key> {
   static constexpr int x = X;
   int y;
   constexpr hy(int y) : y(y) {}

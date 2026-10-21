@@ -37,15 +37,17 @@ template <typename... EncodedProperties> class __SYCL_EBO properties;
 namespace property {
 namespace detail {
 
-// Every property derives from `property_tag` and exposes a `__detail_key_t`
-// alias naming its key. Every key derives from `property_key_tag`; a
-// compile-time key also derives from `compile_time_property_key_tag`.
-struct property_tag {};
-struct property_key_tag {};
-struct compile_time_property_key_tag : property_key_tag {};
+// Every key derives from `property_key_base<Self, CompileTime>` and every
+// property from `property_base<Self, Key>`. Both name the exact type `Self`, so
+// the traits do not classify derived classes or property lists as keys or
+// properties.
+template <typename Self, bool CompileTime> struct property_key_base {
+  using __detail_key_self_t = Self;
+  static constexpr bool __detail_is_compile_time = CompileTime;
+};
 
-// Base for any property. `Key` is the property's associated key type.
-template <typename Key> struct property_base : property_tag {
+template <typename Self, typename Key> struct property_base {
+  using __detail_property_self_t = Self;
   using __detail_key_t = Key;
 };
 
@@ -54,37 +56,43 @@ template <typename Key> struct property_base : property_tag {
 // storage-free exactly when its key is a compile-time key.
 template <typename Prop>
 inline constexpr bool __detail_has_runtime_value =
-    !std::is_base_of_v<compile_time_property_key_tag,
-                       typename Prop::__detail_key_t>;
+    !Prop::__detail_key_t::__detail_is_compile_time;
 
 // Convenience base classes for defining properties, mirroring the extension's
 // examples for implementors. Properties may also be defined directly on the
-// tags above.
+// bases above.
 
 // Runtime property key: all of the property's values are supplied at runtime.
-struct runtime_property_key : property_key_tag {};
-template <typename Key> struct runtime_property : property_base<Key> {};
+template <typename Self>
+struct runtime_property_key : property_key_base<Self, false> {};
+template <typename Self, typename Key>
+struct runtime_property : property_base<Self, Key> {};
 
 // Compile-time key with a single non-type value.
-struct constant_value_property_key : compile_time_property_key_tag {
-  template <typename PropertyKey, typename Type, Type Value>
-  struct __detail_property_t : property_base<PropertyKey> {
+template <typename Self>
+struct constant_value_property_key : property_key_base<Self, true> {
+  template <typename Type, Type Value>
+  struct __detail_property_t
+      : property_base<__detail_property_t<Type, Value>, Self> {
     static constexpr Type value = Value;
   };
 };
 
 // Compile-time key with a single type value.
-struct constant_type_property_key : compile_time_property_key_tag {
-  template <typename PropertyKey, typename Type>
-  struct __detail_property_t : property_base<PropertyKey> {
+template <typename Self>
+struct constant_type_property_key : property_key_base<Self, true> {
+  template <typename Type>
+  struct __detail_property_t : property_base<__detail_property_t<Type>, Self> {
     using value_t = Type;
   };
 };
 
 // Hybrid property key: some values compile-time, some runtime. The property
 // carries runtime data and is stored.
-struct hybrid_property_key : property_key_tag {};
-template <typename Key> struct hybrid_property : property_base<Key> {};
+template <typename Self>
+struct hybrid_property_key : property_key_base<Self, false> {};
+template <typename Self, typename Key>
+struct hybrid_property : property_base<Self, Key> {};
 
 // Retrieval / storage machinery.
 
@@ -131,36 +139,51 @@ struct build_storage<property_storage<Sel...>, P, Rest...>
                                        property_storage<Sel..., P>,
                                        property_storage<Sel...>>,
                     Rest...> {};
-// True if T is a khr::properties list. Used to exclude the list itself from
-// is_property (the list privately inherits its properties, so is_base_of would
-// otherwise report it as a property).
-template <typename> struct is_properties_list : std::false_type {};
-template <typename... Ps>
-struct is_properties_list<properties<Ps...>> : std::true_type {};
+// Exact-type checks for the self-naming bases. An inaccessible or ambiguous
+// member (a list, or a class derived from several properties) is a
+// substitution failure, hence `false`.
+template <typename T, typename = void>
+struct is_exact_property : std::false_type {};
+template <typename T>
+struct is_exact_property<T, std::void_t<typename T::__detail_property_self_t>>
+    : std::is_same<T, typename T::__detail_property_self_t> {};
+
+template <typename T, typename = void>
+struct is_exact_property_key : std::false_type {};
+template <typename T>
+struct is_exact_property_key<T, std::void_t<typename T::__detail_key_self_t>>
+    : std::is_same<T, typename T::__detail_key_self_t> {};
+
+template <typename T, bool = is_exact_property_key<T>::value>
+struct is_compile_time_key : std::false_type {};
+template <typename T>
+struct is_compile_time_key<T, true>
+    : std::bool_constant<T::__detail_is_compile_time> {};
 
 } // namespace detail
 } // namespace property
 
 // Classification traits.
 
-// A property list is not itself a property: it privately inherits its
-// properties, so is_base_of would otherwise report it as one -- exclude it.
 template <typename T>
 struct is_property
-    : std::bool_constant<std::is_base_of_v<property::detail::property_tag, T> &&
-                         !property::detail::is_properties_list<T>::value> {};
+    : std::bool_constant<
+          property::detail::is_exact_property<std::remove_cv_t<T>>::value> {};
 template <typename T>
 inline constexpr bool is_property_v = is_property<T>::value;
 
 template <typename T>
 struct is_property_key
-    : std::is_base_of<property::detail::property_key_tag, T> {};
+    : std::bool_constant<
+          property::detail::is_exact_property_key<std::remove_cv_t<T>>::value> {
+};
 template <typename T>
 inline constexpr bool is_property_key_v = is_property_key<T>::value;
 
 template <typename T>
 struct is_property_key_compile_time
-    : std::is_base_of<property::detail::compile_time_property_key_tag, T> {};
+    : std::bool_constant<
+          property::detail::is_compile_time_key<std::remove_cv_t<T>>::value> {};
 template <typename T>
 inline constexpr bool is_property_key_compile_time_v =
     is_property_key_compile_time<T>::value;

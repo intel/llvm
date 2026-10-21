@@ -2821,11 +2821,13 @@ struct reduction; // tag type, never defined
 } // namespace tag
 
 namespace key {
-struct initialize_to_identity : detail::runtime_property_key {};
+struct initialize_to_identity
+    : detail::runtime_property_key<initialize_to_identity> {};
 } // namespace key
 
 struct initialize_to_identity
-    : detail::runtime_property<key::initialize_to_identity> {
+    : detail::runtime_property<initialize_to_identity,
+                               key::initialize_to_identity> {
   constexpr initialize_to_identity(bool v = true) : value{v} {}
   bool value;
 };
