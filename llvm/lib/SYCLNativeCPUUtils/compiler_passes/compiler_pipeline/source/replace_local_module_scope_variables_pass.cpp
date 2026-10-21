@@ -721,7 +721,7 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
         // function which is called by kernelFunc.
         auto last_arg = func->arg_end() - 1;
         DIB.insertDeclare(last_arg, DILocal, offset_expr, location,
-                          func->getEntryBlock().getFirstNonPHIOrDbg());
+                          func->getEntryBlock().getFirstNonPHIOrPseudoProbe());
       }
     }
 
