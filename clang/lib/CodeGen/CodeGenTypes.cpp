@@ -388,14 +388,16 @@ llvm::Type *CodeGenTypes::ConvertSPVCooperativeMatrixType(RecordDecl *RD) {
   llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
 
   if (CompTy->isStructTy()) {
-    StringRef LlvmTyName = CompTy->getStructName();
     // Emit half/int16/float/int8/int4 for
-    // sycl[::*]::{half,bfloat16,tf32,fp8_*_x,fp4_e2m1_x}
-    if (LlvmTyName.starts_with("class.sycl::") ||
-        LlvmTyName.starts_with("class.__sycl_internal::"))
-      // Drop the ".N" suffix LLVM adds to a second specialization of the same
-      // template, e.g. fp8_e5m2_x<2> after fp8_e5m2_x<1>.
-      LlvmTyName = LlvmTyName.rsplit("::").second.split('.').first;
+    // sycl[::*]::{half,bfloat16,tf32,fp8_*_x,fp4_e2m1_x}. Match on the AST:
+    // LLVM gives a second specialization of a template a ".N" struct name.
+    const CXXRecordDecl *ElemRD =
+        TemplateArgs[0].getAsType()->getAsCXXRecordDecl();
+    StringRef LlvmTyName;
+    std::string QualName = ElemRD ? ElemRD->getQualifiedNameAsString() : "";
+    if (StringRef(QualName).starts_with("sycl::") ||
+        StringRef(QualName).starts_with("__sycl_internal::"))
+      LlvmTyName = ElemRD->getName();
     if (LlvmTyName == "half") {
       CompTy = llvm::Type::getHalfTy(getLLVMContext());
     } else if (LlvmTyName == "tf32") {
