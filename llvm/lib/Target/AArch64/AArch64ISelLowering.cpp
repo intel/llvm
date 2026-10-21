@@ -1100,8 +1100,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
 
   setTargetDAGCombine({ISD::ANY_EXTEND, ISD::ZERO_EXTEND, ISD::SIGN_EXTEND,
                        ISD::SIGN_EXTEND_INREG, ISD::CONCAT_VECTORS,
-                       ISD::EXTRACT_SUBVECTOR, ISD::INSERT_SUBVECTOR,
-                       ISD::STORE, ISD::BUILD_VECTOR});
+                       ISD::VECTOR_INTERLEAVE, ISD::EXTRACT_SUBVECTOR,
+                       ISD::INSERT_SUBVECTOR, ISD::STORE, ISD::BUILD_VECTOR});
   setTargetDAGCombine({ISD::SMIN, ISD::SMAX, ISD::UMIN, ISD::UMAX});
   setTargetDAGCombine(ISD::TRUNCATE);
   setTargetDAGCombine(ISD::LOAD);
@@ -9363,8 +9363,6 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
   // we use a special version of AnalyzeFormalArguments to pass in ValVT and
   // LocVT.
   unsigned NumArgs = Ins.size();
-  Function::const_arg_iterator CurOrigArg = F.arg_begin();
-  unsigned CurArgIdx = 0;
   bool UseVarArgCC = false;
   if (IsWin64)
     UseVarArgCC = isVarArg;
@@ -9374,12 +9372,7 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
   for (unsigned i = 0; i != NumArgs; ++i) {
     MVT ValVT = Ins[i].VT;
     if (Ins[i].isOrigArg()) {
-      std::advance(CurOrigArg, Ins[i].getOrigArgIndex() - CurArgIdx);
-      CurArgIdx = Ins[i].getOrigArgIndex();
-
-      // Get type of the original argument.
-      EVT ActualVT = getValueType(DAG.getDataLayout(), CurOrigArg->getType(),
-                                  /*AllowUnknown*/ true);
+      EVT ActualVT = Ins[i].ArgVT;
       MVT ActualMVT = ActualVT.isSimple() ? ActualVT.getSimpleVT() : MVT::Other;
       // If ActualMVT is i1/i8/i16, we should set LocVT to i8/i8/i16.
       if (ActualMVT == MVT::i1 || ActualMVT == MVT::i8)
@@ -10000,7 +9993,6 @@ static void analyzeCallOperands(const AArch64TargetLowering &TLI,
                                 const AArch64Subtarget *Subtarget,
                                 const TargetLowering::CallLoweringInfo &CLI,
                                 CCState &CCInfo) {
-  const SelectionDAG &DAG = CLI.DAG;
   CallingConv::ID CalleeCC = CLI.CallConv;
   bool IsVarArg = CLI.IsVarArg;
   const SmallVector<ISD::OutputArg, 32> &Outs = CLI.Outs;
@@ -10039,10 +10031,7 @@ static void analyzeCallOperands(const AArch64TargetLowering &TLI,
     bool UseVarArgCC = FixedUseVarArgCC || (IsVarArg && ArgFlags.isVarArg());
 
     if (!UseVarArgCC) {
-      // Get type of the original argument.
-      EVT ActualVT = TLI.getValueType(DAG.getDataLayout(),
-                                      CLI.Args[Outs[i].OrigArgIndex].Ty,
-                                      /*AllowUnknown*/ true);
+      EVT ActualVT = Outs[i].ArgVT;
       MVT ActualMVT = ActualVT.isSimple() ? ActualVT.getSimpleVT() : ArgVT;
       // If ActualMVT is i1/i8/i16, we should set LocVT to i8/i8/i16.
       if (ActualMVT == MVT::i1 || ActualMVT == MVT::i8)
@@ -23034,6 +23023,55 @@ static SDValue performConcatVectorsCombine(SDNode *N,
 }
 
 static SDValue
+performVectorInterleaveCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
+                               SelectionDAG &DAG) {
+  // Do this combine before type legalization as there may be half-width vector
+  // types in the combining patterns and type legalization will break the
+  // patterns when legalize the half-width vector types.
+  if (N->getNumOperands() != 2 || !DCI.isBeforeLegalizeOps())
+    return SDValue();
+
+  // Interleaving the low (or high) halves of two packed vectors is a single
+  // ZIP1 (or ZIP2) of the whole vectors:
+  //   (vector_interleave (extract_subvector A, I), (extract_subvector B, I))
+  //   -> Z = (zip1 A, B) for I == 0, (zip2 A, B) for I == half the elements,
+  //      with results (extract_subvector Z, 0) and (extract_subvector Z, half).
+  SDValue LHS = N->getOperand(0), RHS = N->getOperand(1);
+  if (LHS.getOpcode() != ISD::EXTRACT_SUBVECTOR ||
+      RHS.getOpcode() != ISD::EXTRACT_SUBVECTOR)
+    return SDValue();
+
+  SDValue LHSVec = LHS.getOperand(0), RHSVec = RHS.getOperand(0);
+  EVT LHSVecVT = LHSVec.getValueType(), RHSVecVT = RHSVec.getValueType();
+  EVT HalfVT = N->getValueType(0);
+  const auto &TLI =
+      static_cast<const AArch64TargetLowering &>(DAG.getTargetLoweringInfo());
+  if (LHSVecVT != RHSVecVT || !TLI.isTypeLegal(LHSVecVT) ||
+      LHSVecVT != HalfVT.getDoubleNumVectorElementsVT(*DAG.getContext()))
+    return SDValue();
+
+  // Fixed-length vectors wider than NEON are legal because they can be put
+  // into SVE registers, but below ZIP1/ZIP2 on such types cannot be selected.
+  if (TLI.useSVEForFixedLengthVectorVT(LHSVecVT))
+    return SDValue();
+
+  uint64_t LHSIdx = LHS.getConstantOperandVal(1),
+           RHSIdx = RHS.getConstantOperandVal(1);
+  uint64_t Half = HalfVT.getVectorMinNumElements();
+  if (LHSIdx != RHSIdx || (LHSIdx != 0 && LHSIdx != Half))
+    return SDValue();
+
+  SDLoc DL(N);
+  SDValue Zip = DAG.getNode(LHSIdx == 0 ? AArch64ISD::ZIP1 : AArch64ISD::ZIP2,
+                            DL, LHSVecVT, LHSVec, RHSVec);
+  SDValue Res0 = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, HalfVT, Zip,
+                             DAG.getVectorIdxConstant(0, DL));
+  SDValue Res1 = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, HalfVT, Zip,
+                             DAG.getVectorIdxConstant(Half, DL));
+  return DCI.CombineTo(N, Res0, Res1);
+}
+
+static SDValue
 performExtractSubvectorCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI,
                                SelectionDAG &DAG) {
   if (DCI.isBeforeLegalizeOps())
@@ -31962,6 +32000,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performSignExtendInRegCombine(N, DCI, DAG);
   case ISD::CONCAT_VECTORS:
     return performConcatVectorsCombine(N, DCI, DAG);
+  case ISD::VECTOR_INTERLEAVE:
+    return performVectorInterleaveCombine(N, DCI, DAG);
   case ISD::EXTRACT_SUBVECTOR:
     return performExtractSubvectorCombine(N, DCI, DAG);
   case ISD::INSERT_SUBVECTOR:

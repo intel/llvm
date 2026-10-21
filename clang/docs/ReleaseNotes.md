@@ -1248,6 +1248,10 @@ features cannot lower the translation-unit ABI level;
 
 - External CUDA kernel declarations now use the correct calling convention. (#GH118212)
 
+- Fixed `__dp4a`, `__dp2a_lo` and `__dp2a_hi` producing unresolved extern
+  functions with CUDA 13.4 and newer. Added `__nvvm_idp4a_*` and
+  `__nvvm_idp2a_*` builtins. (#GH233434)
+
 #### AIX Support
 
 #### NetBSD Support
@@ -1384,6 +1388,17 @@ The `alpha.cplusplus.UseAfterLifetimeEnd` checker was renamed to `alpha.core.Use
   the clause was parsed but its condition was discarded without effect.
 - Fixed a crash when the loop variable or a loop bound of an OpenMP loop has a
   `_BitInt` type wider than any standard integer type. (#GH140074)
+- Loop-transforming constructs such as `tile` and `unroll` are now allowed
+  inside a `simd` region for OpenMP 6.0 or later, which classifies them as
+  simdizable.
+- The `loop` construct without a `bind` clause or with `bind(thread)` is now
+  allowed inside a `simd` region for OpenMP 5.0 or later, as the OpenMP
+  specification permits.
+- Constructs nested inside a loop-transforming construct are now checked
+  against the restrictions of an enclosing `simd` region or of a loop with an
+  `order(concurrent)` clause. Previously, such constructs (e.g. `parallel`
+  inside `tile` inside `simd`, or `critical` inside `tile` inside a loop with
+  `order(concurrent)`) were incorrectly accepted.
 
 - Added support for capturing structured bindings in OpenMP regions
   (a C++20 extension; warned as an extension in C++17). Individual bindings
