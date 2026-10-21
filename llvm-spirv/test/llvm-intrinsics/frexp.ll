@@ -2,6 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text
 ; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
@@ -9,6 +10,7 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
@@ -153,4 +155,27 @@ define i32 @frexp_frexp_get_int(float %x) {
   %frexp0 = call { float, i32 } @llvm.frexp.f32.i32(float %x)
   %frexp0.0 = extractvalue { float, i32 } %frexp0, 1
   ret i32 %frexp0.0
+}
+
+; CHECK-SPIRV: Function [[#TypeInt]]
+; CHECK-SPIRV: Label
+; CHECK-SPIRV-TYPED-PTR-NEXT: Variable [[#TypeIntPtr]] [[#IntVar:]] 7
+; CHECK-SPIRV-UNTYPED-PTR-NEXT: UntypedVariableKHR [[#TypePtr]] [[#IntVar:]] 7 [[#TypeInt]]
+; CHECK-SPIRV-NEXT: Branch
+; CHECK-SPIRV: ExtInst [[#TypeFloat]] [[#]] [[#ExtInstSetId]] frexp [[#]] [[#IntVar]]
+
+; CHECK-LLVM-LABEL: define spir_func i32 @frexp_non_entry_block
+; CHECK-LLVM: entry:
+; CHECK-LLVM-NEXT: %[[#IntVar:]] = alloca i32
+; CHECK-LLVM-NEXT: br label %next
+; CHECK-LLVM: call spir_func float @_Z5frexpfPi(float %x, ptr %[[#IntVar]])
+; CHECK-LLVM: load i32, ptr %[[#IntVar]]
+define i32 @frexp_non_entry_block(float %x) {
+entry:
+  br label %next
+
+next:
+  %frexp = call { float, i32 } @llvm.frexp.f32.i32(float %x)
+  %exp = extractvalue { float, i32 } %frexp, 1
+  ret i32 %exp
 }
