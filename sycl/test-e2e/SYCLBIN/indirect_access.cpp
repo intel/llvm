@@ -1,4 +1,6 @@
 // REQUIRES: aspect-usm_device_allocations
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // Check to ensure that the SYCL runtime sets the
 // UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS property to true for SYCLBIN kernels.
