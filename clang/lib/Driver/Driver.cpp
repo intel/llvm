@@ -6421,8 +6421,10 @@ class OffloadingActionBuilder final {
           // since different aliases of the same device (e.g. intel_gpu_pvc vs
           // intel_gpu_12_60_7) would otherwise spawn separate device actions.
           std::string NormalizedName = TT.normalize();
-          if (Device)
-            NormalizedName += (llvm::Twine(':') + Device).str();
+          if (Device) {
+            NormalizedName += ':';
+            NormalizedName += Device;
+          }
           auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
           if (Duplicate != FoundNormalizedTriples.end())
             continue;
