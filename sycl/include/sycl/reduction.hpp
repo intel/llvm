@@ -2856,8 +2856,8 @@ inline property_list khrReductionToPropertyList(const PropertyOrList &Props) {
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForReduction =
-    khr::is_property_for_v<PropertyOrList, khr::property::tag::reduction> ||
-    khr::is_property_list_for_v<PropertyOrList, khr::property::tag::reduction>;
+    khr::property::detail::is_property_or_list_for_v<
+        PropertyOrList, khr::property::tag::reduction>;
 } // namespace detail
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
@@ -2953,36 +2953,14 @@ auto reduction(span<T, Extent> Span, const T &Identity,
 // overload above, accepting a khr property or property list translated to an
 // old-style property_list.
 template <
-    typename T, typename AllocatorT, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
-    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
-               BinaryOperation Combiner, PropertyOrList props) {
-  return reduction(Var, CGH, Combiner,
-                   detail::khrReductionToPropertyList(props));
-}
-
-template <
-    typename T, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename T, typename BinaryOperation, typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(T *Var, BinaryOperation Combiner, PropertyOrList props) {
   return reduction(Var, Combiner, detail::khrReductionToPropertyList(props));
 }
 
 template <
-    typename T, typename AllocatorT, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
-    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
-               BinaryOperation Combiner, PropertyOrList props) {
-  return reduction(Var, CGH, Identity, Combiner,
-                   detail::khrReductionToPropertyList(props));
-}
-
-template <
-    typename T, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename T, typename BinaryOperation, typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                PropertyOrList props) {
@@ -2993,7 +2971,7 @@ auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
 template <
     typename T, size_t Extent, typename BinaryOperation,
     typename = std::enable_if_t<Extent != dynamic_extent>,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
                PropertyOrList props) {
@@ -3003,7 +2981,7 @@ auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
 template <
     typename T, size_t Extent, typename BinaryOperation,
     typename = std::enable_if_t<Extent != dynamic_extent>,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(span<T, Extent> Span, const T &Identity,
                BinaryOperation Combiner, PropertyOrList props) {

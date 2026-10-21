@@ -8,7 +8,6 @@
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <gtest/gtest.h>
-#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <type_traits>
@@ -63,20 +62,6 @@ TEST(KhrReductionProperties, InitializeToIdentitySpan) {
   EXPECT_FALSE(sycl::reduction(Span, 0, sycl::plus<int>(),
                                kp::initialize_to_identity{false})
                    .initializeToIdentity());
-}
-
-TEST(KhrReductionProperties, InitializeToIdentityBuffer) {
-  sycl::unittest::UrMock<> Mock;
-  sycl::queue Q;
-  sycl::buffer<int, 1> Buf{1};
-  Q.submit([&](sycl::handler &CGH) {
-    EXPECT_TRUE(sycl::reduction(Buf, CGH, sycl::plus<int>(),
-                                kp::initialize_to_identity{})
-                    .initializeToIdentity());
-    EXPECT_FALSE(sycl::reduction(Buf, CGH, 0, sycl::plus<int>(),
-                                 properties{kp::initialize_to_identity{false}})
-                     .initializeToIdentity());
-  });
 }
 
 TEST(KhrReductionProperties, OldStyleOverloads) {
