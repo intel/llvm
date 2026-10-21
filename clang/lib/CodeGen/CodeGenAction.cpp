@@ -532,6 +532,12 @@ struct OptRecordFileRAII {
 
     Ctx.setDiagnosticHandler(BC.createDiagnosticHandler());
 
+    // setupLLVMOptimizationRemarks() resolves the remarks file name using the
+    // context's VFS, which BackendConsumer::HandleTranslationUnit() has not
+    // installed yet. Without it the real FS is used, which is an IO sandbox
+    // violation.
+    Ctx.setVirtualFileSystem(CI.getVirtualFileSystemPtr());
+
     Expected<LLVMRemarkFileHandle> OptRecordFileOrErr =
         setupLLVMOptimizationRemarks(
             Ctx, CodeGenOpts.OptRecordFile, CodeGenOpts.OptRecordPasses,
