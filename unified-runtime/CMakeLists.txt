@@ -195,7 +195,7 @@ if(UR_ENABLE_TRACING)
         set(UR_XPTIFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xptifw")
         cmake_path(NORMAL_PATH UR_XPTIFW_SOURCE_DIR
             OUTPUT_VARIABLE UR_XPTIFW_SOURCE_DIR)
-        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+        if(IS_DIRECTORY "${UR_XPTIFW_SOURCE_DIR}")
             FetchContent_Declare(xptifw SOURCE_DIR "${UR_XPTIFW_SOURCE_DIR}")
         else()
             FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
