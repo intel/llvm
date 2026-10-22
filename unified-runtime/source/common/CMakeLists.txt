@@ -149,8 +149,9 @@ if(UR_ENABLE_LATENCY_HISTOGRAM)
   if(hdr_histogram_FOUND)
     set(hdr_histogram_SOURCE_DIR "${hdr_histogram_DIR}")
   else()
-    set(HDR_HISTOGRAM_BUILD_STATIC CACHE INTERNAL ON "")
-    set(HDR_HISTOGRAM_BUILD_SHARED CACHE INTERNAL OFF "")
+    set(HDR_HISTOGRAM_BUILD_STATIC ON CACHE INTERNAL "")
+    set(HDR_HISTOGRAM_BUILD_SHARED OFF CACHE INTERNAL "")
+    set(HDR_HISTOGRAM_BUILD_PROGRAMS OFF CACHE INTERNAL "")
 
     include(FetchContent)
     FetchContent_Declare(hdr_histogram

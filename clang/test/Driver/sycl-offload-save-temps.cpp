@@ -1,5 +1,7 @@
 /// SYCL offloading tests using -save-temps
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// Verify that -save-temps does not crash
 // RUN: %clang -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHK-FSYCL-SAVE-TEMPS
@@ -17,17 +19,17 @@
 // CHK-FSYCL-SAVE-TEMPS: ld{{.*}} "[[HOST_BASE_NAME]].o"
 
 /// Verify that -save-temps puts header/footer in a correct place
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-DIR
+// RUN: %clang -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-DIR
 // CHECK-SAVE-TEMPS-DIR: clang{{.*}} "-fsycl-int-header=sycl-offload-save-temps-header-{{[a-z0-9]*}}.h"{{.*}}"-fsycl-int-footer=sycl-offload-save-temps-footer-{{[a-z0-9]*}}.h"
 
 /// Verify that -save-temps=obj respects the -o dir
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps=obj -o %S %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-OBJ-DIR
+// RUN: %clang -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} --no-offloadlib -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps=obj -o %S %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-OBJ-DIR
 // CHECK-SAVE-TEMPS-OBJ-DIR: clang{{.*}}-fsycl-int-header={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-save-temps-header-[a-z0-9]*}}.h{{.*}}-fsycl-int-footer={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-save-temps-footer-[a-z0-9]*}}.h
 
 /// Usage of -save-temps should not set -disable-llvm-passes for device
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHK_LLVM_PASSES
-// RUN: %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clang -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHK_LLVM_PASSES
 // CHK_LLVM_PASSES-NOT: clang{{.*}} "-triple" "spir64-unknown-unknown" {{.*}} "-disable-llvm-passes"
 // CHK_LLVM_PASSES: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-disable-llvm-passes"
@@ -36,7 +38,7 @@
 /// consumed by the host compile and passing it (an alias for --offload-targets=)
 /// triggers spurious OpenMP target triple validation on SYCL-specific names
 /// like 'intel_gpu_pvc', causing: error: OpenMP target is invalid: 'intel_gpu_pvc'
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-targets=intel_gpu_pvc -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHK-NO-FSYCL-TARGETS-IN-HOST-BC
 /// Verify the host compile step emitting BC is present but without -fsycl-targets=.
 /// The NOT must precede the positive match so FileCheck scans the same line window.

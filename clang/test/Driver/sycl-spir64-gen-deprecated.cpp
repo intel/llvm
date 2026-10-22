@@ -1,6 +1,8 @@
 /// Test the diagnostics for spir64_gen used as a SYCL target, which is
 /// deprecated in favor of intel_gpu_<arch>.
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// Old offloading model: deprecation warning.
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:   -Xsycl-target-backend "-device pvc" %s 2>&1 \
@@ -85,7 +87,7 @@
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc \
 // RUN:   -Xsycl-target-backend=intel_gpu_pvc "-options -extra" %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NO-DIAG
-// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc \
-// RUN:   -Xsycl-target-backend=intel_gpu_pvc "-options -extra" %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc -ccc-install-dir \
+// RUN:   %{clang_install_dir} -Xsycl-target-backend=intel_gpu_pvc "-options -extra" %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NO-DIAG
 // NO-DIAG-NOT: spir64_gen' is

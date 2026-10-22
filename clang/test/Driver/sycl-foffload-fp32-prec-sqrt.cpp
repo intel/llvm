@@ -1,10 +1,12 @@
 // Test SYCL -foffload-fp32-prec-sqrt
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=JIT %s
 

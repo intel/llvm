@@ -1,57 +1,59 @@
 // Test SYCL -ftarget-register-alloc-mode
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=pvc:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AUTO_AOT %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LARGE_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=pvc:small %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=SMALL_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=pvc:default %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEFAULT_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_12_60_7 %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc,intel_gpu_mtl_s %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_AOT %} %else %{ -check-prefix=AUTO_AOT %} %s -DDEVICE=pvc
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_AOT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -ftarget-register-alloc-mode=pvc:auto %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=AUTO_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -ftarget-register-alloc-mode=pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=LARGE_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -ftarget-register-alloc-mode=pvc:small %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=SMALL_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -ftarget-register-alloc-mode=pvc:default %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEFAULT_JIT %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} %s 2>&1 \
 // RUN:   | FileCheck %if system-windows %{ -check-prefix=DEFAULT_JIT %} %else %{ -check-prefix=AUTO_JIT %} %s
 
-// RUN: %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL \
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_JIT %s
 
@@ -67,13 +69,13 @@
 // RUN:    -fsycl-targets=intel_gpu_pvc -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD_BOTH %s
 
-// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_bdw \
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-targets=intel_gpu_bdw \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_PVC %s
 
 // TODO: Test fails on Windows due to improper temporary file creation given
 //       the -device * value.  Re-enable when this is fixed.
-// RUNx: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen -Xs "-device *" \
+// RUNx: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-targets=spir64_gen -Xs "-device *" \
 // RUNx:          %s 2>&1 \
 // RUNx:   | FileCheck -check-prefix=NO_PVC %s
 
