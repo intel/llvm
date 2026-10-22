@@ -56,12 +56,12 @@
 // HOST_OBJECT_CL: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[OBJOUT]]"
 
 /// Missing argument error -fsycl-host-compiler=.
-// RUN: not %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler= -c -### %s 2>&1 \
+// RUN: not %clangxx -fsycl --offload-new-driver -fsycl-host-compiler= -c -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_NOARG %s
 // HOST_COMPILER_NOARG: missing argument to '-fsycl-host-compiler='
 
 /// Error for -fsycl-host-compiler and -fsycl-unnamed-lambda combination.
-// RUN: not %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -fsycl-unnamed-lambda -c -### %s 2>&1 \
+// RUN: not %clangxx -fsycl --offload-new-driver -fsycl-host-compiler=g++ -fsycl-unnamed-lambda -c -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_AND_UNNAMED_LAMBDA %s
 // HOST_COMPILER_AND_UNNAMED_LAMBDA: error: cannot specify '-fsycl-unnamed-lambda' along with '-fsycl-host-compiler'
 

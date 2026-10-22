@@ -8,6 +8,7 @@ add_sycl_unittest(QueueTests OBJECT
   InOrderQueue.cpp
   InteropRetain.cpp
   KhrProperties.cpp
+  KhrUSMProperties.cpp
   Properties.cpp
   Barrier.cpp
 )

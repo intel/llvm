@@ -103,7 +103,7 @@
 // CHK-NO-SPLIT-NOT: --module-split-mode=
 
 /// Check an invalid -fsycl-device-image-split= value is diagnosed.
-// RUN: not %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
+// RUN: not %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-INVALID %s
 // CHK-SPLIT-INVALID: error: invalid value 'bogus' in '-fsycl-device-image-split='
 

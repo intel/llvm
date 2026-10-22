@@ -119,12 +119,12 @@
 /// For AOT spir64_gen, -fsyclbin=input/object additionally implies
 /// -library-compilation in the backend options so symbols stay
 /// externally visible for runtime cross-image resolution.
-// RUN: %clangxx -fsyclbin=object -fsycl-targets=spir64_gen \
+// RUN: %clangxx -fsyclbin=object -fsycl-targets=intel_gpu_pvc \
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_LIBCOMP_IMPLIED
 // CHECK_LIBCOMP_IMPLIED: -library-compilation
 
-// RUN: %clangxx -fsyclbin=executable -fsycl-targets=spir64_gen \
+// RUN: %clangxx -fsyclbin=executable -fsycl-targets=intel_gpu_pvc \
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_LIBCOMP_NOT_IMPLIED
 // CHECK_LIBCOMP_NOT_IMPLIED-NOT: -library-compilation
@@ -135,10 +135,10 @@
 /// case, so the driver emits an error and redirects users to
 /// -fsyclbin=executable.
 // RUN: not %clangxx -fsyclbin=object -fno-sycl-allow-device-image-dependencies \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
 // RUN: not %clangxx -fsyclbin=input -fno-sycl-allow-device-image-dependencies \
-// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN:   --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_CONFLICT
 // CHECK_DEPS_CONFLICT: error: invalid argument '-fno-sycl-allow-device-image-dependencies' not allowed with '-fsyclbin={{input|object}}'
 
@@ -149,3 +149,13 @@
 // RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_DEPS_REDUNDANT
 // CHECK_DEPS_REDUNDANT: warning: '-fsycl-allow-device-image-dependencies' has no effect with '-fsyclbin=executable'
+
+/// -fsycl-max-parallel-link-jobs is passed to clang-linker-wrapper when
+/// building a SYCLBIN.
+// RUN: %clangxx -fsyclbin=executable -fsycl-targets=intel_gpu_pvc \
+// RUN:   -fsycl-device-code-split=per_kernel -fsycl-max-parallel-link-jobs=24 \
+// RUN:   --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PARALLEL_JOBS
+// CHECK_PARALLEL_JOBS-NOT: argument unused during compilation: '-fsycl-max-parallel-link-jobs=24'
+// CHECK_PARALLEL_JOBS: clang-linker-wrapper{{.*}} "--syclbin=executable"
+// CHECK_PARALLEL_JOBS-SAME: "--wrapper-jobs=24"
