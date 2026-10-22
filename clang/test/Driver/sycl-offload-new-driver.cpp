@@ -355,3 +355,28 @@
 // RUN:  | FileCheck -check-prefix CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT %s
 // CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT-NOT: error: '--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'
 // CHK-OFFLOAD-ARCH-OPENMP-IMPLICIT: llvm-offload-binary{{.*}} "--image={{.*}}triple=spir64-unknown-unknown,arch=gfx900,kind=sycl
+
+/// -fsycl-max-parallel-link-jobs is passed to clang-linker-wrapper as
+/// --wrapper-jobs to compile split device modules in parallel.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-max-parallel-link-jobs=4 \
+// RUN:          -fsycl-targets=intel_gpu_pvc -fsycl-device-code-split=per_kernel \
+// RUN:          --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:          -fno-sycl-libspirv %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHK-PARALLEL-JOBS %s
+// CHK-PARALLEL-JOBS-NOT: argument unused during compilation: '-fsycl-max-parallel-link-jobs=4'
+// CHK-PARALLEL-JOBS: clang-linker-wrapper{{.*}} "--wrapper-jobs=4"
+
+/// --offload-jobs takes precedence over -fsycl-max-parallel-link-jobs.
+// RUN: %clangxx -### -fsycl --offload-new-driver -fsycl-max-parallel-link-jobs=4 \
+// RUN:          --offload-jobs=8 --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:          -fno-sycl-libspirv %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHK-PARALLEL-JOBS-OFFLOAD-JOBS %s
+// CHK-PARALLEL-JOBS-OFFLOAD-JOBS: clang-linker-wrapper{{.*}} "--wrapper-jobs=8"
+// CHK-PARALLEL-JOBS-OFFLOAD-JOBS-NOT: "--wrapper-jobs=4"
+
+/// Invalid values for -fsycl-max-parallel-link-jobs are diagnosed.
+// RUN: not %clangxx -### -fsycl --offload-new-driver -fsycl-max-parallel-link-jobs=0 \
+// RUN:          --no-offloadlib -fno-sycl-instrument-device-code \
+// RUN:          -fno-sycl-libspirv %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHK-PARALLEL-JOBS-INVALID %s
+// CHK-PARALLEL-JOBS-INVALID: error: invalid integral value '0' in '-fsycl-max-parallel-link-jobs=0'
