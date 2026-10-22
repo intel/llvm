@@ -43,7 +43,7 @@
 // NO-BOTH: clang{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std={{.*}}"
 
 /// Check phases without integration footer
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // NO-FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // NO-FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -53,7 +53,7 @@
 // NO-FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {4}, ir, (device-sycl)
 
 /// Check phases with integration footer
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -88,7 +88,7 @@
 // DEP_GEN-SAME: "-dependency-file" "[[DEPFILE]]"
 
 /// Dependency generation phases
-// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -MD -c %s -ccc-print-phases 2>&1 \
+// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -MD -c %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN_PHASES %s
 // DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (host-sycl)
 // DEP_GEN_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)

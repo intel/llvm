@@ -730,7 +730,7 @@ specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
 be found in the [Users Manual](UsersManual.md#generic-options).
 
-```-fsycl-targets=spir64_gen``` for GPU,
+```-fsycl-targets=intel_gpu_<arch>``` (e.g. ```intel_gpu_pvc```) for GPU,
 ```-fsycl-targets=spir64_x86_64``` for CPU.
 
 Multiple target architectures are supported.
@@ -739,7 +739,7 @@ E.g., this command builds simple-sycl-app for GPU and CPU devices in
 ahead of time mode:
 
 ```bash
-clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o simple-sycl-app-aot.exe
+clang++ -fsycl -fsycl-targets=intel_gpu_pvc,spir64_x86_64 simple-sycl-app.cpp -o simple-sycl-app-aot.exe
 ```
 
 Additionally, user can pass specific options of AOT compiler to

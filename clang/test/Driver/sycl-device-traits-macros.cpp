@@ -20,7 +20,7 @@
 /// definition, one for host and one for each of the two devices.
 // RUN:   %clang -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
-// RUN:   %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64,spir64_gen -### %s 2>&1 \
+// RUN:   %clang -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64,intel_gpu_pvc -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-TARGETS %s
 // CHECK-SYCL-TARGETS-COUNT-3: "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"
 

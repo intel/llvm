@@ -2459,9 +2459,12 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
   // In the case of a language specific address space:
   // __clang::struct _AS[language_addr_space]<Type>
   // where:
-  //  <language_addr_space> ::= <OpenCL-addrspace> | <CUDA-addrspace>
+  //  <language_addr_space> ::= <OpenCL-addrspace> | <SYCL-addrspace>
+  //                          | <CUDA-addrspace>
   //    <OpenCL-addrspace> ::= "CL" [ "global" | "local" | "constant" |
   //                                "private"| "generic" | "device" | "host" ]
+  //    <SYCL-addrspace> ::= "SY" [ "global" | "local" | "private" | "generic" |
+  //                                "constant" | "device" | "host" ]
   //    <CUDA-addrspace> ::= "CU" [ "device" | "constant" | "shared" ]
   //    Note that the above were chosen to match the Itanium mangling for this.
   //
@@ -2503,9 +2506,6 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::opencl_generic:
       Extra.mangleSourceName("_ASCLgeneric");
       break;
-    case LangAS::cuda_device:
-      Extra.mangleSourceName("_ASCUdevice");
-      break;
     case LangAS::sycl_global:
       Extra.mangleSourceName("_ASSYglobal");
       break;
@@ -2520,6 +2520,15 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
       break;
     case LangAS::sycl_private:
       Extra.mangleSourceName("_ASSYprivate");
+      break;
+    case LangAS::sycl_generic:
+      Extra.mangleSourceName("_ASSYgeneric");
+      break;
+    case LangAS::sycl_constant:
+      Extra.mangleSourceName("_ASSYconstant");
+      break;
+    case LangAS::cuda_device:
+      Extra.mangleSourceName("_ASCUdevice");
       break;
     case LangAS::cuda_constant:
       Extra.mangleSourceName("_ASCUconstant");

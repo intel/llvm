@@ -1,3 +1,6 @@
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
+
 // RUN: %if target-spir %{ %{build} -o %t-opencl.out %}
 // RUN: %if target-nvidia %{ %{build} -DBUILD_FOR_CUDA -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL -o %t-cuda.out %}
 // RUN: %if target-amd %{ %{build} -DBUILD_FOR_HIP -o %t-hip.out %}

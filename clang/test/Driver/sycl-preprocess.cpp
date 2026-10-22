@@ -16,9 +16,9 @@
 // PREPROC_IN: clang{{.*}} "-fsycl-is-host"
 
 /// When generating preprocessed files, verify the compilation phases.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl -E %s -o %t.ii -ccc-print-phases 2>&1 \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu --offload-new-driver -fsycl -E %s -o %t.ii -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s -check-prefix PREPROC_PHASES -DTARGET=x86_64-unknown-linux-gnu
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl -P %s -Fi%t.ii -ccc-print-phases 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc --offload-new-driver -fsycl -P %s -Fi%t.ii -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s -check-prefix PREPROC_PHASES -DTARGET=x86_64-pc-windows-msvc
 // PREPROC_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // PREPROC_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)

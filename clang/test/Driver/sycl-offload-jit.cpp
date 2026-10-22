@@ -1,9 +1,9 @@
 /// Perform several driver tests for SYCL offloading for JIT
 
 /// Check the phases graph with -fsycl. Use of -fsycl enables offload
-// RUN: %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN: %clang --offload-new-driver -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
-// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -- %s 2>&1 \
+// RUN: %clang_cl --offload-new-driver -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES-NEXT: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -103,7 +103,7 @@
 // CHK-NO-SPLIT-NOT: --module-split-mode=
 
 /// Check an invalid -fsycl-device-image-split= value is diagnosed.
-// RUN: not %clang --offload-new-driver --sysroot=%S/Inputs/SYCL -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
+// RUN: not %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=bogus %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-INVALID %s
 // CHK-SPLIT-INVALID: error: invalid value 'bogus' in '-fsycl-device-image-split='
 

@@ -489,12 +489,12 @@ static ur_result_t redefinedurProgramGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// https://github.com/intel/llvm/issues/18122
-TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
-  // Create temporary directory for the persistent cache in the directory of the
-  // test binary.
-  std::string PersistentCachePath = sycl::detail::OSUtil::getCurrentDSODir() +
-                                    detail::OSUtil::DirSep + "persistent_cache";
+TEST_P(MultipleDevsKernelBundleTest, PersistentCache) {
+  llvm::SmallString<256> PersistentCachePath;
+  ASSERT_NO_ERROR(llvm::sys::fs::createUniqueDirectory(
+      sycl::detail::OSUtil::getCurrentDSODir() + detail::OSUtil::DirSep +
+          "persistent_cache",
+      PersistentCachePath));
   // Set environment variables to enable persistent cache and set the cache
   // path.
   ScopedEnvVar var1("SYCL_CACHE_PERSISTENT", "1",
@@ -509,9 +509,6 @@ TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
 
   mock::getCallbacks().set_after_callback("urProgramGetInfo",
                                           &redefinedurProgramGetInfo);
-  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
-  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
-  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
 
   // Get devices and create a context with at least 3 devices
   std::vector<sycl::device> Devices =
@@ -549,7 +546,7 @@ TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
   // Verify the number of urProgramCreateWithBinary calls
   EXPECT_EQ(ProgramCreateWithBinaryCounter, 1)
       << "Expect 1 urProgramCreateWithBinary calls";
-  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(PersistentCachePath));
 }
 
 INSTANTIATE_TEST_SUITE_P(MultipleDevsKernelBundleTestInstance,

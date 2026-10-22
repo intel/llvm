@@ -1,4 +1,6 @@
 // REQUIRES: aspect-usm_device_allocations
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // -- End-to-end round-trip test for kernel_bundle::ext_oneapi_get_content().
 // -- Loads a SYCLBIN file, asks the runtime for its serialized contents, then

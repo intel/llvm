@@ -78,6 +78,44 @@ void SPIRVLowerBoolBase::visitTruncInst(TruncInst &I) {
   }
 }
 
+// SPIR-V has no relational opcode for OpTypeBool, only OpLogicalEqual/NotEqual.
+void SPIRVLowerBoolBase::visitICmpInst(ICmpInst &I) {
+  auto *Op0 = I.getOperand(0);
+  auto *Op1 = I.getOperand(1);
+  if (!isBoolType(Op0->getType()))
+    return;
+  // Every relational predicate reduces to `A & !B` or `A | !B` for some
+  // ordering (A, B) of the operands.
+  Value *A = Op0, *B = Op1;
+  Instruction::BinaryOps Opc;
+  switch (I.getPredicate()) {
+  case CmpInst::ICMP_UGT:
+  case CmpInst::ICMP_SLT:
+    Opc = Instruction::And;
+    break;
+  case CmpInst::ICMP_ULT:
+  case CmpInst::ICMP_SGT:
+    std::swap(A, B);
+    Opc = Instruction::And;
+    break;
+  case CmpInst::ICMP_UGE:
+  case CmpInst::ICMP_SLE:
+    Opc = Instruction::Or;
+    break;
+  case CmpInst::ICMP_ULE:
+  case CmpInst::ICMP_SGE:
+    std::swap(A, B);
+    Opc = Instruction::Or;
+    break;
+  default:
+    return;
+  }
+  auto *NotB = BinaryOperator::CreateNot(B, "", I.getIterator());
+  NotB->setDebugLoc(I.getDebugLoc());
+  auto *NewI = BinaryOperator::Create(Opc, A, NotB, "", I.getIterator());
+  replace(&I, NewI);
+}
+
 void SPIRVLowerBoolBase::handleExtInstructions(Instruction &I) {
   auto *Op = I.getOperand(0);
   if (isBoolType(Op->getType())) {

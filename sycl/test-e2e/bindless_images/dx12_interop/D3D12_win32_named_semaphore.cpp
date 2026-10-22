@@ -3,6 +3,8 @@
 // REQUIRES: windows
 
 // REQUIRES-INTEL-DRIVER: lin: 40130
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe

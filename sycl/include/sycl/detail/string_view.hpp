@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <sycl/detail/abi_check.hpp>
 #include <sycl/detail/string.hpp>
 
 #include <string>
@@ -56,6 +57,11 @@ public:
     return std::string_view(str, len);
   }
 };
+
+#ifndef __SYCL_DEVICE_ONLY__
+static_assert(alignof(string_view) == alignof(const char *),
+              __SYCL_ABI_PACKING_ERROR);
+#endif
 
 } // namespace detail
 } // namespace _V1
