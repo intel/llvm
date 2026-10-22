@@ -388,6 +388,24 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
     return mapType(T,
                    FixedVectorType::get(transType(T->getVectorComponentType()),
                                         T->getVectorComponentCount()));
+  case OpTypeVectorIdEXT: {
+    // The component size might be a specialization constant, that needs to be
+    // specialized and evaluated before the FixedVectorType can be constructed
+    auto *VT = static_cast<const SPIRVTypeVectorIdEXT *>(T);
+    auto *CountValue = dyn_cast<ConstantInt>(
+        transValue(VT->getComponentCount(), nullptr, nullptr));
+    if (!BM->getErrorLog().checkError(
+            CountValue, SPIRVEC_InvalidInstruction,
+            "TypeVectorIdEXT: component count must evaluate to a constant "
+            "integer\n"))
+      return nullptr;
+    if (!BM->getErrorLog().checkError(
+            !CountValue->isZero(), SPIRVEC_InvalidInstruction,
+            "TypeVectorIdEXT: component count must be greater than zero\n"))
+      return nullptr;
+    return mapType(T, FixedVectorType::get(transType(VT->getComponentType()),
+                                           CountValue->getZExtValue()));
+  }
   case OpTypeMatrix:
     return mapType(T, ArrayType::get(transType(T->getMatrixColumnType()),
                                      T->getMatrixColumnCount()));
@@ -567,6 +585,9 @@ std::string SPIRVToLLVM::transTypeToOCLTypeName(SPIRVType *T, bool IsSigned) {
   case OpTypeVector:
     return transTypeToOCLTypeName(T->getVectorComponentType()) +
            T->getVectorComponentCount();
+  case OpTypeVectorIdEXT:
+    return transTypeToOCLTypeName(T->getVectorComponentType()) +
+           cast<FixedVectorType>(transType(T))->getNumElements();
   case OpTypeMatrix:
     return transTypeToOCLTypeName(T->getMatrixColumnType()) +
            T->getMatrixColumnCount();
@@ -1094,7 +1115,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
 
       auto GetEncodingAndUpdateType =
           [GetFPEncoding](SPIRVType *&SPVTy) -> FPEncodingWrap {
-        if (SPVTy->isTypeVector()) {
+        if (SPVTy->isTypeVector() || SPVTy->isTypeVectorIdEXT()) {
           SPVTy = SPVTy->getVectorComponentType();
         } else if (SPVTy->isTypeCooperativeMatrixKHR()) {
           auto *MT = static_cast<SPIRVTypeCooperativeMatrixKHR *>(SPVTy);
@@ -1522,14 +1543,17 @@ void SPIRVToLLVM::addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
 }
 
 void SPIRVToLLVM::transFunctionPointerCallArgumentAttributes(
-    SPIRVValue *BV, CallInst *CI, SPIRVTypeFunction *CalledFnTy) {
+    SPIRVValue *BV, CallInst *CI, SPIRVFunctionPointerCallINTEL *Call) {
   std::vector<SPIRVDecorate const *> ArgumentAttributes =
       BV->getDecorations(internal::DecorationArgumentAttributeINTEL);
 
+  std::vector<SPIRVValue *> ArgValues = Call->getArgumentValues();
   for (const auto *Dec : ArgumentAttributes) {
     std::vector<SPIRVWord> Literals = Dec->getVecLiteral();
     SPIRVWord ArgNo = Literals[0];
     SPIRVWord SpirvAttr = Literals[1];
+    if (ArgNo >= ArgValues.size())
+      continue; // Ignore a malformed ArgumentAttributeINTEL decoration.
     // There is no value to rmap SPIR-V FunctionParameterAttributeNoCapture, as
     // LLVM does not have Attribute::NoCapture anymore. Adding special handling
     // for this case.
@@ -1540,12 +1564,22 @@ void SPIRVToLLVM::transFunctionPointerCallArgumentAttributes(
     }
     Attribute::AttrKind LlvmAttrKind = SPIRSPIRVFuncParamAttrMap::rmap(
         static_cast<SPIRVFuncParamAttrKind>(SpirvAttr));
-    auto LlvmAttr =
-        Attribute::isTypeAttrKind(LlvmAttrKind)
-            ? Attribute::get(CI->getContext(), LlvmAttrKind,
-                             transType(CalledFnTy->getParameterType(ArgNo)
-                                           ->getPointerElementType()))
-            : Attribute::get(CI->getContext(), LlvmAttrKind);
+    SPIRVValue *Arg = ArgValues[ArgNo];
+    Attribute LlvmAttr;
+    if (Attribute::isTypeAttrKind(LlvmAttrKind)) {
+      // assume all byval/sret args are always emitted as typed pointers
+      if (!BM->getErrorLog().checkError(
+              !Arg->getType()->isTypeUntypedPointerKHR(), SPIRVEC_InvalidModule,
+              "FunctionPointerCallINTEL: type-attributed function arguments in "
+              "an indirect call should always be a typed "
+              "pointer argument for now"))
+        return;
+      LlvmAttr =
+          Attribute::get(CI->getContext(), LlvmAttrKind,
+                         transType(Arg->getType()->getPointerElementType()));
+    } else {
+      LlvmAttr = Attribute::get(CI->getContext(), LlvmAttrKind);
+    }
     CI->addParamAttr(ArgNo, LlvmAttr);
   }
 }
@@ -1674,6 +1708,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
     switch (BV->getType()->getOpCode()) {
     case OpTypeVector:
+    case OpTypeVectorIdEXT:
       return mapValue(BV, ConstantVector::get(CV));
     case OpTypeMatrix:
     case OpTypeArray: {
@@ -2487,7 +2522,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       // For untyped access chains the Base Type operand already is the type
       // being indexed, so it has to be used as is.
       BaseTy = transType(BaseSPVTy);
-    } else if (BaseSPVTy->isTypeVector()) {
+    } else if (BaseSPVTy->isTypeVector() || BaseSPVTy->isTypeVectorIdEXT()) {
       auto *VecCompTy = BaseSPVTy->getVectorComponentType();
       if (VecCompTy->isTypePointer())
         BaseTy = transType(VecCompTy->getPointerElementType());
@@ -2581,6 +2616,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     }
 
     switch (static_cast<size_t>(BV->getType()->getOpCode())) {
+    case OpTypeVectorIdEXT:
     case OpTypeVector: {
       if (!HasRtValues)
         return mapValue(BV, ConstantVector::get(CV));
@@ -2649,7 +2685,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
-    if (CE->getComposite()->getType()->isTypeVector()) {
+    if (CE->getComposite()->getType()->isTypeVector() ||
+        CE->getComposite()->getType()->isTypeVectorIdEXT()) {
       assert(CE->getIndices().size() == 1 && "Invalid index");
       return mapValue(
           BV, Builder.CreateExtractElement(
@@ -2677,7 +2714,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
-    if (CI->getComposite()->getType()->isTypeVector()) {
+    if (CI->getComposite()->getType()->isTypeVector() ||
+        CI->getComposite()->getType()->isTypeVectorIdEXT()) {
       assert(CI->getIndices().size() == 1 && "Invalid index");
       return mapValue(
           BV, Builder.CreateInsertElement(
@@ -2703,6 +2741,32 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpVectorShuffle: {
     auto *VS = static_cast<SPIRVVectorShuffle *>(BV);
+    if (BV->getType()->isTypeVectorIdEXT()) {
+      unsigned ResCount =
+          cast<FixedVectorType>(transType(BV->getType()))->getNumElements();
+      if (!BM->getErrorLog().checkError(
+              ResCount == VS->getComponents().size(),
+              SPIRVEC_InvalidInstruction,
+              "VectorShuffle: result component count must match the number of "
+              "components selected\n"))
+        return nullptr;
+    }
+    // Each component index must be within range (FFFFFFFF or in [0, N-1]
+    // where N is the total number of components of the logically concatenated
+    // 2 vectors). Check here for both OpTypeVector and OpTypeVectorIdEXT.
+    SPIRVType *V1Ty = VS->getVector1()->getType();
+    SPIRVType *V2Ty = VS->getVector2()->getType();
+    unsigned NumTotalComps =
+        cast<FixedVectorType>(transType(V1Ty))->getNumElements() +
+        cast<FixedVectorType>(transType(V2Ty))->getNumElements();
+    for (SPIRVWord Comp : VS->getComponents()) {
+      if (Comp == static_cast<SPIRVWord>(0xFFFFFFFF))
+        continue;
+      if (!BM->getErrorLog().checkError(
+              Comp < NumTotalComps, SPIRVEC_InvalidInstruction,
+              "VectorShuffle: selected component index is out of range\n"))
+        return nullptr;
+    }
     std::vector<Constant *> Components;
     IntegerType *Int32Ty = IntegerType::get(*Context, 32);
     for (auto I : VS->getComponents()) {
@@ -2778,12 +2842,22 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVFunctionPointerCallINTEL *BC =
         static_cast<SPIRVFunctionPointerCallINTEL *>(BV);
     auto *V = transValue(BC->getCalledValue(), F, BB);
-    auto *SpirvFnTy = BC->getCalledValue()->getType()->getPointerElementType();
-    auto *FnTy = cast<FunctionType>(transType(SpirvFnTy));
-    auto *Call = CallInst::Create(
-        FnTy, V, transValue(BC->getArgumentValues(), F, BB), BC->getName(), BB);
-    transFunctionPointerCallArgumentAttributes(
-        BV, Call, static_cast<SPIRVTypeFunction *>(SpirvFnTy));
+    std::vector<Value *> Args = transValue(BC->getArgumentValues(), F, BB);
+    SPIRVType *SpirvPtrTy = BC->getCalledValue()->getType();
+    FunctionType *FnTy = nullptr;
+    if (SpirvPtrTy->isTypeUntypedPointerKHR()) {
+      // An untyped function pointer has no pointee type, so rebuild the
+      // signature from the call's return and argument types.
+      SmallVector<Type *, 8> ArgTys;
+      for (Value *Arg : Args)
+        ArgTys.push_back(Arg->getType());
+      FnTy = FunctionType::get(transType(BC->getType()), ArgTys,
+                               /*isVarArg=*/false);
+    } else {
+      FnTy = cast<FunctionType>(transType(SpirvPtrTy->getPointerElementType()));
+    }
+    auto *Call = CallInst::Create(FnTy, V, Args, BC->getName(), BB);
+    transFunctionPointerCallArgumentAttributes(BV, Call, BC);
     // Assuming we are calling a regular device function
     Call->setCallingConv(CallingConv::SPIR_FUNC);
     // Don't set attributes, because at translation time we don't know which
@@ -3169,7 +3243,19 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       auto *BI = static_cast<SPIRVInstruction *>(BV);
       Value *Inst = nullptr;
-      if (BI->hasFPRoundingMode() || BI->isSaturatedConversion()) {
+      auto IsMiniFloatOrInt4 = [](SPIRVType *Ty) {
+        return Ty->isTypeFloat(8, FPEncodingFloat8E4M3EXT) ||
+               Ty->isTypeFloat(8, FPEncodingFloat8E5M2EXT) ||
+               Ty->isTypeFloat(4, FPEncodingFloat4E2M1EXT) ||
+               Ty->isTypeFloat(4, internal::FPEncodingFloat4E2M1INTEL) ||
+               Ty->isTypeInt(4);
+      };
+      // Check both sides: the encoding may be on the source (e.g. an upcast
+      // out of Float4E2M1) rather than the result.
+      if ((BI->hasFPRoundingMode() || BI->isSaturatedConversion()) &&
+          !IsMiniFloatOrInt4(BI->getType()) &&
+          !IsMiniFloatOrInt4(
+              static_cast<SPIRVUnary *>(BI)->getOperand(0)->getType())) {
         Inst = transSPIRVBuiltinFromInst(BI, BB);
       } else if (BI->getType()->isTypeCooperativeMatrixKHR()) {
         // For cooperative matrix conversions generate __builtin_spirv
@@ -3779,7 +3865,7 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
           IntegerType::get(
               *Context,
               Args[0]->getType()->getVectorComponentType()->getBitWidth()),
-          BT->getVectorComponentCount());
+          cast<FixedVectorType>(transType(BT))->getNumElements());
     else
       llvm_unreachable("invalid compare instruction");
   }
@@ -3997,7 +4083,7 @@ Type *SPIRVToLLVM::getTypedPtrFromUntypedOperand(SPIRVValue *Val, Type *RetTy) {
         reinterpret_cast<SPIRVAccessChainBase *>(Val)->getBaseType();
     if (BaseTy->isTypeArray())
       Ty = transType(BaseTy->getArrayElementType());
-    else if (BaseTy->isTypeVector())
+    else if (BaseTy->isTypeVector() || BaseTy->isTypeVectorIdEXT())
       Ty = transType(BaseTy->getVectorComponentType());
     else
       Ty = transType(BaseTy);
@@ -4244,6 +4330,9 @@ bool SPIRVToLLVM::translate() {
   transGeneratorMD();
   if (!lowerBuiltins(BM, M))
     return false;
+  // Only AMD targets emit these helpers, so only AMD targets reconstruct them.
+  if (M->getTargetTriple().getVendor() == Triple::AMD)
+    lowerAtomicWrapCalls(M);
   if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR) {
     SPIRVWord SrcLangVer = 0;
     BM->getSourceLanguage(&SrcLangVer);
@@ -4266,49 +4355,58 @@ bool SPIRVToLLVM::translate() {
 }
 
 bool SPIRVToLLVM::transAddressingModel() {
-  // No -G: LLVM auto-injects -G1 for spir triples, and emitting our own
-  // would shift getDefaultGlobalsAddressSpace() away from AS 0 (the LLVM
-  // convention for llvm.global.annotations / llvm.metadata fields).
+  // The datalayout depends on the triple, so resolve triple first.
+  Triple OverrideTT;
+  StringRef Override = BM->getTargetTripleOverride();
+  if (!Override.empty()) {
+    OverrideTT = Triple(Triple::normalize(Override));
+    SPIRVCKRT(OverrideTT.getArch() != Triple::UnknownArch,
+              InvalidTargetTripleOverride, Override.str());
+  }
+
   auto AppendAddrSpaceModifiers = [this](std::string &DL) {
+    // A target datalayout may already pin these; only override on divergence.
+    DataLayout Base(DL);
     unsigned PrivateAS = BM->mapAddrSpace(SPIRAS_Private);
-    if (PrivateAS != SPIRAS_Private)
+    if (PrivateAS != Base.getAllocaAddrSpace())
       DL += "-A" + std::to_string(PrivateAS);
     unsigned ProgramAS = BM->getFunctionProgramAddrSpace();
-    if (ProgramAS != 0)
+    if (ProgramAS != Base.getProgramAddressSpace())
       DL += "-P" + std::to_string(ProgramAS);
   };
 
+  auto SetTripleAndDataLayout = [&](const char *SPIRTriple,
+                                    const char *SPIRDataLayout) {
+    Triple TT = Override.empty() ? Triple(SPIRTriple) : OverrideTT;
+    M->setTargetTriple(TT);
+    // A non-SPIR target sizes pointers per address space (AMDGPU: 32-bit
+    // local/private, 64-bit global/constant/flat); SPIR's uniform 64-bit
+    // layout would misreport them. No -G on the SPIR path: LLVM auto-injects
+    // -G1 for spir triples, and emitting our own would shift
+    // getDefaultGlobalsAddressSpace() away from AS 0 (the LLVM convention for
+    // llvm.global.annotations / llvm.metadata fields).
+    std::string DL = TT.isSPIR() || TT.isSPIRV() ? std::string(SPIRDataLayout)
+                                                 : TT.computeDataLayout();
+    AppendAddrSpaceModifiers(DL);
+    M->setDataLayout(DL);
+  };
+
   switch (BM->getAddressingModel()) {
-  case AddressingModelPhysical64: {
-    M->setTargetTriple(Triple(SPIR_TARGETTRIPLE64));
-    std::string DL = SPIR_DATALAYOUT64;
-    AppendAddrSpaceModifiers(DL);
-    M->setDataLayout(DL);
+  case AddressingModelPhysical64:
+    SetTripleAndDataLayout(SPIR_TARGETTRIPLE64, SPIR_DATALAYOUT64);
     break;
-  }
-  case AddressingModelPhysical32: {
-    M->setTargetTriple(Triple(SPIR_TARGETTRIPLE32));
-    std::string DL = SPIR_DATALAYOUT32;
-    AppendAddrSpaceModifiers(DL);
-    M->setDataLayout(DL);
+  case AddressingModelPhysical32:
+    SetTripleAndDataLayout(SPIR_TARGETTRIPLE32, SPIR_DATALAYOUT32);
     break;
-  }
   case AddressingModelLogical:
-    // Do not set target triple and data layout
+    // No datalayout; the override still names the target.
+    if (!Override.empty())
+      M->setTargetTriple(OverrideTT);
     break;
   default:
     SPIRVCKRT(0, InvalidAddressingModel,
               "Actual addressing mode is " +
                   std::to_string(BM->getAddressingModel()));
-  }
-
-  // Optional override replaces the triple.
-  StringRef Override = BM->getTargetTripleOverride();
-  if (!Override.empty()) {
-    Triple TT(Triple::normalize(Override));
-    SPIRVCKRT(TT.getArch() != Triple::UnknownArch, InvalidTargetTripleOverride,
-              Override.str());
-    M->setTargetTriple(TT);
   }
 
   return true;
@@ -6035,7 +6133,20 @@ SPIRVModuleTextReport formatSpirvReport(const SPIRVModuleReport &Report) {
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg) {
-  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule(Opts));
+  const SPIRV::TranslatorOpts *EffectiveOpts = &Opts;
+  SPIRV::TranslatorOpts AdjustedOpts;
+  if (!Opts.getSPIRVTargetTriple().empty()) {
+    AdjustedOpts = Opts;
+    if (!AdjustedOpts.deriveTargetAddrSpaces()) {
+      ErrMsg = ("No address space map for target triple '" +
+                Twine(Opts.getSPIRVTargetTriple()) + "'")
+                   .str();
+      return nullptr;
+    }
+    EffectiveOpts = &AdjustedOpts;
+  }
+  std::unique_ptr<SPIRVModule> BM(
+      SPIRVModule::createSPIRVModule(*EffectiveOpts));
 
   IS >> *BM;
   if (!BM->isModuleValid()) {
@@ -6119,7 +6230,10 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
     return false;
   }
 
-  M = convertSpirvToLLVM(C, *BM, Opts, ErrMsg).release();
+  // readSpirvModule normalizes the target triple and derives the address
+  // space map and then builds the module. Take Opts from the module to
+  // avoid divergence.
+  M = convertSpirvToLLVM(C, *BM, BM->getTranslationOpts(), ErrMsg).release();
 
   if (!M)
     return false;

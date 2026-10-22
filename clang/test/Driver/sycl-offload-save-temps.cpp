@@ -36,8 +36,6 @@
 /// consumed by the host compile and passing it (an alias for --offload-targets=)
 /// triggers spurious OpenMP target triple validation on SYCL-specific names
 /// like 'intel_gpu_pvc', causing: error: OpenMP target is invalid: 'intel_gpu_pvc'
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64_gen-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
-// RUN: | FileCheck %s --check-prefix=CHK-NO-FSYCL-TARGETS-IN-HOST-BC
 // RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=intel_gpu_pvc -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHK-NO-FSYCL-TARGETS-IN-HOST-BC
 /// Verify the host compile step emitting BC is present but without -fsycl-targets=.
