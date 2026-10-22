@@ -1170,7 +1170,8 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
   }
 
   BasicBlock *new_kernel_entry_block = &(new_kernel->getEntryBlock());
-  Instruction *insert_point = &*new_kernel_entry_block->getFirstNonPHIOrDbg();
+  Instruction *insert_point =
+      &*new_kernel_entry_block->getFirstNonPHIOrPseudoProbe();
   auto *const cloned_barrier_call =
       region.barrier_inst ? insert_point : nullptr;
 
@@ -1275,7 +1276,7 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
   }
 
   // Iterate instruction from insert point at entry basic block.
-  insert_point = &*new_kernel_entry_block->getFirstNonPHIOrDbg();
+  insert_point = &*new_kernel_entry_block->getFirstNonPHIOrPseudoProbe();
   const RemapFlags remapFlags =
       RF_IgnoreMissingLocals | llvm::RF_ReuseAndMutateDistinctMDs;
   BasicBlock::iterator b_iter = insert_point->getIterator();
@@ -1323,7 +1324,7 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
 
   // This needs resetting for the sake of any further new GEPs created
   live_values.gepBuilder.SetInsertPoint(
-      new_kernel_entry_block->getFirstNonPHIOrDbg());
+      new_kernel_entry_block->getFirstNonPHIOrPseudoProbe());
 
   // If there are definitions of live variable in this function, process it
   // here. As mentioned above regarding value stores, the user might want to

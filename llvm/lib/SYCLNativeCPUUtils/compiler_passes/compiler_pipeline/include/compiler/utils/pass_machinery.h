@@ -28,6 +28,8 @@
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
 
+#include <optional>
+
 namespace llvm {
 class TargetMachine;
 }
@@ -99,8 +101,8 @@ public:
   llvm::FunctionAnalysisManager &getFAM() { return FAM; }
   const llvm::FunctionAnalysisManager &getFAM() const { return FAM; }
 
-  llvm::PassBuilder &getPB() { return PB; }
-  const llvm::PassBuilder &getPB() const { return PB; }
+  llvm::PassBuilder &getPB() { return *PB; }
+  const llvm::PassBuilder &getPB() const { return *PB; }
 
   llvm::TargetMachine *getTM() { return TM; }
   const llvm::TargetMachine *getTM() const { return TM; }
@@ -121,8 +123,9 @@ protected:
   std::unique_ptr<llvm::StandardInstrumentations> SI;
   /// @brief Provides an interface to register callbacks.
   llvm::PassInstrumentationCallbacks PIC;
-  /// @brief Helper to build and parse pass pipelines.
-  llvm::PassBuilder PB;
+  /// @brief Helper to build and parse pass pipelines. Set by initializeStart;
+  /// PassBuilder is not assignable.
+  std::optional<llvm::PassBuilder> PB;
 };
 
 /// Helper functions for pass printing.
