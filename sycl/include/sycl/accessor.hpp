@@ -293,6 +293,7 @@ protected:
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
   __SYCL_SUPPRESS_DEPRECATED_POP
+
   constexpr static bool IsHostTask = AccessTarget == access::target::host_task;
   // SYCL2020 4.7.6.9.4.3
   // IsPlaceHolder template parameter has no bearing on whether the accessor
@@ -455,7 +456,6 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
                                       access::target::constant_buffer>>) {
     return access::target::constant_buffer;
   }
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   if constexpr (
       std::is_same_v<MayBeTag1, mode_target_tag_t<access::mode::read,
@@ -475,6 +475,7 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
 
   return defaultTarget;
 }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 template <int Dims> class LocalAccessorBaseDevice {
 public:
@@ -2099,11 +2100,9 @@ class __SYCL_SPECIAL_CLASS local_accessor_base :
 #endif
     public detail::accessor_common<DataT, Dimensions, AccessMode,
                                    access::target::local, IsPlaceholder> {
-  __SYCL_SUPPRESS_DEPRECATED_POP
 protected:
   constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
 
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   using AccessorCommonT =
       detail::accessor_common<DataT, Dimensions, AccessMode,
                               access::target::local, IsPlaceholder>;
@@ -2360,8 +2359,8 @@ public:
   }
 };
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
 // TODO: Remove deprecated specialization once no longer needed
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
@@ -2621,9 +2620,9 @@ protected:
                            access::placeholder::false_t>::ConcreteASPtrType Ptr,
          range<AdjustedDim> AccessRange, range<AdjustedDim> MemRange,
          id<AdjustedDim> Offset) {
-    __SYCL_SUPPRESS_DEPRECATED_POP
     AccessorT::__init(Ptr, AccessRange, MemRange, Offset);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
 #ifndef __SYCL_DEVICE_ONLY__
   host_accessor(const detail::AccessorImplPtr &Impl)
@@ -2778,20 +2777,20 @@ public:
                                         !IsAccessReadOnly && Dims == 0>>
   const host_accessor &
   operator=(const typename AccessorT::value_type &Other) const {
-    __SYCL_SUPPRESS_DEPRECATED_POP
     *AccessorT::getQualifiedPtr() = Other;
     return *this;
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int Dims = Dimensions,
             typename = std::enable_if_t<AccessMode != access_mode::atomic &&
                                         !IsAccessReadOnly && Dims == 0>>
   const host_accessor &operator=(typename AccessorT::value_type &&Other) const {
-    __SYCL_SUPPRESS_DEPRECATED_POP
     *AccessorT::getQualifiedPtr() = std::move(Other);
     return *this;
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // implicit conversion between const / non-const types for read only accessors
   template <typename DataT_,

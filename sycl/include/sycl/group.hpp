@@ -319,7 +319,6 @@ public:
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
-    __SYCL_SUPPRESS_DEPRECATED_POP
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
@@ -333,6 +332,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements

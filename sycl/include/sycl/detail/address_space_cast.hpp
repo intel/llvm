@@ -25,6 +25,7 @@ address_space_cast_is_possible(access::address_space Src,
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   auto constant_space = access::address_space::constant_space;
   __SYCL_SUPPRESS_DEPRECATED_POP
+
   if (Src == constant_space || Dst == constant_space)
     return Src == Dst;
 

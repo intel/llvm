@@ -191,7 +191,6 @@ inline constexpr uint32_t
 getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
                             const __spv::MemorySemanticsMask LocalScopeMask =
                                 __spv::MemorySemanticsMask::WorkgroupMemory) {
-  __SYCL_SUPPRESS_DEPRECATED_POP
   // Huge ternary operator below is a workaround for constexpr function
   // requirement that such function can only contain return statement and
   // nothing more
@@ -217,7 +216,6 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
   // }
   // return Flags;
 
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   return (AccessSpace == access::fence_space::global_space)
              ? static_cast<uint32_t>(
                    __spv::MemorySemanticsMask::SequentiallyConsistent |
@@ -232,8 +230,8 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
                  __spv::MemorySemanticsMask::SequentiallyConsistent |
                  __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                  LocalScopeMask);
-  __SYCL_SUPPRESS_DEPRECATED_POP
 }
+__SYCL_SUPPRESS_DEPRECATED_POP
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }

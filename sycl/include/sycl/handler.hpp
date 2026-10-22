@@ -492,12 +492,13 @@ private:
   void setArgHelper(int ArgIndex,
                     accessor<DataT, Dims, AccessMode, access::target::local,
                              IsPlaceholder> &&Arg) {
-    __SYCL_SUPPRESS_DEPRECATED_POP(void) ArgIndex;
+    (void)ArgIndex;
     (void)Arg;
 #ifndef __SYCL_DEVICE_ONLY__
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // setArgHelper for local accessor argument (up to date accessor interface)
   template <typename DataT, int Dims>
@@ -519,7 +520,6 @@ private:
   setArgHelper(
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
-    __SYCL_SUPPRESS_DEPRECATED_POP
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
     const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
     // Ensure the data of AccImpl lives at least as long as the handler.
@@ -529,6 +529,7 @@ private:
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(AccessTarget), ArgIndex);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
@@ -1228,12 +1229,15 @@ public:
           constexpr int AccessTargetMask = 0x7ff;
           const access::target target = static_cast<access::target>(
               type::sizes[NumArgs] & AccessTargetMask);
+
           __SYCL_SUPPRESS_DEPRECATED_PUSH
+
           if (target == target::local) {
-            __SYCL_SUPPRESS_DEPRECATED_POP
             detail::LocalAccessorBaseHost *LocalAccBase =
                 (detail::LocalAccessorBaseHost *)(FieldArg);
             setLocalAccessorArgHelper(ArgIndex + NumArgs, *LocalAccBase);
+
+            __SYCL_SUPPRESS_DEPRECATED_POP
           } else {
             detail::AccessorBaseHost *AccBase =
                 (detail::AccessorBaseHost *)(FieldArg);

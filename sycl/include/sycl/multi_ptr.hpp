@@ -39,10 +39,12 @@ struct LegacyPointerTypes {
 // with the unsupported space.
 template <typename ElementType>
 struct LegacyPointerTypes<ElementType, access::address_space::constant_space> {
+
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   using decorated_type = typename detail::DecoratedType<
       ElementType, access::address_space::constant_space>::type;
   __SYCL_SUPPRESS_DEPRECATED_POP
+
   using pointer_t = decorated_type *;
   using const_pointer_t = decorated_type const *;
 };
@@ -62,10 +64,12 @@ struct LegacyReferenceTypes {
 template <typename ElementType>
 struct LegacyReferenceTypes<ElementType,
                             access::address_space::constant_space> {
+
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   using decorated_type = typename detail::DecoratedType<
       ElementType, access::address_space::constant_space>::type;
   __SYCL_SUPPRESS_DEPRECATED_POP
+
   using reference_t = decorated_type &;
   using const_reference_t = decorated_type &;
 };
@@ -262,6 +266,7 @@ public:
     m_Pointer = nullptr;
     return *this;
   }
+
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       access::address_space OtherSpace, access::decorated OtherIsDecorated,
@@ -274,6 +279,7 @@ public:
     return *this;
   }
   __SYCL_SUPPRESS_DEPRECATED_POP
+
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       access::address_space OtherSpace, access::decorated OtherIsDecorated,
@@ -570,6 +576,7 @@ public:
                                std::add_pointer_t<value_type>>);
   // Legacy has a different interface.
   static_assert(DecorateAddress != access::decorated::legacy);
+
   // constant_space is only supported in legacy multi_ptr.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   static_assert(Space != access::address_space::constant_space,
@@ -1378,6 +1385,7 @@ template <class T, int dimensions, access::placeholder isPlaceholder,
 multi_ptr(accessor<T, dimensions, access::mode::read_write, target::device,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
+
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 template <class T, int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT>
@@ -1386,6 +1394,7 @@ multi_ptr(accessor<T, dimensions, access_mode::read, target::constant_buffer,
     -> multi_ptr<const T, access::address_space::constant_space,
                  access::decorated::no>;
 __SYCL_SUPPRESS_DEPRECATED_POP
+
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 template <class T, int dimensions, access::mode Mode,
           access::placeholder isPlaceholder, typename PropertyListT>
@@ -1393,6 +1402,7 @@ multi_ptr(
     accessor<T, dimensions, Mode, target::local, isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::local_space, access::decorated::no>;
 __SYCL_SUPPRESS_DEPRECATED_POP
+
 template <typename T, int dimensions>
 multi_ptr(local_accessor<T, dimensions>)
     -> multi_ptr<T, access::address_space::local_space, access::decorated::no>;

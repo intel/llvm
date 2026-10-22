@@ -71,9 +71,11 @@ public:
     size_t LinId = 0;
     id<Dimensions> Index = get_global_id();
     range<Dimensions> Extent = get_global_range();
+
     __SYCL_SUPPRESS_DEPRECATED_PUSH
     id<Dimensions> Offset = get_offset();
     __SYCL_SUPPRESS_DEPRECATED_POP
+
     if (1 == Dimensions) {
       LinId = Index[0] - Offset[0];
     } else if (2 == Dimensions) {
@@ -206,18 +208,18 @@ public:
     __SYCL_SUPPRESS_DEPRECATED_POP
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_SUPPRESS_DEPRECATED_PUSH
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
-    __SYCL_SUPPRESS_DEPRECATED_POP
 #ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = _V1::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
                            flags);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
@@ -231,7 +233,6 @@ public:
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
-    __SYCL_SUPPRESS_DEPRECATED_POP
 #if __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
@@ -245,6 +246,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements
