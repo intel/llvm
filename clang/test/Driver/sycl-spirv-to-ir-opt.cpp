@@ -2,20 +2,22 @@
 /// Tests for -Xspirv-to-ir-wrapper
 ///
 
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-to-ir-wrapper "foo" -### %s 2>&1 | \
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -Xspirv-to-ir-wrapper "foo" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET
 
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-to-ir-wrapper=intel_gpu_pvc "foo" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -Xspirv-to-ir-wrapper=intel_gpu_pvc "foo" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SINGLE-TARGET-UNUSED --implicit-check-not 'spirv-to-ir-wrapper-options{{.*}}=foo'
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,intel_gpu_pvc --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-to-ir-wrapper=intel_gpu_pvc "foo" -Xspirv-to-ir-wrapper=spir64 "bar" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,intel_gpu_pvc --offload-new-driver -ccc-install-dir %{clang_install_dir} -Xspirv-to-ir-wrapper=intel_gpu_pvc "foo" -Xspirv-to-ir-wrapper=spir64 "bar" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-MULTIPLE-TARGET
 
 // Each token is forwarded as its own --spirv-to-ir-wrapper-options occurrence.
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-to-ir-wrapper "foo bar" -### %s 2>&1 | \
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -Xspirv-to-ir-wrapper "foo bar" -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-MULTIPLE-TOKENS
 
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -Xspirv-to-ir-wrapper '"foo bar"' -### %s 2>&1 | \
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -Xspirv-to-ir-wrapper '"foo bar"' -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix CHECK-SPACE
 
 // CHECK-SINGLE-TARGET: clang-linker-wrapper{{.*}} "--spirv-to-ir-wrapper-options=sycl:spir64-unknown-unknown=foo{{.*}}
