@@ -1,21 +1,51 @@
 ; RUN: llvm-spirv %s -o %t.spt -spirv-text -spirv-ext=+SPV_INTEL_function_pointers
-; RUN: FileCheck < %t.spt %s --check-prefix CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED
 
 ; RUN: llvm-spirv %t.spt -o %t.spv -to-binary
 ; RUN: llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix CHECK-LLVM
 
+; RUN: llvm-spirv %s -o %t.u.spt -spirv-text -spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers
+; RUN: FileCheck < %t.u.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED
+
+; RUN: llvm-spirv %t.u.spt -o %t.u.spv -to-binary
+; RUN: llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.u.spv -o %t.u.rev.bc
+; RUN: llvm-dis %t.u.rev.bc -o %t.u.rev.ll
+; RUN: FileCheck < %t.u.rev.ll %s --check-prefix CHECK-LLVM-UNTYPED
+
+; TODO: reader currently crashes with output of llc for this test with function pointers (for both typed and untyped pointers)
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers -filetype=obj %s -o %t.llc.spv %}
+; RUNx: %if spirv-backend %{ llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.llc.spv -o %t.llc.rev.bc %}
+
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -filetype=obj %s -o %t.llc.u.spv %}
+; RUNx: %if spirv-backend %{ llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.llc.u.spv -o %t.llc.u.rev.bc %}
+
+; CHECK-SPIRV-UNTYPED: Capability UntypedPointersKHR
 ; CHECK-SPIRV: Capability FunctionPointersINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
+; CHECK-SPIRV-UNTYPED: Extension "SPV_KHR_untyped_pointers"
 
-; CHECK-SPIRV: Decorate [[#TargetId:]] ArgumentAttributeINTEL 0 5
-; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 4
-; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 2
-; CHECK-SPIRV: FunctionPointerCallINTEL
-; CHECK-SPIRV-SAME: [[#TargetId]]
+; CHECK-SPIRV-DAG: Decorate [[#TARGET:]] ArgumentAttributeINTEL 0 5
+; CHECK-SPIRV-DAG: Decorate [[#TARGET]] ArgumentAttributeINTEL 0 4
+; CHECK-SPIRV-DAG: Decorate [[#TARGET]] ArgumentAttributeINTEL 0 2
+; CHECK-SPIRV-TYPED: FunctionPointerCallINTEL
+; CHECK-SPIRV-TYPED-SAME: [[#TARGET]]
+; CHECK-SPIRV-UNTYPED-DAG: TypeUntypedPointerKHR [[#PTR:]] [[#]]
+; CHECK-SPIRV-UNTYPED-DAG: TypeStruct [[#MULTI_PTR:]] [[#PTR]]
+; CHECK-SPIRV-UNTYPED-DAG: ConstantFunctionPointerINTEL [[#PTR]] [[#FP:]] [[#INC:]]
+; CHECK-SPIRV-UNTYPED: Function [[#]] [[#INC]]
+; CHECK-SPIRV-UNTYPED: UntypedVariableKHR [[#PTR]] [[#VAR:]] [[#]] [[#MULTI_PTR]]
+; CHECK-SPIRV-UNTYPED: Select [[#PTR]] [[#SEL:]] [[#]] [[#FP]] [[#]]
+; CHECK-SPIRV-UNTYPED: Bitcast [[#]] [[#BARG:]] [[#VAR]]
+; CHECK-SPIRV-UNTYPED: FunctionPointerCallINTEL [[#]] [[#TARGET]] [[#SEL]] [[#BARG]]
 
 ; CHECK-LLVM: call spir_func addrspace(9) void %cond.i.i(ptr noalias byval(%multi_ptr) captures(none) %agg.tmp.i.i)
+
+; CHECK-LLVM-UNTYPED: %[[AGG:.*]] = alloca %multi_ptr
+; CHECK-LLVM-UNTYPED: select i1 %_arg_, ptr addrspacecast (ptr addrspace(9) @inc_function to ptr), ptr null
+; CHECK-LLVM-UNTYPED: %[[BC:.*]] = bitcast ptr %[[AGG]] to ptr
+; CHECK-LLVM-UNTYPED: call spir_func void %cond.i.i(ptr noalias byval(%multi_ptr) captures(none) %[[BC]])
 
 ; ModuleID = 'sycl_test.cpp'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

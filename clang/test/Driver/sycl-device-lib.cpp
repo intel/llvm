@@ -51,21 +51,6 @@
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_60_7 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend "-device pvc" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend=spir64_gen "-device pvc" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend "-device 12.60.7" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xs "-device pvc" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xs "-device 12.60.7" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // SYCL_DEVICE_LIB_ASAN_PVC: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf.bc
@@ -100,19 +85,12 @@
 /// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_55_8 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend "-device dg2" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend=spir64_gen "-device dg2" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xs "-device dg2" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // SYCL_DEVICE_LIB_ASAN_DG2: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf.bc
@@ -121,11 +99,8 @@
 /// ###########################################################################
 /// test behavior of linking libsycl-asan for multiple targets AOT compilation
 /// when asan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend "-device pvc,dg2" -### 2>&1 \
-// RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_MUL
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
-// RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend=spir64_gen "-device pvc,dg2" -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg2 --offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=address -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_MUL
 // SYCL_DEVICE_LIB_ASAN_MUL: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-cmath.bc

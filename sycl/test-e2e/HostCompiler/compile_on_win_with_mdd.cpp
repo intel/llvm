@@ -1,4 +1,6 @@
 // REQUIRES: windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %clangxx --driver-mode=cl -fsycl /MDd -c %s -o %t.obj
 // RUN: %clangxx --driver-mode=cl -fsycl %t.obj -Wno-unused-command-line-argument -o %t.out

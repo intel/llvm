@@ -933,6 +933,8 @@ static void InsertBuiltinDeclarationsFromTable(
         NewBuiltin->addAttr(ConstAttr::CreateImplicit(Context));
       if (Builtin.IsConv)
         NewBuiltin->addAttr(ConvergentAttr::CreateImplicit(Context));
+      if (Builtin.IsSpeculatable)
+        NewBuiltin->addAttr(SpeculatableAttr::CreateImplicit(Context));
       if (!S.getLangOpts().OpenCLCPlusPlus)
         NewBuiltin->addAttr(OverloadableAttr::CreateImplicit(Context));
 
@@ -4314,7 +4316,10 @@ private:
             // there anyway.
             continue;
           }
-          const auto *TST = BaseType->getAs<TemplateSpecializationType>();
+          // Look through an alias template, whose TemplateName is a
+          // TypeAliasTemplateDecl rather than the ClassTemplateDecl we are
+          // after; otherwise the base is skipped entirely.
+          const auto *TST = BaseType->getAsNonAliasTemplateSpecializationType();
           if (!TST)
             continue;
           TemplateName TN = TST->getTemplateName();

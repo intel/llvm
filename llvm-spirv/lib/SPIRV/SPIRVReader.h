@@ -73,6 +73,7 @@ class SPIRVFunctionParameter;
 class SPIRVConstantSampler;
 class SPIRVConstantPipeStorage;
 class SPIRVLoopMerge;
+class SPIRVFunctionPointerCallINTEL;
 class SPIRVToLLVMDbgTran;
 class SPIRVToLLVM : private BuiltinCallHelper {
 public:
@@ -271,9 +272,8 @@ private:
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
   void transDecorationsToMetadata(SPIRVValue *BV, Value *V);
   void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
-  void
-  transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,
-                                             SPIRVTypeFunction *CalledFnTy);
+  void transFunctionPointerCallArgumentAttributes(
+      SPIRVValue *BV, CallInst *CI, SPIRVFunctionPointerCallINTEL *Call);
 
   using FunctionAndTypeIdPair = std::pair<Function *, Type *>;
   using FunctionToFastMathFlagsMap =

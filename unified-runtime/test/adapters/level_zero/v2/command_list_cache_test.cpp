@@ -99,8 +99,8 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsAreCachedPerPriorityLevel) {
-  if (!common_cast(device)->ZeQueuePriorityRange->Supported) {
-    GTEST_SKIP() << "Queue priority levels are not supported.";
+  if (!common_cast(device)->ZeQueuePriorityRange->HasLevels) {
+    GTEST_SKIP() << "Device has no priority levels.";
   }
 
   v2::supported_extensions_descriptor_t supportedExtensions(false, false,
@@ -291,10 +291,6 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
 
 TEST_P(CommandListCacheTest, OutOfRangePriorityLevelsAreClamped) {
   const auto &Range = common_cast(device)->ZeQueuePriorityRange.get();
-  if (!Range.Supported) {
-    GTEST_SKIP() << "Queue priority levels are not supported.";
-  }
-
   auto &clCache = v2::v2_cast(context)->getCommandListCache();
   auto createQueue = [&](int32_t Priority, uur::raii::Queue &Queue) {
     ur_exp_queue_priority_properties_t PriorityProps{
@@ -322,6 +318,70 @@ TEST_P(CommandListCacheTest, OutOfRangePriorityLevelsAreClamped) {
     ASSERT_NO_FATAL_FAILURE(createQueue(Clamped, Queue));
     ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached);
   }
+}
+
+TEST_P(CommandListCacheTest, LowestPriorityLevelUsesLowPriorityClass) {
+  auto hDevice = common_cast(device);
+  const auto &Range = hDevice->ZeQueuePriorityRange.get();
+  int32_t Lowest = 0;
+  ASSERT_SUCCESS(::urDeviceGetInfo(device,
+                                   UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP,
+                                   sizeof(Lowest), &Lowest, nullptr));
+  ASSERT_EQ(Lowest, Range.Lowest);
+
+  {
+    ur_exp_queue_priority_properties_t PriorityProps{
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, Lowest};
+    ur_queue_properties_t QueueProps{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                     &PriorityProps,
+                                     UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+    uur::raii::Queue Queue;
+    ASSERT_SUCCESS(urQueueCreate(context, device, &QueueProps, Queue.ptr()));
+  }
+
+  // The queue's command list must have been created with the low priority
+  // class and without a priority level.
+  auto &clCache = v2::v2_cast(context)->getCommandListCache();
+  const size_t NumCached = clCache.getNumImmediateCommandLists();
+  v2::command_list_desc_t Desc;
+  Desc.IsInOrder = true;
+  using queue_group_type =
+      ur::level_zero::ur_device_handle_t_::queue_group_info_t::type;
+  Desc.Ordinal = hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
+  Desc.CopyOffloadEnable = true;
+  auto CmdList = clCache.getImmediateCommandList(
+      hDevice->ZeDevice, Desc, ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW);
+  ASSERT_NE(CmdList, nullptr);
+  ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached - 1);
+}
+
+TEST_P(CommandListCacheTest, HighPriorityFlagUsesHighestPriorityLevel) {
+  const auto &Range = common_cast(device)->ZeQueuePriorityRange.get();
+  if (!Range.HasLevels || Range.Highest >= 0) {
+    GTEST_SKIP() << "Device has no priority level above the default one.";
+  }
+
+  auto &clCache = v2::v2_cast(context)->getCommandListCache();
+  const size_t NumCached = clCache.getNumImmediateCommandLists();
+  {
+    ur_queue_properties_t QueueProps{
+        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+        UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE | UR_QUEUE_FLAG_PRIORITY_HIGH};
+    uur::raii::Queue Queue;
+    ASSERT_SUCCESS(urQueueCreate(context, device, &QueueProps, Queue.ptr()));
+  }
+  ASSERT_GT(clCache.getNumImmediateCommandLists(), NumCached);
+
+  // A queue with the highest priority level must reuse all command lists.
+  ur_exp_queue_priority_properties_t PriorityProps{
+      UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, Range.Highest};
+  ur_queue_properties_t QueueProps{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                   &PriorityProps,
+                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+  uur::raii::Queue Queue;
+  ASSERT_SUCCESS(urQueueCreate(context, device, &QueueProps, Queue.ptr()));
+  ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached);
 }
 
 TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
