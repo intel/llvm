@@ -7,7 +7,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
-// RUN: touch %t.devicelib.bc
+// RUN: llvm-as /dev/null -o %t.devicelib.bc
 
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
