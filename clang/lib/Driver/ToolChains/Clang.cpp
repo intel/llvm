@@ -5881,7 +5881,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (IsWindowsMSVC) {
         CmdArgs.push_back("-fms-extensions");
         CmdArgs.push_back("-fms-compatibility");
-        CmdArgs.push_back("-fdelayed-template-parsing");
+        // -fdelayed-template-parsing is handled below together with the host
+        // compilation, so that it honors -fno-delayed-template-parsing and is
+        // not enabled by default for C++20 and later.
         VersionTuple MSVT =
             C.getDefaultToolChain().computeMSVCVersion(&D, Args);
         if (!MSVT.empty())
