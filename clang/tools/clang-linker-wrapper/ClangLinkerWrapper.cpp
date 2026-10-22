@@ -1782,7 +1782,7 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   // Second llvm-link step to incorporate device libraries
   auto DeviceLinkedFile = sycl::linkDeviceLibFiles(InputFilesVec, Args);
   if (!DeviceLinkedFile)
-    reportError(DeviceLinkedFile.takeError());
+    return DeviceLinkedFile.takeError();
 
   return *DeviceLinkedFile;
 }
