@@ -12657,6 +12657,21 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       C.getDriver().Diag(diag::err_drv_invalid_int_value)
           << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
     }
+  } else if (HasSYCL) {
+    // For SYCL, -fsycl-max-parallel-link-jobs controls the number of device
+    // compilation jobs (e.g. AOT compilation of split modules) that can run
+    // in parallel. --offload-jobs takes precedence if both are given.
+    if (const Arg *A =
+            Args.getLastArg(options::OPT_fsycl_max_parallel_jobs_EQ)) {
+      unsigned NumThreads;
+      if (StringRef(A->getValue()).getAsInteger(10, NumThreads) ||
+          NumThreads == 0)
+        C.getDriver().Diag(diag::err_drv_invalid_int_value)
+            << A->getAsString(Args) << A->getValue();
+      else
+        CmdArgs.push_back(
+            Args.MakeArgString("--wrapper-jobs=" + Twine(NumThreads)));
+    }
   }
 
   // Propagate -no-canonical-prefixes.
