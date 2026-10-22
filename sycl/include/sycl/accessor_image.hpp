@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sycl/accessor.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/image_accessor_util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/image.hpp>
@@ -220,17 +221,33 @@ private:
   template <typename T1, int T2, access::mode T3, access::placeholder T4>
   friend class __image_array_slice__;
 
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   constexpr static bool IsHostImageAcc =
       (AccessTarget == access::target::host_image);
 
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   constexpr static bool IsImageAcc = (AccessTarget == access::target::image);
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   constexpr static bool IsImageArrayAcc =
       (AccessTarget == access::target::image_array);
 
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   constexpr static bool IsImageAccessWriteOnly =
       (AccessMode == access::mode::write ||
        AccessMode == access::mode::discard_write);
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   constexpr static bool IsImageAccessAnyWrite =
       (IsImageAccessWriteOnly || AccessMode == access::mode::read_write);
@@ -433,6 +450,8 @@ public:
 
 #endif
 
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   // Available only when:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
   // || (accessTarget == access::target::host_image && ( accessMode ==
@@ -452,6 +471,10 @@ public:
     return read<CoordT, Dims>(Coords, Smpl);
 #endif
   }
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   // Available only when:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
@@ -474,6 +497,8 @@ public:
         AccessorBaseHost::getElemSize());
 #endif
   }
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Available only when:
   // (accessTarget == access::target::image && (accessMode ==
@@ -528,12 +553,16 @@ class __image_array_slice__ {
   }
 
 public:
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   __image_array_slice__(
       accessor<DataT, Dimensions, AccessMode, access::target::image_array,
                IsPlaceholder, ext::oneapi::accessor_property_list<>>
           BaseAcc,
       size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   template <
       typename CoordT, int Dims = Dimensions,
@@ -542,11 +571,15 @@ public:
     return MBaseAcc.read(getAdjustedCoords(Coords));
   }
 
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
   }
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
@@ -588,12 +621,20 @@ public:
 
 private:
   size_t MIdx;
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   accessor<DataT, Dimensions, AccessMode, access::target::image_array,
            IsPlaceholder, ext::oneapi::accessor_property_list<>>
       MBaseAcc;
+
+  __SYCL_SUPPRESS_DEPRECATED_POP
 };
 
 } // namespace detail
+
+__SYCL_SUPPRESS_DEPRECATED_PUSH
+
 /// Image accessors.
 ///
 /// Available only when accessTarget == access::target::image.
@@ -626,6 +667,10 @@ public:
 #endif
   }
 
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   template <typename AllocatorT>
   accessor(sycl::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
@@ -656,6 +701,10 @@ public:
   accessor() = default;
 #endif
 };
+
+__SYCL_SUPPRESS_DEPRECATED_POP
+
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 
 /// Host image accessor.
 ///
@@ -689,6 +738,10 @@ public:
     (void)propList;
   }
 };
+
+__SYCL_SUPPRESS_DEPRECATED_POP
+
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 
 /// Image array accessor.
 ///
@@ -737,6 +790,10 @@ public:
 #endif
   }
 
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   template <typename AllocatorT>
   accessor(sycl::image<Dimensions + 1, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
@@ -757,6 +814,7 @@ public:
   }
 };
 
+__SYCL_SUPPRESS_DEPRECATED_POP
 // SYCL 2020 image accessors
 
 template <typename DataT, int Dimensions, access_mode AccessMode,

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 
 int main() {
   // Non-placeholder accessors.

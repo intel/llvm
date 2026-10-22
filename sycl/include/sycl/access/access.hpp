@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <type_traits>

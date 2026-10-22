@@ -13,7 +13,7 @@
 #include <sycl/detail/assert.hpp>
 #include <sycl/detail/async_work_group_copy_ptr.hpp> // for convertToOpenCLGroupAsyncCopyPtr
 #include <sycl/detail/defines.hpp>                   // for __SYCL_TYPE
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/fwd/multi_ptr.hpp>
 #include <sycl/detail/helpers.hpp> // for Builder, getSPIRVMemo...
 #include <sycl/detail/nd_loop.hpp> // for NDLoop

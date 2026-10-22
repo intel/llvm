@@ -208,8 +208,9 @@ public:
     __SYCL_SUPPRESS_DEPRECATED_POP
   }
 
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
+
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
@@ -219,11 +220,12 @@ public:
                            flags);
 #endif
   }
+
   __SYCL_SUPPRESS_DEPRECATED_POP
 
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <access::mode accessMode = access::mode::read_write>
   __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(

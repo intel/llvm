@@ -32,6 +32,7 @@
 #include <sycl/detail/generic_type_traits.hpp>
 
 #include <sycl/__spirv/spirv_ops_image.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 
 namespace sycl {
 inline namespace _V1 {
@@ -561,7 +562,7 @@ struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
   using type =
       opencl_image_type<Dimensions, AccessMode, access::target::host_image> *;
 };
-__SYCL_SUPPRESS_DEPRECATED_PUSH
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 template <typename T> struct sampled_opencl_image_type<T *> {
   using type = void *;

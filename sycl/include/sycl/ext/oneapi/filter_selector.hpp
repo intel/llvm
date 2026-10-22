@@ -8,9 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/export.hpp>   // for __SYCL_EXPORT
-#include <sycl/device.hpp>          // for device
-#include <sycl/device_selector.hpp> // for device_selector
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/device.hpp>                    // for device
+#include <sycl/device_selector.hpp>           // for device_selector
 
 #include <memory> // for shared_ptr
 #include <string> // for string
@@ -34,6 +35,8 @@ namespace detail {
 class filter_selector_impl;
 } // namespace detail
 
+__SYCL_SUPPRESS_DEPRECATED_PUSH
+
 class __SYCL_EXPORT_DEPRECATED(
     "filter_selector is deprecated, use a SYCL 2020 device selector callable "
     "instead") filter_selector : public device_selector {
@@ -51,6 +54,9 @@ private:
   std::shared_ptr<detail::filter_selector_impl> impl;
   filter_selector(sycl::detail::string_view filter);
 };
+
+__SYCL_SUPPRESS_DEPRECATED_POP
+
 } // namespace ext::oneapi
 
 #ifdef __SYCL_INTERNAL_API

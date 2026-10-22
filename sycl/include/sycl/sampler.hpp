@@ -10,7 +10,8 @@
 
 #include <sycl/access/access.hpp>  // for mode, placeholder, target
 #include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
-#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/property_list.hpp>     // for property_list

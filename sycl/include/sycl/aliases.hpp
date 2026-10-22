@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 
 #include <cstdint> // for uint8_t, int16_t, int32_t
 

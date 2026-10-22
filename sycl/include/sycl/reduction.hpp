@@ -8,25 +8,26 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>                   // for address_s...
-#include <sycl/accessor.hpp>                        // for local_acc...
-#include <sycl/aspects.hpp>                         // for aspect
-#include <sycl/atomic.hpp>                          // for IsValidAt...
-#include <sycl/atomic_ref.hpp>                      // for atomic_ref
-#include <sycl/buffer.hpp>                          // for buffer
-#include <sycl/builtins.hpp>                        // for min
-#include <sycl/detail/export.hpp>                   // for __SYCL_EX...
-#include <sycl/detail/generic_type_traits.hpp>      // for is_sgenfloat
-#include <sycl/detail/impl_utils.hpp>               // for createSyc...
-#include <sycl/detail/item_base.hpp>                // for id
-#include <sycl/detail/reduction_forward.hpp>        // for strategy
-#include <sycl/detail/tuple.hpp>                    // for make_tuple
-#include <sycl/device.hpp>                          // for device
-#include <sycl/event.hpp>                           // for event
-#include <sycl/exception.hpp>                       // for make_erro...
-#include <sycl/exception_list.hpp>                  // for queue_impl
-#include <sycl/group.hpp>                           // for workGroup...
-#include <sycl/group_algorithm.hpp>                 // for reduce_ov...
+#include <sycl/access/access.hpp>              // for address_s...
+#include <sycl/accessor.hpp>                   // for local_acc...
+#include <sycl/aspects.hpp>                    // for aspect
+#include <sycl/atomic.hpp>                     // for IsValidAt...
+#include <sycl/atomic_ref.hpp>                 // for atomic_ref
+#include <sycl/buffer.hpp>                     // for buffer
+#include <sycl/builtins.hpp>                   // for min
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_SU...
+#include <sycl/detail/export.hpp>              // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp> // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>          // for createSyc...
+#include <sycl/detail/item_base.hpp>           // for id
+#include <sycl/detail/reduction_forward.hpp>   // for strategy
+#include <sycl/detail/tuple.hpp>               // for make_tuple
+#include <sycl/device.hpp>                     // for device
+#include <sycl/event.hpp>                      // for event
+#include <sycl/exception.hpp>                  // for make_erro...
+#include <sycl/exception_list.hpp>             // for queue_impl
+#include <sycl/group.hpp>                      // for workGroup...
+#include <sycl/group_algorithm.hpp>            // for reduce_ov...
 #include <sycl/group_barrier.hpp>
 #include <sycl/handler.hpp>                         // for handler
 #include <sycl/id.hpp>                              // for getDeline...
@@ -1352,6 +1353,8 @@ struct NDRangeReduction<
       });
     };
 
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
+
     auto device = getDeviceFromHandler(CGH);
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
     // fast path requires USM device allocations though, so check for that as
@@ -1361,6 +1364,8 @@ struct NDRangeReduction<
       Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
     else
       Rest(Redu.getGroupsCounterAccDiscrete(CGH));
+
+    __SYCL_SUPPRESS_DEPRECATED_POP
   }
 };
 

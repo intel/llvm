@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
 #include <iosfwd>      // for ostream

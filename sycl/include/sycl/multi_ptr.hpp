@@ -10,7 +10,7 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/detail/address_space_cast.hpp>
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/fwd/half.hpp>
 #include <sycl/detail/fwd/multi_ptr.hpp>

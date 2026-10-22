@@ -10,6 +10,7 @@
 
 #include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/access/access.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 
 #include <type_traits>
 

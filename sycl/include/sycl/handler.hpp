@@ -12,7 +12,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/code_location.hpp>
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/impl_utils.hpp>
