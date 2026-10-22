@@ -11,6 +11,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_compiler/spirv_kernel_arg_sizes.hpp>
 #include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -208,6 +209,10 @@ public:
   bool hasSYCLMetadata() const noexcept;
 
   device_image_impl &getDeviceImage() const { return *MDeviceImageImpl; }
+
+  /// \return the argument sizes the kernel expects, or nullptr if they are
+  /// not known.
+  const KernelArgSizesT *getExpectedArgSizes() const;
 
   ur_native_handle_t getNative() const {
     adapter_impl &Adapter = MContext->getAdapter();

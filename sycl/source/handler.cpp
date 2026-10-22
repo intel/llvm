@@ -960,10 +960,41 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
          ArgIndex);
 }
 
+// Kernels loaded from SPIR-V have no compile-time parameter information, so
+// set_arg deduces the argument size from the C++ value. Reject values whose
+// size differs from the parameter size recorded in the SPIR-V module, as the
+// backend may otherwise silently read past or truncate the value.
+static void verifyArgSizes(const detail::kernel_impl &Kernel,
+                           const std::vector<detail::ArgDesc> &Args) {
+  const detail::KernelArgSizesT *ExpectedSizes = Kernel.getExpectedArgSizes();
+  if (!ExpectedSizes)
+    return;
+
+  for (const detail::ArgDesc &Arg : Args) {
+    const bool IsValueArg =
+        (Arg.MType == detail::kernel_param_kind_t::kind_std_layout &&
+         Arg.MPtr != nullptr) ||
+        Arg.MType == detail::kernel_param_kind_t::kind_pointer;
+    if (!IsValueArg || Arg.MIndex < 0 ||
+        static_cast<size_t>(Arg.MIndex) >= ExpectedSizes->size())
+      continue;
+
+    const std::optional<size_t> &Expected = (*ExpectedSizes)[Arg.MIndex];
+    if (Expected && *Expected != static_cast<size_t>(Arg.MSize))
+      throw sycl::exception(
+          make_error_code(errc::kernel_argument),
+          "The size of argument " + std::to_string(Arg.MIndex) +
+              " of kernel '" + std::string(Kernel.getName()) + "' is " +
+              std::to_string(Arg.MSize) + " bytes, but the kernel expects " +
+              std::to_string(*Expected) + " bytes.");
+  }
+}
+
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
+  verifyArgSizes(*MKernel, impl->MKernelData.getArgs());
 }
 
 void handler::extractFreeFunctionArgsAndReqs() {

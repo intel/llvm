@@ -318,6 +318,7 @@ set(SYCL_COMMON_SOURCES
     "detail/jit_device_binaries.cpp"
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
+    "detail/kernel_compiler/spirv_kernel_arg_sizes.cpp"
     "detail/kernel_impl.cpp"
     "detail/get_device_kernel_info.cpp"
     "detail/get_kernel_info_impl.cpp"
