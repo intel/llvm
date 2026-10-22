@@ -11,7 +11,7 @@
 
 #include "xpti/xpti_trace_framework.hpp"
 
-#include <sycl/detail/spinlock.hpp>
+#include <spinlock.hpp>
 
 #include <iostream>
 #include <mutex>

@@ -14,11 +14,11 @@
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/unordered_multimap.hpp>
+#include <spinlock.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 
