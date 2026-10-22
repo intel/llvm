@@ -4,6 +4,8 @@
 
 // REQUIRES: x86-registered-target
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// ###########################################################################
 
 /// Ahead of Time compilation for gen, cpu - tool invocation
@@ -19,42 +21,42 @@
 /// ###########################################################################
 
 // Check -fsycl-device-code-split=per_kernel option passing.
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-code-split=per_kernel %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-ONE-KERNEL
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-device-code-split=per_kernel %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-ONE-KERNEL
 // CHK-ONE-KERNEL: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options=-split=kernel
 
 // Check -fsycl-device-code-split=per_source option passing.
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=per_source %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-PER-SOURCE
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=per_source %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-PER-SOURCE
 // CHK-PER-SOURCE: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options=-split=source
 
 // Check -fsycl-device-code-split option passing.
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-code-split %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-AUTO
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-device-code-split %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-AUTO
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=auto %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-AUTO
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=auto %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-AUTO
 // CHK-AUTO: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options=-split=auto
 
 // Check -fsycl-device-code-split=off passes -split=none to the linker wrapper.
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-code-split=off %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=off %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-SPLIT-OFF
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl-device-code-split=off %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-code-split=off %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-SPLIT-OFF
 // CHK-SPLIT-OFF: clang-linker-wrapper{{.*}} {{.*}}--sycl-post-link-options={{.*}}-split=none
 
 // Check that without -fsycl-device-code-split, no -split= option is passed
 // (sycl-post-link defaults to -split=auto).
-// RUN:   %clang -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:   %clang -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-SPLIT-DEFAULT
-// RUN:   %clang_cl -### -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefix=CHK-SPLIT-DEFAULT
 // CHK-SPLIT-DEFAULT: clang-linker-wrapper
 // CHK-SPLIT-DEFAULT-NOT: -split=
