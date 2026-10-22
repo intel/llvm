@@ -113,14 +113,6 @@ public:
     return get_physical_local().get_id(Dimension);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  bool operator==(const h_item &rhs) const {
-    return (rhs.localItem == localItem) && (rhs.globalItem == globalItem) &&
-           (rhs.logicalLocalItem == logicalLocalItem);
-  }
-
-  bool operator!=(const h_item &rhs) const { return !((*this) == rhs); }
-#else
   friend bool operator==(const h_item &lhs, const h_item &rhs) {
     return (rhs.localItem == lhs.localItem) &&
            (rhs.globalItem == lhs.globalItem) &&
@@ -130,7 +122,6 @@ public:
   friend bool operator!=(const h_item &lhs, const h_item &rhs) {
     return !(lhs == rhs);
   }
-#endif
 
 protected:
   friend class detail::Builder;
