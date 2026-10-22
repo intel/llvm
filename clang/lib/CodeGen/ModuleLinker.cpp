@@ -13,7 +13,9 @@
 #include "clang/CodeGenUtils/BackendDiagnosticHandler.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Transforms/IPO/Internalize.h"
@@ -54,39 +56,45 @@ bool clang::loadLinkModules(CompilerInstance &CI, llvm::LLVMContext &Ctx,
                            F.Internalize, F.LinkFlags});
   }
 
-  // For SYCL no-RDC, link the per-TU wrapper module produced by
-  // clang-linker-wrapper --emit-fatbin-only into the host module so the SYCL
-  // runtime finds the device image at program startup. A raw device binary is
-  // embedded by CodeGenModule::embedSYCLDeviceBinary instead.
-  if (CI.getLangOpts().SYCLIsHost &&
-      !CI.getCodeGenOpts().OffloadBinaryToEmbedFile.empty()) {
-    auto BCBuf = CI.getFileManager().getBufferForFile(
-        CI.getCodeGenOpts().OffloadBinaryToEmbedFile);
-    if (!BCBuf) {
+  // For SYCL no-RDC, wrap the device images of the fat binary produced by
+  // clang-linker-wrapper --emit-fatbin-only into a module that registers them
+  // with the SYCL runtime, and link it into the host module. Other binaries
+  // are embedded by CodeGenModule::embedSYCLDeviceBinary instead.
+  StringRef FatbinFile = CI.getCodeGenOpts().OffloadBinaryToEmbedFile;
+  if (CI.getLangOpts().SYCLIsHost && !CI.getLangOpts().CUDA &&
+      !FatbinFile.empty()) {
+    auto FatbinBuf = CI.getFileManager().getBufferForFile(FatbinFile);
+    if (!FatbinBuf) {
       CI.getDiagnostics().Report(diag::err_cannot_open_file)
-          << CI.getCodeGenOpts().OffloadBinaryToEmbedFile
-          << BCBuf.getError().message();
+          << FatbinFile << FatbinBuf.getError().message();
       LinkModules.clear();
       return true;
     }
-    if (!llvm::isBitcode(
-            reinterpret_cast<const unsigned char *>((*BCBuf)->getBufferStart()),
-            reinterpret_cast<const unsigned char *>((*BCBuf)->getBufferEnd())))
+    if (llvm::identify_magic((*FatbinBuf)->getBuffer()) !=
+        llvm::file_magic::offload_binary)
       return false;
-    llvm::Expected<std::unique_ptr<llvm::Module>> MOrErr =
-        llvm::parseBitcodeFile((*BCBuf)->getMemBufferRef(), Ctx);
-    if (!MOrErr) {
-      llvm::handleAllErrors(MOrErr.takeError(), [&](llvm::ErrorInfoBase &EIB) {
+
+    auto ReportError = [&](llvm::Error Err) {
+      llvm::handleAllErrors(std::move(Err), [&](llvm::ErrorInfoBase &EIB) {
         CI.getDiagnostics().Report(diag::err_fe_linking_module)
-            << CI.getCodeGenOpts().OffloadBinaryToEmbedFile << EIB.message();
+            << FatbinFile << EIB.message();
       });
       LinkModules.clear();
       return true;
-    }
-    // The wrapper .bc from clang-linker-wrapper has no data layout set.
-    // Stamp the host layout so linkModules doesn't warn about a mismatch.
-    (*MOrErr)->setDataLayout(CI.getTarget().getDataLayoutString());
-    LinkModules.push_back({std::move(*MOrErr),
+    };
+    auto ImagesOrErr =
+        llvm::offloading::readSYCLImages((*FatbinBuf)->getMemBufferRef());
+    if (!ImagesOrErr)
+      return ReportError(ImagesOrErr.takeError());
+
+    auto WrapperM =
+        std::make_unique<llvm::Module>("offload.wrapper.object", Ctx);
+    WrapperM->setTargetTriple(CI.getTarget().getTriple());
+    WrapperM->setDataLayout(CI.getTarget().getDataLayoutString());
+    if (llvm::Error Err =
+            llvm::offloading::wrapSYCLBinaries(*WrapperM, *ImagesOrErr))
+      return ReportError(std::move(Err));
+    LinkModules.push_back({std::move(WrapperM),
                            /*PropagateAttrs=*/false,
                            /*Internalize=*/false,
                            /*LinkFlags=*/0});

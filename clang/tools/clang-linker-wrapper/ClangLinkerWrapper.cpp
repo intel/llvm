@@ -923,20 +923,20 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// NOTE: Any changes made here should be reflected in the similarly named
 /// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
-getTripleBasedSPIRVTransOpts(const ArgList &Args,
-                             SmallVector<StringRef, 8> &TranslatorArgs,
+getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
                              const llvm::Triple Triple) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
-  std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
-  if (IsCPU)
-    UnknownIntrinsics += ",llvm.fpbuiltin";
-  TranslatorArgs.push_back(Args.MakeArgString(UnknownIntrinsics));
+  // Use string literals rather than Args.MakeArgString so that this function
+  // does not mutate Args and is safe to call from parallel compilation jobs.
+  TranslatorArgs.push_back(
+      IsCPU ? "-spirv-allow-unknown-intrinsics=llvm.genx.,llvm.fpbuiltin"
+            : "-spirv-allow-unknown-intrinsics=llvm.genx.");
 
   // Disable all the extensions by default
-  std::string ExtArg("-spirv-ext=-all");
-  ExtArg +=
+  static constexpr char ExtArg[] =
+      "-spirv-ext=-all"
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
       ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr"
@@ -965,7 +965,7 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_INTEL_fp_max_error"
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
-  TranslatorArgs.push_back(Args.MakeArgString(ExtArg));
+  TranslatorArgs.push_back(ExtArg);
 }
 
 /// Run LLVM to SPIR-V translation.
@@ -983,7 +983,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getTripleBasedSPIRVTransOpts(Args, CmdArgs, Triple);
+  getTripleBasedSPIRVTransOpts(CmdArgs, Triple);
   for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ))
     CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");
@@ -1185,6 +1185,54 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
   return Error::success();
 }
 
+/// Reads the post-link device images in \p SplitModules and prepares them for
+/// SYCL runtime registration: dumps them if requested, assigns the runtime
+/// target and compresses them if requested.
+static Expected<SmallVector<offloading::SYCLImage>>
+createSYCLImages(ArrayRef<module_split::SplitModule> SplitModules,
+                 const ArgList &Args, bool IsEmbeddedIR,
+                 const llvm::Triple &Target) {
+  SmallVector<llvm::offloading::SYCLImage> Images;
+  // SYCL runtime currently works for spir64 target triple and not for
+  // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
+  // TODO: Fix SYCL runtime to accept other triples
+  std::string EmbeddedIRTarget("llvm_");
+  EmbeddedIRTarget.append(Target.getArchName());
+  StringRef RegularTarget(Target.getArchName());
+  if (RegularTarget == "spirv64")
+    RegularTarget = "spir64";
+
+  for (const module_split::SplitModule &SI : SplitModules) {
+    if (!OffloadImageDumpDir.empty() && !DryRun) {
+      StringRef CopyFrom = SI.ModuleFilePath;
+      SmallString<128> CopyTo = OffloadImageDumpDir;
+      StringRef Filename = sys::path::filename(CopyFrom);
+      CopyTo.append(Filename);
+      std::error_code EC = sys::fs::copy_file(CopyFrom, CopyTo);
+      if (EC)
+        return createStringError(EC, formatv("failed to copy file. From: "
+                                             "{0} to: {1}, error_code: {2}",
+                                             CopyFrom, CopyTo, EC.value()));
+    }
+
+    auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
+    if (std::error_code EC = MBOrDesc.getError()) {
+      if (!DryRun)
+        return createFileError(SI.ModuleFilePath, EC);
+      MBOrDesc = MemoryBuffer::getMemBuffer("", SI.ModuleFilePath);
+    }
+
+    StringRef ImageTarget =
+        IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
+    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
+                        ImageTarget, SI.CompileOptions, SI.LinkOptions);
+  }
+
+  if (Error E = compressImages(Images, Args))
+    return std::move(E);
+  return std::move(Images);
+}
+
 /// Wraps the device images of \p SplitModules, built for the device target
 /// triple \p Target, in one LLVM IR module as constant data. If
 /// \p IsEmbeddedIR is true, the images are LLVM IR to be compiled at runtime.
@@ -1220,41 +1268,11 @@ wrapSYCLBinariesFromFile(ArrayRef<module_split::SplitModule> SplitModules,
       return OutputFilePath;
   }
 
-  SmallVector<llvm::offloading::SYCLImage> Images;
-  // SYCL runtime currently works for spir64 target triple and not for
-  // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
-  // TODO: Fix SYCL runtime to accept other triples
-  std::string EmbeddedIRTarget("llvm_");
-  EmbeddedIRTarget.append(Target.getArchName());
-  StringRef RegularTarget(Target.getArchName());
-  if (RegularTarget == "spirv64")
-    RegularTarget = "spir64";
-
-  for (const module_split::SplitModule &SI : SplitModules) {
-    if (!OffloadImageDumpDir.empty()) {
-      StringRef CopyFrom = SI.ModuleFilePath;
-      SmallString<128> CopyTo = OffloadImageDumpDir;
-      StringRef Filename = sys::path::filename(CopyFrom);
-      CopyTo.append(Filename);
-      std::error_code EC = sys::fs::copy_file(CopyFrom, CopyTo);
-      if (EC)
-        return createStringError(EC, formatv("failed to copy file. From: "
-                                             "{0} to: {1}, error_code: {2}",
-                                             CopyFrom, CopyTo, EC.value()));
-    }
-
-    auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
-    if (!MBOrDesc)
-      return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
-
-    StringRef ImageTarget =
-        IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
-    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
-                        ImageTarget, SI.CompileOptions, SI.LinkOptions);
-  }
-
-  if (Error E = compressImages(Images, Args))
-    return std::move(E);
+  Expected<SmallVector<offloading::SYCLImage>> ImagesOrErr =
+      createSYCLImages(SplitModules, Args, IsEmbeddedIR, Target);
+  if (!ImagesOrErr)
+    return ImagesOrErr.takeError();
+  SmallVector<offloading::SYCLImage> &Images = *ImagesOrErr;
 
   LLVMContext C;
   Module M("offload.wrapper.object", C);
@@ -2267,20 +2285,40 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
                     M.LinkOptions = CompileLinkOptions.second;
                   });
 
-  for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+  SmallVector<StringRef> Outputs(SplitModules.size());
+  auto CompileModule = [&](size_t I) -> Error {
     Expected<StringRef> OutputOrErr =
         compileDeviceAndBundle(SplitModules[I].ModuleFilePath, LinkerArgs,
                                Triple, BackendOptions, AOTDeviceArgs);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
 
+    Outputs[I] = *OutputOrErr;
     SplitModules[I].ModuleFilePath = *OutputOrErr;
-    if (Triple.isNativeCPU()) {
-      // Add to WrappedOutput directly rather than combining this with
-      // the usual pipeline because WrappedOutput holds references and
-      // SplitModules[I].ModuleFilePath will go out of scope too soon.
-      WrappedOutputCallback(*OutputOrErr);
-    }
+    return Error::success();
+  };
+
+  // Split modules are independent, so for SPIR/SPIR-V targets compile them in
+  // parallel. The number of jobs is controlled by --wrapper-jobs. Other
+  // targets go through generic::clang, which synthesizes strings in the
+  // shared LinkerArgs via MakeArgString and is therefore not thread safe, so
+  // they are compiled serially.
+  if (Triple.isSPIROrSPIRV()) {
+    if (Error Err = parallelForEachError(
+            llvm::seq<size_t>(0, SplitModules.size()), CompileModule))
+      return std::move(Err);
+  } else {
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I)
+      if (Error Err = CompileModule(I))
+        return std::move(Err);
+  }
+
+  if (Triple.isNativeCPU()) {
+    // Add to WrappedOutput directly rather than combining this with
+    // the usual pipeline because WrappedOutput holds references and
+    // SplitModules[I].ModuleFilePath will go out of scope too soon.
+    for (StringRef Output : Outputs)
+      WrappedOutputCallback(Output);
   }
 
   return std::move(SplitModules);
@@ -2923,16 +2961,19 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 }
 
 /// Transforms all the extracted offloading input files into an image that can
-/// be registered by the runtime. If NeedsWrapping is false, writes bundled
+/// be registered by the runtime. If EmitFatbinOnly is true, writes bundled
 /// output directly without wrapping or host linking.
 Expected<SmallVector<StringRef>>
 linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                        const InputArgList &Args, char **Argv, int Argc,
-                       bool NeedsWrapping) {
+                       bool EmitFatbinOnly) {
   llvm::TimeTraceScope TimeScope("Handle all device input");
 
   std::mutex ImageMtx;
   MapVector<OffloadKind, SmallVector<OffloadingImage, 0>> Images;
+  // Owns the strings of the SYCL image entries; guarded by ImageMtx.
+  BumpPtrAllocator SYCLImageStringAlloc;
+  StringSaver SYCLImageStringSaver(SYCLImageStringAlloc);
   // Create a binary image of each offloading image and embed it into a new
   // object file.
   SmallVector<StringRef> WrappedOutput;
@@ -2941,36 +2982,6 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   // combined packaging.
   std::mutex SYCLBINModulesMtx;
   SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
-
-  // The -fno-sycl-rdc compile step wraps the modules of all architectures into
-  // a single wrapper module. One vector of split modules per input group, so
-  // the wrap order doesn't depend on thread scheduling. Each group only writes
-  // its own slot, so no lock is needed.
-  using SplitModulesVec = std::vector<module_split::SplitModule>;
-  std::vector<SplitModulesVec> NoRDCModulesPerGroup(LinkerInputFiles.size());
-
-  // The single wrapper module has one target triple, so check before any
-  // device compilation that all SYCL input groups share it.
-  std::optional<std::string> NoRDCTriple;
-  if (!NeedsWrapping && !OutputSYCLBIN) {
-    for (const SmallVector<OffloadFile> &Input : LinkerInputFiles) {
-      const auto *It = llvm::find_if(Input, [](const OffloadFile &F) {
-        return F.getBinary()->getOffloadKind() == OFK_SYCL;
-      });
-      if (It == Input.end())
-        continue;
-      StringRef Triple = It->getBinary()->getTriple();
-      if (Triple.empty())
-        return createStringError(
-            "--no-sycl-rdc requires a target triple for every SYCL input");
-      if (!NoRDCTriple)
-        NoRDCTriple = Triple.str();
-      else if (*NoRDCTriple != Triple)
-        return createStringError(
-            "--no-sycl-rdc does not support multiple SYCL target triples ('" +
-            *NoRDCTriple + "' and '" + Triple + "')");
-    }
-  }
 
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
@@ -3028,6 +3039,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       // check in runSYCLOffloadingPipeline().
       const llvm::Triple TargetTriple(
           LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      if (EmitFatbinOnly && !OutputSYCLBIN) {
+        // These modes add host objects through the pipeline callback, which
+        // cannot be represented in the device-image container.
+        if (TargetTriple.isNativeCPU())
+          return createStringError(
+              "--emit-fatbin-only is not supported for NativeCPU");
+        if ((TargetTriple.isNVPTX() || TargetTriple.isAMDGCN()) &&
+            LinkerArgs.hasArg(OPT_sycl_embed_ir))
+          return createStringError("--emit-fatbin-only is not supported with "
+                                   "--sycl-embed-ir for NVPTX or AMDGCN");
+      }
       const bool IsAOT = TargetTriple.isSPIRAOT();
       std::vector<std::string> AOTDeviceArgs;
       auto AddDeviceOptions = [&](opt::OptSpecifier OptID, bool IsLink,
@@ -3076,11 +3098,31 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
-      } else if (!NeedsWrapping) {
-        // -fno-sycl-rdc compile step: the modules are wrapped once all inputs
-        // are processed.
-        size_t GroupIdx = std::distance(LinkerInputFiles.begin(), &Input);
-        NoRDCModulesPerGroup[GroupIdx] = std::move(Modules);
+      } else if (EmitFatbinOnly) {
+        // Package the finalized images with their runtime metadata; the host
+        // compilation wraps them for registration with the SYCL runtime.
+        Expected<SmallVector<offloading::SYCLImage>> SYCLImagesOrErr =
+            sycl::createSYCLImages(Modules, LinkerArgs,
+                                   /*IsEmbeddedIR=*/false, TargetTriple);
+        if (!SYCLImagesOrErr)
+          return SYCLImagesOrErr.takeError();
+
+        std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+        for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
+          OffloadingImage TheImage{};
+          TheImage.TheImageKind =
+              Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
+          TheImage.TheOffloadKind = OFK_SYCL;
+          TheImage.StringData["triple"] =
+              Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+          TheImage.StringData["arch"] =
+              Args.MakeArgString(LinkerArgs.getLastArgValue(OPT_arch_EQ));
+          offloading::addSYCLImageStrings(SYCLImage, TheImage.StringData,
+                                          SYCLImageStringSaver);
+          TheImage.Image = std::move(SYCLImage.Image);
+
+          Images[OFK_SYCL].emplace_back(std::move(TheImage));
+        }
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
         Expected<StringRef> OutputFile =
@@ -3153,20 +3195,6 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   if (Err)
     return std::move(Err);
 
-  // -fno-sycl-rdc compile step: emit the wrapper module as bitcode; the host
-  // compilation links it in via -foffload-include-binary.
-  if (NoRDCTriple) {
-    SplitModulesVec Modules;
-    for (SplitModulesVec &GroupModules : NoRDCModulesPerGroup)
-      std::move(GroupModules.begin(), GroupModules.end(),
-                std::back_inserter(Modules));
-    Expected<StringRef> OutputFile = sycl::wrapSYCLBinariesFromFile(
-        Modules, Args, /*IsEmbeddedIR=*/false, llvm::Triple(*NoRDCTriple));
-    if (!OutputFile)
-      return OutputFile.takeError();
-    WrappedOutput.push_back(*OutputFile);
-  }
-
   if (OutputSYCLBIN) {
     auto OutputOrErr = sycl::packageSYCLBIN(SYCLBINState, SYCLBINModules);
     if (!OutputOrErr)
@@ -3175,7 +3203,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   }
 
   for (auto &[Kind, Input] : Images) {
-    if (Kind == OFK_SYCL)
+    if (Kind == OFK_SYCL && !EmitFatbinOnly)
       continue;
     // We sort the entries before bundling so they appear in a deterministic
     // order in the final binary.
@@ -3190,11 +3218,23 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         return ArchA > ArchB;
       return A.TheOffloadKind < B.TheOffloadKind;
     });
+    if (Kind == OFK_SYCL) {
+      // Package all post-link images into a single offload container.
+      SmallString<0> Buffer = OffloadBinary::write(Input);
+      auto FOBOrErr = FileOutputBuffer::create(ExecutableName, Buffer.size());
+      if (!FOBOrErr)
+        return FOBOrErr.takeError();
+      llvm::copy(Buffer, (*FOBOrErr)->getBufferStart());
+      if (Error E = (*FOBOrErr)->commit())
+        return std::move(E);
+      continue;
+    }
+
     auto BundledImagesOrErr = bundleLinkedOutput(Input, Args, Kind);
     if (!BundledImagesOrErr)
       return BundledImagesOrErr.takeError();
 
-    if (!NeedsWrapping) {
+    if (EmitFatbinOnly) {
       if (BundledImagesOrErr->size() != 1)
         return createStringError(
             "Expected a single bundled image for direct fat binary output");
@@ -3685,33 +3725,26 @@ int main(int Argc, char **Argv) {
     // Link and process the device images. The function may emit a direct fat
     // binary if --emit-fatbin-only is specified.
     auto FilesOrErr = linkAndWrapDeviceFiles(*DeviceInputFiles, Args, Argv,
-                                             Argc, !EmitFatbinOnly);
+                                             Argc, EmitFatbinOnly);
     if (!FilesOrErr)
       reportError(FilesOrErr.takeError());
 
     if (OutputSYCLBIN) {
       if (Error Err = sycl::mergeSYCLBIN(*FilesOrErr, Args))
         reportError(std::move(Err));
-    } else if (Args.hasArg(OPT_sycl_device_link)) {
-      // Skip host linker if --sycl-device-link option is set.
-      // Just copy the output of device linking and wrapping action.
-      if (FilesOrErr->size() != 1)
-        reportError(
-            createStringError("Expect single output from the device linker."));
-      if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
-        reportError(std::move(Err));
-    } else {
-      // Run the host linking job with the rendered arguments.
-      if (!EmitFatbinOnly) {
-        if (Error Err = runLinker(*FilesOrErr, Args))
-          reportError(std::move(Err));
-      } else if (!FilesOrErr->empty()) {
-        // Other offload kinds write the fat binary directly; the SYCL wrapper
-        // module still has to be copied to the requested output.
+    } else if (!EmitFatbinOnly) {
+      // Fatbin-only output has already been written by linkAndWrapDeviceFiles.
+      if (Args.hasArg(OPT_sycl_device_link)) {
+        // Skip host linker if --sycl-device-link option is set.
+        // Just copy the output of device linking and wrapping action.
         if (FilesOrErr->size() != 1)
           reportError(createStringError(
-              "Expect single output from the SYCL device linker."));
+              "Expect single output from the device linker."));
         if (Error Err = sycl::copyFileToFinalExecutable((*FilesOrErr)[0], Args))
+          reportError(std::move(Err));
+      } else {
+        // Run the host linking job with the rendered arguments.
+        if (Error Err = runLinker(*FilesOrErr, Args))
           reportError(std::move(Err));
       }
     }
