@@ -17,6 +17,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
+#include <detail/kernel_compiler/spirv_kernel_arg_sizes.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
@@ -165,6 +166,10 @@ struct KernelCompilerBinaryInfo {
   KernelCompilerBinaryInfo(syclex::source_language Lang) : MLanguage{Lang} {}
 
   KernelCompilerBinaryInfo(syclex::source_language Lang,
+                           KernelNameToArgSizesMap &&KernelArgSizes)
+      : MLanguage{Lang}, MKernelArgSizes{std::move(KernelArgSizes)} {}
+
+  KernelCompilerBinaryInfo(syclex::source_language Lang,
                            include_pairs_t &&IncludePairsVec)
       : MLanguage{Lang}, MIncludePairs{std::move(IncludePairsVec)} {}
 
@@ -221,6 +226,9 @@ struct KernelCompilerBinaryInfo {
 
       for (const std::string &Prefix : RTCInfo->MPrefixes)
         Result->MPrefixes.insert(Prefix);
+
+      Result->MKernelArgSizes.insert(RTCInfo->MKernelArgSizes.begin(),
+                                     RTCInfo->MKernelArgSizes.end());
     }
     return Result;
   }
@@ -231,6 +239,8 @@ struct KernelCompilerBinaryInfo {
   include_pairs_t MIncludePairs;
   std::vector<std::shared_ptr<ManagedDeviceGlobalsRegistry>>
       MDeviceGlobalRegistries;
+  // Expected kernel argument sizes, only known for kernels built from SPIR-V.
+  KernelNameToArgSizesMap MKernelArgSizes;
 };
 
 // The class is impl counterpart for sycl::device_image
@@ -354,14 +364,15 @@ public:
   device_image_impl(const context &Context, devices_range Devices,
                     bundle_state State, Managed<ur_program_handle_t> &&Program,
                     syclex::source_language Lang, KernelNameSetT &&KernelNames,
-                    private_tag)
+                    KernelNameToArgSizesMap &&KernelArgSizes, private_tag)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
         MContext(Context), MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(State), MProgram(std::move(Program)),
         MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
-        MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
+        MRTCBinInfo(KernelCompilerBinaryInfo{Lang, std::move(KernelArgSizes)}) {
+  }
 
   template <typename... Ts>
   static std::shared_ptr<device_image_impl> create(Ts &&...args) {
@@ -829,10 +840,18 @@ public:
           Devices, syclex::detail::userArgsAsString(BuildOptions),
           *SourceStrPtr, UrProgram);
     }
+    KernelNameToArgSizesMap KernelArgSizes;
+    if (const auto *SPIRVBytes =
+            std::get_if<std::vector<std::byte>>(&MBinImage);
+        SPIRVBytes && MRTCBinInfo->MLanguage == syclex::source_language::spirv)
+      KernelArgSizes =
+          getSPIRVKernelArgSizes(SPIRVBytes->data(), SPIRVBytes->size());
+
     return std::vector<std::shared_ptr<device_image_impl>>{
         device_image_impl::create(MContext, Devices, bundle_state::executable,
                                   std::move(UrProgram), MRTCBinInfo->MLanguage,
-                                  std::move(KernelNameSet))};
+                                  std::move(KernelNameSet),
+                                  std::move(KernelArgSizes))};
   }
 
   std::vector<std::shared_ptr<device_image_impl>> compileFromSource(

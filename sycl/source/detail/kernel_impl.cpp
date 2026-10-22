@@ -105,6 +105,17 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+const KernelArgSizesT *kernel_impl::getExpectedArgSizes() const {
+  if (!MDeviceImageImpl)
+    return nullptr;
+  const std::optional<KernelCompilerBinaryInfo> &RTCInfo =
+      MDeviceImageImpl->getRTCInfo();
+  if (!RTCInfo || RTCInfo->MKernelArgSizes.empty())
+    return nullptr;
+  auto It = RTCInfo->MKernelArgSizes.find(getName());
+  return It != RTCInfo->MKernelArgSizes.end() ? &It->second : nullptr;
+}
+
 bool kernel_impl::isInteropOrSourceBased() const noexcept {
   return isInterop() ||
          (MDeviceImageImpl &&
