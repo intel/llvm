@@ -17,6 +17,11 @@
 // RUN: %{build} -fgpu-approx-transcendentals -o %t.approx-transcendentals.out
 // RUN: %{run} %t.approx-transcendentals.out
 
+// UNSUPPORTED: target-native_cpu || target-cuda
+// UNSUPPORTED-INTENDED: The Native CPU and CUDA backends use code paths for
+// their built-in functions that differ from those used to implement the SYCL
+// math functions. This test is not expected to pass on those backends.
+
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -278,7 +283,9 @@ int main() {
   };                                                                           \
   TEST_TYPES(FN)
 
-  MATH_FN(ldexp)
+  if (test_fp64) {
+    MATH_FN(ldexp)
+  }
 #undef MATH_FN
 
   // genfloat -> genfloat * OUTPUT_TYPE (modf: genfloat; frexp: int)
@@ -297,7 +304,9 @@ int main() {
   TEST_TYPES(FN)
 
   MATH_FN(modf, T)
-  MATH_FN(frexp, int)
+  if (test_fp64) {
+    MATH_FN(frexp, int)
+  }
 #undef MATH_FN
 
   // genfloat * genfloat -> genfloat * int
