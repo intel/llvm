@@ -5,6 +5,8 @@
 // DG2 accesses imported textures as if they were uncompressed.
 // XFAIL: windows && run-mode && gpu-intel-dg2
 // XFAIL-TRACKER: GSD-13691
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 8x8
@@ -414,9 +416,8 @@ int runTest(
     signalExportableFence(ctx, extFenceB);
 
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::
