@@ -5881,9 +5881,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (IsWindowsMSVC) {
         CmdArgs.push_back("-fms-extensions");
         CmdArgs.push_back("-fms-compatibility");
-        // -fdelayed-template-parsing is handled below together with the host
-        // compilation, so that it honors -fno-delayed-template-parsing and is
-        // not enabled by default for C++20 and later.
         VersionTuple MSVT =
             C.getDefaultToolChain().computeMSVCVersion(&D, Args);
         if (!MSVT.empty())
@@ -8703,6 +8700,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // MSVC actually defaults to -fno-delayed-template-parsing (/Zc:twoPhase-
   // with MSVC CLI) if using C++20. So we match the behavior with MSVC here to
   // not enable -fdelayed-template-parsing by default after C++20.
+  //
+  // For SYCL device compilations, IsWindowsMSVC is derived from the aux
+  // triple, so the device compilation gets the same default as the host.
   //
   // FIXME: Given -fdelayed-template-parsing is a source of bugs, we should be
   // able to disable this by default at some point.
