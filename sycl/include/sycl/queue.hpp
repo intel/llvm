@@ -210,15 +210,16 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr::property {
 namespace key {
-struct enable_profiling : detail::runtime_property_key {};
-struct in_order : detail::runtime_property_key {};
+struct enable_profiling : detail::runtime_property_key<enable_profiling> {};
+struct in_order : detail::runtime_property_key<in_order> {};
 } // namespace key
 
-struct enable_profiling : detail::runtime_property<key::enable_profiling> {
+struct enable_profiling
+    : detail::runtime_property<enable_profiling, key::enable_profiling> {
   constexpr enable_profiling(bool v = true) : value{v} {}
   bool value;
 };
-struct in_order : detail::runtime_property<key::in_order> {
+struct in_order : detail::runtime_property<in_order, key::in_order> {
   constexpr in_order(bool v = true) : value{v} {}
   bool value;
 };
