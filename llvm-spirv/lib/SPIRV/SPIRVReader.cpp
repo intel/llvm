@@ -1348,7 +1348,7 @@ Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
   Value *Op0 = transValue(BBN->getOperand(0), F, BB);
   Value *Op1 = transValue(BBN->getOperand(1), F, BB);
 
-  IRBuilder<> Builder(*Context);
+  IRBuilder<> Builder(*M);
   if (BB) {
     Builder.SetInsertPoint(BB);
   }
@@ -1372,7 +1372,7 @@ Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   Value *Op0 = transValue(BC->getOperand(0), F, BB);
   Value *Op1 = transValue(BC->getOperand(1), F, BB);
 
-  IRBuilder<> Builder(*Context);
+  IRBuilder<> Builder(*M);
   if (BB) {
     Builder.SetInsertPoint(BB);
   }
@@ -2177,7 +2177,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpSelect: {
     SPIRVSelect *BS = static_cast<SPIRVSelect *>(BV);
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
@@ -2701,7 +2701,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeExtract: {
     SPIRVCompositeExtract *CE = static_cast<SPIRVCompositeExtract *>(BV);
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
@@ -2730,7 +2730,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCompositeInsert: {
     auto *CI = static_cast<SPIRVCompositeInsert *>(BV);
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
@@ -2795,7 +2795,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       else
         Components.push_back(ConstantInt::get(Int32Ty, I));
     }
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
@@ -2956,7 +2956,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpSNegate: {
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
@@ -2996,7 +2996,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     //   r = srem(a, b)
     //   needs_fixing = ((a < 0) != (b < 0) && r != 0)
     //   result = needs_fixing ? r + b : r
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
@@ -3027,7 +3027,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpNot:
   case OpLogicalNot: {
-    IRBuilder<> Builder(*Context);
+    IRBuilder<> Builder(*M);
     if (BB) {
       Builder.SetInsertPoint(BB);
     }
