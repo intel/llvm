@@ -5943,6 +5943,57 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
+// The operand of __builtin_sycl_launch_kernel is an ordinary call, already
+// resolved; the builtin evaluates to a pointer to its callee.
+ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
+  if (TheCall->getNumArgs() != 1) {
+    Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
+    return ExprError();
+  }
+
+  Expr *KernelCall = TheCall->getArg(0);
+
+  // Resolved again when the call is instantiated.
+  if (KernelCall->isTypeDependent() || KernelCall->isValueDependent())
+    return TheCall;
+
+  // The failed call has already been diagnosed.
+  if (KernelCall->containsErrors())
+    return ExprError();
+
+  // Free function kernels are non-member functions called directly.
+  auto *CE = dyn_cast<CallExpr>(KernelCall->IgnoreParens());
+  FunctionDecl *ResolvedFn =
+      CE && !isa<CXXMemberCallExpr, CXXOperatorCallExpr>(CE)
+          ? CE->getDirectCallee()
+          : nullptr;
+  if (!ResolvedFn || isa<CXXMethodDecl>(ResolvedFn)) {
+    Diag(KernelCall->getBeginLoc(), diag::err_sycl_launch_kernel_not_a_call);
+    return ExprError();
+  }
+
+  // Selecting a deleted function was already diagnosed at the call.
+  if (ResolvedFn->isDeleted())
+    return ExprError();
+
+  // Checked only on the device side: on the host side the integration header
+  // forward declares the kernel without its properties.
+  SourceLocation Loc = CE->getCallee()->getBeginLoc();
+  if (getLangOpts().SYCLIsDevice && !isFreeFunction(ResolvedFn)) {
+    Diag(Loc, diag::err_sycl_launch_kernel_not_free_function);
+    Diag(ResolvedFn->getLocation(), diag::note_declared_at);
+    return ExprError();
+  }
+
+  QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());
+  ExprResult FnRef = SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(),
+                                              VK_LValue, Loc);
+  if (FnRef.isInvalid())
+    return ExprError();
+  return SemaRef.ImpCastExprToType(FnRef.get(), FnPtrTy,
+                                   CK_FunctionToPointerDecay);
+}
+
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
   if (isFreeFunction(FD)) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))

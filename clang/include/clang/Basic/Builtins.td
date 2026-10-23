@@ -5355,6 +5355,15 @@ def SYCLIsNDRangeKernel : LangBuiltin<"SYCL_LANG"> {
   let Prototype = "bool(...)";
 }
 
+// Takes a call to a SYCL free function kernel and evaluates to a pointer to the
+// function the call selects; the call is not evaluated. Used by the
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro.
+def SYCLLaunchKernel : LangBuiltin<"SYCL_LANG"> {
+  let Spellings = ["__builtin_sycl_launch_kernel"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void(...)";
+}
+
 // HLSL
 def HLSLAddUint64: LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_adduint64"];

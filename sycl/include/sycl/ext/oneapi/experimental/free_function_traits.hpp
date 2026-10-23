@@ -73,3 +73,22 @@ template <typename T> struct is_device_copyable;
 
 } // namespace _V1
 } // namespace sycl
+
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...) expands to the
+// kernel_function<Func> argument of a launch function followed by args, where
+// Func is the kernel that the call name(args...) selects:
+//
+//   nd_launch(q, range, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, ptr));
+//
+// It is defined only when the compiler provides __builtin_sycl_launch_kernel.
+#ifndef __has_builtin
+// Older MSVC (< VS2019 16.1) lacks __has_builtin; treat as "not available".
+#define __has_builtin(x) 0
+#endif
+
+#if __has_builtin(__builtin_sycl_launch_kernel)
+#define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
+  ::sycl::ext::oneapi::experimental::kernel_function<                          \
+      __builtin_sycl_launch_kernel(NAME(__VA_ARGS__))>,                        \
+      ##__VA_ARGS__
+#endif
