@@ -220,11 +220,25 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
   return UR_RESULT_SUCCESS;
 }
 
+void ur_command_list_manager::retainEventIfCapturing(ur_event_handle_t hEvent) {
+  bool captureActive = false;
+  if (!hEvent || queryGraphCaptureActive(&captureActive) != UR_RESULT_SUCCESS ||
+      !captureActive) {
+    return;
+  }
+
+  ur_exp_graph_handle_t hGraph = nullptr;
+  if (getGraph(&hGraph) == UR_RESULT_SUCCESS && hGraph) {
+    hGraph->retainCapturedEvent(hEvent);
+  }
+}
+
 ze_event_handle_t
 ur_command_list_manager::getSignalEvent(ur_event_handle_t hUserEvent,
                                         ur_command_t commandType) {
   if (hUserEvent) {
     hUserEvent->setCommandType(commandType);
+    retainEventIfCapturing(hUserEvent);
     return hUserEvent->getZeEvent();
   } else {
     return nullptr;
@@ -603,6 +617,7 @@ ur_result_t ur_command_list_manager::appendTimestampRecordingExp(
   auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
   phEvent->initTimestampRecording();
+  retainEventIfCapturing(phEvent);
 
   auto [timestampPtr, zeSignalEvent] = phEvent->getEventEndTimestampAndHandle();
 

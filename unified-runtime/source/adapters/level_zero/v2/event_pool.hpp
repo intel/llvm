@@ -40,8 +40,9 @@ public:
 
   ~event_pool() = default;
 
-  // Allocate an event from the pool. Thread safe.
-  ur_event_handle_t allocate();
+  // Allocate an event from the pool. If forceCreate is set, a new event is
+  // created even if a reusable one is available. Thread safe.
+  ur_event_handle_t allocate(bool forceCreate = false);
 
   // Allocate a detached event that owns its underlying ze_event_handle_t and is
   // never returned to the pool for recycling, it is destroyed when released.

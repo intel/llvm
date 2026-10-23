@@ -12,20 +12,35 @@
 #include "queue_api.hpp"
 #include "unified-runtime/ur_api.h"
 
+#include <algorithm>
+
 namespace ur::level_zero::v2 {
 
-ur_event_handle_t event_pool::allocate() {
+ur_event_handle_t event_pool::allocate(bool forceCreate) {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<ur_mutex> lock(mutex);
 
-  if (freelist.empty()) {
-    events.emplace_back(hContext, provider->allocate(), this);
-    freelist.push_back(&events.back());
-  }
+  auto it =
+      forceCreate
+          ? freelist.rend()
+          : std::find_if(freelist.rbegin(), freelist.rend(),
+                         [](ur_event_handle_t event) {
+                           return !event->isCounter() ||
+                                  ZE_CALL_NOCHECK(zeEventQueryStatus,
+                                                  (event->getZeEvent())) ==
+                                      ZE_RESULT_SUCCESS;
+                         });
 
-  auto event = freelist.back();
-  freelist.pop_back();
+  ur_event_handle_t event;
+  if (it == freelist.rend()) {
+    events.emplace_back(hContext, provider->allocate(), this);
+    event = &events.back();
+  } else {
+    event = *it;
+    *it = freelist.back();
+    freelist.pop_back();
+  }
 
 #ifndef NDEBUG
   // Set the command type to an invalid value to catch any misuses in tests
