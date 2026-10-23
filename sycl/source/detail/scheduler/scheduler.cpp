@@ -392,7 +392,12 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
     assert(BlockedCmd && "Can't find appropriate command to unblock");
 
-    BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+    {
+      std::lock_guard<std::mutex> Guard(BlockedCmd->MBlockedUsersMutex);
+      BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+    }
+    // Commands whose blocking waiters deferred on BlockedCmd.
+    enqueueUnblockedCommands(BlockedCmd->MBlockedUsers, Lock, ToCleanUp);
 
     enqueueLeavesOfReqUnlocked(Req, Lock, ToCleanUp);
   }
