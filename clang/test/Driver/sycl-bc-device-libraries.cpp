@@ -91,6 +91,17 @@
 // CHECK-LIB-LOC-NATIVECPU-SAME: "--bitcode-library=native_cpu={{.*}}SYCL{{[/\\]+}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}dpcpp-7{{[/\\]+}}sycl{{[/\\]+}}libsycl-nativecpu_utils.bc"
 // CHECK-LIB-LOC-NATIVECPU-SAME: "-sycl-device-library-location={{.*}}SYCL{{[/\\]+}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}dpcpp-7{{[/\\]+}}sycl"
 
+/// Mixed NativeCPU and SPIR targets also use the location of
+/// libsycl-nativecpu_utils.bc.
+// RUN: %clang -### -fsycl --offload-new-driver --target=x86_64-unknown-linux-gnu \
+// RUN:   -ccc-install-dir %S/Inputs/SYCL/bin \
+// RUN:   -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked \
+// RUN:   -fsycl-targets=native_cpu,spir64 \
+// RUN:   %s 2>&1 | FileCheck -check-prefix=CHECK-LIB-LOC-MIXED %s
+// CHECK-LIB-LOC-MIXED: clang-linker-wrapper
+// CHECK-LIB-LOC-MIXED-SAME: "--bitcode-library=native_cpu={{.*}}SYCL{{[/\\]+}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}dpcpp-7{{[/\\]+}}sycl{{[/\\]+}}libsycl-nativecpu_utils.bc"
+// CHECK-LIB-LOC-MIXED-SAME: "-sycl-device-library-location={{.*}}SYCL{{[/\\]+}}bin{{[/\\]+}}..{{[/\\]+}}lib{{[/\\]+}}dpcpp-7{{[/\\]+}}sycl"
+
 /// Check that a missing NativeCPU device library is diagnosed.
 // RUN: not %clang -### -fsycl --offload-new-driver --target=x86_64-unknown-linux-gnu \
 // RUN:   -ccc-install-dir %t.nonexistent/bin \
