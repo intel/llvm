@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
+#include <detail/global_handler.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <sycl/detail/os_util.hpp>
@@ -15,6 +16,10 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+jit_compiler &jit_compiler::get_instance() {
+  return GlobalHandler::instance().getJITCompiler();
+}
 
 std::function<void(void *)> jit_compiler::CustomDeleterForLibHandle =
     [](void *StoredPtr) {
