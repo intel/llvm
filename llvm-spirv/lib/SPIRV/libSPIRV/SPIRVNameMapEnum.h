@@ -578,6 +578,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityDemoteToHelperInvocation, "DemoteToHelperInvocation");
   add(CapabilityDemoteToHelperInvocationEXT, "DemoteToHelperInvocationEXT");
   add(CapabilityBindlessTextureNV, "BindlessTextureNV");
+  add(CapabilitySubgroupBitcastShuffleINTEL, "SubgroupBitcastShuffleINTEL");
   add(CapabilitySubgroupShuffleINTEL, "SubgroupShuffleINTEL");
   add(CapabilitySubgroupBufferBlockIOINTEL, "SubgroupBufferBlockIOINTEL");
   add(CapabilitySubgroupBufferPrefetchINTEL, "SubgroupBufferPrefetchINTEL");
@@ -717,6 +718,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFloat8CooperativeMatrixEXT, "Float8CooperativeMatrixEXT");
   add(internal::CapabilitySigmoidINTEL, "SigmoidINTEL");
   add(internal::CapabilityDeviceBarrierINTEL, "DeviceBarrierINTEL");
+  add(CapabilitySubgroupBitcastShuffleINTEL, "SubgroupBitcastShuffleINTEL");
   add(internal::CapabilityFloat4E2M1INTEL, "Float4E2M1INTEL");
   add(internal::CapabilityFloat4E2M1CooperativeMatrixINTEL,
       "Float4E2M1CooperativeMatrixINTEL");
