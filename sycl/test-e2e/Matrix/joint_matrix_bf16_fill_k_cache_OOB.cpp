@@ -11,10 +11,12 @@
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22281
 
-// RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DOOB -DVNNI
+// The default iteration count does not finish on the CRI simulator,
+// CMPLRLLVM-75924, so run fewer iterations there.
+// RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DOOB -DVNNI %if arch-intel_gpu_cri %{ -DTESTITERATIONS=11 %}
 // RUN: %{run} %t_gpu_vnni.out
 
-// RUN: %{build} -o %t_gpu.out %fp-model-precise -DOOB
+// RUN: %{build} -o %t_gpu.out %fp-model-precise -DOOB %if arch-intel_gpu_cri %{ -DTESTITERATIONS=11 %}
 // RUN: %{run} %t_gpu.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
