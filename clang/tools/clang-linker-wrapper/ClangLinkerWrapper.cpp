@@ -2447,12 +2447,14 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 }
 
 Error containerizeRawImage(std::unique_ptr<MemoryBuffer> &Img, OffloadKind Kind,
-                           const ArgList &Args) {
+                           const ArgList &Args, StringRef CompileOpts = "",
+                           StringRef LinkOpts = "") {
   llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Kind == OFK_OpenMP && Triple.isSPIRV() &&
       Triple.getVendor() == llvm::Triple::Intel &&
       !Args.hasArg(OPT_embed_bitcode))
-    return offloading::intel::containerizeOpenMPSPIRVImage(Img, Triple);
+    return offloading::intel::containerizeOpenMPSPIRVImage(
+        Img, Triple, CompileOpts, LinkOpts);
   return Error::success();
 }
 
@@ -2914,11 +2916,12 @@ Error handleOverrideImages(
   return Error::success();
 }
 
-/// Function looks for compile/link options encoded in SYCL images. If they are
-/// found, then they are returned. If it is found that images have different
-/// compile options or different link options, then an error is returned.
+/// Function looks for compile/link options encoded in offload images. If they
+/// are found, then they are returned. If it is found that images have
+/// different compile options or different link options, then an error is
+/// returned.
 Expected<std::pair<std::string, std::string>>
-extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
+extractCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
   if (OffloadFiles.size() == 0)
     return std::pair<std::string, std::string>{};
 
@@ -3007,7 +3010,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
     if (HasSYCLOffloadKind) {
       auto LinkerArgs = getLinkerArgs(Input, BaseArgs, OFK_SYCL);
       Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
-          extractSYCLCompileLinkOptions(Input);
+          extractCompileLinkOptions(Input);
       if (!CompileLinkOptionsOrErr)
         return CompileLinkOptionsOrErr.takeError();
 
@@ -3136,6 +3139,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         InputFiles.emplace_back(*FileNameOrErr);
       }
 
+      // Recover the compile/link options the driver recorded in each input's
+      // offload metadata; the device linker invocation below does not
+      // preserve them in its output, so they must be forwarded explicitly
+      // when containerizing below.
+      Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
+          extractCompileLinkOptions(Input);
+      if (!CompileLinkOptionsOrErr)
+        return CompileLinkOptionsOrErr.takeError();
+      std::pair<std::string, std::string> &CompileLinkOptions =
+          *CompileLinkOptionsOrErr;
+
       // Link the remaining device files using the device linker.
       auto OutputOrErr =
           linkDevice(InputFiles, LinkerArgs, ActiveOffloadKindMask);
@@ -3157,7 +3171,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         }
 
         // Manually containerize offloading images not in ELF format.
-        if (Error E = containerizeRawImage(*FileOrErr, Kind, LinkerArgs))
+        if (Error E = containerizeRawImage(*FileOrErr, Kind, LinkerArgs,
+                                           CompileLinkOptions.first,
+                                           CompileLinkOptions.second))
           return E;
 
         std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
