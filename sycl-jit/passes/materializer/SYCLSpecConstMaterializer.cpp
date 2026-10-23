@@ -109,7 +109,7 @@ void SYCLSpecConstMaterializer::allocateSpecConstant(StringRef KernelName) {
 }
 
 void SYCLSpecConstMaterializer::fixupSpecConstantUses() {
-  IRBuilder B(Mod->getContext());
+  IRBuilder B(*Mod);
   for (auto &LT : LoadsToTypes) {
     auto *Load = LT.first;
     auto &TyOff = LT.second;
