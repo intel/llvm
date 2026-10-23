@@ -5,7 +5,8 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
 
 // UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
+// UNSUPPORTED-INTENDED: this test relies on L0v1 regular-command-list
+// batching behavior.
 
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347

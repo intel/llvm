@@ -1,15 +1,21 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
+// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=%if level_zero_v2_adapter %{CHECK-V2%} %else %{CHECK-STD%}
+// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=%if level_zero_v2_adapter %{CHECK-V2%} %else %{CHECK-IMM%}
 //
 // Check that queue priority is passed to Level Zero runtime
 // This is the last value in the ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC
 //
 // With immediate command lists the command lists are recycled between queues in
 // a context.
+//
+// SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS is a v1-only selector between
+// regular (CHECK-STD) and immediate (CHECK-IMM) command lists; v2 always uses
+// immediate command lists and does not read this variable, so both RUN lines
+// exercise the same v2 code path (CHECK-V2). v2 logs priority as part of
+// command list creation instead of a "[getZeQueue]" line. For priority_high it
+// uses either the high priority class or, on devices that report priority
+// levels, the highest level with the normal class.
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -28,6 +34,7 @@ int main(int Argc, const char *Argv[]) {
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Normal
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = Normal
+  // CHECK-V2: create command list ordinal: {{.*}} priority: Normal
   test(C, D, sycl::property_list{});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Normal
@@ -37,14 +44,17 @@ int main(int Argc, const char *Argv[]) {
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Low
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = Low
+  // CHECK-V2: create command list ordinal: {{.*}} priority: Low
   test(C, D, {sycl::ext::oneapi::property::queue::priority_low{}});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = High
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = High
+  // CHECK-V2: create command list ordinal: {{.*}} {{priority: High, priorityLevel: none|priority: Normal, priorityLevel: -?[0-9]+}}
   test(C, D, {sycl::ext::oneapi::property::queue::priority_high{}});
 
   // CHECK-STD: Queue cannot be constructed with different priorities.
   // CHECK-IMM: Queue cannot be constructed with different priorities.
+  // CHECK-V2: Queue cannot be constructed with different priorities.
   try {
     test(C, D,
          {sycl::ext::oneapi::property::queue::priority_low{},

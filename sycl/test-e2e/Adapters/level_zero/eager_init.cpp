@@ -4,8 +4,8 @@
 // function names that we match in the test.
 
 // UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: Level Zero v2 adapter performs lazy initialization
-// and does not support SYCL_EAGER_INIT=1, which this test requires.
+// UNSUPPORTED-INTENDED: L0v2 does not consume SYCL_EAGER_INIT/UR_L0_EAGER_INIT;
+// queue execution resources are initialized eagerly by design.
 
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
