@@ -198,6 +198,35 @@ ur_result_t TsanInterceptor::releaseMemory(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t TsanInterceptor::registerMemory(ur_context_handle_t Context,
+                                            ur_device_handle_t Device,
+                                            uptr Addr, size_t Size) {
+  auto AI = TsanAllocInfo{Addr, Size};
+  // For updating shadow memory
+  if (Device) {
+    getDeviceInfo(Device)->insertAllocInfo(std::move(AI));
+  } else {
+    auto CI = getContextInfo(Context);
+    for (const auto &Device : CI->DeviceList)
+      getDeviceInfo(Device)->insertAllocInfo(AI);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::unregisterMemory(ur_context_handle_t Context,
+                                              uptr Addr) {
+  auto CI = getContextInfo(Context);
+  for (const auto &Device : CI->DeviceList) {
+    auto DI = getDeviceInfo(Device);
+    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
+                           [&](auto &P) { return P.AllocBegin == Addr; });
+    if (It != DI->AllocInfos.end())
+      DI->AllocInfos.erase(It);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t TsanInterceptor::registerProgram(ur_program_handle_t Program) {
   UR_LOG_L(getContext()->logger, INFO, "registerDeviceGlobals");
   UR_CALL(registerDeviceGlobals(Program));

@@ -1704,8 +1704,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
       hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
       nullptr));
-  UR_CALL(getAsanInterceptor()->registerIPCMemory(
-      hContext, hDevice, reinterpret_cast<uptr>(*ppMem), MemSize));
+  UR_CALL(getAsanInterceptor()->registerMemory(hContext, hDevice,
+                                               reinterpret_cast<uptr>(*ppMem),
+                                               MemSize, AllocType::IPC_MEM));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1718,9 +1719,46 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
     void *pMem) {
   UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCCloseMemHandleExp");
 
-  UR_CALL(getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp(hContext, pMem));
-  UR_CALL(
-      getAsanInterceptor()->unregisterIPCMemory(reinterpret_cast<uptr>(pMem)));
+  UR_CALL(getAsanInterceptor()->unregisterMemory(hContext, pMem,
+                                                 AllocType::IPC_MEM));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAllocRegisterExp");
+
+  UR_CALL(getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp(
+      hContext, pHostMem, size, pProperties));
+  UR_CALL(getAsanInterceptor()->registerMemory(
+      hContext, nullptr, reinterpret_cast<uptr>(pHostMem), size,
+      AllocType::REGISTERED_HOST_MEM));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAllocUnregisterExp");
+
+  UR_CALL(getAsanInterceptor()->unregisterMemory(
+      hContext, pHostMem, AllocType::REGISTERED_HOST_MEM));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1977,6 +2015,25 @@ ur_result_t urGetIPCExpProcAddrTable(
   return result;
 }
 
+/// @brief Exported function for filling application's USMExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetUSMExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_usm_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_sanitizer_layer::asan::urUSMHostAllocRegisterExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur_sanitizer_layer::asan::urUSMHostAllocUnregisterExp;
+
+  return result;
+}
+
 template <class A, class B> struct NotSupportedApi;
 
 template <class MsgType, class R, class... A>
@@ -2194,6 +2251,11 @@ ur_result_t initAsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result =
         ur_sanitizer_layer::asan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::asan::urGetUSMExpProcAddrTable(&dditable->USMExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {
