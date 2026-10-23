@@ -33,7 +33,7 @@ void jit_compiler::lowerEsimdConstructs(module_split::ModuleDesc &MD,
   FunctionAnalysisManager FAM;
   ModuleAnalysisManager MAM;
 
-  PassBuilder PB;
+  PassBuilder PB(MD.getModule().getContext());
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
