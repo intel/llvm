@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 // RUN: %clangxx -fsycl -fsyntax-only -std=c++20 %s
 
-// From C++20 the nd_launch parameter pack overloads forward a sequence of
-// raw_kernel_arg to the std::span overloads.
+// From C++20 the parameter pack overloads forward a sequence of raw_kernel_arg
+// to the std::span overloads.
 
 #include <sycl/sycl.hpp>
 
@@ -50,7 +50,7 @@ static_assert(
     !IsArgList<std::vector<raw_kernel_arg> &, std::vector<raw_kernel_arg> &>);
 
 void argument_list_spellings(sycl::queue Q, sycl::handler &CGH,
-                             sycl::nd_range<1> NdRange,
+                             sycl::range<1> Range, sycl::nd_range<1> NdRange,
                              const sycl::kernel &Kernel) {
   int Value = 1;
 #if __cpp_lib_span
@@ -64,6 +64,42 @@ void argument_list_spellings(sycl::queue Q, sycl::handler &CGH,
   sycl::span<const oneapiext::raw_kernel_arg> SyclSpan{Vector.data(),
                                                        Vector.size()};
 
+  oneapiext::single_task(Q, Kernel, Vector);
+  oneapiext::single_task(Q, Kernel, Array);
+  oneapiext::single_task(Q, Kernel, Span);
+  oneapiext::single_task(Q, Kernel, MutableSpan);
+  oneapiext::single_task(Q, Kernel, SyclSpan);
+  oneapiext::single_task(CGH, Kernel, Vector);
+  oneapiext::single_task(CGH, Kernel, Array);
+  oneapiext::single_task(CGH, Kernel, Span);
+  oneapiext::single_task(CGH, Kernel, MutableSpan);
+  oneapiext::single_task(CGH, Kernel, SyclSpan);
+
+  oneapiext::parallel_for(Q, Range, Kernel, Vector);
+  oneapiext::parallel_for(Q, Range, Kernel, Array);
+  oneapiext::parallel_for(Q, Range, Kernel, Span);
+  oneapiext::parallel_for(Q, Range, Kernel, MutableSpan);
+  oneapiext::parallel_for(Q, Range, Kernel, SyclSpan);
+  oneapiext::parallel_for(CGH, Range, Kernel, Vector);
+  oneapiext::parallel_for(CGH, Range, Kernel, Array);
+  oneapiext::parallel_for(CGH, Range, Kernel, Span);
+  oneapiext::parallel_for(CGH, Range, Kernel, MutableSpan);
+  oneapiext::parallel_for(CGH, Range, Kernel, SyclSpan);
+
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel, Vector);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel, Array);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel, Span);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel,
+                          MutableSpan);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel, SyclSpan);
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel, Vector);
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel, Array);
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel, Span);
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel,
+                          MutableSpan);
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel,
+                          SyclSpan);
+
   oneapiext::nd_launch(Q, NdRange, Kernel, Vector);
   oneapiext::nd_launch(Q, NdRange, Kernel, Array);
   oneapiext::nd_launch(Q, NdRange, Kernel, Span);
@@ -74,11 +110,39 @@ void argument_list_spellings(sycl::queue Q, sycl::handler &CGH,
   oneapiext::nd_launch(CGH, NdRange, Kernel, Span);
   oneapiext::nd_launch(CGH, NdRange, Kernel, MutableSpan);
   oneapiext::nd_launch(CGH, NdRange, Kernel, SyclSpan);
+
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel, Vector);
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel, Array);
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel, Span);
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel,
+                       MutableSpan);
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel, SyclSpan);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel, Vector);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel, Array);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel, Span);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel,
+                       MutableSpan);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel,
+                       SyclSpan);
 #endif
 
   // One raw_kernel_arg is one argument, and typed arguments are unaffected.
   int *Pointer = nullptr;
+  oneapiext::single_task(Q, Kernel,
+                         oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
+  oneapiext::single_task(CGH, Kernel, Pointer, Value);
+  oneapiext::parallel_for(Q, Range, Kernel,
+                          oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
+  oneapiext::parallel_for(CGH, Range, Kernel, Pointer, Value);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel,
+                          oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel, Pointer,
+                          Value);
   oneapiext::nd_launch(Q, NdRange, Kernel,
                        oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
   oneapiext::nd_launch(CGH, NdRange, Kernel, Pointer, Value);
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel,
+                       oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel, Pointer,
+                       Value);
 }
