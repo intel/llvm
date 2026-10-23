@@ -13,9 +13,16 @@
 
 #include "NativeRecordingMock.hpp"
 
+#include <detail/queue_impl.hpp>
+
 using NativeRecordingMock::expectFailure;
 using NativeRecordingMock::state;
+using NativeRecordingMock::traceCount;
 using ::testing::HasSubstr;
+
+static ur_queue_handle_t urHandle(const sycl::queue &Queue) {
+  return getSyclObjImpl(Queue)->getHandleRef();
+}
 
 // Test that native recording throws when UR does not support it
 TEST_F(NativeRecordingTest, NativeRecordingUnsupportedDevice) {
@@ -182,6 +189,59 @@ TEST_F(NativeRecordingTest, GetGraphDescriptiveError) {
   EXPECT_THAT(Message, HasSubstr("query native UR graph from queue"));
 
   Graph.end_recording(Queue);
+}
+
+// end_recording() may only be called for the queue begin_recording() was called
+// on. A queue the backend forked capture onto is capturing into the same graph
+// but is unknown to SYCL, and ending capture on it would end the fork rather
+// than the recording.
+TEST_F(NativeRecordingTest, EndRecordingForkedQueue) {
+  auto Graph = makeGraph();
+  Graph.begin_recording(Queue);
+
+  sycl::queue Forked{Dev, {sycl::property::queue::in_order{}}};
+  NativeRecordingMock::forkTo(Forked, Graph);
+
+  std::string Message =
+      expectFailure([&]() { Graph.end_recording(Forked); }, std::nullopt,
+                    sycl::errc::feature_not_supported);
+  EXPECT_THAT(Message, HasSubstr("only supported for the queue passed to "
+                                 "begin_recording"));
+  EXPECT_EQ(traceCount("urQueueEndGraphCaptureExp", urHandle(Forked)), 0u);
+
+  // Recording is unaffected, so the primary queue can still end it.
+  EXPECT_EQ(Queue.ext_oneapi_get_state(), experimental::queue_state::recording);
+  Graph.end_recording(Queue);
+  EXPECT_EQ(traceCount("urQueueEndGraphCaptureExp", urHandle(Queue)), 1u);
+}
+
+// A queue natively capturing into another graph is a user error, whether or not
+// the graph end_recording() was called on records natively itself.
+TEST_F(NativeRecordingTest, EndRecordingQueueRecordingToDifferentNativeGraph) {
+  auto GraphA = makeGraph();
+  auto GraphB = makeGraph();
+  GraphB.begin_recording(Queue);
+
+  std::string Message = expectFailure([&]() { GraphA.end_recording(Queue); },
+                                      std::nullopt, sycl::errc::invalid);
+  EXPECT_THAT(Message, HasSubstr("recording to a different graph"));
+  EXPECT_EQ(traceCount("urQueueEndGraphCaptureExp", urHandle(Queue)), 0u);
+
+  GraphB.end_recording(Queue);
+  EXPECT_EQ(traceCount("urQueueEndGraphCaptureExp", urHandle(Queue)), 1u);
+}
+
+TEST_F(NativeRecordingTest, EndRecordingQueueRecordingToDifferentGraph) {
+  ModifiableGraph GraphA{Queue.get_context(), Dev};
+  auto GraphB = makeGraph();
+  GraphB.begin_recording(Queue);
+
+  std::string Message = expectFailure([&]() { GraphA.end_recording(Queue); },
+                                      std::nullopt, sycl::errc::invalid);
+  EXPECT_THAT(Message, HasSubstr("recording to a different graph"));
+  EXPECT_EQ(traceCount("urQueueEndGraphCaptureExp", urHandle(Queue)), 0u);
+
+  GraphB.end_recording(Queue);
 }
 
 // NOTE: The current implementation manually returns sycl::errc::invalid and the
