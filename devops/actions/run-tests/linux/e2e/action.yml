@@ -18,6 +18,10 @@ inputs:
     required: false
   sycl_compiler:
     required: false
+  job_name:
+    description: 'Name of the calling job, used to build a unique artifact name'
+    required: false
+    default: ''
 
 
 runs:
@@ -40,9 +44,15 @@ runs:
   - name: Extract E2E Binaries
     if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact != 'in-container' }}
     shell: bash
+    env:
+      BINARIES_ARTIFACT: ${{ inputs.binaries_artifact }}
     run: |
       mkdir build-e2e
       tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
+      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
+        echo "::error::Downloaded E2E binaries artifact '$BINARIES_ARTIFACT' has no compiled test binaries under */Output/ (likely produced by a failed upstream build job). Failing fast instead of running thousands of doomed tests."
+        exit 1
+      fi
 
   - name: Extract E2E tests from container image
     if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact == 'in-container' }}
@@ -51,6 +61,10 @@ runs:
       mkdir build-e2e llvm
       tar -I 'zstd' -xf /sycl-prebuilt/e2e_binaries.tar.zst -C build-e2e
       tar -I 'zstd' -xf /sycl-prebuilt/e2e_sources.tar.zst -C llvm
+      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
+        echo "::error::Container image's prebuilt E2E binaries have no compiled test binaries under */Output/. Failing fast instead of running thousands of doomed tests."
+        exit 1
+      fi
 
   - name: Deduce E2E CMake options
     if: inputs.testing_mode != 'run-only'
@@ -67,32 +81,46 @@ runs:
     shell: bash
     run: |
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which dpclang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
-  - name: SYCL End-to-end tests
-    id: run_e2e
-    continue-on-error: true
+
+  # Composed here, not in ur-test, since these depend on caller-only workflow inputs.
+  - name: Compose E2E LIT options
+    id: lit_opts
     shell: bash
     env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+      TESTING_MODE: ${{ inputs.testing_mode }}
+      TARGET_DEVICES: ${{ inputs.target_devices }}
+      USER_LIT_OPTS: ${{ inputs.extra_lit_opts }}
     run: |
-      ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
-  # Two steps below are duplicated between Lin/Win actions, updates must change both
-  - name: E2E logs
-    if: ${{ always() }}
+      # --timeout kills an individual hung test (e.g. a GPU driver hang) instead of
+      # letting it block the whole suite until the job's own timeout-minutes fires.
+      echo "opts=--max-time 3600 --timeout 600 --param print_features=True --param test-mode=${TESTING_MODE} --param sycl_devices=${TARGET_DEVICES} ${USER_LIT_OPTS}" >> "$GITHUB_OUTPUT"
+
+  - name: Build artifact name
+    if: ${{ always() && inputs.job_name != '' }}
+    id: artifact_name
+    shell: bash
+    env:
+      JOB_NAME: ${{ inputs.job_name }}
+    run: |
+      safe_name=$(echo "$JOB_NAME" | tr -c '[:alnum:]._-' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+      echo "name=e2e-${safe_name}" >> "$GITHUB_OUTPUT"
+
+  - name: Run E2E tests
+    uses: ./devops/actions/run-tests/ur
+    with:
+      test_type: 'e2e'
+      build_dir: 'build-e2e'
+      extra_lit_opts: ${{ steps.lit_opts.outputs.opts }}
+      artifact_name: ${{ steps.artifact_name.outputs.name }}
+
+  - name: Verify E2E binaries were built
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
     run: |
-      echo "::group::Show Full E2E Log"
-      cat e2e.log
-      echo "::endgroup::"
-  - name: Report E2E Failures
-    if: steps.run_e2e.outcome != 'success'
-    shell: bash
-    # For some reason Github uses the first line from the `run: |` section for
-    # the folded entry when displaying instead of this step's name.
-    run: |
-        # Report E2E Failures
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log
+      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
+        echo "::error::No compiled E2E test binaries found under build-e2e/**/Output/ after the build step. Refusing to upload a broken artifact."
         exit 1
+      fi
 
   - name: Pack E2E binaries
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}

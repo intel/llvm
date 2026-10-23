@@ -19,16 +19,6 @@ _STATUS_DISPLAY_ORDER = [
     TestStatus.PASS,
 ]
 
-# Statuses worth listing by name in the compact GitHub step summary.
-_STEP_SUMMARY_LISTED_STATUSES = [
-    TestStatus.FAIL,
-    TestStatus.XPASS,
-    TestStatus.TIMEOUT,
-    TestStatus.UNRESOLVED,
-]
-
-_STEP_SUMMARY_MAX_LISTED_TESTS = 50
-
 
 class SummaryReporter:
     def __init__(self, result: TestRunResult):
@@ -59,11 +49,8 @@ class SummaryReporter:
     def _print_test_group(self, status: TestStatus, tests: List[TestResult]) -> None:
         print(f"::group::{status.display_label} ({len(tests)})")
 
-        for test in tests[:100]:
+        for test in tests:
             print(test.name)
-
-        if len(tests) > 100:
-            print(f"... and {len(tests) - 100} more")
 
         print("::endgroup::")
 
@@ -96,29 +83,26 @@ class SummaryReporter:
         print("::endgroup::")
 
     def generate_github_step_summary(self) -> None:
-        """Print a compact summary for $GITHUB_STEP_SUMMARY.
+        """Print a full summary for $GITHUB_STEP_SUMMARY.
 
-        Unlike generate(), this lists only statuses that need attention
-        (Failed, Unexpectedly Passed, Timed Out, Unresolved) and shows
-        all other statuses as counts only, to keep the workflow run page
-        readable regardless of how many tests were discovered.
+        Every status with at least one test gets its own collapsible section
+        listing every one of its test names, with no truncation.
         """
         result = self.result
         grouped = result.group_by_status()
 
-        print("```")
-
-        for status in _STEP_SUMMARY_LISTED_STATUSES:
+        for status in _STATUS_DISPLAY_ORDER:
             tests = grouped.get(status, [])
             if not tests:
                 continue
 
-            print(f"{status.display_label} Tests ({len(tests)}):")
-            for test in tests[:_STEP_SUMMARY_MAX_LISTED_TESTS]:
+            print(f"<details><summary>{status.display_label} ({len(tests)})</summary>")
+            print()
+            print("```")
+            for test in tests:
                 print(test.name)
-            if len(tests) > _STEP_SUMMARY_MAX_LISTED_TESTS:
-                remaining = len(tests) - _STEP_SUMMARY_MAX_LISTED_TESTS
-                print(f"... and {remaining} more")
+            print("```")
+            print("</details>")
             print()
 
         if result.testing_time_ms is not None:
@@ -129,6 +113,8 @@ class SummaryReporter:
         counted_statuses = [s for s in _STATUS_DISPLAY_ORDER if grouped.get(s)]
         if total and counted_statuses:
             print(f"Total Discovered Tests: {total}")
+            print()
+            print("```")
             label_width = max(len(s.display_label) for s in counted_statuses)
             for status in counted_statuses:
                 count = len(grouped[status])
@@ -137,5 +123,4 @@ class SummaryReporter:
                     f"{status.display_label:<{label_width}} : "
                     f"{count} ({percentage:.2f}%)"
                 )
-
-        print("```")
+            print("```")
