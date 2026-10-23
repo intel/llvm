@@ -612,6 +612,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     ur_device_handle_t, ur_program_handle_t hProgram,
     const char *pGlobalVariableName, size_t *pGlobalVariableSizeRet,
     void **ppGlobalVariablePointerRet) {
-  return hProgram->getGlobalVariablePointer(
-      pGlobalVariableName, ppGlobalVariablePointerRet, pGlobalVariableSizeRet);
+  if (!ppGlobalVariablePointerRet) {
+    return hProgram->getGlobalVariablePointer(pGlobalVariableName, nullptr,
+                                              pGlobalVariableSizeRet);
+  }
+  hipDeviceptr_t DeviceGlobal{};
+  ur_result_t Result = hProgram->getGlobalVariablePointer(
+      pGlobalVariableName, &DeviceGlobal, pGlobalVariableSizeRet);
+  if (Result == UR_RESULT_SUCCESS) {
+    *ppGlobalVariablePointerRet = asVoidPtr(DeviceGlobal);
+  }
+  return Result;
 }

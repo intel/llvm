@@ -90,12 +90,26 @@ public:
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &ConcurrentManagedAccess, hipDeviceAttributeConcurrentManagedAccess,
         HIPDevice));
-    // Check if texture functions are supported in the HIP host runtime.
+    // hipDeviceAttributeImageSupport is AMD-specific. NVIDIA's
+    // hipDeviceGetAttribute rejects it, so use a texture limit that the
+    // NVIDIA headers do translate.
+#if defined(__HIP_PLATFORM_NVIDIA__)
+    int MaxTexture1D = 0;
+    hipError_t ImageStatus = hipDeviceGetAttribute(
+        &MaxTexture1D, hipDeviceAttributeMaxTexture1DLinear, HIPDevice);
+    if (ImageStatus != hipSuccess) {
+      (void)hipGetLastError();
+      HardwareImageSupport = false;
+    } else {
+      HardwareImageSupport = MaxTexture1D > 0;
+    }
+#else
     int Ret{};
     UR_CHECK_ERROR(
         hipDeviceGetAttribute(&Ret, hipDeviceAttributeImageSupport, HIPDevice));
     assert(Ret == 0 || Ret == 1);
     HardwareImageSupport = Ret == 1;
+#endif
 
     // Set local mem max size if env var is present
     static const char *LocalMemSzPtrUR =

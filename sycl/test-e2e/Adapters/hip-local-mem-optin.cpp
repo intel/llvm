@@ -19,10 +19,13 @@
 //===----------------------------------------------------------------------===//
 
 // Dynamic local memory above the non-opt-in per-block limit has to opt in with
-// hipFuncAttributeMaxDynamicSharedMemorySize. AMD devices report the same
-// ceiling for both attributes (64KiB LDS on gfx942), so that launch is skipped
-// there. The test still checks the reported ceiling, a launch of that size,
-// and rejection of one byte more. UR_HIP_MAX_LOCAL_MEM_SIZE caps both.
+// hipFuncAttributeMaxDynamicSharedMemorySize. This file is compiled for
+// amdgcn and the AMD HIP runtime. AMD devices report the same ceiling for
+// both attributes (64KiB LDS on gfx942), so that launch is skipped here.
+// HIP-on-NVIDIA module functions opt in with cuFuncSetAttribute; that path is
+// covered by unified-runtime/test/adapters/hip/local_mem_optin.cpp. This test
+// still checks the reported ceiling, a launch of that size, and rejection of
+// one byte more. UR_HIP_MAX_LOCAL_MEM_SIZE caps both.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/info/device.hpp>

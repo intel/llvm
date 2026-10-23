@@ -118,7 +118,7 @@ ur_result_t setHipMemAdvise(const void *DevPtr, const size_t Size,
           std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY,
                          hipMemAdviseUnsetCoarseGrain),
 #endif
-      };
+  };
   for (const auto &[URAdvice, HIPAdvice] : URToHIPMemAdviseDeviceFlags) {
     if (URAdviceFlags & URAdvice) {
       UR_CHECK_ERROR(hipMemAdvise(DevPtr, Size, HIPAdvice, Device));
@@ -1477,9 +1477,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   // this is feature complete, it is still open to changes and outstanding
   // issues.
   size_t PointerRangeSize = 0;
-  UR_CHECK_ERROR(hipPointerGetAttribute(
-      &PointerRangeSize, HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
-      static_cast<hipDeviceptr_t>(HIPDevicePtr)));
+  UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
+                                        HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
+                                        asHipDevicePtr(HIPDevicePtr)));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 #endif
 
@@ -1739,7 +1739,7 @@ ur_result_t deviceGlobalCopyHelper(
     ur_event_handle_t *phEvent, GlobalVariableCopy CopyType) {
 
   try {
-    hipDeviceptr_t DeviceGlobal = nullptr;
+    hipDeviceptr_t DeviceGlobal{};
     size_t DeviceGlobalSize = 0;
     UR_CHECK_ERROR(hProgram->getGlobalVariablePointer(name, &DeviceGlobal,
                                                       &DeviceGlobalSize));
