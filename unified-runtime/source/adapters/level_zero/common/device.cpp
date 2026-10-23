@@ -1551,8 +1551,19 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
-  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP: {
+    // Only report support if the driver can export device allocations as at
+    // least one external memory type.
+    ze_device_external_memory_properties_t ExtMemProps{};
+    ExtMemProps.stype = ZE_STRUCTURE_TYPE_DEVICE_EXTERNAL_MEMORY_PROPERTIES;
+    ze_result_t ZeResult = ZE_CALL_NOCHECK(zeDeviceGetExternalMemoryProperties,
+                                           (Device->ZeDevice, &ExtMemProps));
+    if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      return ReturnValue(false);
+    if (ZeResult != ZE_RESULT_SUCCESS)
+      return ze2urResult(ZeResult);
+    return ReturnValue(ExtMemProps.memoryAllocationExportTypes != 0);
+  }
   case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
     // LUID and Device node mask are only available on Windows.
