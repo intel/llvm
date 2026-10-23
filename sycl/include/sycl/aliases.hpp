@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 
 #include <cstdint> // for uint8_t, int16_t, int32_t
 
@@ -137,11 +137,14 @@ using cl_float = float;
 using cl_double = double;
 } // namespace opencl
 
+// sycl::cl_* scalar aliases used by the vector alias macros are deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
+__SYCL_SUPPRESS_DEPRECATED_POP
 } // namespace _V1
 } // namespace sycl
 

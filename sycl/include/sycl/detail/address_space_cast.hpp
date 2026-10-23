@@ -10,6 +10,7 @@
 
 #include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/access/access.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 
 #include <type_traits>
 
@@ -22,7 +23,11 @@ inline constexpr bool
 address_space_cast_is_possible(access::address_space Src,
                                access::address_space Dst) {
   // constant_space is unique and is not interchangeable with any other.
+  // access::address_space::constant_space is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   auto constant_space = access::address_space::constant_space;
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
   if (Src == constant_space || Dst == constant_space)
     return Src == Dst;
 

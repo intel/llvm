@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
 #include <iosfwd>      // for ostream
@@ -44,8 +44,11 @@ __SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 namespace detail {
 inline std::string_view get_backend_name_no_vendor(backend Backend) {
   switch (Backend) {
+    // backend::host is deprecated.
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
   case backend::host:
     return "host";
+    __SYCL_SUPPRESS_DEPRECATED_POP
   case backend::opencl:
     return "opencl";
   case backend::ext_oneapi_level_zero:

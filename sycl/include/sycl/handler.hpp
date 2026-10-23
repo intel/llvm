@@ -12,7 +12,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/code_location.hpp>
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/impl_utils.hpp>
@@ -473,6 +473,8 @@ private:
 
   void setArgsHelper(int) {}
 
+  // access::target::local is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   void setLocalAccessorArgHelper(int ArgIndex,
                                  detail::LocalAccessorBaseHost &LocalAccBase) {
     detail::LocalAccessorImplPtr LocalAccImpl =
@@ -495,6 +497,7 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // setArgHelper for local accessor argument (up to date accessor interface)
   template <typename DataT, int Dims>
@@ -509,6 +512,8 @@ private:
   void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // setArgHelper for non local accessor argument.
+  // access::target::local is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <typename DataT, int Dims, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
   typename std::enable_if_t<AccessTarget != access::target::local, void>
@@ -524,6 +529,7 @@ private:
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
            static_cast<int>(AccessTarget), ArgIndex);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
@@ -541,11 +547,14 @@ private:
     }
   }
 
+  // sycl::sampler is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   void setArgHelper(int ArgIndex, sampler &&Arg) {
     void *StoredArg = storePlainArg(Arg);
     addArg(detail::kernel_param_kind_t::kind_sampler, StoredArg,
            sizeof(sampler), ArgIndex);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   void setArgHelper(int ArgIndex, stream &&Str);
 
@@ -764,6 +773,8 @@ private:
     return false;
   }
 
+  // access::target::constant_buffer, image and image_array are deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool isConstOrGlobal(access::target AccessTarget) {
     return AccessTarget == access::target::device ||
            AccessTarget == access::target::constant_buffer;
@@ -773,6 +784,7 @@ private:
     return AccessTarget == access::target::image ||
            AccessTarget == access::target::image_array;
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   constexpr static bool
   isValidTargetForExplicitOp(access::target AccessTarget) {
@@ -784,6 +796,8 @@ private:
            AccessMode == access::mode::read_write;
   }
 
+  // access::mode::discard_write and discard_read_write are deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool
   isValidModeForDestinationAccessor(access::mode AccessMode) {
     return AccessMode == access::mode::write ||
@@ -791,6 +805,7 @@ private:
            AccessMode == access::mode::discard_write ||
            AccessMode == access::mode::discard_read_write;
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // UR APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
   constexpr static bool isBackendSupportedFillSize(size_t Size) {
@@ -1166,6 +1181,8 @@ public:
   template <typename U, typename T>
   using is_same_type = std::is_same<remove_cv_ref_t<U>, remove_cv_ref_t<T>>;
 
+  // sycl::sampler is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
         std::is_trivially_copyable_v<std::remove_reference_t<T>>
@@ -1179,6 +1196,7 @@ public:
         || is_same_type<stream, T>::value          // Stream
         || detail::check_if_device_copyable_v<remove_cv_ref_t<T>>;
   };
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   /// Sets argument for OpenCL interoperability kernels.
   ///
@@ -1214,6 +1232,9 @@ public:
           constexpr int AccessTargetMask = 0x7ff;
           const access::target target = static_cast<access::target>(
               type::sizes[NumArgs] & AccessTargetMask);
+
+          // access::target::local is deprecated.
+          __SYCL_SUPPRESS_DEPRECATED_PUSH
           if (target == target::local) {
             detail::LocalAccessorBaseHost *LocalAccBase =
                 (detail::LocalAccessorBaseHost *)(FieldArg);
@@ -1227,6 +1248,7 @@ public:
             addArg(type::kinds[NumArgs], Req, type::sizes[NumArgs],
                    ArgIndex + NumArgs);
           }
+          __SYCL_SUPPRESS_DEPRECATED_POP
         } else {
           // for non-accessors, simply call addArg normally.
           addArg(type::kinds[NumArgs], FieldArg, type::sizes[NumArgs],
@@ -2925,6 +2947,8 @@ private:
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
+      // access::target::local is deprecated.
+      __SYCL_SUPPRESS_DEPRECATED_PUSH
       if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
           (AccTarget == target::local))
         throw sycl::exception(
@@ -2932,6 +2956,7 @@ private:
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
             "parallel_for that takes a range parameter.");
+      __SYCL_SUPPRESS_DEPRECATED_POP
       if (Kind == detail::kernel_param_kind_t::kind_work_group_memory ||
           Kind == detail::kernel_param_kind_t::kind_dynamic_work_group_memory)
         throw sycl::exception(

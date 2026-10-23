@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <type_traits>
@@ -106,8 +106,14 @@ template <access_mode mode, target trgt> struct mode_target_tag_t {
 inline constexpr mode_tag_t<access_mode::read> read_only{};
 inline constexpr mode_tag_t<access_mode::read_write> read_write{};
 inline constexpr mode_tag_t<access_mode::write> write_only{};
+
+// access::target::constant_buffer is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
+__SYCL2020_DEPRECATED("use 'read_only' instead")
 inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
     read_constant{};
+__SYCL_SUPPRESS_DEPRECATED_POP
+
 inline constexpr mode_target_tag_t<access_mode::read, target::host_task>
     read_only_host_task;
 inline constexpr mode_target_tag_t<access_mode::read_write, target::host_task>
@@ -117,6 +123,9 @@ inline constexpr mode_target_tag_t<access_mode::write, target::host_task>
 
 namespace detail {
 
+// access::target::host_buffer, host_image and access::mode::atomic are
+// deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 constexpr bool isTargetHostAccess(access::target T) {
   return T == access::target::host_buffer || T == access::target::host_image;
 }
@@ -125,6 +134,7 @@ constexpr bool modeNeedsOldData(access::mode m) {
   return m == access::mode::read || m == access::mode::write ||
          m == access::mode::read_write || m == access::mode::atomic;
 }
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 constexpr bool modeWritesNewData(access::mode m) {
   return m != access::mode::read;
@@ -160,10 +170,14 @@ template <> struct TargetToAS<access::target::local> {
       access::address_space::local_space;
 };
 
+// access::target::constant_buffer and address_space::constant_space are
+// deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <> struct TargetToAS<access::target::constant_buffer> {
   constexpr static access::address_space AS =
       access::address_space::constant_space;
 };
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 template <typename ElementType, access::address_space addressSpace>
 struct DecoratedType;
@@ -183,6 +197,8 @@ struct DecoratedType<ElementType, access::address_space::global_space> {
   using type = __OPENCL_GLOBAL_AS__ ElementType;
 };
 
+// access::address_space::constant_space is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::constant_space> {
   // Current implementation of address spaces handling leads to possibility
@@ -196,6 +212,7 @@ struct DecoratedType<ElementType, access::address_space::constant_space> {
   using type = __OPENCL_GLOBAL_AS__ ElementType;
 #endif
 };
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::local_space> {
@@ -226,10 +243,13 @@ template <class T> struct deduce_AS_impl<__OPENCL_LOCAL_AS__ T> {
       access::address_space::local_space;
 };
 
+// access::address_space::constant_space is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <class T> struct deduce_AS_impl<__OPENCL_CONSTANT_AS__ T> {
   static constexpr access::address_space value =
       access::address_space::constant_space;
 };
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 template <class T>
 struct deduce_AS

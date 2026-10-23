@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/exception.hpp>
@@ -185,7 +186,12 @@ __SYCL_ALWAYS_INLINE inline fragment<sycl::sub_group>
 get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__) || defined(__SPIRV__)
+
+  // ext::oneapi::experimental::this_sub_group() is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   sycl::sub_group sg = sycl::ext::oneapi::experimental::this_sub_group();
+  __SYCL_SUPPRESS_DEPRECATED_POP
+
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);
   return fragment<sycl::sub_group>(mask, 0, 1);
 #elif defined(__NVPTX__)

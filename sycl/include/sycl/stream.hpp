@@ -15,7 +15,7 @@
 #include <sycl/builtins.hpp>       // for isinf, isnan, signbit
 #include <sycl/detail/array.hpp>   // for array
 #include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
@@ -97,8 +97,12 @@ using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
+// access::mode::atomic is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
                                        sycl::access::target::device>;
+
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 constexpr static access::address_space GlobalOffsetAS =
     TargetToAS<sycl::access::target::device>::AS;
@@ -644,6 +648,8 @@ writeFloatingPoint(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
             : 0);
 }
 
+// sycl::atomic, returned by the atomic accessor, is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 // Helper method to update offset in the global buffer atomically according to
 // the provided size of the data in the flush buffer. Return true if offset is
 // updated and false in case of overflow.
@@ -660,6 +666,8 @@ inline bool updateOffset(GlobalOffsetAccessorT &GlobalOffset,
   } while (!GlobalOffset[0].compare_exchange_strong(Cur, New));
   return true;
 }
+
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 inline void flushBuffer(GlobalOffsetAccessorT &GlobalOffset,
                         GlobalBufAccessorT &GlobalBuf,
