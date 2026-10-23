@@ -28,6 +28,7 @@
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/StringSaver.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 
 #include <map>
 #include <set>
@@ -36,9 +37,6 @@
 
 namespace llvm {
 class Triple;
-namespace vfs {
-class FileSystem;
-}
 namespace cl {
 class ExpansionContext;
 }
@@ -820,6 +818,11 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
+  /// -fsycl-link is used to link SYCLBIN files into an executable SYCLBIN.
+  bool SYCLBINLinkSeen = false;
+
+  void setSYCLBINLinkSeen() { SYCLBINLinkSeen = true; }
+
   /// Use the new offload driver for OpenMP
   bool UseNewOffloadingDriver = false;
   void setUseNewOffloadingDriver() { UseNewOffloadingDriver = true; }
@@ -872,6 +875,10 @@ private:
   /// gathered during creation of offloading device toolchains.
   mutable llvm::opt::ArgStringList SYCLDeviceTraitsMacrosArgs;
 
+  /// Set once a missing clang-offload-bundler has been diagnosed, so that the
+  /// error is emitted only once per driver invocation.
+  mutable bool OffloadBundlerNotFoundDiagnosed = false;
+
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -899,6 +906,10 @@ public:
   static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// getSYCLBINLinkSeen - -fsycl-link is used to link SYCLBIN input files
+  /// into a single SYCLBIN file in executable state.
+  bool getSYCLBINLinkSeen() const { return SYCLBINLinkSeen; };
 
   /// getUseNewOffloadingDriver - whether the new offload driver is in use
   /// for the current compilation (OpenMP, CUDA, HIP, or -foffload-via-llvm).
@@ -960,6 +971,11 @@ public:
   StringRef getSYCLUniqueID(StringRef FileName) const {
     return SYCLUniqueIDList[FileName];
   }
+
+  /// diagnoseOffloadBundlerNotFound - Report that clang-offload-bundler could
+  /// not be found in \p Dir while inspecting \p FileName.  Only the first
+  /// occurrence is reported.
+  void diagnoseOffloadBundlerNotFound(StringRef Dir, StringRef FileName) const;
 
   /// SYCLDeviceTraitMacroArg - Add the given macro to the vector of args to be
   /// added to the device compilation step.

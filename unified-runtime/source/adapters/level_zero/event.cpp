@@ -1054,7 +1054,9 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
-    this->IsCreatingHostProxyEvent = true;
+    HostProxyCreatorThread.store(std::this_thread::get_id());
+    OnScopeExit ResetCreator(
+        [this]() { HostProxyCreatorThread.store(std::thread::id{}); });
     if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
@@ -1089,7 +1091,6 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
                (CommandList->first, HostVisibleEvent->ZeEvent));
 
     UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
-    this->IsCreatingHostProxyEvent = false;
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -1250,10 +1251,12 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
-    // If the Event is already locked, then continue with the cleanup, otherwise
+    // If the Event is already locked by this thread (re-entry from
+    // getOrCreateHostVisibleEvent), then continue with the cleanup, otherwise
     // block on locking the event.
     std::unique_lock<ur_shared_mutex> EventLock(Event->Mutex, std::try_to_lock);
-    if (!EventLock.owns_lock() && !Event->IsCreatingHostProxyEvent) {
+    if (!EventLock.owns_lock() &&
+        Event->HostProxyCreatorThread.load() != std::this_thread::get_id()) {
       EventLock.lock();
     }
     if (SetEventCompleted)
@@ -1758,6 +1761,9 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
         TmpListLength += 1;
 
         if (QueueLock.has_value()) {
+          // Drop the event lock first so CurQueue is not locked while an
+          // event lock is held (queue locks are taken before event locks).
+          Lock.unlock();
           QueueLock.reset();
           CurQueue->Mutex.lock();
           CurQueueUnlocked = false;
@@ -1833,6 +1839,13 @@ ur_result_t ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+void ur_ze_event_list_t::releaseAndDestroyUrZeEventList() {
+  std::list<ur_event_handle_t> EventsToBeReleased;
+  collectEventsForReleaseAndDestroyUrZeEventList(EventsToBeReleased);
+  for (ur_event_handle_t Event : EventsToBeReleased)
+    urEventReleaseInternal(Event);
 }
 
 // Tells if this event is with profiling capabilities.

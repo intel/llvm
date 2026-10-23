@@ -13,7 +13,8 @@
 
 // COM: Run test again in a directory that contains a different version of
 //      `header1.hpp`
-// RUN: cd %S/include/C ; %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
+// RUN: rm -rf %t.dir && mkdir -p %t.dir && cp %S/include/C/header1.hpp %t.dir
+// RUN: cd %t.dir ; %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142

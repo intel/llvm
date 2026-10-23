@@ -409,6 +409,18 @@ getNativeGraphImpl(queue_impl &Queue) {
   return Queue.getContextImpl().getNativeGraph(UrGraphHandle);
 }
 
+bool handler_impl::canBypassScheduler() {
+  queue_impl *Queue = get_queue_or_null();
+  // Streams need no separate check: the accessors they create are requirements.
+  // TODO checking the size of the events vector and avoiding the call is more
+  // efficient here at this point
+  return Queue && !get_graph_or_null() && !MSubgraphNode &&
+         !Queue->hasCommandGraph() && CGData.MRequirements.empty() &&
+         (CGData.MEvents.empty() ||
+          Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                     Queue->getContextImpl()));
+}
+
 } // namespace detail
 
 handler::handler(detail::handler_impl &HandlerImpl) : impl(&HandlerImpl) {}
@@ -470,22 +482,13 @@ void handler::setHandlerKernelBundle(kernel Kernel) {
 detail::EventImplPtr handler::finalize() {
   const auto &type = getType();
   detail::queue_impl *Queue = impl->get_queue_or_null();
-  ext::oneapi::experimental::detail::graph_impl *Graph =
-      impl->get_graph_or_null();
 
-  // TODO checking the size of the events vector and avoiding the call is more
-  // efficient here at this point
-  const bool KernelSchedulerBypass =
-      (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
-       !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
-       (impl->CGData.MEvents.size() == 0 ||
-        detail::Scheduler::areEventsSafeForSchedulerBypass(
-            impl->CGData.MEvents, Queue->getContextImpl())));
+  const bool SchedulerBypass = impl->canBypassScheduler();
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
   if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
-      (!KernelSchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
+      (!SchedulerBypass || impl->MKernelData.hasSpecialCaptures())) {
     impl->MKernelData.extractArgsAndReqsFromLambda();
   }
 
@@ -609,7 +612,7 @@ detail::EventImplPtr handler::finalize() {
       }
     }
 
-    if (KernelSchedulerBypass) {
+    if (SchedulerBypass) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -621,6 +624,19 @@ detail::EventImplPtr handler::finalize() {
               MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
       return ResultEvent;
     }
+  }
+
+  // Asynchronous allocations and frees are single backend commands without any
+  // requirements, so they can bypass the scheduler as well. Note that the
+  // allocation itself has already been enqueued by async_malloc, because the
+  // pointer had to be returned to the user immediately.
+  if (SchedulerBypass) {
+    if (type == detail::CGType::AsyncAlloc)
+      return impl->get_queue().submit_async_alloc_scheduler_bypass(
+          impl->MAsyncAllocEvent, impl->CGData.MEvents, impl->MEventNeeded);
+    if (type == detail::CGType::AsyncFree)
+      return impl->get_queue().submit_async_free_scheduler_bypass(
+          impl->MFreePtr, impl->CGData.MEvents, impl->MEventNeeded);
   }
 
   std::unique_ptr<detail::CG> CommandGroup;
@@ -701,9 +717,6 @@ detail::EventImplPtr handler::finalize() {
   case detail::CGType::Barrier:
   case detail::CGType::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
-      impl->CGData.MEvents.insert(std::end(impl->CGData.MEvents),
-                                  std::begin(impl->MEventsWaitWithBarrier),
-                                  std::end(impl->MEventsWaitWithBarrier));
       // Barrier node is implemented as an empty node in Graph
       // but keep the barrier type to help managing dependencies
       setType(detail::CGType::Barrier);
@@ -711,8 +724,7 @@ detail::EventImplPtr handler::finalize() {
                                         std::move(impl->CGData), MCodeLoc));
     } else {
       CommandGroup.reset(new detail::CGBarrier(
-          std::move(impl->MEventsWaitWithBarrier), impl->MEventMode,
-          std::move(impl->CGData), getType(), MCodeLoc));
+          impl->MEventMode, std::move(impl->CGData), getType(), MCodeLoc));
     }
     break;
   }
@@ -865,7 +877,7 @@ detail::EventImplPtr handler::finalize() {
   // TODO: check if it's possible to discard an event for host task.
   bool DiscardEvent =
       (type != detail::CGType::Kernel &&
-       type != detail::CGType::CodeplayHostTask && KernelSchedulerBypass &&
+       type != detail::CGType::CodeplayHostTask && SchedulerBypass &&
        !impl->MEventNeeded && Queue->isInOrder());
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
@@ -880,6 +892,13 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  // Like a dependency, a requirement added after an async alloc, which has
+  // already been enqueued, would have no effect, so it is disallowed.
+  if (getType() == detail::CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot add a requirement after an asynchronous "
+                          "allocation has already been executed!");
+  }
   if (getCommandGraph() &&
       static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
           ->needsWriteBack()) {
@@ -973,16 +992,9 @@ void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   setType(detail::CGType::BarrierWaitlist);
-  impl->MEventsWaitWithBarrier.reserve(WaitList.size());
-  for (auto &Event : WaitList) {
-    auto EventImpl = detail::getSyclObjImpl(Event);
-    // We could not wait for host task events in backend.
-    // Adding them as dependency to enable proper scheduling.
-    if (EventImpl->isHost()) {
-      depends_on(EventImpl);
-    }
-    impl->MEventsWaitWithBarrier.push_back(std::move(EventImpl));
-  }
+
+  // The events of the wait list are regular dependencies of the barrier.
+  depends_on(WaitList);
 }
 
 using namespace sycl::detail;
@@ -1565,10 +1577,19 @@ void handler::depends_on(const std::vector<event> &Events) {
 }
 
 void handler::depends_on(const detail::EventImplPtr &EventImpl) {
+  // Async alloc calls the adapter immediately, when the command group function
+  // is executed. Any explicit/implicit dependencies are handled at that point,
+  // including in order queue deps. Adding a dependency afterwards would have no
+  // effect, so it is explicitly disallowed.
+  if (EventImpl && getType() == detail::CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot submit a dependency after an asynchronous "
+                          "allocation has already been executed!");
+  }
+
   registerEventDependency(EventImpl, impl->CGData.MEvents,
                           impl->get_queue_or_null(), impl->get_context(),
-                          impl->get_device(), getCommandGraph().get(),
-                          getType());
+                          impl->get_device(), getCommandGraph().get());
 }
 
 void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {

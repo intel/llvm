@@ -1227,6 +1227,23 @@ public:
                         "ext_intel_device_info_ip_version aspect");
       return get_info_impl<UR_DEVICE_INFO_IP_VERSION>();
     }
+    CASE(ext::intel::info::device::igca) {
+      if (!has(aspect::ext_intel_igca))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the ext_intel_igca aspect");
+
+      ur_device_igca_feature_flags_t Flags =
+          get_info_impl<UR_DEVICE_INFO_IGCA_FEATURE_SET>();
+      uint64_t FeatureSets = 0;
+      if (Flags & UR_DEVICE_IGCA_FEATURE_FLAG_RENDER)
+        FeatureSets |= ext::intel::info::igca_feature_set_render;
+      if (Flags & UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE)
+        FeatureSets |= ext::intel::info::igca_feature_set_compute;
+
+      return ext::intel::info::igca{
+          static_cast<int>(get_info_impl<UR_DEVICE_INFO_IGCA_TARGET>()),
+          FeatureSets};
+    }
 
     // khr device traits (defined under sycl/khr/...).
 
@@ -1414,6 +1431,10 @@ public:
     }
     CASE(ext_intel_device_info_ip_version) {
       return has_info_desc(UR_DEVICE_INFO_IP_VERSION);
+    }
+    CASE(ext_intel_igca) {
+      return has_info_desc(UR_DEVICE_INFO_IGCA_TARGET) &&
+             has_info_desc(UR_DEVICE_INFO_IGCA_FEATURE_SET);
     }
     CASE(ext_oneapi_srgb) { return get_info<info::device::ext_oneapi_srgb>(); }
     CASE(ext_oneapi_native_assert) {
@@ -1634,8 +1655,8 @@ public:
           .value_or(0);
     }
     CASE(ext_oneapi_atomic16) {
-      // Likely L0 doesn't check it properly. Need to double-check.
-      return has_extension("cl_ext_float_atomics");
+      return get_info_impl_nocheck<UR_DEVICE_INFO_FP16_ATOMIC>().value_or(
+          false);
     }
     CASE(ext_oneapi_virtual_functions) {
       // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem
@@ -2240,6 +2261,44 @@ public:
           {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
       };
+      // fp8 and fp4_e2m1 are supported starting with Crescent Island.
+      bool SupportsFP8AndFP4 = (architecture::intel_gpu_cri == DeviceArch);
+      if (SupportsFP8AndFP4)
+        pvc_combs.insert(
+            pvc_combs.end(),
+            {
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e5m2, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e4m3, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e5m2, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e4m3, matrix_type::bf16, matrix_type::bf16},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e5m2, matrix_type::fp32, matrix_type::fp32},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e5m2,
+                 matrix_type::fp8_e4m3, matrix_type::fp32, matrix_type::fp32},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e5m2, matrix_type::fp32, matrix_type::fp32},
+                {8, 0, 0, 0, 16, 32, matrix_type::fp8_e4m3,
+                 matrix_type::fp8_e4m3, matrix_type::fp32, matrix_type::fp32},
+                // K is 64 for fp4: a DPAS channel is 32 bits wide and the
+                // systolic depth is 8, so a 4 bit type contributes 8 values
+                // per channel.
+                {0, 0, 0, 8, 16, 64, matrix_type::fp4_e2m1,
+                 matrix_type::fp4_e2m1, matrix_type::fp32, matrix_type::fp32},
+                {0, 0, 0, 8, 16, 64, matrix_type::fp4_e2m1,
+                 matrix_type::fp4_e2m1, matrix_type::bf16, matrix_type::bf16},
+                // A B operand is converted to fp4_e2m1 from a 16 bit operand of
+                // the same shape, so the K = 64 B shape has to be declarable
+                // for fp16 and bf16 as well. joint_matrix_mad itself is not
+                // available for a 16 bit type at this K.
+                {0, 0, 0, 8, 16, 64, matrix_type::fp16, matrix_type::fp16,
+                 matrix_type::fp32, matrix_type::fp32},
+                {0, 0, 0, 8, 16, 64, matrix_type::bf16, matrix_type::bf16,
+                 matrix_type::fp32, matrix_type::fp32},
+            });
       return pvc_combs;
     } else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
                (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
@@ -2469,7 +2528,7 @@ private:
           aspect::ext_intel_xe_clusters_per_region,
           aspect::ext_intel_xe_cores_per_cluster,
           aspect::ext_intel_eus_per_xe_core,
-          aspect::ext_intel_max_lanes_per_hw_thread>>
+          aspect::ext_intel_max_lanes_per_hw_thread, aspect::ext_intel_igca>>
       MCache;
 
   const size_t MIndexWithinPlatform = 0;

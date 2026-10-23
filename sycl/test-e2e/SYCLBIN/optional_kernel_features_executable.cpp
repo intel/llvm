@@ -1,4 +1,6 @@
 // REQUIRES: aspect-usm_device_allocations
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // -- Test for compiling and loading a kernel bundle with a SYCLBIN containing
 //    the use of optional kernel features.

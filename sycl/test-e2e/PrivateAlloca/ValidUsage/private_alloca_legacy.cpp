@@ -4,6 +4,9 @@
 // RUN: echo 20 | %{run} %t.out
 // RUN: echo 30 | %{run} %t.out
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23414
+
 // Simple test filling a private alloca and copying it back to an output
 // accessor using a legacy multi_ptr.
 #include <iostream>

@@ -62,6 +62,8 @@ static constexpr LangASMap SPIRDefIsGenMap = {
     {LangAS::sycl_global_device, 5},
     {LangAS::sycl_global_host, 6},
     {LangAS::sycl_local, 3},
+    {LangAS::sycl_generic, 4},
+    {LangAS::sycl_constant, 2},
     {LangAS::hlsl_groupshared, 3},
     {LangAS::hlsl_private, 10},
     {LangAS::hlsl_device, 11},
@@ -310,14 +312,6 @@ public:
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
-};
-
-// spir64_fpga target
-class LLVM_LIBRARY_VISIBILITY SPIR64FPGATargetInfo : public SPIR64TargetInfo {
-public:
-  SPIR64FPGATargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
-      : SPIR64TargetInfo(Triple, Opts) {}
-  virtual size_t getMaxBitIntWidth() const override { return 4096; }
 };
 
 class LLVM_LIBRARY_VISIBILITY BaseSPIRVTargetInfo : public BaseSPIRTargetInfo {

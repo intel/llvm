@@ -73,27 +73,22 @@
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 --sampled 32x33
 
-// None of the 2D stuff is working on Linux.
-// On Windows, we require driver 38303 or later to avoid semaphore issues, which the CI does not yet have. 
-// Rather than mark the WHOLE test as requiring 38303, which would mean no testing nowhere,
-// I'm just intentionally breaking the R U N directive below until it can be restored.
-
-// RUN-IF: !windows, %{run} %t.out --type float --channels 1 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type half --channels 2 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type int32 --channels 4 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type uint32 --channels 1 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type int16 --channels 2 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type uint16 --channels 4 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type uint8 --channels 1 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type int8 --channels 2 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type float --channels 1 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type half --channels 2 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type int32 --channels 4 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type uint32 --channels 1 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type int16 --channels 2 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type uint16 --channels 4 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type uint8 --channels 1 --sampled 32x33 --semaphores
-// RUN-IF: !windows, %{run} %t.out --type int8 --channels 2 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type float --channels 1 32x33 --semaphores
+// RUN: %{run} %t.out --type half --channels 2 32x33 --semaphores
+// RUN: %{run} %t.out --type int32 --channels 4 32x33 --semaphores
+// RUN: %{run} %t.out --type uint32 --channels 1 32x33 --semaphores
+// RUN: %{run} %t.out --type int16 --channels 2 32x33 --semaphores
+// RUN: %{run} %t.out --type uint16 --channels 4 32x33 --semaphores
+// RUN: %{run} %t.out --type uint8 --channels 1 32x33 --semaphores
+// RUN: %{run} %t.out --type int8 --channels 2 32x33 --semaphores
+// RUN: %{run} %t.out --type float --channels 1 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type half --channels 2 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type int32 --channels 4 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type uint32 --channels 1 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type int16 --channels 2 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type uint16 --channels 4 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type uint8 --channels 1 --sampled 32x33 --semaphores
+// RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33 --semaphores
 
 /*
   Vulkan/SYCL 2D Arithmetic (A + B = C)
@@ -240,9 +235,8 @@ int runTest(
   });
 
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

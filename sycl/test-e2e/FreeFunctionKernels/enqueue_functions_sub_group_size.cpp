@@ -1,12 +1,12 @@
 // REQUIRES: aspect-usm_shared_allocations
-// UNSUPPORTED: cuda, hip
-// UNSUPPORTED-INTENDED: Device incompatible error
+// REQUIRES: sg-16 || sg-32
 
 // UNSUPPORTED: native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22772
 
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// Build and run once per sub-group size the device reports as supported.
+// RUN: %if sg-16 %{ %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out %}
+// RUN: %if sg-32 %{ %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out %}
 
 // This test checks that a compile-time kernel property attached to a free
 // function kernel (here sub_group_size) is honored when the kernel is launched
@@ -69,7 +69,8 @@ template <int SIMD> int test(sycl::queue &q) {
 int main() {
   sycl::queue q;
   int Ret = 0;
-  Ret |= test<16>(q);
-  Ret |= test<32>(q);
+
+  Ret |= test<SG_SIZE>(q);
+
   return Ret;
 }
