@@ -10,12 +10,15 @@
 ; CHECK-SPIRV: Decorate [[#ARGA:]] LatencyControlLabelINTEL 0
 ; CHECK-SPIRV: Decorate [[#ARGB:]] LatencyControlLabelINTEL 1
 ; CHECK-SPIRV: Decorate [[#ARGB]] LatencyControlConstraintINTEL 0 1 5
+; CHECK-SPIRV: Decorate [[#ARGC:]] LatencyControlLabelINTEL 0
 ; CHECK-SPIRV: Bitcast [[#]] [[#OUT1:]] [[#ARGA]]
 ; CHECK-SPIRV-DAG: Bitcast [[#]] [[#OUT2:]] [[#OUT1]]
 ; CHECK-SPIRV-DAG: Load [[#]] [[#]] [[#OUT2]] [[#]] [[#]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#OUT3:]] [[#ARGB]]
 ; CHECK-SPIRV-DAG: Bitcast [[#]] [[#OUT4:]] [[#OUT3]]
 ; CHECK-SPIRV-DAG: Load [[#]] [[#]] [[#OUT4]] [[#]] [[#]]
+; CHECK-SPIRV: FunctionParameter [[#]] [[#ARGC]]
+; CHECK-SPIRV: CopyMemorySized [[#]] [[#ARGC]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -51,6 +54,15 @@ entry:
   %10 = call ptr @llvm.ptr.annotation.p0.p1(ptr %9, ptr addrspace(1) @.str.10, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
 ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR2]], ptr @[[#ANN_STR2]], ptr poison, i32 poison, ptr poison)
   %11 = load i32, ptr %10, align 8
+  ret void
+}
+
+; The only memory user of the annotated pointer is llvm.memcpy.inline.
+define spir_kernel void @inline_copy(ptr %p) {
+entry:
+  %tmp = alloca i32, align 4
+  %a = call ptr @llvm.ptr.annotation.p0.p1(ptr %p, ptr addrspace(1) @.str.9, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
+  call void @llvm.memcpy.inline.p0.p0.i64(ptr align 4 %tmp, ptr align 4 %a, i64 4, i1 false)
   ret void
 }
 

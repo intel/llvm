@@ -489,7 +489,8 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
 
   if (auto IntrinID = TargetFn->getIntrinsicID()) {
     switch (IntrinID) {
-    case Intrinsic::memcpy: {
+    case Intrinsic::memcpy:
+    case Intrinsic::memcpy_inline: {
       // First two parameters are pointers, but they point to the same thing
       // (albeit maybe in different address spaces).
       TypeRules.push_back(TypeRule::isIndirect(CB, 0, 1));

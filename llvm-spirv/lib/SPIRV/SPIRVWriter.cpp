@@ -4282,6 +4282,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fmuladd:
   case Intrinsic::memset:
   case Intrinsic::memcpy:
+  case Intrinsic::memcpy_inline:
   case Intrinsic::lifetime_start:
   case Intrinsic::lifetime_end:
   case Intrinsic::dbg_declare:
@@ -4463,13 +4464,7 @@ static bool allowsApproxFunction(IntrinsicInst *II) {
 
 namespace {
 bool checkMemUser(User *User) {
-  if (isa<LoadInst>(User) || isa<StoreInst>(User))
-    return true;
-  if (auto *III = dyn_cast<IntrinsicInst>(User)) {
-    if (III->getIntrinsicID() == Intrinsic::memcpy)
-      return true;
-  }
-  return false;
+  return isa<LoadInst>(User) || isa<StoreInst>(User) || isa<MemCpyInst>(User);
 }
 } // namespace
 
@@ -5271,6 +5266,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addStoreInst(StorePtr, Init, MemAccess, BB);
   } break;
   case Intrinsic::memcpy:
+  case Intrinsic::memcpy_inline:
     // A zero-sized memcpy is a no-op. Emitting OpCopyMemorySized with a Size
     // operand of 0 is invalid SPIR-V, so drop the intrinsic entirely.
     if (auto *CI = dyn_cast<ConstantInt>(II->getOperand(2)))
