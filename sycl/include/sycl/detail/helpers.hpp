@@ -187,6 +187,7 @@ getSPIRVMemorySemanticsMask(memory_order) {
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// access::fence_space is deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 inline constexpr uint32_t
 getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,

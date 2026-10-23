@@ -172,6 +172,7 @@ int main() {
       sycl::accessor acc_2(buf_data, cgh, sycl::range<1>(8), sycl::no_init);
       sycl::accessor acc_3(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
                            sycl::no_init);
+      // sycl::read_constant is deprecated.
       __SYCL_SUPPRESS_DEPRECATED_PUSH
       sycl::accessor acc_4(buf_data, cgh, sycl::read_constant);
       sycl::accessor acc_5(buf_data, cgh, sycl::range<1>(8),
@@ -189,6 +190,7 @@ int main() {
       auto acc_2 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::no_init);
       auto acc_3 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
                                        sycl::no_init);
+      // sycl::read_constant is deprecated.
       __SYCL_SUPPRESS_DEPRECATED_PUSH
       auto acc_4 = buf_data.get_access(cgh, sycl::read_constant);
       auto acc_5 =
@@ -246,6 +248,7 @@ int main() {
     sycl::accessor acc_2(buf_data, sycl::range<1>(8), sycl::no_init);
     sycl::accessor acc_3(buf_data, sycl::range<1>(8), sycl::id<1>(1),
                          sycl::no_init);
+    // sycl::read_constant is deprecated.
     __SYCL_SUPPRESS_DEPRECATED_PUSH
     sycl::accessor acc_4(buf_data, sycl::read_constant);
     sycl::accessor acc_5(buf_data, sycl::range<1>(8), sycl::read_constant);
@@ -262,6 +265,7 @@ int main() {
     auto acc_2 = buf_data.get_access(sycl::range<1>(8), sycl::no_init);
     auto acc_3 =
         buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1), sycl::no_init);
+    // sycl::read_constant is deprecated.
     __SYCL_SUPPRESS_DEPRECATED_PUSH
     auto acc_4 = buf_data.get_access(sycl::read_constant);
     auto acc_5 = buf_data.get_access(sycl::range<1>(8), sycl::read_constant);

@@ -44,6 +44,7 @@ __SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 namespace detail {
 inline std::string_view get_backend_name_no_vendor(backend Backend) {
   switch (Backend) {
+    // backend::host is deprecated.
     __SYCL_SUPPRESS_DEPRECATED_PUSH
   case backend::host:
     return "host";

@@ -187,10 +187,9 @@ get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__) || defined(__SPIRV__)
 
+  // ext::oneapi::experimental::this_sub_group() is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   sycl::sub_group sg = sycl::ext::oneapi::experimental::this_sub_group();
-
   __SYCL_SUPPRESS_DEPRECATED_POP
 
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);

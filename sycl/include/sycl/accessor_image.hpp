@@ -221,27 +221,17 @@ private:
   template <typename T1, int T2, access::mode T3, access::placeholder T4>
   friend class __image_array_slice__;
 
+  // access::target::host_image, image, image_array and mode::discard_write are
+  // deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   constexpr static bool IsHostImageAcc =
       (AccessTarget == access::target::host_image);
 
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   constexpr static bool IsImageAcc = (AccessTarget == access::target::image);
-
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   constexpr static bool IsImageArrayAcc =
       (AccessTarget == access::target::image_array);
-
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   constexpr static bool IsImageAccessWriteOnly =
       (AccessMode == access::mode::write ||
@@ -450,6 +440,7 @@ public:
 
 #endif
 
+  // sycl::sampler is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   // Available only when:
@@ -471,10 +462,6 @@ public:
     return read<CoordT, Dims>(Coords, Smpl);
 #endif
   }
-
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   // Available only when:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
@@ -553,6 +540,7 @@ class __image_array_slice__ {
   }
 
 public:
+  // access::target::image_array and sycl::sampler are deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   __image_array_slice__(
@@ -562,16 +550,12 @@ public:
       size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
 
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
   template <
       typename CoordT, int Dims = Dimensions,
       typename = std::enable_if_t<(IsValidCoordDataT<Dims, CoordT>::value)>>
   DataT read(const CoordT &Coords) const {
     return MBaseAcc.read(getAdjustedCoords(Coords));
   }
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
@@ -622,19 +606,19 @@ public:
 private:
   size_t MIdx;
 
+  // access::target::image_array is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   accessor<DataT, Dimensions, AccessMode, access::target::image_array,
            IsPlaceholder, ext::oneapi::accessor_property_list<>>
       MBaseAcc;
-
   __SYCL_SUPPRESS_DEPRECATED_POP
 };
 
 } // namespace detail
 
+// access::target::image and sycl::image are deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
-
 /// Image accessors.
 ///
 /// Available only when accessTarget == access::target::image.
@@ -667,10 +651,6 @@ public:
 #endif
   }
 
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   template <typename AllocatorT>
   accessor(sycl::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler, const property_list &propList)
@@ -701,11 +681,10 @@ public:
   accessor() = default;
 #endif
 };
-
 __SYCL_SUPPRESS_DEPRECATED_POP
 
+// access::target::host_image and sycl::image are deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
-
 /// Host image accessor.
 ///
 /// Available only when accessTarget == access::target::host_image.
@@ -738,11 +717,10 @@ public:
     (void)propList;
   }
 };
-
 __SYCL_SUPPRESS_DEPRECATED_POP
 
+// access::target::image, image_array and sycl::image are deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
-
 /// Image array accessor.
 ///
 /// Available only when accessTarget == access::target::image_array and
@@ -789,10 +767,6 @@ public:
                                  access::target::image_array);
 #endif
   }
-
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
   template <typename AllocatorT>
   accessor(sycl::image<Dimensions + 1, AllocatorT> &Image,

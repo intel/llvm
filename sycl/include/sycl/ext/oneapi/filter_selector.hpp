@@ -35,8 +35,8 @@ namespace detail {
 class filter_selector_impl;
 } // namespace detail
 
+// sycl::device_selector and ext::oneapi::filter_selector are deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
-
 class __SYCL_EXPORT_DEPRECATED(
     "filter_selector is deprecated, use a SYCL 2020 device selector callable "
     "instead") filter_selector : public device_selector {

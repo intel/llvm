@@ -137,6 +137,7 @@ using cl_float = float;
 using cl_double = double;
 } // namespace opencl
 
+// sycl::cl_* scalar aliases used by the vector alias macros are deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)

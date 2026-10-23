@@ -72,6 +72,7 @@ public:
     id<Dimensions> Index = get_global_id();
     range<Dimensions> Extent = get_global_range();
 
+    // nd_item::get_offset() is deprecated.
     __SYCL_SUPPRESS_DEPRECATED_PUSH
     id<Dimensions> Offset = get_offset();
     __SYCL_SUPPRESS_DEPRECATED_POP
@@ -202,6 +203,8 @@ public:
   }
 
   nd_range<Dimensions> get_nd_range() const noexcept {
+    // nd_item::get_offset() and the offset-taking nd_range constructor
+    // are deprecated.
     __SYCL_SUPPRESS_DEPRECATED_PUSH
     return nd_range<Dimensions>(get_global_range(), get_local_range(),
                                 get_offset());
@@ -209,8 +212,9 @@ public:
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
 
+  // access::fence_space is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
@@ -221,9 +225,6 @@ public:
 #endif
   }
 
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>

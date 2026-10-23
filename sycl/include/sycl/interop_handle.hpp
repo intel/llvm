@@ -55,8 +55,8 @@ public:
   /// a backend graph object is available for interop.
   __SYCL_EXPORT bool ext_codeplay_has_graph() const noexcept;
 
+  // access::target::constant_buffer is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part

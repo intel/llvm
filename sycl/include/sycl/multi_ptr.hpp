@@ -37,17 +37,18 @@ struct LegacyPointerTypes {
 
 // Specialization for constant_space to avoid creating a non-legacy multi_ptr
 // with the unsupported space.
+// access::address_space::constant_space is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename ElementType>
 struct LegacyPointerTypes<ElementType, access::address_space::constant_space> {
 
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   using decorated_type = typename detail::DecoratedType<
       ElementType, access::address_space::constant_space>::type;
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   using pointer_t = decorated_type *;
   using const_pointer_t = decorated_type const *;
 };
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 // Helper to avoid instantiations of invalid non-legacy multi_ptr types.
 template <typename ElementType, access::address_space Space>
@@ -61,18 +62,19 @@ struct LegacyReferenceTypes {
 
 // Specialization for constant_space to avoid creating a non-legacy multi_ptr
 // with the unsupported space.
+// access::address_space::constant_space is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <typename ElementType>
 struct LegacyReferenceTypes<ElementType,
                             access::address_space::constant_space> {
 
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   using decorated_type = typename detail::DecoratedType<
       ElementType, access::address_space::constant_space>::type;
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   using reference_t = decorated_type &;
   using const_reference_t = decorated_type &;
 };
+__SYCL_SUPPRESS_DEPRECATED_POP
 } // namespace detail
 
 /// Provides constructors for address space qualified and non address space
@@ -267,6 +269,7 @@ public:
     return *this;
   }
 
+  // access::address_space::constant_space is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       access::address_space OtherSpace, access::decorated OtherIsDecorated,
@@ -278,9 +281,7 @@ public:
     m_Pointer = detail::static_address_cast<Space>(Other.get_decorated());
     return *this;
   }
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       access::address_space OtherSpace, access::decorated OtherIsDecorated,
       typename =
@@ -578,6 +579,7 @@ public:
   static_assert(DecorateAddress != access::decorated::legacy);
 
   // constant_space is only supported in legacy multi_ptr.
+  // access::address_space::constant_space is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   static_assert(Space != access::address_space::constant_space,
                 "SYCL 2020 multi_ptr does not support the deprecated "
@@ -830,6 +832,8 @@ public:
             Accessor.get_pointer().get())) {}
 
   // Only if Space == local_space || generic_space
+  // target::local, constant_buffer, address_space::constant_space and
+  // accessor::get_pointer() are deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
@@ -841,7 +845,6 @@ public:
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space
   template <int dimensions>
@@ -849,7 +852,6 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -859,7 +861,6 @@ public:
                      isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, access::decorated::legacy> from
@@ -888,7 +889,6 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space and element type is const
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <int dimensions, access::mode Mode,
             access::placeholder isPlaceholder, typename PropertyListT,
             access::address_space _Space = Space, typename ET = ElementType,
@@ -901,7 +901,6 @@ public:
                      target::local, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space and element type is const
   template <int dimensions, access::address_space _Space = Space,
@@ -916,7 +915,6 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space and element type is const
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1135,6 +1133,8 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space
+  // target::local, constant_buffer and address_space::constant_space are
+  // deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
@@ -1146,10 +1146,8 @@ public:
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions,
       access::address_space _Space = Space,
@@ -1158,10 +1156,8 @@ public:
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == constant_space
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1300,6 +1296,8 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space
+  // target::local, constant_buffer and address_space::constant_space are
+  // deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
@@ -1311,10 +1309,8 @@ public:
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == local_space || generic_space
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions,
       access::address_space _Space = Space,
@@ -1323,10 +1319,8 @@ public:
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
-  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Only if Space == constant_space
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
@@ -1386,6 +1380,8 @@ multi_ptr(accessor<T, dimensions, access::mode::read_write, target::device,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<T, access::address_space::global_space, access::decorated::no>;
 
+// target::constant_buffer, local and address_space::constant_space are
+// deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 template <class T, int dimensions, access::placeholder isPlaceholder,
           typename PropertyListT>
@@ -1393,9 +1389,7 @@ multi_ptr(accessor<T, dimensions, access_mode::read, target::constant_buffer,
                    isPlaceholder, PropertyListT>)
     -> multi_ptr<const T, access::address_space::constant_space,
                  access::decorated::no>;
-__SYCL_SUPPRESS_DEPRECATED_POP
 
-__SYCL_SUPPRESS_DEPRECATED_PUSH
 template <class T, int dimensions, access::mode Mode,
           access::placeholder isPlaceholder, typename PropertyListT>
 multi_ptr(

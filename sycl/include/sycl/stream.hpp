@@ -97,8 +97,8 @@ using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
+// access::mode::atomic is deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
-
 using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
                                        sycl::access::target::device>;
 
@@ -648,8 +648,8 @@ writeFloatingPoint(GlobalBufAccessorT &GlobalFlushBuf, size_t FlushBufferSize,
             : 0);
 }
 
+// sycl::atomic, returned by the atomic accessor, is deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
-
 // Helper method to update offset in the global buffer atomically according to
 // the provided size of the data in the flush buffer. Return true if offset is
 // updated and false in case of overflow.

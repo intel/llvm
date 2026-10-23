@@ -553,6 +553,7 @@ inline int getSPIRVElementSize(int ImageChannelType, int ImageChannelOrder) {
 template <int Dimensions, access::mode AccessMode, access::target AccessTarget>
 struct opencl_image_type;
 
+// access::target::host_image is deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 // Creation of dummy ocl types for host_image targets.
 // These dummy ocl types are needed by the compiler parser for the compilation

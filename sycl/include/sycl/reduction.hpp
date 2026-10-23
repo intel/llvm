@@ -1353,12 +1353,12 @@ struct NDRangeReduction<
       });
     };
 
-    __SYCL_SUPPRESS_DEPRECATED_PUSH
-
     auto device = getDeviceFromHandler(CGH);
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
     // fast path requires USM device allocations though, so check for that as
     // well.
+    // info::device::host_unified_memory is deprecated.
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
     if (device.get_info<info::device::host_unified_memory>() ||
         !device.has(aspect::usm_device_allocations))
       Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));

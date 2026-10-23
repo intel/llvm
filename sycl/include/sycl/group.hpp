@@ -307,6 +307,7 @@ public:
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // access::fence_space is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
