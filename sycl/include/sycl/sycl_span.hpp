@@ -142,12 +142,12 @@ template<class Container>
 
 */
 
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t, nullptr_t, ptrdiff_t
-#include <cstdint>     // for SIZE_MAX
-#include <iterator>    // for size, data, reverse_iterator
-#include <memory>      // for pointer_traits.
+#include <array>    // for array
+#include <cassert>  // for assert
+#include <cstddef>  // for size_t, nullptr_t, ptrdiff_t
+#include <cstdint>  // for SIZE_MAX
+#include <iterator> // for size, data, reverse_iterator
+#include <memory>   // for pointer_traits.
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <type_traits> // for enable_if_t, enable_if, remove_cv_t, false_type
 #include <utility>     // for declval
