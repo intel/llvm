@@ -1,56 +1,87 @@
-// REQUIRES: gpu
-// RUN: %if target-nvidia %{ \
-// RUN:   not %{build} -o %t.exe > %t.out 2>&1 && \
-// RUN:   FileCheck %s --check-prefix=CHECK-PTXAS-ERROR --input-file %t.out \
-// RUN: %} %else %{ \
-// RUN:   %{build} -o %t.exe \
-// RUN: %}
-
-// RUN: %if !cuda %{ \
-// RUN:   %{run} %t.exe > %t.out 2>&1 && \
-// RUN:   %{run-aux} FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out \
-// RUN: %}
+//==--- build-log-backend-failure.cpp - Backend build failure log test -----==//
 //
-// CHECK-PTXAS-ERROR: ptxas fatal
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// This test tries to launch a GPU kernel whose parameter is larger than the
+/// device's max_parameter_size, resulting in backend compiler build failure
+/// and an exception with the build log thrown at run time.
+/// For the NVIDIA version, see: build-log-backend-failure-nvidia.cpp.
+///
+//===----------------------------------------------------------------------===//
+
+// UNSUPPORTED: target-nvidia
+// UNSUPPORTED-INTENDED: See special test file for nvidia:
+// build-log-backend-failure-nvidia.cpp
+
+// REQUIRES: gpu
+
+// RUN: %{build} -o %t.exe
+
+// RUN: %{run} %t.exe > %t.out 2>&1
+// RUN: %{run-aux} FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
+
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
 #include <array>
+#include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
 void test() {
   using namespace sycl;
-#if CPU
-  auto a = cpu_selector_v;
-#else
-  auto a = gpu_selector_v;
-#endif
-  queue q(a);
-  constexpr size_t MaxKernelSize = 1 + 1024 * 32;
-  size_t Limit =
+
+  queue q(gpu_selector_v);
+
+  // Sized to exceed largest currently allowed kernel parameter size (CUDA -
+  // 32,764 bytes) as cited in:
+  // https://developer.nvidia.com/blog/cuda-12-1-supports-large-kernel-parameters/
+  //
+  // Needs to be specified at compile time as it is used for OverflowArray's
+  // size.
+  constexpr size_t KernelParameterSizeOverflow = 1 + 1024 * 32;
+
+  // In case kernel parameter limit grows in future
+  // we check the current overflow value against device's max_parameter_size.
+  size_t KernelParameterSizeLimit =
       q.get_device().get_info<sycl::info::device::max_parameter_size>();
 
-  if (Limit >= MaxKernelSize) {
-    std::cerr << "max_parameter_size (" << Limit << ") >= " << MaxKernelSize
-              << ": increase MaxKernelSize in this test\n";
-    std::exit(1);
-  }
+  assert(KernelParameterSizeLimit < KernelParameterSizeOverflow &&
+         "KernelParameterSizeOverflow must exceed the backend kernel "
+         "parameter size limit; increase it in this test");
 
-  std::array<char, MaxKernelSize> Big;
-  Big[0] = 'a';
-  Big[MaxKernelSize - 1] = 'a';
+  // Stack-allocated array captured by value, can't be dynamically
+  // allocated as then only the internal structure gets copied as a kernel
+  // parameter.
+  std::array<char, KernelParameterSizeOverflow> OverflowArray;
+  OverflowArray[0] = 'a';
+  OverflowArray[KernelParameterSizeOverflow - 1] = 'a';
 
   try {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wsycl-strict"
     q.single_task([=] {
-       volatile int local = Big[0] + Big[MaxKernelSize - 1];
-       (void)local;
+       volatile int NonDiscardValue =
+           OverflowArray[0] + OverflowArray[KernelParameterSizeOverflow - 1];
+       (void)NonDiscardValue;
      }).wait();
 #pragma clang diagnostic pop
-  } catch (exception &e) {
-    std::cerr << e.what() << '\n';
+  } catch (const sycl::exception &e) {
+    std::cerr << e.what() << std::endl;
+    assert(e.code() == sycl::errc::build &&
+           "Caught exception was not a compilation error");
+
+  } catch (...) {
+    assert(false && "Caught exception was not a compilation error");
   }
 }
 
-int main() { test(); }
+int main() {
+  test();
+
+  return 0;
+}
