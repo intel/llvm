@@ -3,8 +3,7 @@
 
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: this test checks a residency call sequence that L0v2
-// does not reproduce. How residency should be covered for L0v2 is an open
-// question.
+// does not reproduce.
 
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
