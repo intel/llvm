@@ -127,5 +127,10 @@ int main() {
     assert(HostData[I] == Data[I]);
   }
 
+  free(PtrFrom, Queue);
+  free(PtrTo, Queue);
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrC, Queue);
   return 0;
 }
