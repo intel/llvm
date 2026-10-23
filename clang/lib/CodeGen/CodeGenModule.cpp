@@ -1316,6 +1316,7 @@ void CodeGenModule::Release() {
         // A static initializer may launch a kernel, so the device binary has to
         // be registered before any of them run, hence a priority.
         AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
+      assert(CodeGenOpts.OffloadObjects.empty() && "Unexpected offload object");
     } else if (LangOpts.OffloadingNewDriver &&
                !CodeGenOpts.OffloadObjects.empty()) {
       // Only emit the registerlib reference if there has been a device compile

@@ -31,6 +31,8 @@ __attribute__((sycl_kernel)) void kernel(const Func &func) {
 
 #ifdef MAIN
 extern "C" {
+// Define stub versions of the SYCL runtime image registration functions that are called by
+// the wrapped host code so we don't need to link against the real SYCL runtime.
 void __sycl_register_lib(void *) {}
 void __sycl_unregister_lib(void *) {}
 }
