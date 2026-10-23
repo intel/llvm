@@ -270,16 +270,19 @@ void tools::gnutools::StaticLibTool::ConstructJob(
                                          Exec, CmdArgs, Inputs, Output));
 }
 
-// Link-input size above which some relocations are truncated.
+// Device-code size above which some relocations are truncated.
 // -flink-huge-device-code works around it.
-static constexpr uint64_t HugeLinkInputWarnThreshold = 1ull << 30; // 1GiB
+static constexpr uint64_t HugeDeviceCodeWarnThreshold = 1ull << 30; // 1GiB
 
-// Best-effort: skips non-filename inputs (e.g. linker flags).
-static uint64_t getTotalLinkInputSize(ArrayRef<InputInfo> Inputs) {
+// Sums the size of only those link inputs that carry wrapped device code,
+// i.e. skips host objects, static archives, and other linker inputs that
+// don't contribute to the offload sections the warning is about.
+static uint64_t getTotalDeviceCodeObjectSize(ArrayRef<InputInfo> Inputs) {
   uint64_t Total = 0;
 
   for (const InputInfo &II : Inputs)
-    if (II.isFilename()) {
+    if (II.isFilename() &&
+        isa_and_nonnull<OffloadWrapperJobAction>(II.getAction())) {
       uint64_t FileSize = 0;
       if (!llvm::sys::fs::file_size(II.getFilename(), FileSize))
         Total += FileSize;
@@ -300,26 +303,26 @@ namespace {
 // Checked at Execute() time, not construction time: job construction
 // happens before any job runs, so earlier pipeline stages (e.g.
 // unbundling) haven't written their outputs yet.
-class HugeLinkInputCheckCommand : public Command {
+class HugeDeviceCodeCheckCommand : public Command {
   const Driver &D;
 
 public:
-  HugeLinkInputCheckCommand(const Driver &D, const Action &Source,
-                            const Tool &Creator,
-                            ResponseFileSupport ResponseSupport,
-                            const char *Executable,
-                            const llvm::opt::ArgStringList &Arguments,
-                            ArrayRef<InputInfo> Inputs,
-                            ArrayRef<InputInfo> Outputs = {})
+  HugeDeviceCodeCheckCommand(const Driver &D, const Action &Source,
+                             const Tool &Creator,
+                             ResponseFileSupport ResponseSupport,
+                             const char *Executable,
+                             const llvm::opt::ArgStringList &Arguments,
+                             ArrayRef<InputInfo> Inputs,
+                             ArrayRef<InputInfo> Outputs = {})
       : Command(Source, Creator, ResponseSupport, Executable, Arguments, Inputs,
                 Outputs),
         D(D) {}
 
   int Execute(ArrayRef<std::optional<StringRef>> Redirects, std::string *ErrMsg,
               bool *ExecutionFailed) const override {
-    uint64_t InputSize = getTotalLinkInputSize(getInputInfos());
-    if (InputSize > HugeLinkInputWarnThreshold) {
-      D.Diag(diag::warn_drv_huge_device_code) << formatSize(InputSize);
+    uint64_t DeviceCodeSize = getTotalDeviceCodeObjectSize(getInputInfos());
+    if (DeviceCodeSize > HugeDeviceCodeWarnThreshold) {
+      D.Diag(diag::warn_drv_huge_device_code) << formatSize(DeviceCodeSize);
       // -Werror promoted this to an error: don't run the real link, just
       // report failure like any other failed build step.
       if (D.getDiags().getDiagnosticLevel(diag::warn_drv_huge_device_code,
@@ -746,11 +749,11 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
 
-  // Deferred to Command::Execute(); see HugeLinkInputCheckCommand above.
+  // Deferred to Command::Execute(); see HugeDeviceCodeCheckCommand above.
   if (Args.hasArg(options::OPT_fsycl, options::OPT_offload_targets_EQ) &&
       !Args.hasFlag(options::OPT_flink_huge_device_code,
                     options::OPT_fno_link_huge_device_code, false))
-    C.addCommand(std::make_unique<HugeLinkInputCheckCommand>(
+    C.addCommand(std::make_unique<HugeDeviceCodeCheckCommand>(
         D, JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs,
         Output));
   else

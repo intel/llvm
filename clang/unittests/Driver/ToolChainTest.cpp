@@ -16,14 +16,19 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/CreateInvocationFromArgs.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/Job.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Frontend/Debug/Options.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -953,6 +958,53 @@ TEST(ToolChainTest, NestedConfigFile) {
     ASSERT_FALSE(C->containsError());
     EXPECT_EQ("/platform-user", TheDriver.SysRoot);
   }
+}
+
+// The warning only looks at the size of the InputInfo(s) that actually
+// carry wrapped SYCL device code (tagged via InputInfo::getAction() being an
+// OffloadWrapperJobAction), not at the size of every link input -- host
+// objects and static archives shouldn't trigger it, however large they are.
+TEST(ToolChainTest, HugeSYCLDeviceCodeWarning) {
+  auto *DiagConsumer = new SimpleDiagnosticConsumer;
+  DiagnosticOptions DiagOpts;
+  DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts, DiagConsumer);
+  auto InMemoryFileSystem =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+
+  Driver TheDriver("/usr/bin/clang++", "x86_64-unknown-linux-gnu", Diags,
+                   "clang LLVM compiler", InMemoryFileSystem);
+  TheDriver.setCheckInputsExist(false);
+  std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+      {"/usr/bin/clang++", "-fsycl", "-nostdlib", "foo.cpp", "-o", "foo.out"}));
+  ASSERT_TRUE(C);
+
+  Command *LinkCmd = C->getJobs().getJobs().back().get();
+  const InputInfo *DeviceCodeObj = nullptr;
+  for (const InputInfo &II : LinkCmd->getInputInfos())
+    if (II.isFilename() &&
+        isa_and_nonnull<OffloadWrapperJobAction>(II.getAction()))
+      DeviceCodeObj = &II;
+  ASSERT_TRUE(DeviceCodeObj)
+      << "expected the link job to have a device-code object input";
+
+  // Make a huge sparse file stand in for the wrapped device-code object,
+  // without actually writing out gigabytes of data.
+  StringRef Path = DeviceCodeObj->getFilename();
+  int FD;
+  ASSERT_FALSE(llvm::sys::fs::openFileForWrite(Path, FD));
+  ASSERT_FALSE(llvm::sys::fs::resize_file(FD, 1100000000));
+  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+
+  std::string ErrMsg;
+  bool ExecutionFailed = false;
+  LinkCmd->Execute({}, &ErrMsg, &ExecutionFailed);
+
+  llvm::sys::fs::remove(Path);
+
+  bool SawWarning = llvm::any_of(DiagConsumer->Msgs, [](StringRef Msg) {
+    return Msg.contains("may overflow 32-bit relocations");
+  });
+  EXPECT_TRUE(SawWarning);
 }
 
 } // end anonymous namespace.
