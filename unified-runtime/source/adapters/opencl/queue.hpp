@@ -28,6 +28,9 @@ struct ur_queue_handle_t_ : handle_base {
   bool IsNativeHandleOwned = true;
   // Used to implement UR_QUEUE_INFO_EMPTY query
   bool IsInOrder;
+  // Priority flags applied with CL_QUEUE_PRIORITY_KHR, which aren't part of
+  // CL_QUEUE_PROPERTIES.
+  ur_queue_flags_t PriorityFlags = 0;
   // Native event of the last command enqueued on an in-order queue.
   // Protect both the handle and its retained reference during replacement.
   std::mutex LastEventMutex;
