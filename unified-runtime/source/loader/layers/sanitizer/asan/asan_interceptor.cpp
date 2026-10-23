@@ -328,6 +328,8 @@ ur_result_t AsanInterceptor::unregisterMemory(ur_context_handle_t Context,
   // reference here
   auto AllocInfo = AllocInfoIt->second;
 
+  // Like releaseMemory, an invalid pointer isn't forwarded to the driver, since
+  // releasing it could free memory we still track.
   if (AllocInfo->Type != Type || Addr != AllocInfo->UserBegin) {
     ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
     if (getContext()->Options.HaltOnError) {

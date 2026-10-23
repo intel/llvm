@@ -2109,6 +2109,8 @@ ur_result_t urGetUSMExpProcAddrTable(
     ur_usm_exp_dditable_t *pDdiTable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
+  // urUSMHostAllocUnregisterExp isn't intercepted: MSAN doesn't release shadow
+  // memory, and leaving it initialized can't cause false reports.
   pDdiTable->pfnHostAllocRegisterExp =
       ur_sanitizer_layer::msan::urUSMHostAllocRegisterExp;
 
