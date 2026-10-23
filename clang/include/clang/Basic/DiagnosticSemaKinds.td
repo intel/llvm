@@ -13967,7 +13967,7 @@ def err_attribute_argument_is_not_valid : Error<
 def warn_sycl_work_group_scope_dtor : Warning<
   "%select{variable|captured variable}0 %1 "
   "%select{declared at|copied into the kernel object at}0 work group scope "
-  "has a non-trivial destructor, which is not supported">,
+  "has a non-trivial destructor">,
   InGroup<SyclWorkGroupDtor>;
 
 // SPIR-V builtins diagnostics

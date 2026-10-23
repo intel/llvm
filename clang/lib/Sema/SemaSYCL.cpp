@@ -3654,6 +3654,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                              diag::warn_sycl_work_group_scope_dtor)
                 << 1 << C.getCapturedVar()
                 << C.getCapturedVar()->getSourceRange();
+            // If this variable is implicitly captured it's worth pointing out
+            // where it is captured. Note: For explicit captures, the warning
+            // already indicates where the variable is captured, so we only add
+            // a note for implicit captures.
+            if (!C.isExplicit())
+              SemaSYCLRef.Diag(C.getLocation(),
+                               diag::note_var_explicitly_captured_here)
+                  << C.getCapturedVar() << /*explicitly*/ false;
           }
         }
       }
