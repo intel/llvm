@@ -106,6 +106,9 @@ public:
   const llvm::TargetMachine *getTM() const { return TM; }
 
 protected:
+  /// @brief LLVMContext the PassBuilder reads library options from. Must
+  /// outlive this object.
+  llvm::LLVMContext &LLVMCtx;
   /// @brief TargetMachine to be used for passes. May be nullptr.
   llvm::TargetMachine *TM;
   // Note: the order here is important! They must be destructed in this order.
