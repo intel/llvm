@@ -12,7 +12,7 @@
 // Check that the fill operation is using compute (0 ordinal) engine.
 //
 // CHECK: [getZeQueue]: create queue ordinal = 0
-// CHECK  zeCommandListAppendMemoryFill
+// CHECK: zeCommandListAppendMemoryFill
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
