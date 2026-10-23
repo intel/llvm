@@ -61,6 +61,37 @@
 // RUN:   --linker-path=/usr/bin/ld --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   %t.empty-input.o -o %t.empty.o 2>&1 | FileCheck %s --check-prefix=EMPTY
 // RUN: %clang %t.host-only.o %t.empty.o -o %t.empty-library.out
+
+// Empty no-RDC images still need a container for the host compilation.
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   -sycl-post-link-options=-split=auto -sycl-post-link-options=-symbols \
+// RUN:   -sycl-post-link-options=-properties %t.empty-input.o -o %t.empty.syclfb
+// RUN: %clang_cc1 -DEMPTY -triple x86_64-unknown-linux-gnu -fsycl-is-host \
+// RUN:   -foffload-include-binary %t.empty.syclfb -emit-llvm %s -o - | FileCheck %s --check-prefix=EMPTY
+// RUN: %clang_cc1 -DEMPTY -triple x86_64-pc-windows-msvc -fsycl-is-host \
+// RUN:   -foffload-include-binary %t.empty.syclfb -emit-llvm %s -o - | FileCheck %s --check-prefix=EMPTY
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc --no-use-sycl-post-link-tool \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   %t.empty-input.o -o %t.empty-library.syclfb
+// RUN: %clang_cc1 -DEMPTY -triple x86_64-unknown-linux-gnu -fsycl-is-host \
+// RUN:   -foffload-include-binary %t.empty-library.syclfb -emit-llvm %s -o - | FileCheck %s --check-prefix=EMPTY
+
+// An empty target must not add a placeholder when another target has images.
+// RUN: llvm-offload-binary -o %t.mixed.fat --image=file=%t.empty.bc,kind=sycl,triple=spir64-unknown-unknown --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown,arch=generic
+// RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   -sycl-post-link-options=-split=auto -sycl-post-link-options=-symbols \
+// RUN:   -sycl-post-link-options=-properties %t.mixed.fat -o %t.mixed.syclfb
+// RUN: llvm-objdump --offloading %t.mixed.syclfb | FileCheck %s --check-prefix=MIXED
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host \
+// RUN:   -foffload-include-binary %t.mixed.syclfb -emit-llvm %s -o - | FileCheck %s
+// MIXED: OFFLOADING IMAGE [0]:
+// MIXED: producer sycl
+// MIXED-NOT: OFFLOADING IMAGE
 // EMPTY: target triple
 // EMPTY-NOT: __sycl_register_lib
 // EMPTY-NOT: __sycl_unregister_lib
