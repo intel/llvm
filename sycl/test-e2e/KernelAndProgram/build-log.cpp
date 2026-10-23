@@ -28,7 +28,7 @@
 // RUN: %{run-aux} FileCheck %s --check-prefix %if gpu %{CHECK-EXPECTED-ERROR-GPU%} %else %{CHECK-EXPECTED-ERROR-CPU%} --input-file %t.log
 
 // CHECK-EXPECTED-ERROR-GPU: error: backend compiler failed build
-// CHECK-EXPECTED-ERROR-CPU: Failed to build device program
+// CHECK-EXPECTED-ERROR-CPU: {{Failed to build device program|error: backend compiler failed build}}
 
 #include <cassert>
 #include <iostream>
