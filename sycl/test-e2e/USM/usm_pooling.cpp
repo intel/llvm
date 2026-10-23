@@ -2,10 +2,9 @@
 // RUN: %{build} -o %t.out
 
 // UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: this test uses a Legacy allocator-configuration
-// variable name, and checks a residency call sequence that L0v2 does not
-// reproduce. Whether L0v2 should honor the Legacy configuration name, and
-// how residency should be covered for L0v2, are open questions.
+// UNSUPPORTED-INTENDED: this test checks a residency call sequence that L0v2
+// does not reproduce. How residency should be covered for L0v2 is an open
+// question.
 
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
@@ -13,29 +12,29 @@
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
 // With no pooling: 1,2,3,4,5 allocs lead to ZE call.
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-NOPOOL
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-NOPOOL
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-NOPOOL
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_DISABLE_USM_ALLOCATOR=1 %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-NOPOOL
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_DISABLE_USM_ALLOCATOR=1 %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-NOPOOL
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_DISABLE_USM_ALLOCATOR=1 %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-NOPOOL
 
 // With pooling enabled and MaxPooolable=1MB: 1,2,3,4,5 allocs lead to ZE call.
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;1M,4,64K" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-12345
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;1M,4,64K" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-12345
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;1M,4,64K" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-12345
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;1M,4,64K" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-12345
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;1M,4,64K" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-12345
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;1M,4,64K" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-12345
 
 // With pooling enabled and capacity=1: 1,2,4,5 allocs lead to ZE call.
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,1,64K" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-1245
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,1,64K" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-1245
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,1,64K" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-1245
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;2M,1,64K" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-1245
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;2M,1,64K" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-1245
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;2M,1,64K" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-1245
 
 // With pooling enabled and MaxPoolSize=2MB: 1,2,4,5 allocs lead to ZE call.
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";2M;2M,4,64K" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-1245
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";2M;2M,4,64K" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-1245
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";2M;2M,4,64K" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-1245
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";2M;2M,4,64K" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-1245
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";2M;2M,4,64K" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-1245
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";2M;2M,4,64K" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-1245
 
 // With pooling enabled and SlabMinSize of 4 MB: 1,5 allocs lead to ZE call.
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-15
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-15
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-15
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-15
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-15
+// RUN: env UR_L0_DEBUG=1 UR_L0_USM_RESIDENT=0 UR_L0_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-15
 
 #include "sycl/detail/core.hpp"
 
