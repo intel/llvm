@@ -615,6 +615,14 @@ nvidia_gpu_sm_87
 a|
 [source]
 ----
+nvidia_gpu_sm_88
+----
+|-
+|NVIDIA Ampere architecture (compute capability 8.8).
+
+a|
+[source]
+----
 nvidia_gpu_sm_89
 ----
 |-
@@ -628,6 +636,48 @@ nvidia_gpu_sm_90a
 ----
 |-
 |NVIDIA Hopper architecture.
+
+a|
+[source]
+----
+nvidia_gpu_sm_100
+----
+|-
+|NVIDIA Blackwell architecture (compute capability 10.0).
+
+a|
+[source]
+----
+nvidia_gpu_sm_103
+----
+|-
+|NVIDIA Blackwell architecture (compute capability 10.3).
+
+a|
+[source]
+----
+nvidia_gpu_sm_110
+nvidia_gpu_sm_101 = nvidia_gpu_sm_110
+----
+|-
+|NVIDIA Blackwell Thor architecture (compute capability 11.0). The `sm_101`
+spelling is a legacy alias.
+
+a|
+[source]
+----
+nvidia_gpu_sm_120
+----
+|-
+|NVIDIA Blackwell architecture (compute capability 12.0).
+
+a|
+[source]
+----
+nvidia_gpu_sm_121
+----
+|-
+|NVIDIA Blackwell architecture (compute capability 12.1).
 
 3+^|*AMD GPU family*
 
@@ -810,6 +860,12 @@ For NVIDIA GPUs, the architecture enumerator corresponds to the
 https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities[compute capability]
 of the device, and `if_architecture_is` can be used similarly to the
 `+__CUDA_ARCH__+` macro in CUDA.
+_{endnote}_]
+
+[_Note:_
+NVIDIA `a` and `f` AOT target variants map to the enumerator for their base
+compute capability. For example, `nvidia_gpu_sm_100a` and
+`nvidia_gpu_sm_100f` both map to `architecture::nvidia_gpu_sm_100`.
 _{endnote}_]
 
 === New enumeration of architecture categories
