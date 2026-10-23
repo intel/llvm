@@ -318,7 +318,7 @@ bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays,
   return true;
 }
 
-const Type *CodeGen::isSingleElementStruct(QualType T, ASTContext &Context) {
+const Type *CodeGen::isSingleElementRecord(QualType T, ASTContext &Context) {
   const auto *RD = T->getAsRecordDecl();
   if (!RD)
     return nullptr;
@@ -341,7 +341,7 @@ const Type *CodeGen::isSingleElementStruct(QualType T, ASTContext &Context) {
 
       // If this is non-empty and not a single element struct, the composite
       // cannot be a single element struct.
-      Found = isSingleElementStruct(I.getType(), Context);
+      Found = isSingleElementRecord(I.getType(), Context);
       if (!Found)
         return nullptr;
     }
@@ -370,7 +370,7 @@ const Type *CodeGen::isSingleElementStruct(QualType T, ASTContext &Context) {
     if (!isAggregateTypeForABI(FT)) {
       Found = FT.getTypePtr();
     } else {
-      Found = isSingleElementStruct(FT, Context);
+      Found = isSingleElementRecord(FT, Context);
       if (!Found)
         return nullptr;
     }

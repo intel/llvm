@@ -104,7 +104,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallReturnType(QualType RetTy) const {
         return ABIArgInfo::getIgnore();
 
       // Lower single-element structs to just return a regular value.
-      if (const Type *SeltTy = isSingleElementStruct(RetTy, getContext()))
+      if (const Type *SeltTy = isSingleElementRecord(RetTy, getContext()))
         return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
       if (const RecordType *RT = RetTy->getAs<RecordType>()) {
@@ -154,7 +154,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
     // Lower single-element structs to just pass a regular value. TODO: We
     // could do reasonable-size multiple-element structs too, using getExpand(),
     // though watch out for things like bitfields.
-    if (const Type *SeltTy = isSingleElementStruct(Ty, getContext()))
+    if (const Type *SeltTy = isSingleElementRecord(Ty, getContext()))
       return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
     if (const RecordType *RT = Ty->getAs<RecordType>()) {
@@ -409,7 +409,7 @@ ABIArgInfo AMDGCNSPIRVABIInfo::classifyReturnType(QualType RetTy) const {
     return ABIArgInfo::getIgnore();
 
   // Lower single-element structs to just return a regular value.
-  if (const Type *SeltTy = isSingleElementStruct(RetTy, getContext()))
+  if (const Type *SeltTy = isSingleElementRecord(RetTy, getContext()))
     return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
   if (const auto *RD = RetTy->getAsRecordDecl();
@@ -443,7 +443,7 @@ ABIArgInfo AMDGCNSPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
 
   // TODO: Can we omit empty structs?
 
-  if (const Type *SeltTy = isSingleElementStruct(Ty, getContext()))
+  if (const Type *SeltTy = isSingleElementRecord(Ty, getContext()))
     Ty = QualType(SeltTy, 0);
 
   llvm::Type *OrigLTy = CGT.ConvertType(Ty);
@@ -506,7 +506,7 @@ ABIArgInfo AMDGCNSPIRVABIInfo::classifyArgumentType(QualType Ty,
   // Lower single-element structs to just pass a regular value. TODO: We
   // could do reasonable-size multiple-element structs too, using getExpand(),
   // though watch out for things like bitfields.
-  if (const Type *SeltTy = isSingleElementStruct(Ty, getContext()))
+  if (const Type *SeltTy = isSingleElementRecord(Ty, getContext()))
     return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
   if (const auto *RD = Ty->getAsRecordDecl();
