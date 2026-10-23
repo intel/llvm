@@ -12,10 +12,10 @@
 // SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS is a v1-only selector between
 // regular (CHECK-STD) and immediate (CHECK-IMM) command lists; v2 always uses
 // immediate command lists and does not read this variable, so both RUN lines
-// exercise the same v2 code path (CHECK-V2). v2 propagates priority to the
-// L0 command queue descriptor the same way v1 does (see getZePriority() in
-// queue_create.cpp), but logs it as part of command list creation instead of
-// a "[getZeQueue]" line.
+// exercise the same v2 code path (CHECK-V2). v2 logs priority as part of
+// command list creation instead of a "[getZeQueue]" line. For priority_high it
+// uses either the high priority class or, on devices that report priority
+// levels, the highest level with the normal class.
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -49,7 +49,7 @@ int main(int Argc, const char *Argv[]) {
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = High
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = High
-  // CHECK-V2: create command list ordinal: {{.*}} priority: High
+  // CHECK-V2: create command list ordinal: {{.*}} {{priority: High, priorityLevel: none|priority: Normal, priorityLevel: -?[0-9]+}}
   test(C, D, {sycl::ext::oneapi::property::queue::priority_high{}});
 
   // CHECK-STD: Queue cannot be constructed with different priorities.
