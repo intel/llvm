@@ -99,6 +99,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 # There's little reason not to generate the compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# LLVM sets this for in-tree builds; standalone builds need it as well.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+
 include(Assertions)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -195,7 +198,7 @@ if(UR_ENABLE_TRACING)
         set(UR_XPTIFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xptifw")
         cmake_path(NORMAL_PATH UR_XPTIFW_SOURCE_DIR
             OUTPUT_VARIABLE UR_XPTIFW_SOURCE_DIR)
-        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+        if(IS_DIRECTORY "${UR_XPTIFW_SOURCE_DIR}")
             FetchContent_Declare(xptifw SOURCE_DIR "${UR_XPTIFW_SOURCE_DIR}")
         else()
             FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")

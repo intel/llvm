@@ -359,3 +359,16 @@
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "spir64_x86_64,{{.*}}"
+
+/// Aliased targets (intel_gpu_pvc, intel_gpu_12_60_7) resolves to the same
+/// device and collapse into a single device action.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_12_60_7 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHK-PVC-DEDUP
+// CHK-PVC-DEDUP: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
+// CHK-PVC-DEDUP: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-DEDUP-NOT: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
+// CHK-PVC-DEDUP: clang{{.*}} "-fsycl-is-host"
+// CHK-PVC-DEDUP: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-DEDUP-NOT: "-D__SYCL_TARGET_INTEL_GPU_PVC__"
+// CHK-PVC-DEDUP: ocloc{{.*}} "-device" "pvc"
+// CHK-PVC-DEDUP-NOT: ocloc{{.*}} "-device" "pvc"

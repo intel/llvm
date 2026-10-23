@@ -5881,7 +5881,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (IsWindowsMSVC) {
         CmdArgs.push_back("-fms-extensions");
         CmdArgs.push_back("-fms-compatibility");
-        CmdArgs.push_back("-fdelayed-template-parsing");
         VersionTuple MSVT =
             C.getDefaultToolChain().computeMSVCVersion(&D, Args);
         if (!MSVT.empty())
@@ -8701,6 +8700,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // MSVC actually defaults to -fno-delayed-template-parsing (/Zc:twoPhase-
   // with MSVC CLI) if using C++20. So we match the behavior with MSVC here to
   // not enable -fdelayed-template-parsing by default after C++20.
+  //
+  // For SYCL device compilations, IsWindowsMSVC is derived from the aux
+  // triple, so the device compilation gets the same default as the host.
   //
   // FIXME: Given -fdelayed-template-parsing is a source of bugs, we should be
   // able to disable this by default at some point.
@@ -12656,6 +12658,21 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (!OffloadJobs.A->isClaimed()) {
       C.getDriver().Diag(diag::err_drv_invalid_int_value)
           << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
+    }
+  } else if (HasSYCL) {
+    // For SYCL, -fsycl-max-parallel-link-jobs controls the number of device
+    // compilation jobs (e.g. AOT compilation of split modules) that can run
+    // in parallel. --offload-jobs takes precedence if both are given.
+    if (const Arg *A =
+            Args.getLastArg(options::OPT_fsycl_max_parallel_jobs_EQ)) {
+      unsigned NumThreads;
+      if (StringRef(A->getValue()).getAsInteger(10, NumThreads) ||
+          NumThreads == 0)
+        C.getDriver().Diag(diag::err_drv_invalid_int_value)
+            << A->getAsString(Args) << A->getValue();
+      else
+        CmdArgs.push_back(
+            Args.MakeArgString("--wrapper-jobs=" + Twine(NumThreads)));
     }
   }
 
