@@ -27,6 +27,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
@@ -268,6 +269,71 @@ void tools::gnutools::StaticLibTool::ConstructJob(
                                          ResponseFileSupport::AtFileCurCP(),
                                          Exec, CmdArgs, Inputs, Output));
 }
+
+// Link-input size above which some relocations are truncated.
+// -flink-huge-device-code works around it.
+static constexpr uint64_t HugeLinkInputWarnThreshold = 1ull << 30; // 1GiB
+
+// Best-effort: skips non-filename inputs (e.g. linker flags).
+static uint64_t getTotalLinkInputSize(ArrayRef<InputInfo> Inputs) {
+  uint64_t Total = 0;
+
+  for (const InputInfo &II : Inputs)
+    if (II.isFilename()) {
+      uint64_t FileSize = 0;
+      if (!llvm::sys::fs::file_size(II.getFilename(), FileSize))
+        Total += FileSize;
+    }
+
+  return Total;
+}
+
+static std::string formatSize(uint64_t Bytes) {
+  double GB = static_cast<double>(Bytes) / (1024.0 * 1024.0 * 1024.0);
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  OS << llvm::format("%.1f", GB) << " GB (" << Bytes << " bytes)";
+  return Str;
+}
+
+namespace {
+// Checked at Execute() time, not construction time: job construction
+// happens before any job runs, so earlier pipeline stages (e.g.
+// unbundling) haven't written their outputs yet.
+class HugeLinkInputCheckCommand : public Command {
+  const Driver &D;
+
+public:
+  HugeLinkInputCheckCommand(const Driver &D, const Action &Source,
+                            const Tool &Creator,
+                            ResponseFileSupport ResponseSupport,
+                            const char *Executable,
+                            const llvm::opt::ArgStringList &Arguments,
+                            ArrayRef<InputInfo> Inputs,
+                            ArrayRef<InputInfo> Outputs = {})
+      : Command(Source, Creator, ResponseSupport, Executable, Arguments, Inputs,
+                Outputs),
+        D(D) {}
+
+  int Execute(ArrayRef<std::optional<StringRef>> Redirects, std::string *ErrMsg,
+              bool *ExecutionFailed) const override {
+    uint64_t InputSize = getTotalLinkInputSize(getInputInfos());
+    if (InputSize > HugeLinkInputWarnThreshold) {
+      D.Diag(diag::warn_drv_huge_device_code) << formatSize(InputSize);
+      // -Werror promoted this to an error: don't run the real link, just
+      // report failure like any other failed build step.
+      if (D.getDiags().getDiagnosticLevel(diag::warn_drv_huge_device_code,
+                                          SourceLocation()) >=
+          DiagnosticsEngine::Error) {
+        if (ExecutionFailed)
+          *ExecutionFailed = false;
+        return 1;
+      }
+    }
+    return Command::Execute(Redirects, ErrMsg, ExecutionFailed);
+  }
+};
+} // namespace
 
 void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                            const InputInfo &Output,
@@ -678,9 +744,18 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addAllArgs(CmdArgs, {options::OPT_T});
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
-  C.addCommand(std::make_unique<Command>(JA, *this,
-                                         ResponseFileSupport::AtFileCurCP(),
-                                         Exec, CmdArgs, Inputs, Output));
+
+  // Deferred to Command::Execute(); see HugeLinkInputCheckCommand above.
+  if (Args.hasArg(options::OPT_fsycl, options::OPT_offload_targets_EQ) &&
+      !Args.hasFlag(options::OPT_flink_huge_device_code,
+                    options::OPT_fno_link_huge_device_code, false))
+    C.addCommand(std::make_unique<HugeLinkInputCheckCommand>(
+        D, JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs,
+        Output));
+  else
+    C.addCommand(std::make_unique<Command>(JA, *this,
+                                           ResponseFileSupport::AtFileCurCP(),
+                                           Exec, CmdArgs, Inputs, Output));
 }
 
 void tools::gnutools::Assembler::ConstructJob(Compilation &C,
