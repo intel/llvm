@@ -32,7 +32,7 @@ template <typename KernelName, typename KernelType>
 [[clang::sycl_kernel_entry_point(KernelName)]]
 void kernel_single_task(KernelType kf) { kf(); }
 
-void use(const char *);
+[[clang::sycl_external]] void use(const char *);
 
 // A global initializer is constant-folded to a string literal.
 const char *global_name = __builtin_sycl_unique_stable_name(int);

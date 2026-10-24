@@ -10,24 +10,27 @@
 // CodeGen. Their uses are cast to the generic address space. Globals with an
 // explicit address space keep it.
 
-int g = 1;
+// Device code may not use non-const host globals, so the globals with no
+// explicit address space are extern const declarations. They are not
+// constant-folded, so their uses still load from the global address space.
+extern const int g;
 __attribute__((opencl_constant)) int explicit_c = 2;
-const char *gs = "Hello, world!";
-int i;
+extern const char *const gs;
+extern const int i;
 
-// CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @g = #cir.int<1> : !s32i
+// CIR-DAG: cir.global {{.*}} external {{.*}}lang_address_space(offload_global) @g : !s32i
 // CIR-DAG: cir.global {{.*}} lang_address_space(offload_constant) @explicit_c = #cir.int<2> : !s32i
 // CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @".str" = #cir.const_array<"Hello, world!" : !cir.array<!s8i x 13>, trailing_zeros> : !cir.array<!s8i x 14>
-// CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @gs = #cir.global_view<@".str"> : !cir.ptr<!s8i, target_address_space(4)>
-// CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @i = #cir.int<0> : !s32i
+// CIR-DAG: cir.global {{.*}} external {{.*}}lang_address_space(offload_global) @gs : !cir.ptr<!s8i, target_address_space(4)>
+// CIR-DAG: cir.global {{.*}} external {{.*}}lang_address_space(offload_global) @i : !s32i
 // CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @_ZZ18static_const_localvE3foo = #cir.int<66> : !s32i
 // CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @".str.1" = #cir.const_array<"Another hello world!" : !cir.array<!s8i x 20>, trailing_zeros> : !cir.array<!s8i x 21>
 // CIR-DAG: cir.global {{.*}} lang_address_space(offload_global) @".str.2" = #cir.const_array<"Yet another Hello world" : !cir.array<!s8i x 23>, trailing_zeros> : !cir.array<!s8i x 24>
 
-// LLVM-DAG: @g = addrspace(1) global i32 1, align 4
-// LLVM-DAG: @explicit_c = addrspace(2) constant i32 2, align 4
-// LLVM-DAG: @gs = addrspace(1) global ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str to ptr addrspace(4)), align 8
-// LLVM-DAG: @i = addrspace(1) global i32 0, align 4
+// LLVM-DAG: @g = external addrspace(1) constant i32, align 4
+// LLVM-DAG: @explicit_c = linkonce_odr addrspace(2) constant i32 2, align 4
+// LLVM-DAG: @gs = external addrspace(1) constant ptr addrspace(4), align 8
+// LLVM-DAG: @i = external addrspace(1) constant i32, align 4
 // LLVM-DAG: @_ZZ18static_const_localvE3foo = internal addrspace(1) constant i32 66, align 4
 // LLVM-CIR-DAG: @.str = private addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 // LLVM-CIR-DAG: @.str.1 = private addrspace(1) constant [21 x i8] c"Another hello world!\00", align 1
@@ -36,7 +39,7 @@ int i;
 // OGCG-DAG: @.str.1 = private unnamed_addr addrspace(1) constant [21 x i8] c"Another hello world!\00", align 1
 // OGCG-DAG: @.str.2 = private unnamed_addr addrspace(1) constant [24 x i8] c"Yet another Hello world\00", align 1
 
-[[clang::sycl_external]] int *addr_g() { return &g; }
+[[clang::sycl_external]] const int *addr_g() { return &g; }
 
 // CIR-LABEL: cir.func {{.*}} @_Z6addr_gv()
 // CIR:         %[[G:.*]] = cir.get_global @g : !cir.ptr<!s32i, lang_address_space(offload_global)>
