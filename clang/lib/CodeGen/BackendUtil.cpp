@@ -1233,7 +1233,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
 
     if (SYCLNativeCPUBackend) {
-      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM, Level);
+      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
+          MPM, MAM, Level, PB.getVirtualFileSystemPtr());
       // Run optimization passes after all the changes we made to the kernels.
       // Todo: maybe we could find a set of relevant passes instead of re-running
       // the full optimization pipeline.
