@@ -74,8 +74,7 @@
 ; CHECK-LLVM-LLC-TYPED: %[[B3:.*]] = bitcast ptr %fp to ptr
 ; CHECK-LLVM-LLC-TYPED: %[[LD:.*]] = load ptr addrspace(9), ptr %[[B3]]
 ; CHECK-LLVM-LLC-TYPED: call spir_func addrspace(9) i32 %[[LD]](i32 %{{.*}})
-; CHECK-LLVM-LLC-UNTYPED: %[[B1:.*]] = bitcast ptr %fp to ptr
-; CHECK-LLVM-LLC-UNTYPED: store ptr addrspace(9) @foo, ptr %[[B1]]
+; CHECK-LLVM-LLC-UNTYPED: store ptr addrspace(9) @foo, ptr %fp
 ; CHECK-LLVM-LLC-UNTYPED: %[[LD:.*]] = load ptr addrspace(9), ptr %fp
 ; CHECK-LLVM-LLC-UNTYPED: call spir_func addrspace(9) i32 %[[LD]](i32 %{{.*}})
 

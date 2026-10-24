@@ -68,8 +68,7 @@
 ; CHECK-LLVM-LLC-TYPED: %[[B3:.*]] = bitcast ptr %fp to ptr
 ; CHECK-LLVM-LLC-TYPED: %[[LD:.*]] = load ptr, ptr %[[B3]]
 ; CHECK-LLVM-LLC-TYPED: call spir_func i32 %[[LD]](i32 %{{.*}})
-; CHECK-LLVM-LLC-UNTYPED: %[[B1:.*]] = bitcast ptr %fp to ptr
-; CHECK-LLVM-LLC-UNTYPED: store ptr @foo, ptr %[[B1]]
+; CHECK-LLVM-LLC-UNTYPED: store ptr @foo, ptr %fp
 ; CHECK-LLVM-LLC-UNTYPED: %[[LD:.*]] = load ptr, ptr %fp
 ; CHECK-LLVM-LLC-UNTYPED: call spir_func i32 %[[LD]](i32 %{{.*}})
 
