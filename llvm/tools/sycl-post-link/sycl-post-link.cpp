@@ -347,7 +347,9 @@ Error saveModule(
               SplitMode, static_cast<int>(IdQueriesRange.getValue())))
         return E;
     }
-    addTableRow(*Table, CopyTriple);
+    if (!MD.getModule().global_values().empty() ||
+        !MD.getModule().getModuleInlineAsm().empty())
+      addTableRow(*Table, CopyTriple);
   }
 
   return Error::success();

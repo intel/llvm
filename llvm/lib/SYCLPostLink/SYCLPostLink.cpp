@@ -192,6 +192,10 @@ llvm::sycl_post_link::performPostLinkProcessing(
       Modules.push_back(std::move(MD));
 
     for (std::unique_ptr<module_split::ModuleDesc> &MD : Modules) {
+      if (MD->getModule().global_values().empty() &&
+          MD->getModule().getModuleInlineAsm().empty())
+        continue;
+
       size_t ID = SplitModules.size();
       StringRef Suffix = MD->isESIMD() ? "_esimd" : "";
       std::string OutIRFilename =

@@ -1619,7 +1619,7 @@ static Expected<StringRef>
 runWrapperAndCompile(ArrayRef<module_split::SplitModule> SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
-  if (Target.empty())
+  if (Target.empty() && !SplitModules.empty())
     return createStringError(
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missing.");
@@ -3092,6 +3092,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           return SYCLImagesOrErr.takeError();
 
         std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+        auto &SYCLImages = Images[OFK_SYCL];
         for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
           OffloadingImage TheImage{};
           TheImage.TheImageKind =
@@ -3105,7 +3106,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                                           SYCLImageStringSaver);
           TheImage.Image = std::move(SYCLImage.Image);
 
-          Images[OFK_SYCL].emplace_back(std::move(TheImage));
+          SYCLImages.emplace_back(std::move(TheImage));
         }
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -3203,6 +3204,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       return A.TheOffloadKind < B.TheOffloadKind;
     });
     if (Kind == OFK_SYCL) {
+      // Keep a valid container when post-link removes all device images.
+      if (Input.empty()) {
+        offloading::SYCLImage EmptyImage(MemoryBuffer::getMemBuffer(""),
+                                         util::PropertySetRegistry(), "");
+        OffloadingImage &TheImage = Input.emplace_back();
+        TheImage.TheImageKind = IMG_Object;
+        TheImage.TheOffloadKind = OFK_SYCL;
+        offloading::addSYCLImageStrings(EmptyImage, TheImage.StringData,
+                                        SYCLImageStringSaver);
+        TheImage.Image = std::move(EmptyImage.Image);
+      }
       // Package all post-link images into a single offload container.
       SmallString<0> Buffer = OffloadBinary::write(Input);
       auto FOBOrErr = FileOutputBuffer::create(ExecutableName, Buffer.size());
@@ -3720,6 +3732,12 @@ int main(int Argc, char **Argv) {
       if (Args.hasArg(OPT_sycl_device_link)) {
         // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
+        if (FilesOrErr->empty()) {
+          auto OutputFile = sycl::runWrapperAndCompile({}, Args);
+          if (!OutputFile)
+            reportError(OutputFile.takeError());
+          FilesOrErr->push_back(*OutputFile);
+        }
         if (FilesOrErr->size() != 1)
           reportError(createStringError(
               "Expect single output from the device linker."));
