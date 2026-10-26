@@ -37,6 +37,7 @@ static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
                                       CodeGenFileType CGFT,
                                       bool PrintPipelinePasses,
                                       bool DisableVerify,
+                                      bool DisableSimplifyLibCalls,
                                       const TargetLibraryInfoImpl *PresetTLII) {
   legacy::PassManager CodeGenPasses;
   CodeGenPasses.add(
@@ -45,12 +46,13 @@ static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
   TargetLibraryInfoImpl TLII(TM.getTargetTriple(), TM.Options.VecLib);
   if (PresetTLII)
     TLII = *PresetTLII;
+  if (DisableSimplifyLibCalls)
+    TLII.disableAllFunctions();
   CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
 
   const TargetOptions &Options = TM.Options;
   CodeGenPasses.add(
-      new RuntimeLibraryInfoWrapper(Options.ExceptionModel, Options.EABIVersion,
-                                    Options.MCOptions.ABIName, Options.VecLib));
+      new RuntimeLibraryInfoWrapper(Options.MCOptions.ABIName, Options.VecLib));
 
   if (TM.addPassesToEmitFile(CodeGenPasses, OS, DwoOS ? &DwoOS->os() : nullptr,
                              CGFT, DisableVerify))
@@ -107,7 +109,7 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                raw_pwrite_stream &OS,
                                std::unique_ptr<ToolOutputFile> &DwoOS,
                                CodeGenFileType CGFT, bool PrintPipelinePasses,
-                               bool DisableVerify,
+                               bool DisableVerify, bool DisableSimplifyLibCalls,
                                IntrusiveRefCntPtr<vfs::FileSystem> VFS,
                                const TargetLibraryInfoImpl *TLII) {
   if (ForceNewPM == cl::boolOrDefault::BOU_TRUE ||
@@ -118,5 +120,5 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
   }
 
   return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, PrintPipelinePasses,
-                                  DisableVerify, TLII);
+                                  DisableVerify, DisableSimplifyLibCalls, TLII);
 }

@@ -394,6 +394,7 @@
 		urPrintExpKernelArgType;
 		urPrintExpPeerInfo;
 		urPrintExpProgramFlags;
+		urPrintExpQueuePriorityProperties;
 		urPrintExpSamplerAddrModes;
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;

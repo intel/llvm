@@ -1134,11 +1134,8 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
   }
   if (Event->CommandType == UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP &&
       Event->CommandData) {
-    // Free the memory extra event allocated for profiling purposed.
-    command_buffer_profiling_t *ProfilingPtr =
-        static_cast<command_buffer_profiling_t *>(Event->CommandData);
-    delete[] ProfilingPtr->Timestamps;
-    delete ProfilingPtr;
+    // Free the memory extra event allocated for profiling purposes.
+    delete static_cast<command_buffer_profiling_t *>(Event->CommandData);
     Event->CommandData = nullptr;
   }
   if (Event->OwnNativeHandle) {

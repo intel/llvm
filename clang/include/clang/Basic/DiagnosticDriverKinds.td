@@ -106,6 +106,9 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_offload_bundler_not_found : Error<
+  "cannot find 'clang-offload-bundler' in '%0', which is required to inspect "
+  "'%1' for offload device code">;
 def err_drv_sycl_no_rdc_multiple_targets : Error<
   "'%0' is not supported with multiple SYCL offloading targets">;
 
@@ -480,6 +483,8 @@ def err_drv_sycl_thinlto_split_off: Error<
   "'%0' is not supported when '%1' is set with '-fsycl'">;
 def err_drv_sycl_offload_arch_new_driver: Error<
   "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
+def err_drv_not_supported_new_model : Error<
+  "'%0' is not supported with the new offloading model; use '%1' instead">;
 def err_drv_sycl_offload_arch_missing_value : Error<
   "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
 def warn_drv_offload_target_duplicate
