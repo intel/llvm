@@ -100,29 +100,21 @@ using __sycl_promote_t =
   }
 
 #define __SYCL_SPIRV_MAP_UNARY_NATIVE_C(NAME)                                  \
-  template <typename T>                                                       \
-  __SYCL_DEVICE T __sycl_cmath_##NAME(T x) {                                  \
+  template <typename T> __SYCL_DEVICE T __sycl_cmath_##NAME(T x) {             \
     if constexpr (__sycl_cmath_use_native_v<T>)                                \
-      return __spirv_ocl_native_##NAME(x);                                    \
-    else                                                                     \
-      return __spirv_ocl_##NAME(x);                                           \
-  }                                                                          \
-  __SYCL_DEVICE_C float NAME##f(float x) {                                    \
-    return __sycl_cmath_##NAME(x);                                            \
-  }                                                                          \
-  __SYCL_DEVICE_C double NAME(double x) {                                    \
-    return __sycl_cmath_##NAME(x);                                            \
-  }
+      return __spirv_ocl_native_##NAME(x);                                     \
+    else                                                                       \
+      return __spirv_ocl_##NAME(x);                                            \
+  }                                                                            \
+  __SYCL_DEVICE_C float NAME##f(float x) { return __sycl_cmath_##NAME(x); }    \
+  __SYCL_DEVICE_C double NAME(double x) { return __sycl_cmath_##NAME(x); }
 
 #define __SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(NAME)                                \
-  using ::NAME;                                                              \
-  using ::NAME##f;                                                           \
-  __SYCL_DEVICE float NAME(float x) {                                        \
-    return ::__sycl_cmath_##NAME(x);                                          \
-  }                                                                          \
-  template <typename T>                                                      \
-  __SYCL_DEVICE __sycl_promote_t<T> NAME(T x) {                               \
-    return ::__sycl_cmath_##NAME((double)x);                                  \
+  using ::NAME;                                                                \
+  using ::NAME##f;                                                             \
+  __SYCL_DEVICE float NAME(float x) { return ::__sycl_cmath_##NAME(x); }       \
+  template <typename T> __SYCL_DEVICE __sycl_promote_t<T> NAME(T x) {          \
+    return ::__sycl_cmath_##NAME((double)x);                                   \
   }
 
 #define __SYCL_SPIRV_MAP_BINARY_C(NAME)                                        \
