@@ -1,4 +1,4 @@
-name: 'Run UR Tests'
+name: 'Run LIT Tests'
 
 inputs:
   test_type:
@@ -8,7 +8,11 @@ inputs:
     required: false
     default: 'build'
   artifact_name:
-    description: 'Name for uploaded test artifacts (logs, XML)'
+    description: 'Name for uploaded test artifacts (logs, XML). If empty and job_name is set, a name is derived from test_type and job_name.'
+    required: false
+    default: ''
+  job_name:
+    description: 'Human-readable job identifier used to derive artifact_name when it is not given explicitly.'
     required: false
     default: ''
   extra_lit_opts:
@@ -22,6 +26,21 @@ runs:
   - name: Set up ur-test
     id: ur_test
     uses: ./devops/actions/setup-ur-test
+
+  - name: Resolve artifact name
+    id: artifact
+    shell: bash
+    env:
+      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      JOB_NAME: ${{ inputs.job_name }}
+      TEST_TYPE: ${{ inputs.test_type }}
+    run: |
+      name="$ARTIFACT_NAME"
+      if [ -z "$name" ] && [ -n "$JOB_NAME" ]; then
+        safe_name=$(echo "$JOB_NAME" | tr -c '[:alnum:]._-' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+        name="${TEST_TYPE}-${safe_name}"
+      fi
+      echo "name=$name" >> "$GITHUB_OUTPUT"
 
   - name: Run ${{ inputs.test_type }} tests
     id: run_tests
@@ -82,7 +101,7 @@ runs:
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
       XML_FILE: ${{ steps.run_tests.outputs['xml-file'] }}
-      ARTIFACT_NAME: ${{ inputs.artifact_name }}
+      ARTIFACT_NAME: ${{ steps.artifact.outputs.name }}
       TEST_TYPE: ${{ inputs.test_type }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       PY: ${{ steps.ur_test.outputs.python }}
@@ -119,7 +138,7 @@ runs:
       fi
 
   - name: Copy artifacts
-    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
+    if: ${{ always() && steps.artifact.outputs.name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
     shell: bash
     env:
       LOG_FILE: ${{ steps.run_tests.outputs['log-file'] }}
@@ -139,10 +158,10 @@ runs:
       fi
 
   - name: Upload test artifacts
-    if: ${{ always() && inputs.artifact_name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
+    if: ${{ always() && steps.artifact.outputs.name != '' && (inputs.test_type != 'adapter-specific' || steps.run_tests.outputs['skip-artifacts'] != '1') }}
     uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
     with:
-      name: ${{ inputs.artifact_name }}
+      name: ${{ steps.artifact.outputs.name }}
       path: test_artifacts/
       retention-days: 7
       if-no-files-found: warn

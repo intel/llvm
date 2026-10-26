@@ -44,15 +44,10 @@ runs:
   - name: Extract E2E Binaries
     if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact != 'in-container' }}
     shell: bash
-    env:
-      BINARIES_ARTIFACT: ${{ inputs.binaries_artifact }}
     run: |
       mkdir build-e2e
       tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
-      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
-        echo "::error::Downloaded E2E binaries artifact '$BINARIES_ARTIFACT' has no compiled test binaries under */Output/ (likely produced by a failed upstream build job). Failing fast instead of running thousands of doomed tests."
-        exit 1
-      fi
+      devops/scripts/validate-e2e-binaries build-e2e
 
   - name: Extract E2E tests from container image
     if: ${{ inputs.testing_mode == 'run-only' && inputs.binaries_artifact == 'in-container' }}
@@ -61,10 +56,7 @@ runs:
       mkdir build-e2e llvm
       tar -I 'zstd' -xf /sycl-prebuilt/e2e_binaries.tar.zst -C build-e2e
       tar -I 'zstd' -xf /sycl-prebuilt/e2e_sources.tar.zst -C llvm
-      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
-        echo "::error::Container image's prebuilt E2E binaries have no compiled test binaries under */Output/. Failing fast instead of running thousands of doomed tests."
-        exit 1
-      fi
+      devops/scripts/validate-e2e-binaries build-e2e
 
   - name: Deduce E2E CMake options
     if: inputs.testing_mode != 'run-only'
@@ -95,32 +87,18 @@ runs:
       # letting it block the whole suite until the job's own timeout-minutes fires.
       echo "opts=--max-time 3600 --timeout 600 --param print_features=True --param test-mode=${TESTING_MODE} --param sycl_devices=${TARGET_DEVICES} ${USER_LIT_OPTS}" >> "$GITHUB_OUTPUT"
 
-  - name: Build artifact name
-    if: ${{ always() && inputs.job_name != '' }}
-    id: artifact_name
-    shell: bash
-    env:
-      JOB_NAME: ${{ inputs.job_name }}
-    run: |
-      safe_name=$(echo "$JOB_NAME" | tr -c '[:alnum:]._-' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
-      echo "name=e2e-${safe_name}" >> "$GITHUB_OUTPUT"
-
   - name: Run E2E tests
-    uses: ./devops/actions/run-tests/ur
+    uses: ./devops/actions/run-tests/lit
     with:
       test_type: 'e2e'
       build_dir: 'build-e2e'
       extra_lit_opts: ${{ steps.lit_opts.outputs.opts }}
-      artifact_name: ${{ steps.artifact_name.outputs.name }}
+      job_name: ${{ inputs.job_name }}
 
   - name: Verify E2E binaries were built
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
     shell: bash
-    run: |
-      if [ -z "$(find build-e2e -path '*/Output/*' -type f -print -quit)" ]; then
-        echo "::error::No compiled E2E test binaries found under build-e2e/**/Output/ after the build step. Refusing to upload a broken artifact."
-        exit 1
-      fi
+    run: devops/scripts/validate-e2e-binaries build-e2e
 
   - name: Pack E2E binaries
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
