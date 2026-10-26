@@ -116,13 +116,18 @@ int main() {
   }
 
   // subbuffer reinterpret
-  const size_t sub_buf_align_in_bytes =
+  // Sub-buffer offsets must be a multiple of the device's mem_base_addr_align,
+  // which Level Zero reports as just 1 byte. Round it up to a multiple of
+  // sizeof(int) so the offset is never 0 after converting to int elements, and
+  // so a char sub-buffer at that offset can be reinterpreted as int with
+  // natural alignment on both host and device.
+  const size_t aligned_offset_in_bytes =
       std::lcm(mem_base_align_in_bytes, sizeof(int));
-  const size_t sub_buf_align_in_ints = sub_buf_align_in_bytes / sizeof(int);
+  const size_t aligned_offset_in_ints = aligned_offset_in_bytes / sizeof(int);
 
   // 1d int -> char
   {
-    std::size_t offset = sub_buf_align_in_ints;
+    std::size_t offset = aligned_offset_in_ints;
     std::size_t sub_buf_size = 16;
     std::vector<int> data(sub_buf_size + offset, 8);
     std::vector<int> expected_data(sub_buf_size + offset, 8);
@@ -144,7 +149,7 @@ int main() {
 
   // 1d char -> int
   {
-    std::size_t offset = sub_buf_align_in_bytes;
+    std::size_t offset = aligned_offset_in_bytes;
     std::size_t sub_buf_size = 16;
 
     std::vector<char> data(sub_buf_size + offset, 8);
@@ -170,7 +175,7 @@ int main() {
   // reinterpret subbuffer as 1D buffer of different data type
   {
 
-    std::size_t cols = sub_buf_align_in_ints;
+    std::size_t cols = aligned_offset_in_ints;
     std::size_t rows = 6, offset_rows = 2;
     sycl::range<2> rng(rows, cols);
 
@@ -215,7 +220,7 @@ int main() {
   // int -> char
   {
     std::size_t offset_rows = 1, offset_cols = 0, subbuffer_rows = 1,
-                buf_row = 3, buf_col = sub_buf_align_in_ints;
+                buf_row = 3, buf_col = aligned_offset_in_ints;
     std::vector<int> data(buf_col * buf_row, 8);
     std::vector<int> expected_data(buf_col * buf_row, 8);
 
@@ -240,7 +245,7 @@ int main() {
   // char -> int
   {
     std::size_t offset_rows = 1, offset_cols = 0, subbuffer_rows = 1,
-                buf_row = 3, buf_col = sub_buf_align_in_bytes;
+                buf_row = 3, buf_col = aligned_offset_in_bytes;
     std::vector<char> data(buf_col * buf_row, 8);
     std::vector<char> expected_data(buf_col * buf_row, 8);
 
