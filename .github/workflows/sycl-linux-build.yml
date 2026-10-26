@@ -45,6 +45,10 @@ on:
         required: false
 
       # Artifacts:
+      upload_artifact:
+        type: boolean
+        required: false
+        default: true
 
       retention-days:
         description: 'Artifacts retention period'
@@ -53,7 +57,7 @@ on:
 
       toolchain_artifact:
         type: string
-        required: true
+        required: false
       toolchain_artifact_filename:
         type: string
         default: llvm_sycl.tar.zst
@@ -131,6 +135,12 @@ on:
         options:
           - 3
 
+      upload_artifact:
+        description: 'Upload the toolchain artifact'
+        type: boolean
+        required: false
+        default: true
+
       toolchain_artifact:
         type: choice
         options:
@@ -156,6 +166,11 @@ jobs:
       # sycl-linux-precommit.yml. Keep in sync when adding or removing one.
       GPU_AOT_TARGET: intel_gpu_tgllp,intel_gpu_acm_g10,intel_gpu_pvc,intel_gpu_bmg_g21,intel_gpu_mtl_u
     steps:
+    - name: check-artifact-value
+      if: ${{ inputs.upload_artifact && inputs.toolchain_artifact == '' }}
+      run: |
+        echo ERROR: toolchain_artifact is required when upload_artifact is true
+        exit 1
     - name: Deduce artifact archive params
       # To reduce number of inputs parameters that is limited for manual triggers.
       id: artifact_info
@@ -281,10 +296,10 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.release_toolchain_artifact }}
@@ -304,10 +319,10 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-libraries
 
     - name: Pack toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.toolchain_artifact }}

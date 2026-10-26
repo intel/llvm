@@ -140,7 +140,6 @@ jobs:
         -t Debug
         --cuda
         --native_cpu
-        --hip --hip-platform AMD
         --offload
         --level_zero_adapter_version ALL
         -DUR_STATIC_LOADER=${{ matrix.static }}
@@ -148,9 +147,7 @@ jobs:
         -DUR_STATIC_ADAPTER_L0=${{ matrix.static }}
         -DUR_STATIC_ADAPTER_L0_V2=${{ matrix.static }}
         -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
-      toolchain_artifact: linux-debug-backends-static-${{ matrix.static }}
-      toolchain_artifact_filename: sycl_linux_debug.tar.zst
-      retention-days: 3
+      upload_artifact: false
 
   ubuntu2204_test_nvidia_gen12:
     needs: [ubuntu2204_build]
@@ -348,6 +345,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     with:
       retention-days: 90
+      toolchain_artifact: sycl_windows_default
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
@@ -404,7 +402,6 @@ jobs:
         -t Debug
         --cuda
         --native_cpu
-        --hip --hip-platform AMD
         --offload
         --level_zero_adapter_version ALL
         -DUR_STATIC_LOADER=${{ matrix.static }}
@@ -413,9 +410,7 @@ jobs:
         -DUR_STATIC_ADAPTER_L0_V2=${{ matrix.static }}
         -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=OFF
         -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
-      toolchain_artifact: windows-debug-backends-static-${{ matrix.static }}
-      toolchain_artifact_filename: sycl_windows_debug.tar.gz
-      retention-days: 3
+      upload_artifact: false
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
