@@ -18,6 +18,7 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}lib\\libsycl-crt.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-imf.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
@@ -40,6 +41,7 @@
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libsycl-crt.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libsycl-cmath.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libsycl-imf.bc"
+// SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libc.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
