@@ -132,7 +132,7 @@ __SYCL_EXPORT void enqueue_signal_event(sycl::queue q, event &evt) {
   // replaced. That is only possible once its previous command and its
   // dependencies have been submitted to the backend: until then the lists
   // are the inputs of a command the scheduler still has to submit.
-  if (EventImpl.isHeldInRuntimeWithDependencies()) {
+  if (EventImpl.isHeldInRuntime()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "An event cannot be enqueued for signaling while its command or one "
