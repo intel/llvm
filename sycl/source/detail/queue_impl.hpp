@@ -759,6 +759,16 @@ public:
 
   bool isNativeRecording() const;
 
+  /// Queries the backend for the graph this queue is natively capturing into.
+  /// The UR result is returned rather than thrown so that a caller for which a
+  /// failed query is not an error, such as end_recording(), can ignore it.
+  /// \return The graph being captured into, or nullptr if the queue is not
+  ///         natively recording, the query failed, or the captured graph is not
+  ///         one this context created, paired with the result of the query.
+  std::pair<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>,
+            ur_result_t>
+  getNativeRecordingGraph() const;
+
   struct NativeRecordingResult {
     ur_exp_graph_handle_t CapturedGraph = nullptr;
     bool RecordingActive = false;
