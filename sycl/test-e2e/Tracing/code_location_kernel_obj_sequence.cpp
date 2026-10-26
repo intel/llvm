@@ -1,5 +1,5 @@
 // REQUIRES: level_zero || opencl
-// RUN: %{build} -std=c++20 -o %t.out
+// RUN: %{build} %cxx_std_optionc++20 -o %t.out
 // RUN: %{run} sycl-trace --sycl --print-format=verbose %t.out | FileCheck %s
 
 // Tests that nd_launch reports the caller's code location when the arguments of
