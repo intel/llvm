@@ -422,9 +422,8 @@ public:
   /// contains the Offload target specific flags passed via -Xopenmp-target
   /// -opt=val OR -Xopenmp-target=<triple> -opt=val
   /// Also handles -Xsycl-target OR -Xsycl-target=<triple>
-  /// HostTriple is the resolved host target, including architecture overrides.
   virtual llvm::opt::DerivedArgList *TranslateOffloadTargetArgs(
-      const llvm::opt::DerivedArgList &Args, const llvm::Triple &HostTriple,
+      const llvm::opt::DerivedArgList &Args, bool SameTripleAsHost,
       SmallVectorImpl<llvm::opt::Arg *> &AllocatedArgs,
       Action::OffloadKind DeviceOffloadKind) const;
 
