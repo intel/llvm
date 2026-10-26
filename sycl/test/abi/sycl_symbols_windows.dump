@@ -197,6 +197,7 @@
 ??$get_info_impl@Upreferred_vector_width_long_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Upreferred_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uprintf_buffer_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
+??$get_info_impl@Upriority_range@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$array@H$01@std@@XZ
 ??$get_info_impl@Uprofile@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uprofile@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uprofiling_timer_resolution@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
@@ -3807,8 +3808,11 @@
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEAVqueue@67@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
+?enqueue_signal_event@detail@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@56@AEAVevent@56@I@Z
 ?enqueue_signal_event@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEAVevent@45@@Z
+?enqueue_wait_event@detail@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@56@AEBVevent@56@I@Z
 ?enqueue_wait_event@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEBVevent@45@@Z
+?enqueue_wait_events@detail@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@56@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@I@Z
 ?enqueue_wait_events@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?eventNeeded@handler@_V1@sycl@@AEBA_NXZ
 ?export_device_mem_dma_buf@detail@experimental@oneapi@ext@_V1@sycl@@YAHPEAXAEBVdevice@56@AEBVcontext@56@@Z
@@ -4398,7 +4402,8 @@
 ?submit_graph_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEAV?$command_graph@$00@experimental@oneapi@ext@12@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBUcode_location@detail@12@@Z
 ?submit_kernel_direct_with_event_impl@_V1@sycl@@YA?AVevent@12@AEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEAVHostKernelRefBase@712@PEAVDeviceKernelInfo@712@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@712@AEBUcode_location@712@_N@Z
 ?submit_kernel_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEAVHostKernelRefBase@612@PEAVDeviceKernelInfo@612@V?$span@$$CBVevent@_V1@sycl@@$0?0@12@AEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@612@AEBUcode_location@612@_N@Z
-?submit_kernel_obj_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEBVkernel@12@V?$span@$$CBUKernelArgView@kernel_arg_view_v1@detail@_V1@sycl@@$0?0@12@AEBUcode_location@612@_N@Z
+?submit_kernel_obj_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEBVkernel@12@PEBUKernelArgView@kernel_arg_view_v1@612@_KAEBUcode_location@612@_N@Z
+?submit_kernel_obj_direct_without_event_impl@_V1@sycl@@YAXAEBVqueue@12@AEBVnd_range_view@nd_range_view_v1@detail@12@AEBVkernel@12@PEBVraw_kernel_arg@experimental@oneapi@ext@12@_KAEBUcode_location@612@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@2623@AEBUcode_location@623@_N@Z
 ?submit_without_event_impl@queue@_V1@sycl@@AEBAXAEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@2523@AEBUcode_location@523@_N@Z
 ?supportsUSMFill2D@handler@_V1@sycl@@AEAA_NXZ

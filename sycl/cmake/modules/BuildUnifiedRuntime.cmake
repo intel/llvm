@@ -116,7 +116,10 @@ if(WIN32 AND UR_STATIC_LOADER)
   # Add the remaining targets that don't match the "ur_adapter_*" pattern.
   list(APPEND _ur_crt_targets
     ur_loader ur_common ur_adapter_level_zero_common ze_loader level_zero_utils
-    urinfo ur_collector collector test_collector hwloc)
+    urinfo ur_collector collector test_collector hwloc
+    # The level-zero loader's own sample links directly against ze_loader, so
+    # it needs the same forced CRT or lld-link rejects the CRT mismatch.
+    zello_world)
   foreach(_ur_target IN LISTS _ur_crt_targets)
     if(TARGET ${_ur_target})
       # Force the release CRT (/MD), even in Debug builds.

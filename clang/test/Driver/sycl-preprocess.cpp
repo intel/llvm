@@ -1,17 +1,19 @@
 // Test the behaviors when enabling SYCL offloading with preprocessed files.
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// Creating a preprocessed file is expected to do an integration header
 /// creation step.
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL/ \
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}/ \
 // RUN:  -E -o %t_output.ii %s -### 2>&1 | FileCheck -check-prefix PREPROC_ONLY %s
-// RUN: %clang_cl -fsycl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL \
+// RUN: %clang_cl -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:  -P %s -### 2>&1 | FileCheck -check-prefix PREPROC_ONLY %s
 // PREPROC_ONLY: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\.h]]"{{.*}} "-E"
 // PREPROC_ONLY: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[INTHEADER]]"{{.*}} "-include-internal-footer" "[[INTFOOTER]]"{{.*}} "-o" "[[HOST_OUT:.+\.ii]]"
 
 /// When compiling from preprocessed file, no integration header is expected
 // RUN: touch %t.ii
-// RUN: %clangxx -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL %t.ii -### 2>&1 | FileCheck -check-prefix PREPROC_IN %s
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} %t.ii -### 2>&1 | FileCheck -check-prefix PREPROC_IN %s
 // PREPROC_IN-NOT: "-fsycl-int-header={{.*}}"
 // PREPROC_IN: clang{{.*}} "-fsycl-is-host"
 
@@ -31,11 +33,11 @@
 
 /// When generating preprocessed files, verify the tools called and the expected
 /// output file name.
-// RUN: %clangxx --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl -E %s -o sycl-preprocess.ii -### 2>&1 \
+// RUN: %clangxx --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -E %s -o sycl-preprocess.ii -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix PREPROC_TOOLS
-// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl -P %s -Fisycl-preprocess.ii -### 2>&1 \
+// RUN: %clang_cl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -P %s -Fisycl-preprocess.ii -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix PREPROC_TOOLS
-// RUN: %clang_cl --offload-new-driver /clang:--sysroot=%S/Inputs/SYCL -fsycl -E %s -o sycl-preprocess.ii -### 2>&1 \
+// RUN: %clang_cl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -E %s -o sycl-preprocess.ii -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix PREPROC_TOOLS
 // PREPROC_TOOLS: clang{{.*}} "-fsycl-is-device"
 // PREPROC_TOOLS-SAME: "-o" "[[DEVICE_PP_FILE:.+\.ii]]
