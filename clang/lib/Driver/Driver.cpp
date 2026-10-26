@@ -1260,6 +1260,46 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
           << SYCLForceTarget->getAsString(C.getInputArgs());
   }
 
+  // spir64_gen is deprecated in favor of intel_gpu_<arch>, both as a
+  // -fsycl-targets value and as the triple of the -X<tool>= options. It is not
+  // supported with the new offloading model, and will be removed together with
+  // the old offloading model.
+  if (IsSYCL) {
+    const Driver &D = C.getDriver();
+    // Target is a SYCL target as given on the command line, e.g. spir64_gen,
+    // spir64_gen-unknown-unknown or intel_gpu_pvc.
+    auto IsSPIRGenTarget = [&](StringRef Target) {
+      llvm::Triple TT = D.getSYCLDeviceTriple(Target);
+      return TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+    };
+    auto DiagnoseSPIRGenTarget = [&](StringRef Spelling, StringRef Target) {
+      std::string Opt = (Spelling + Target).str();
+      std::string Replacement = (Spelling + "intel_gpu_<arch>").str();
+      if (D.getUseNewOffloadingDriver())
+        D.Diag(diag::err_drv_not_supported_new_model) << Opt << Replacement;
+      else
+        D.Diag(diag::warn_drv_deprecated_option_release)
+            << Opt << /*HasReplacement=*/true << Replacement;
+    };
+
+    for (const Arg *A :
+         C.getInputArgs().filtered(options::OPT_offload_targets_EQ)) {
+      // Report the spelling the user wrote, e.g. -fsycl-targets=.
+      StringRef Spelling =
+          A->getAlias() ? A->getAlias()->getSpelling() : A->getSpelling();
+      for (StringRef Target : A->getValues())
+        if (IsSPIRGenTarget(Target))
+          DiagnoseSPIRGenTarget(Spelling, Target);
+    }
+    for (const Arg *A : C.getInputArgs().filtered(
+             options::OPT_Xsycl_backend_EQ, options::OPT_Xsycl_frontend_EQ,
+             options::OPT_Xsycl_linker_EQ, options::OPT_Xspirv_translator_EQ,
+             options::OPT_Xdevice_post_link_EQ,
+             options::OPT_Xspirv_to_ir_wrapper_EQ))
+      if (IsSPIRGenTarget(A->getValue()))
+        DiagnoseSPIRGenTarget(A->getSpelling(), A->getValue());
+  }
+
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
@@ -6532,46 +6572,45 @@ class OffloadingActionBuilder final {
         llvm::StringMap<StringRef> FoundNormalizedTriples;
         for (StringRef Val : SYCLTargetsValues->getValues()) {
           StringRef UserTargetName(Val);
+          // Resolved AOT device name for deduplication across aliases.
+          const char *Device = nullptr;
           if (auto ValidDevice = gen::isGPUTarget<gen::IntelGPU>(Val)) {
             if (ValidDevice->empty()) {
               C.getDriver().Diag(clang::diag::err_drv_invalid_sycl_target)
                   << Val;
               continue;
             }
-            // Add the proper -device value to the list.
-            GpuArchList.emplace_back(
-                C.getDriver().getSYCLDeviceTriple("spir64_gen"),
-                ValidDevice->data());
             UserTargetName = "spir64_gen";
+            Device = ValidDevice->data();
           } else if (auto ValidDevice = gen::isGPUTarget<gen::NvidiaGPU>(Val)) {
             if (ValidDevice->empty()) {
               C.getDriver().Diag(clang::diag::err_drv_invalid_sycl_target)
                   << Val;
               continue;
             }
-            // Add the proper -device value to the list.
-            GpuArchList.emplace_back(
-                C.getDriver().getSYCLDeviceTriple("nvptx64-nvidia-cuda"),
-                ValidDevice->data());
             UserTargetName = "nvptx64-nvidia-cuda";
+            Device = ValidDevice->data();
           } else if (auto ValidDevice = gen::isGPUTarget<gen::AmdGPU>(Val)) {
             if (ValidDevice->empty()) {
               C.getDriver().Diag(clang::diag::err_drv_invalid_sycl_target)
                   << Val;
               continue;
             }
-            // Add the proper -device value to the list.
-            GpuArchList.emplace_back(
-                C.getDriver().getSYCLDeviceTriple("amdgcn-amd-amdhsa"),
-                ValidDevice->data());
             UserTargetName = "amdgcn-amd-amdhsa";
+            Device = ValidDevice->data();
           }
 
-          llvm::Triple TT(
-              C.getDriver().getSYCLDeviceTriple(Val, SYCLTargetsValues));
-          std::string NormalizedName = TT.normalize();
+          llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(UserTargetName,
+                                                            SYCLTargetsValues));
 
-          // Make sure we don't have a duplicate triple.
+          // Deduplicate targets: for GPU AOT, use resolved triple + device name
+          // since different aliases of the same device (e.g. intel_gpu_pvc vs
+          // intel_gpu_12_60_7) would otherwise spawn separate device actions.
+          std::string NormalizedName = TT.normalize();
+          if (Device) {
+            NormalizedName += ':';
+            NormalizedName += Device;
+          }
           auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
           if (Duplicate != FoundNormalizedTriples.end())
             continue;
@@ -6580,13 +6619,17 @@ class OffloadingActionBuilder final {
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
 
+          // Add the proper -device value to the list.
+          if (Device)
+            GpuArchList.emplace_back(TT, Device);
+
           if (isValidSYCLTriple(llvm::Triple(UserTargetName)))
             SYCLTripleList.push_back(
                 C.getDriver().getSYCLDeviceTriple(UserTargetName));
 
           // For user specified spir64_gen, add an empty device value as a
           // placeholder.
-          if (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
+          if (!Device && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen)
             GpuArchList.emplace_back(TT, nullptr);
         }
 

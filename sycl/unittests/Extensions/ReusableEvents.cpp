@@ -360,6 +360,52 @@ TEST_F(ReusableEventsTest, EnqueueSignalEventReusableEventsNotSupported) {
   Queue.wait();
 }
 
+// enqueue_signal_event, enqueue_wait_event and enqueue_wait_events with an
+// empty property list
+TEST_F(ReusableEventsTest, EnqueueWithEmptyPropertyList) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue SignalQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+  sycl::queue WaitQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  {
+    auto Event = syclex::make_event(Ctx);
+
+    EXPECT_NO_THROW({
+      syclex::enqueue_signal_event(SignalQueue, Event, syclex::properties{});
+    });
+
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+    EXPECT_EQ(UrEventCreateExp_counter, 1);
+    EXPECT_EQ(UrEventRelease_counter, 0);
+
+    mock::getCallbacks().set_replace_callback(
+        "urEnqueueEventsWaitWithBarrierExt",
+        &redefinedUrEnqueueEventsWaitWithBarrierExt_wait);
+    ExpectedNumEventsInWaitList = 1;
+    std::vector<sycl::event> Events{Event};
+
+    EXPECT_NO_THROW({
+      syclex::enqueue_wait_event(WaitQueue, Event, syclex::properties{});
+    });
+    EXPECT_NO_THROW({
+      syclex::enqueue_wait_events(WaitQueue, Events, syclex::properties{});
+    });
+
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 2);
+    EXPECT_EQ(UrEventCreateExp_counter, 1);
+  }
+
+  EXPECT_EQ(UrEventRelease_counter, 1);
+
+  SignalQueue.wait();
+  WaitQueue.wait();
+}
+
 // Default event constructor
 TEST_F(ReusableEventsTest, DefaultConstructor) {
   {

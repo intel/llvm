@@ -5,6 +5,8 @@
 
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // Verify that including multiple utility header files in the kernel code
 // is properly compiled with auto pre-compiled headers, for various c++

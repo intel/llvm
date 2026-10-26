@@ -393,17 +393,27 @@ llvm::Type *CodeGenTypes::ConvertSPVCooperativeMatrixType(RecordDecl *RD) {
   llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
 
   if (CompTy->isStructTy()) {
-    StringRef LlvmTyName = CompTy->getStructName();
-    // Emit half/int16/float for sycl[::*]::{half,bfloat16,tf32}
-    if (LlvmTyName.starts_with("class.sycl::") ||
-        LlvmTyName.starts_with("class.__sycl_internal::"))
-      LlvmTyName = LlvmTyName.rsplit("::").second;
+    // Emit half/int16/float/int8/int4 for
+    // sycl[::*]::{half,bfloat16,tf32,fp8_*_x,fp4_e2m1_x}. Match on the AST:
+    // LLVM gives a second specialization of a template a ".N" struct name.
+    const CXXRecordDecl *ElemRD =
+        TemplateArgs[0].getAsType()->getAsCXXRecordDecl();
+    StringRef LlvmTyName;
+    std::string QualName = ElemRD ? ElemRD->getQualifiedNameAsString() : "";
+    if (StringRef(QualName).starts_with("sycl::") ||
+        StringRef(QualName).starts_with("__sycl_internal::"))
+      LlvmTyName = ElemRD->getName();
     if (LlvmTyName == "half") {
       CompTy = llvm::Type::getHalfTy(getLLVMContext());
     } else if (LlvmTyName == "tf32") {
       CompTy = llvm::Type::getFloatTy(getLLVMContext());
     } else if (LlvmTyName == "bfloat16") {
       CompTy = llvm::Type::getInt16Ty(getLLVMContext());
+    } else if (LlvmTyName == "fp8_e5m2_x" || LlvmTyName == "fp8_e4m3_x" ||
+               LlvmTyName == "fp8_e8m0_x") {
+      CompTy = llvm::Type::getInt8Ty(getLLVMContext());
+    } else if (LlvmTyName == "fp4_e2m1_x") {
+      CompTy = llvm::Type::getIntNTy(getLLVMContext(), 4);
     } else {
       llvm_unreachable("Wrong matrix base type!");
     }

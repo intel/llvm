@@ -1,8 +1,8 @@
-// RUN: %if arch-intel_gpu_cri %{ %{build} -DFULL_ATOMIC16_COVERAGE -DFULL_ATOMIC32_COVERAGE -DFULL_ATOMIC64_COVERAGE -fsycl-device-code-split=per_kernel -Xspirv-translator -spirv-ext=+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics -o %t.out %}
-// RUN: %if arch-intel_gpu_cri %{ %{run} %t.out %}
-
+// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
+// UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %{full_atomic_flags} -o %t.cri.out
+// RUN: %if arch-intel_gpu_cri %{ %{run} %t.cri.out %} %else %{ %{run} %t.out %}
 
 #include "compare_exchange.h"
 
