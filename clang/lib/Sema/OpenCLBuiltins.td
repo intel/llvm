@@ -328,6 +328,8 @@ class Builtin<string _Name, list<Type> _Signature, list<bit> _Attributes = Attr.
   bit IsConst = _Attributes[1];
   // Function attribute __attribute__((convergent))
   bit IsConv = _Attributes[2];
+  // Function attribute speculatable
+  bit IsSpeculatable = 0;
   // Is function a variadic one
   bit IsVariadic = 0;
   // OpenCL extensions to which the function belongs.

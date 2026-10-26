@@ -20,7 +20,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
@@ -227,8 +226,7 @@ static cl::opt<bool> ClInstrumentWrites(
 
 static cl::opt<bool>
     ClUseStackSafety("asan-use-stack-safety", cl::Hidden, cl::init(true),
-                     cl::Hidden, cl::desc("Use Stack Safety analysis results"),
-                     cl::Optional);
+                     cl::Hidden, cl::desc("Use Stack Safety analysis results"));
 
 static cl::opt<bool> ClInstrumentAtomics(
     "asan-instrument-atomics",
@@ -479,13 +477,11 @@ static cl::opt<bool> ClSpirCheckShadowBounds(
     "asan-spir-shadow-bounds",
     cl::desc("Enable checking shadow bounds on SPIR-V target"), cl::Hidden,
     cl::init(false));
-static SmallSet<unsigned, 8> SrcAddrSpaces;
+
 static cl::list<unsigned> ClAddrSpaces(
     "asan-instrument-address-spaces",
     cl::desc("Only instrument variables in the specified address spaces."),
-    cl::Hidden, cl::CommaSeparated, cl::callback([](const unsigned &AddrSpace) {
-      SrcAddrSpaces.insert(AddrSpace);
-    }));
+    cl::Hidden, cl::CommaSeparated);
 
 // Debug flags.
 
@@ -1867,8 +1863,8 @@ static bool isSupportedAddrspace(const Triple &TargetTriple, Value *Addr) {
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   unsigned int AddrSpace = PtrTy->getPointerAddressSpace();
 
-  if (!SrcAddrSpaces.empty())
-    return SrcAddrSpaces.count(AddrSpace);
+  if (!ClAddrSpaces.empty())
+    return is_contained(ClAddrSpaces, AddrSpace);
 
   if (TargetTriple.isAMDGPU())
     return !isUnsupportedAMDGPUAddrspace(Addr);
@@ -2307,11 +2303,23 @@ bool AddressSanitizer::GlobalIsLinkerInitialized(GlobalVariable *G) {
   return true;
 }
 
+static bool isPointerPairOperand(Value *V, Type *IntptrTy) {
+  Type *Ty = V->getType();
+  if (Ty->isPtrOrPtrVectorTy())
+    return true;
+  return Ty->isIntOrIntVectorTy() &&
+         Ty->getScalarSizeInBits() == IntptrTy->getScalarSizeInBits();
+}
+
 bool AddressSanitizer::instrumentPointerComparisonOrSubtraction(
     Instruction *I, RuntimeCallInserter &RTCI) {
+  Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
+  if (!isPointerPairOperand(Param[0], IntptrTy) ||
+      !isPointerPairOperand(Param[1], IntptrTy))
+    return false;
+
   IRBuilder<> IRB(I);
   FunctionCallee F = isa<ICmpInst>(I) ? AsanPtrCmpFunction : AsanPtrSubFunction;
-  Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
 
   if (const auto *Ty = Param[0]->getType(); Ty->isVectorTy()) {
     const auto *VTy = dyn_cast<FixedVectorType>(Ty);

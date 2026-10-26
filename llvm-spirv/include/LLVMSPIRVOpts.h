@@ -291,6 +291,11 @@ public:
     return mapAddrSpace(SPIRAS_Private);
   }
 
+  /// Install the built-in address-space map and program address space for the
+  /// target triple. Returns false for an untabled non-SPIR triple, which has no
+  /// map and would otherwise emit a triple/layout-mismatched module.
+  bool deriveTargetAddrSpaces();
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }

@@ -6,6 +6,7 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
     set(UR_L0_COMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/common/device.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/platform.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/ze_intel_ext.hpp
 
         ${CMAKE_CURRENT_SOURCE_DIR}/common/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/device.cpp
@@ -53,7 +54,6 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
         umf::headers
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     set_target_properties(ur_adapter_level_zero_common PROPERTIES
@@ -62,7 +62,7 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
 endif()
 
 if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2)
-    set(ADAPTER_L0_TARGETS_TO_INSTALL LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers)
+    set(ADAPTER_L0_TARGETS_TO_INSTALL LevelZeroLoader LevelZeroLoader-Headers)
     # 'utils' target from 'level-zero-loader' includes path which is prefixed
     # in the source directory, this breaks the installation of 'utils' target.
     if(TARGET level_zero_utils)
@@ -177,7 +177,6 @@ if(UR_BUILD_ADAPTER_L0)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero PRIVATE
@@ -283,7 +282,6 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero_v2 PRIVATE

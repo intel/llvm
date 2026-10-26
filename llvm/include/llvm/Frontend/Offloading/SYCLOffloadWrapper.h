@@ -9,11 +9,14 @@
 #ifndef LLVM_CLANG_TOOLS_CLANG_LINKER_WRAPPER_SYCL_OFFLOAD_WRAPPER_H
 #define LLVM_CLANG_TOOLS_CLANG_LINKER_WRAPPER_SYCL_OFFLOAD_WRAPPER_H
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
+#include "llvm/Support/StringSaver.h"
 
 #include <string>
 #include <utility>
@@ -38,6 +41,9 @@ enum class SYCLBinaryImageFormat {
 
 /// Returns the ABI value of \p Format shared with the SYCL runtime.
 int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format);
+
+/// Returns the SYCL image format for an ABI value, or an error if invalid.
+Expected<SYCLBinaryImageFormat> int8ToBinaryImageFormat(int8_t Format);
 
 /// Misc property with the pre-compression format; mirrored in SYCL RT.
 constexpr char OriginalFormatPropName[] = "originalFormat";
@@ -87,6 +93,21 @@ struct SYCLWrappingOptions {
 llvm::Error
 wrapSYCLBinaries(llvm::Module &M, const llvm::SmallVector<SYCLImage> &Images,
                  SYCLWrappingOptions Options = SYCLWrappingOptions());
+
+/// Records the fields of \p Image other than the image bytes in the string
+/// table \p StringData of an offload binary entry, so that a fat binary can be
+/// wrapped later by readSYCLImages() and wrapSYCLBinaries(). \p Saver owns the
+/// serialized strings, which must outlive the offload binary serialization.
+void addSYCLImageStrings(
+    const SYCLImage &Image,
+    llvm::MapVector<llvm::StringRef, llvm::StringRef> &StringData,
+    llvm::StringSaver &Saver);
+
+/// Reads SYCL images from the offload binary container in \p Buffer, whose
+/// entries carry the strings recorded by addSYCLImageStrings(). The returned
+/// images reference the data of \p Buffer, which must outlive them.
+llvm::Expected<llvm::SmallVector<SYCLImage>>
+readSYCLImages(llvm::MemoryBufferRef Buffer);
 
 } // namespace offloading
 } // namespace llvm

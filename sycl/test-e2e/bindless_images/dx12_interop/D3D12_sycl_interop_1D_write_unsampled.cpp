@@ -1,6 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} -o %t.exe %link-directx
 // RUN: %{run} %t.exe --type float --channels 4 1024x
