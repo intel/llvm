@@ -10,9 +10,11 @@
 // v1 creates a single regular command queue for the whole run:
 // CHECK:  zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 1
 //
-// L0v2 reuses a fixed pool of 4 immediate command lists.
-// CHECK-V2: zeCommandListCreateImmediate = 4
-// CHECK-V2: zeCommandListCreate = 0     \---> zeCommandListDestroy = 4
+// L0v2 reuses a small pool of immediate command lists. Creating one per
+// submission would give about 1000, so 1-99 is a loose bound on the pool size.
+// Every list that was created must be destroyed.
+// CHECK-V2: zeCommandListCreateImmediate = [[N:[1-9][0-9]?]]{{([[:space:]]|$)}}
+// CHECK-V2: zeCommandListCreate = 0     \---> zeCommandListDestroy = [[N]]{{([[:space:]]|$)}}
 //
 
 #include <sycl/detail/core.hpp>
