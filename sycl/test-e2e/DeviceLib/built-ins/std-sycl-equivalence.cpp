@@ -267,7 +267,11 @@ int main() {
   };                                                                           \
   TEST_TYPES(FN)
 
-  MATH_FN(ldexp)
+  // Only test ldexp if double precision is supported since certain <cmath>
+  // headers promote float to double in this function.
+  if (test_fp64) {
+    MATH_FN(ldexp)
+  }
 #undef MATH_FN
 
   // genfloat -> genfloat * OUTPUT_TYPE (modf: genfloat; frexp: int)
@@ -286,7 +290,11 @@ int main() {
   TEST_TYPES(FN)
 
   MATH_FN(modf, T)
-  MATH_FN(frexp, int)
+  // Only test frexp if double precision is supported since certain <cmath>
+  // headers promote float to double in this function.
+  if (test_fp64) {
+    MATH_FN(frexp, int)
+  }
 #undef MATH_FN
 
   // genfloat * genfloat -> genfloat * int
