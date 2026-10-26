@@ -135,6 +135,8 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
 }
 
 llvm::Function *CodeGenModule::createSYCLRegisterLibFunc() {
+  assert(!LangOpts.SYCLUniquePrefix.empty() &&
+         "Expected non-empty SYCL unique prefix");
   std::string RegisterFuncName =
       "__sycl_registerlib_" + LangOpts.SYCLUniquePrefix;
   llvm::FunctionType *RegisterFTy =
