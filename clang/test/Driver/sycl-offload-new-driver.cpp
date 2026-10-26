@@ -405,6 +405,9 @@
 // RUN:          --offload-jobs=8 --no-offloadlib -fno-sycl-instrument-device-code \
 // RUN:          -fno-sycl-libspirv %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHK-PARALLEL-JOBS-OFFLOAD-JOBS %s
+// CHK-PARALLEL-JOBS-OFFLOAD-JOBS-NOT: argument unused during compilation: '-fsycl-max-parallel-link-jobs=4'
+// CHK-PARALLEL-JOBS-OFFLOAD-JOBS: warning: overriding '-fsycl-max-parallel-link-jobs=4' option with '--offload-jobs=8'
+// CHK-PARALLEL-JOBS-OFFLOAD-JOBS-NOT: argument unused during compilation: '-fsycl-max-parallel-link-jobs=4'
 // CHK-PARALLEL-JOBS-OFFLOAD-JOBS: clang-linker-wrapper{{.*}} "--wrapper-jobs=8"
 // CHK-PARALLEL-JOBS-OFFLOAD-JOBS-NOT: "--wrapper-jobs=4"
 
