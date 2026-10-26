@@ -66,24 +66,21 @@ template <layout AL, layout BL> bool run_combo() {
        accessor accA{bA, h, read_only};
        accessor accB{bB, h, read_only};
        accessor accC{bC, h, write_only};
-       h.parallel_for(
-           nd_range<2>{{4, 16}, {4, 16}}, [=](nd_item<2> it) {
-             auto sg = it.get_sub_group();
-             joint_matrix<sub_group, float, use::accumulator, M, N> c;
-             joint_matrix<sub_group, bfloat16, use::a, M, K, AL> a;
-             joint_matrix<sub_group, bfloat16, use::b, K, N, BL> b;
-             joint_matrix_fill(sg, c, 0.f);
-             joint_matrix_load(
-                 sg, a, accA.template get_multi_ptr<access::decorated::yes>(),
-                 lda);
-             joint_matrix_load(
-                 sg, b, accB.template get_multi_ptr<access::decorated::yes>(),
-                 ldb);
-             joint_matrix_mad(sg, c, a, b, c);
-             joint_matrix_store(
-                 sg, c, accC.template get_multi_ptr<access::decorated::yes>(), N,
-                 layout::row_major);
-           });
+       h.parallel_for(nd_range<2>{{4, 16}, {4, 16}}, [=](nd_item<2> it) {
+         auto sg = it.get_sub_group();
+         joint_matrix<sub_group, float, use::accumulator, M, N> c;
+         joint_matrix<sub_group, bfloat16, use::a, M, K, AL> a;
+         joint_matrix<sub_group, bfloat16, use::b, K, N, BL> b;
+         joint_matrix_fill(sg, c, 0.f);
+         joint_matrix_load(
+             sg, a, accA.template get_multi_ptr<access::decorated::yes>(), lda);
+         joint_matrix_load(
+             sg, b, accB.template get_multi_ptr<access::decorated::yes>(), ldb);
+         joint_matrix_mad(sg, c, a, b, c);
+         joint_matrix_store(
+             sg, c, accC.template get_multi_ptr<access::decorated::yes>(), N,
+             layout::row_major);
+       });
      }).wait();
   }
 

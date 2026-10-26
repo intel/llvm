@@ -237,8 +237,10 @@ void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
   // and the shared contraction dimension K. Whether the free dimension is the
   // strided one in memory depends on BOTH the use and the layout:
   //   - A row_major: element (m,k) at m*stride + k -> free dim (m) is strided.
-  //   - A col_major: element (m,k) at k*stride + m -> free dim (m) is contiguous.
-  //   - B row_major: element (k,n) at k*stride + n -> free dim (n) is contiguous.
+  //   - A col_major: element (m,k) at k*stride + m -> free dim (m) is
+  //   contiguous.
+  //   - B row_major: element (k,n) at k*stride + n -> free dim (n) is
+  //   contiguous.
   //   - B col_major: element (k,n) at n*stride + k -> free dim (n) is strided.
   // So the strided-free-dim access pattern applies to (A, row_major) and
   // (B, col_major); the contiguous-free-dim pattern applies to (A, col_major)

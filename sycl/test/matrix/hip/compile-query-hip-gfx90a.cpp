@@ -25,16 +25,14 @@ int main() {
   static_assert(myparams2::K == 4);
 
   // Validate the fp32 (float/float) MFMA combinations supported on gfx90a.
-  using myparams_f32 =
-      matrix_params<architecture::amd_gpu_gfx90a, float, float, float, float,
-                    16, 16, 4>;
+  using myparams_f32 = matrix_params<architecture::amd_gpu_gfx90a, float, float,
+                                     float, float, 16, 16, 4>;
   static_assert(myparams_f32::M == 16);
   static_assert(myparams_f32::N == 16);
   static_assert(myparams_f32::K == 4);
 
-  using myparams_f32_2 =
-      matrix_params<architecture::amd_gpu_gfx90a, float, float, float, float,
-                    32, 32, 2>;
+  using myparams_f32_2 = matrix_params<architecture::amd_gpu_gfx90a, float,
+                                       float, float, float, 32, 32, 2>;
   static_assert(myparams_f32_2::M == 32);
   static_assert(myparams_f32_2::N == 32);
   static_assert(myparams_f32_2::K == 2);
