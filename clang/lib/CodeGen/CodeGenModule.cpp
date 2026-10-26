@@ -348,6 +348,8 @@ createTargetCodeGenInfo(CodeGenModule &CGM, const TargetInfo &Target,
     return createLoongArchTargetCodeGenInfo(
         CGM, Target.getPointerWidth(LangAS::Default), ABIFRLen);
   }
+  case llvm::Triple::xtensa:
+    return createXtensaTargetCodeGenInfo(CGM);
 
   case llvm::Triple::native_cpu: {
     std::unique_ptr<TargetCodeGenInfo> HostTargetCodeGenInfo;

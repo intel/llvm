@@ -165,6 +165,7 @@ add_clang_library(clangCodeGen
   Targets/WebAssembly.cpp
   Targets/X86.cpp
   Targets/XCore.cpp
+  Targets/Xtensa.cpp
   TrapReasonBuilder.cpp
   VarBypassDetector.cpp
 
