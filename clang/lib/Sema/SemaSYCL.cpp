@@ -728,9 +728,11 @@ public:
                !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
       bool MaybeConstantExpr = false;
       Expr *NonDirectCallee = e->getCallee();
-      if (!NonDirectCallee->isValueDependent())
-        MaybeConstantExpr =
-            NonDirectCallee->isCXX11ConstantExpr(SemaSYCLRef.getASTContext());
+      if (!NonDirectCallee->isValueDependent()) {
+        APValue Result;
+        MaybeConstantExpr = NonDirectCallee->isCXX11ConstantExpr(
+            SemaSYCLRef.getASTContext(), Result);
+      }
       if (!MaybeConstantExpr)
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
             << SemaSYCL::KernelCallFunctionPointer;
@@ -861,7 +863,7 @@ static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
   return SemaSYCL::isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
 }
 
-static void addScopeAttrToLocalVars(FunctionDecl &F) {
+static void addScopeAttrToLocalVars(SemaSYCL &SemaSYCLRef, FunctionDecl &F) {
   for (Decl *D : F.decls()) {
     VarDecl *VD = dyn_cast<VarDecl>(D);
 
@@ -874,10 +876,19 @@ static void addScopeAttrToLocalVars(FunctionDecl &F) {
     // locals not declared in user code (lambda object parameter, byval
     // arguments) which will result in alloca w/o any attribute, so need WI
     // scope too.
-    SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
-                                 ? SYCLScopeAttr::Level::WorkItem
-                                 : SYCLScopeAttr::Level::WorkGroup;
-    VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
+    if (isSYCLPrivateMemoryVar(VD)) {
+      VD->addAttr(SYCLScopeAttr::CreateImplicit(
+          F.getASTContext(), SYCLScopeAttr::Level::WorkItem));
+    } else {
+      if (VD->needsDestruction(SemaSYCLRef.getASTContext()) ==
+          QualType::DK_cxx_destructor) {
+        SemaSYCLRef.Diag(VD->getLocation(),
+                         diag::warn_sycl_work_group_scope_dtor)
+            << 0 << VD << VD->getSourceRange();
+      }
+      VD->addAttr(SYCLScopeAttr::CreateImplicit(
+          F.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+    }
   }
 }
 
@@ -946,7 +957,7 @@ class SingleDeviceFunctionTracker {
         Caller->addAttr(
             SYCLScopeAttr::CreateImplicit(Parent.SemaSYCLRef.getASTContext(),
                                           SYCLScopeAttr::Level::WorkGroup));
-        addScopeAttrToLocalVars(*Caller);
+        addScopeAttrToLocalVars(Parent.SemaSYCLRef, *Caller);
       }
     }
 
@@ -3629,6 +3640,32 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // scope memory allocation.
     KernelObjClone->addAttr(SYCLScopeAttr::CreateImplicit(
         SemaSYCLRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+    if (!SemaSYCLRef.getDiagnostics().isIgnored(
+            diag::warn_sycl_work_group_scope_dtor,
+            KernelObjClone->getBeginLoc())) {
+      if (const CXXRecordDecl *RD =
+              KernelObjClone->getType()->getAsCXXRecordDecl();
+          RD && RD->isLambda()) {
+        for (const LambdaCapture &C : RD->captures()) {
+          if (C.capturesVariable() && C.getCaptureKind() == LCK_ByCopy &&
+              C.getCapturedVar()->getType().isDestructedType() ==
+                  QualType::DK_cxx_destructor) {
+            SemaSYCLRef.Diag(C.getCapturedVar()->getLocation(),
+                             diag::warn_sycl_work_group_scope_dtor)
+                << 1 << C.getCapturedVar()
+                << C.getCapturedVar()->getSourceRange();
+            // If this variable is implicitly captured it's worth pointing out
+            // where it is captured. Note: For explicit captures, the warning
+            // already indicates where the variable is captured, so we only add
+            // a note for implicit captures.
+            if (!C.isExplicit())
+              SemaSYCLRef.Diag(C.getLocation(),
+                               diag::note_var_explicitly_captured_here)
+                  << C.getCapturedVar() << /*explicitly*/ false;
+          }
+        }
+      }
+    }
 
     assert(CallOperator && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
@@ -3648,7 +3685,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       MarkWIScope.TraverseDecl(CallOperator);
       // Now mark local variables declared in the PFWG lambda with work group
       // scope attribute
-      addScopeAttrToLocalVars(*CallOperator);
+      addScopeAttrToLocalVars(SemaSYCLRef, *CallOperator);
     }
   }
 
@@ -8750,7 +8787,7 @@ class KernelParamsChecker : public ConstSubobjectVisitor<KernelParamsChecker> {
 
   void emitObjectAccessPathNotes() {
     for (auto Parent : llvm::reverse(ObjectAccessPath)) {
-      if (auto *FD = Parent.dyn_cast<const FieldDecl *>()) {
+      if (auto *FD = dyn_cast<const FieldDecl *>(Parent)) {
         const CXXRecordDecl *ParentRD = cast<CXXRecordDecl>(FD->getParent());
         if (ParentRD->isLambda()) {
           SemaSYCLRef.Diag(ParentRD->getLocation(), diag::note_within_capture)
@@ -8760,7 +8797,7 @@ class KernelParamsChecker : public ConstSubobjectVisitor<KernelParamsChecker> {
                            diag::note_within_field_of_type)
               << ParentRD;
         }
-      } else if (auto *BS = Parent.dyn_cast<const CXXBaseSpecifier *>()) {
+      } else if (auto *BS = dyn_cast<const CXXBaseSpecifier *>(Parent)) {
         CXXRecordDecl *RD = BS->getType()->getAsCXXRecordDecl();
         assert(RD);
         SemaSYCLRef.Diag(BS->getBeginLoc(), diag::note_within_base_of_type)
