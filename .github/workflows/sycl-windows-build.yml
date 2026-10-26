@@ -29,6 +29,11 @@ on:
         required: false
 
       # Artifacts:
+      upload_artifact:
+        type: boolean
+        required: false
+        default: true
+
       retention-days:
         description: 'Artifacts retention period'
         type: string
@@ -37,8 +42,6 @@ on:
       toolchain_artifact:
         type: string
         required: false
-        default: sycl_windows_default
-
       toolchain_artifact_filename:
         type: string
         default: llvm_sycl.tar.gz
@@ -86,6 +89,16 @@ on:
         options:
           - "sycl-toolchain"
           - "all"
+      upload_artifact:
+        description: 'Upload the toolchain artifact'
+        type: boolean
+        required: false
+        default: true
+      toolchain_artifact:
+        description: 'Artifact name'
+        type: string
+        required: false
+        default: sycl_windows_default
       toolchain_artifact_filename:
         type: choice
         options:
@@ -126,6 +139,12 @@ jobs:
     - uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
       with:
         arch: x64
+    - name: check-artifact-value
+      if: ${{ inputs.upload_artifact && inputs.toolchain_artifact == '' }}
+      shell: cmd
+      run: |
+        echo ERROR: toolchain_artifact is required when upload_artifact is true
+        exit /b 1
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
       if: ${{ !cancelled() && inputs.cxx == 'icx' }}
@@ -207,10 +226,10 @@ jobs:
         LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
         diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
-      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
+      if: ${{ !cancelled() && contains(inputs.changes, 'sycl') && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: ${{ (inputs.toolchain_artifact == '' || inputs.toolchain_artifact == 'sycl_windows_default') && 'sycl_windows_abi_symbols' || format('{0}_abi_symbols', inputs.toolchain_artifact) }}
+        name: ${{ format('{0}_abi_symbols', inputs.toolchain_artifact) }}
         path: build/new_sycl_symbols_windows.dump
         retention-days: ${{ inputs.retention-days }}
     - name: Install sycl-toolchain
@@ -219,10 +238,10 @@ jobs:
         cmake --build build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
       run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain release
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.release_toolchain_artifact }}
@@ -236,15 +255,15 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-sycl-test-utilities
 
     - name: Pack toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
       shell: bash
       run: |
         tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: ${{ inputs.toolchain_artifact || 'sycl_windows_default' }}
+        name: ${{ inputs.toolchain_artifact }}
         path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
 
