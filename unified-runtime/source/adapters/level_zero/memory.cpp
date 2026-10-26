@@ -73,6 +73,9 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -93,6 +96,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -125,6 +129,9 @@ ur_result_t enqueueMemCopyRectHelper(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -145,6 +152,7 @@ ur_result_t enqueueMemCopyRectHelper(
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -208,6 +216,9 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   ur_command_list_ptr_t CommandList{};
   // We want to batch these commands to avoid extra submissions (costly)
@@ -226,6 +237,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -322,6 +334,9 @@ static ur_result_t enqueueMemImageCommandHelper(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
@@ -342,6 +357,7 @@ static ur_result_t enqueueMemImageCommandHelper(
                          NumEventsInWaitList, EventWaitList,
                          CommandList->second.ZeQueue));
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
@@ -988,6 +1004,9 @@ ur_result_t urEnqueueMemBufferMap(
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
+    // Release the wait list on early return, until the event owns it.
+    OnScopeExit ReleaseWaitList(
+        [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
     UR_CALL(createEventAndAssociateQueue(
         Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, Queue->CommandListMap.end(),
@@ -995,6 +1014,7 @@ ur_result_t urEnqueueMemBufferMap(
 
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
+    TmpWaitList = {};
   }
 
   // Translate the host access mode info.
@@ -1164,12 +1184,16 @@ ur_result_t urEnqueueMemUnmap(
     ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
+    // Release the wait list on early return, until the event owns it.
+    OnScopeExit ReleaseWaitList(
+        [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_UNMAP,
                                          Queue->CommandListMap.end(),
                                          IsInternal, false));
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
+    TmpWaitList = {};
   }
 
   ur_buffer::Mapping MapInfo = {};
@@ -1357,6 +1381,9 @@ ur_result_t urEnqueueUSMPrefetch(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitListInternal, Queue, UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
@@ -1377,6 +1404,7 @@ ur_result_t urEnqueueUSMPrefetch(
                                        CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &WaitList = (*Event)->WaitList;
   const auto &ZeCommandList = CommandList->first;
@@ -1423,6 +1451,9 @@ ur_result_t urEnqueueUSMAdvise(
   ur_ze_event_list_t TmpWaitList;
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(0, nullptr, Queue,
                                                    UseCopyEngine));
+  // Release the wait list on early return, until the event owns it.
+  OnScopeExit ReleaseWaitList(
+      [&]() { TmpWaitList.releaseAndDestroyUrZeEventList(); });
 
   // Get a new command list to be used on this call
   ur_command_list_ptr_t CommandList{};
@@ -1443,6 +1474,7 @@ ur_result_t urEnqueueUSMAdvise(
                                        CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
+  TmpWaitList = {};
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;

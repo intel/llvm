@@ -45,7 +45,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(const device &rhs) = default;
-device::device(device &&rhs) = default;
+device::device(device &&rhs) noexcept = default;
 
 device::device(OpenCLDeviceIdT DeviceId) {
   detail::adapter_impl &Adapter =
@@ -365,6 +365,7 @@ __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, eus_per_xe_core, uint32_t)
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_lanes_per_hw_thread,
                          uint32_t)
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, ip_version, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, igca, ext::intel::info::igca)
 #undef __SYCL_INTEL_DEVICE_INST
 
 #define __SYCL_ONEAPI_DEVICE_INST(NS, NAME, RETURN_T)                          \
@@ -395,6 +396,9 @@ __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
                           composite_device, sycl::device)
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
+__SYCL_ONEAPI_DEVICE_INST(
+    ext::oneapi::info::device, priority_range,
+    ext::oneapi::info::device::priority_range::return_type)
 #undef __SYCL_ONEAPI_DEVICE_INST
 
 #define __SYCL_KHR_DEVICE_INST(NS, NAME, RETURN_T)                             \

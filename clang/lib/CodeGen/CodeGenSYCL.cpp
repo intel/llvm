@@ -14,6 +14,7 @@
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
 #include "clang/Basic/DiagnosticFrontend.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -111,6 +112,14 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
     return nullptr;
   }
   std::unique_ptr<llvm::MemoryBuffer> Buffer = std::move(BufferOrErr.get());
+  // The SYCL runtime registers device images through a descriptor that also
+  // carries their properties, kernel entries and options. loadLinkModules
+  // wraps an offload binary container into such a descriptor, so there is
+  // nothing to embed here. In SYCL CUDA compatibility mode the file is the
+  // CUDA fat binary, which CUDA registers.
+  if (getLangOpts().CUDA || llvm::identify_magic(Buffer->getBuffer()) ==
+                                llvm::file_magic::offload_binary)
+    return nullptr;
   llvm::Function *RegistrationFunc = nullptr;
   if (llvm::Error Err = llvm::offloading::wrapSYCLBinaries(
           getModule(),

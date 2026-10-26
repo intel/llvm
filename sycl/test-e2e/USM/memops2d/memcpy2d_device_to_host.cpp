@@ -13,6 +13,9 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10157
 
+// UNSUPPORTED: linux && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19468
+
 #include "memcpy2d_common.hpp"
 
 int main() { return test<Alloc::Device, Alloc::Host>(); }

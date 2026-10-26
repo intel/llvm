@@ -740,6 +740,10 @@ class Attr {
   // typical attribute serialization. This will cause tablegen to emit a call to
   // ASTRecordWriter::Add<Name>Attr and ASTRecordReader::read<Name>Attr.
   bit HasCustomSerialization = 0;
+  // Set to true if this attribute has a custom text node dump implementation
+  // in TextNodeDumper.cpp. This will prevent the automatic generation of a
+  // Visit method in AttrTextNodeDump.inc.
+  bit HasCustomTextNodeDump = 0;
   // Set to true if all of the attribute's arguments should be parsed in an
   // unevaluated context.
   bit ParseArgumentsAsUnevaluated = 0;
@@ -1063,6 +1067,12 @@ def InferredNoReturn : InheritableAttr {
   let Documentation = [InternalOnly];
 }
 
+def Speculatable : InheritableAttr {
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [InternalOnly];
+}
+
 def Annotate : InheritableParamOrStmtAttr {
   let Spellings = [Clang<"annotate">];
   let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
@@ -1338,13 +1348,6 @@ def Blocks : InheritableAttr {
 def Bounded : IgnoredAttr {
   // Does not have a [[]] spelling because the attribute is ignored.
   let Spellings = [GNU<"bounded">];
-}
-
-def CarriesDependency : InheritableParamAttr {
-  let Spellings = [GNU<"carries_dependency">,
-                   CXX11<"","carries_dependency", 200809>];
-  let Subjects = SubjectList<[ParmVar, ObjCMethod, Function], ErrorDiag>;
-  let Documentation = [CarriesDependencyDocs];
 }
 
 def CDecl : DeclOrTypeAttr {
@@ -2044,7 +2047,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       return std::nullopt;
 
     APValue NameLValue;
-    if (!NameCE->isCXX11ConstantExpr(Context, &NameLValue))
+    if (!NameCE->isCXX11ConstantExpr(Context, NameLValue))
       NameLValue = NameCE->getAPValueResult();
 
     if (!NameLValue.isLValue())
@@ -2150,7 +2153,7 @@ def SYCLAddIRAttrCommonMembers : SYCLAddIRAttrMemberCodeHolder<[{
       return std::nullopt;
 
     APValue ValueAPV;
-    if (!ValueCE->isCXX11ConstantExpr(Context, &ValueAPV))
+    if (!ValueCE->isCXX11ConstantExpr(Context, ValueAPV))
       ValueAPV = ValueCE->getAPValueResult();
 
     if (!ValueAPV.isLValue())
@@ -2424,11 +2427,13 @@ def OpenCLGlobalAddressSpace : TypeAttr {
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
 }
 
+// TODO: Remove OpenCLGlobalDeviceAddressSpace after deprecation.
 def OpenCLGlobalDeviceAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_global_device">];
   let Documentation = [OpenCLAddressSpaceGlobalExtDocs];
 }
 
+// TODO: Remove OpenCLGlobalHostAddressSpace after deprecation.
 def OpenCLGlobalHostAddressSpace : TypeAttr {
   let Spellings = [Clang<"opencl_global_host">];
   let Documentation = [OpenCLAddressSpaceGlobalExtDocs];
@@ -2450,6 +2455,36 @@ def OpenCLGenericAddressSpace : TypeAttr {
   let Spellings = [CustomKeyword<"__generic">, CustomKeyword<"generic">,
                    Clang<"opencl_generic">];
   let Documentation = [OpenCLAddressSpaceGenericDocs];
+}
+
+def SYCLPrivateAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_private">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLGlobalAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_global">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLLocalAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_local">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLConstantAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_constant">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
+}
+
+def SYCLGenericAddressSpace : TypeAttr {
+  let Spellings = [CXX11<"clang", "sycl_generic">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [SYCLAddressSpaceDocs];
 }
 
 def OpenCLNoSVM : Attr {
@@ -2595,7 +2630,7 @@ def MinSize : InheritableAttr {
 }
 
 def FlagEnum : InheritableAttr {
-  let Spellings = [Clang<"flag_enum">];
+  let Spellings = [ClangGCC<"flag_enum">];
   let Subjects = SubjectList<[Enum]>;
   let Documentation = [FlagEnumDocs];
   let SimpleHandler = 1;
@@ -3191,7 +3226,7 @@ def WebAssemblyExportName : InheritableAttr,
   let Spellings = [Clang<"export_name">];
   let Args = [StringArgument<"ExportName">];
   let Documentation = [WebAssemblyExportNameDocs];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Subjects = SubjectList<[Function, GlobalVar], ErrorDiag>;
 }
 
 def WebAssemblyImportModule : InheritableAttr,
@@ -3199,7 +3234,7 @@ def WebAssemblyImportModule : InheritableAttr,
   let Spellings = [Clang<"import_module">];
   let Args = [StringArgument<"ImportModule">];
   let Documentation = [WebAssemblyImportModuleDocs];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Subjects = SubjectList<[Function, GlobalVar], ErrorDiag>;
 }
 
 def WebAssemblyImportName : InheritableAttr,
@@ -3207,7 +3242,7 @@ def WebAssemblyImportName : InheritableAttr,
   let Spellings = [Clang<"import_name">];
   let Args = [StringArgument<"ImportName">];
   let Documentation = [WebAssemblyImportNameDocs];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Subjects = SubjectList<[Function, GlobalVar], ErrorDiag>;
 }
 
 def NoSplitStack : InheritableAttr {
@@ -5387,7 +5422,7 @@ def LoopHint : Attr {
   std::string getDiagnosticName(const PrintingPolicy &Policy) const;
   }];
 
-  let Documentation = [LoopHintDocs, UnrollHintDocs];
+  let Documentation = [LoopHintDocs, UnrollHintDocs, PipelineHintDocs];
   let HasCustomParsing = 1;
 }
 
@@ -5446,6 +5481,7 @@ def OMPCaptureKind : Attr {
   let SemaHandler = 0;
   let Args = [UnsignedArgument<"CaptureKindVal">];
   let Documentation = [InternalOnly];
+  let HasCustomTextNodeDump = 1;
   let AdditionalMembers = [{
     llvm::omp::Clause getCaptureKind() const {
       return static_cast<llvm::omp::Clause>(getCaptureKindVal());
@@ -5576,6 +5612,20 @@ def OMPAssume : InheritableAttr {
   let InheritEvenIfAlreadyPresent = 1;
   let Documentation = [OMPAssumeDocs];
   let Args = [StringArgument<"Assumption">];
+}
+
+def OMPInvariantPredicateBound : StmtAttr {
+  // Internal droppable hint on an `#pragma omp tile` intra-tile loop.
+  // RectCond: rectangular bound (`t < floor + T`) used instead of the stored
+  //           `min(floor + T, N)` condition.
+  // TileSize: constant intra-tile trip count T.
+  // Predicate: optional overshoot guard (`t < N`); omitted when N % T == 0.
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Subjects = SubjectList<[Stmt], ErrorDiag>;
+  let Args = [ExprArgument<"RectCond">, ExprArgument<"TileSize">,
+              ExprArgument<"Predicate", 1>];
+  let Documentation = [InternalOnly];
 }
 
 def InternalLinkage : InheritableAttr {

@@ -111,6 +111,7 @@ TEST_F(urLoaderConfigGetInfoTest, ValidLayersList) {
       "UR_LAYER_LEAK_CHECKING",
       "UR_LAYER_LIFETIME_VALIDATION",
       "UR_LAYER_FULL_VALIDATION",
+      "UR_LAYER_LAUNCH_BLOCKING",
       "UR_LAYER_TRACING",
       "UR_LAYER_ASAN",
       "UR_LAYER_MSAN",

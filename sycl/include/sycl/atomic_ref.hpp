@@ -32,7 +32,13 @@ inline namespace _V1 {
 namespace detail::half_impl {
 class half;
 }
+
+namespace ext::oneapi {
+class bfloat16;
+}
+
 using half = detail::half_impl::half;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 namespace detail {
 
@@ -41,11 +47,13 @@ using memory_scope = sycl::memory_scope;
 
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
-      (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+      (std::is_same_v<T, int> || std::is_same_v<T, short> ||
+       std::is_same_v<T, unsigned int> || std::is_same_v<T, unsigned short> ||
        std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
        std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
        std::is_same_v<T, float> || std::is_same_v<T, double> ||
-       std::is_pointer_v<T> || std::is_same_v<T, sycl::half>);
+       std::is_pointer_v<T> || std::is_same_v<T, sycl::half> ||
+       std::is_same_v<T, bfloat16>);
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
@@ -122,8 +130,10 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
 class atomic_ref_base {
   static_assert(
       detail::IsValidAtomicRefType<T>::value,
-      "Invalid atomic type.  Valid types are int, unsigned int, long, "
-      "unsigned long, long long, unsigned long long, sycl::half, float, double "
+      "Invalid atomic type.  Valid types are int, unsigned int, short, "
+      "unisgned short, long, "
+      "unsigned long, long long, unsigned long long, sycl::half, bfloat16, "
+      "float, double "
       "and pointer types");
   static_assert(detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
@@ -137,7 +147,6 @@ class atomic_ref_base {
   static_assert(DefaultOrder != sycl::memory_order::seq_cst,
                 "seq_cst memory order is not supported on AMDGPU");
 #endif
-
 
 public:
   using value_type = T;
@@ -442,7 +451,8 @@ template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace>
 class atomic_ref_impl<T, SizeOfT, DefaultOrder, DefaultScope, AddressSpace,
                       typename std::enable_if_t<std::is_floating_point_v<T> ||
-                                                std::is_same_v<T, sycl::half>>>
+                                                std::is_same_v<T, sycl::half> ||
+                                                std::is_same_v<T, bfloat16>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -568,7 +578,8 @@ class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 #endif
     T, /*SizeOfT = */ 8, DefaultOrder, DefaultScope, AddressSpace,
     typename std::enable_if_t<std::is_floating_point_v<T> ||
-                              std::is_same_v<T, sycl::half>>>
+                              std::is_same_v<T, sycl::half> ||
+                              std::is_same_v<T, bfloat16>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
 public:
@@ -585,12 +596,13 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
 #ifndef __SYCL_DEVICE_ONLY__
 class atomic_ref_impl<
 #else
-class
-    [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]] atomic_ref_impl<
+class [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]]
+atomic_ref_impl<
 #endif
     T, /*SizeOfT = */ 2, DefaultOrder, DefaultScope, AddressSpace,
     typename std::enable_if_t<std::is_floating_point_v<T> ||
-                              std::is_same_v<T, sycl::half>>>
+                              std::is_same_v<T, sycl::half> ||
+                              std::is_same_v<T, bfloat16>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
 public:
@@ -598,6 +610,136 @@ public:
                         AddressSpace>::atomic_ref_impl;
   using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                         AddressSpace>::atomic_ref_impl::operator=;
+};
+
+// Partial specialization for 16-bit integral types needed for optional
+// kernel features
+template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
+          access::address_space AddressSpace>
+#ifndef __SYCL_DEVICE_ONLY__
+class atomic_ref_impl<
+#else
+class [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]]
+atomic_ref_impl<
+#endif
+    T, /*SizeOfT = */ 2, DefaultOrder, DefaultScope, AddressSpace,
+    typename std::enable_if_t<std::is_integral_v<T>>>
+    : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                             AddressSpace> {
+public:
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl::operator=;
+
+  // 16-bit integer atomics have no native IAdd/ISub op on current backends.
+  // 16-bit atomic compare-exchange is natively supported, so emulate the
+  // add via a load + compare-exchange loop instead, matching what is
+  // already done for floating-point fetch_min/fetch_max.
+  T fetch_add(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old + operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator+=(T operand) const noexcept {
+    return fetch_add(operand) + operand;
+  }
+
+  T operator++(int) const noexcept { return fetch_add(1); }
+
+  T operator++() const noexcept { return fetch_add(1) + 1; }
+
+  // Emulate subtraction via fetch_add of the negated operand, matching what
+  // is already done for floating-point fetch_sub.
+  T fetch_sub(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    return this->fetch_add(static_cast<T>(-operand), order, scope);
+  }
+
+  T operator-=(T operand) const noexcept {
+    return fetch_sub(operand) - operand;
+  }
+
+  T operator--(int) const noexcept { return fetch_sub(1); }
+
+  T operator--() const noexcept { return fetch_sub(1) - 1; }
+
+  // 16-bit integer atomics have no native SMin/UMin or SMax/UMax op on
+  // current backends. 16-bit atomic compare-exchange is natively supported,
+  // so emulate fetch_min/fetch_max via a load + compare-exchange loop
+  // instead, matching what is already done above for fetch_add/fetch_sub.
+  T fetch_min(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    while (operand < old &&
+           !this->compare_exchange_weak(old, operand, order, scope)) {
+    }
+    return old;
+  }
+
+  T fetch_max(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    while (operand > old &&
+           !this->compare_exchange_weak(old, operand, order, scope)) {
+    }
+    return old;
+  }
+
+  // 16-bit integer atomics have no native And/Or/Xor op on current
+  // backends. 16-bit atomic compare-exchange is natively supported, so
+  // emulate the bitwise ops via a load + compare-exchange loop instead,
+  // matching what is already done above for fetch_add/fetch_sub.
+  T fetch_and(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old & operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator&=(T operand) const noexcept {
+    return fetch_and(operand) & operand;
+  }
+
+  T fetch_or(T operand, memory_order order = DefaultOrder,
+             memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old | operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator|=(T operand) const noexcept { return fetch_or(operand) | operand; }
+
+  T fetch_xor(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old ^ operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator^=(T operand) const noexcept {
+    return fetch_xor(operand) ^ operand;
+  }
 };
 
 // Partial specialization for pointer types

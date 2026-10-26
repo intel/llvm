@@ -1,4 +1,11 @@
+// TODO: Remove 'UNSUPPORTED' below once
+// https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
+// intel/llvm.
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78263
 // REQUIRES: windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out

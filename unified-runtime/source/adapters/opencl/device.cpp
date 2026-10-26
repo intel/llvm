@@ -594,6 +594,29 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    // cl_ext_float_atomics alone is not enough: e.g. Gen12 reports it with only
+    // fp16 load/store/min/max, so require every fp16 atomic capability in
+    // both address spaces.
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(
+        Device->checkDeviceExtensions({"cl_ext_float_atomics"}, Supported));
+    if (!Supported)
+      return ReturnValue(false);
+
+    cl_device_fp_atomic_capabilities_ext Caps = 0;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        Device->CLDevice, CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT,
+        sizeof(Caps), &Caps, nullptr));
+    constexpr cl_device_fp_atomic_capabilities_ext Required =
+        CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT |
+        CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT |
+        CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT |
+        CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT |
+        CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT |
+        CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT;
+    return ReturnValue((Caps & Required) == Required);
+  }
   case UR_DEVICE_INFO_NUM_COMPUTE_UNITS: {
 
     bool ExtensionSupported = false;
@@ -1585,6 +1608,8 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
+  case UR_DEVICE_INFO_IGCA_TARGET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:

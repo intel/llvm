@@ -1644,6 +1644,12 @@ if (dev.has(aspect::ext_intel_igca)) {
 
 === Deprecated queries
 
+// __INTEL_PREVIEW_BREAKING_CHANGES: The deprecated descriptors listed below
+// (the left column of the table) will be removed. When they are removed,
+// update this section: either remove it completely or rename it to
+// "Removed queries" and state that these descriptors are no longer available
+// and the replacement descriptors must be used instead.
+
 The table below lists deprecated queries, that would soon be removed and their replacements:
 
 [%header,cols="1,1"]

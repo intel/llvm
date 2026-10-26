@@ -1,0 +1,38 @@
+// REQUIRES: level_zero
+//
+// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
+// so the matching zeEventDestroy calls are reported as a negative leak there.
+// Ignore negative leaks on Windows until the loader is updated.
+// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
+//
+// RUN: %{build} -o %t.out
+// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
+
+// Tests that additional resources required by discard_write reductions do not
+// leak.
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
+
+using namespace sycl;
+
+int main() {
+  queue Q;
+
+  nd_range<1> NDRange(range<1>{49 * 5}, range<1>{49});
+  std::plus<> BOp;
+
+  buffer<int, 1> OutBuf(1);
+  buffer<int, 1> InBuf(49 * 5);
+  Q.submit([&](handler &CGH) {
+     auto In = InBuf.get_access<access_mode::read>(CGH);
+     auto Redu = reduction(OutBuf, CGH, 0, BOp,
+                           {property::reduction::initialize_to_identity{}});
+     CGH.parallel_for<class DiscardSum>(
+         NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
+           Sum.combine(In[NDIt.get_global_linear_id()]);
+         });
+   }).wait_and_throw();
+  return 0;
+}

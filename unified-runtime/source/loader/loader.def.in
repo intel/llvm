@@ -294,6 +294,7 @@ EXPORTS
 	urPrintDeviceGetNativeHandleParams
 	urPrintDeviceGetParams
 	urPrintDeviceGetSelectedParams
+	urPrintDeviceIgcaFeatureFlags
 	urPrintDeviceInfo
 	urPrintDeviceInitFlags
 	urPrintDeviceLocalMemType
@@ -393,6 +394,7 @@ EXPORTS
 	urPrintExpKernelArgType
 	urPrintExpPeerInfo
 	urPrintExpProgramFlags
+	urPrintExpQueuePriorityProperties
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties

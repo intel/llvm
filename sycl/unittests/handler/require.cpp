@@ -1,3 +1,5 @@
+#include "../scheduler/SchedulerTestUtils.hpp"
+
 #include <gtest/gtest.h>
 #include <helpers/UrMock.hpp>
 
@@ -232,5 +234,26 @@ TEST(Require, checkIfAccBoundedToHandler) {
         Q.wait();
       }
     }
+  }
+}
+
+TEST(Require, RequireWithDuplicateAssociationIsNoOp) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q;
+  int data = 5;
+  {
+    sycl::buffer<int, 1> buf(&data, 1);
+    auto &QueueImpl = *sycl::detail::getSyclObjImpl(Q);
+    MockHandler MockCGH(QueueImpl, /*CallerNeedsEvent=*/true);
+    sycl::accessor acc(buf);
+
+    // add duplicate association
+    MockCGH.require(acc);
+    MockCGH.require(acc);
+
+    // Check that adding the same accessor twice does not create duplicate
+    // entries
+    EXPECT_EQ(MockCGH.getAccStorage().size(), 1u);
+    EXPECT_EQ(MockCGH.getRequirements().size(), 1u);
   }
 }

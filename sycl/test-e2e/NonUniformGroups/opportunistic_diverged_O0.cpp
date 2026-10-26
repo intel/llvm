@@ -9,7 +9,7 @@
 // wrongly includes work-items that already returned from the kernel.
 //
 // Compile at -O0 specifically to pin down the inlining-dependent behaviour.
-// RUN: %{build} -O0 -o %t.out
+// RUN: %{build} %O0 -o %t.out
 // RUN: %{run} %t.out
 //
 // The kernels request a sub-group size of 16.

@@ -1,3 +1,5 @@
+// REQUIRES: jit
+
 // RUN: %{build} -Wno-error=unused-command-line-argument -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 

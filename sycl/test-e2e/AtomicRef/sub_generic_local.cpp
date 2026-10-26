@@ -1,5 +1,11 @@
+// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
+// UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %{full_atomic_flags} -o %t.cri.out
+// RUN: %if arch-intel_gpu_cri %{ %{run} %t.cri.out %} %else %{ %{run} %t.out %}
+
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23416
 
 #define TEST_GENERIC_IN_LOCAL 1
 #include "sub.h"
