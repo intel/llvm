@@ -15,9 +15,6 @@
 
 // REQUIRES: arch-intel_gpu_bmg_g21 || arch-intel_gpu_cri
 
-// XFAIL: windows && run-mode
-// XFAIL-TRACKER: GSD-4149
-
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-INTENDED: The required SPIR-V extensions are not supported.
 

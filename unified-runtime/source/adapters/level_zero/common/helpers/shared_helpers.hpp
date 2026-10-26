@@ -31,10 +31,10 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "../interfaces.hpp"
+#include "../ze_intel_ext.hpp"
 #include "common/ur_ref_count.hpp"
 #include "logger/ur_logger.hpp"
 
@@ -171,7 +171,7 @@ bool setEnvVar(const char *name, const char *value);
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
-template <class T> ze_structure_type_ext_t getZexStructureType();
+template <class T> ur_ze_structure_type_ext_t getZexStructureType();
 template <class T> zes_structure_type_t getZesStructureType();
 
 // The helpers to properly default initialize Level-Zero descriptor and

@@ -14,6 +14,7 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/info/context.hpp>              // for is_context_info_desc
+#include <sycl/khr/properties.hpp>            // for khr properties
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/usm/usm_enums.hpp>             // for usm::alloc
 #include <unified-runtime/ur_api.h>           // for ur_native_handle_t
@@ -52,6 +53,12 @@ auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 /// \ingroup sycl_api
 class __SYCL_EXPORT context : public detail::OwnerLessBase<context> {
   friend sycl::detail::ImplUtils;
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForContext =
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList, context>;
+#endif
 
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
@@ -160,6 +167,52 @@ public:
   explicit context(const std::vector<device> &DeviceList,
                    async_handler AsyncHandler,
                    const property_list &PropList = {});
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // sycl_khr_properties context constructors. PropertyOrList is not defaulted,
+  // as that would make `context{}` ambiguous with the property_list overloads.
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(PropertyOrList) : context(property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(async_handler AsyncHandler, PropertyOrList)
+      : context(AsyncHandler, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(const device &Device, PropertyOrList)
+      : context(Device, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(const device &Device, async_handler AsyncHandler,
+                   PropertyOrList)
+      : context(Device, AsyncHandler, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(const platform &Platform, PropertyOrList)
+      : context(Platform, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(const platform &Platform, async_handler AsyncHandler,
+                   PropertyOrList)
+      : context(Platform, AsyncHandler, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(const std::vector<device> &DeviceList, PropertyOrList)
+      : context(DeviceList, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForContext<PropertyOrList>>>
+  explicit context(const std::vector<device> &DeviceList,
+                   async_handler AsyncHandler, PropertyOrList)
+      : context(DeviceList, AsyncHandler, property_list{}) {}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
   /// Constructs a SYCL context instance from OpenCL cl_context.
   ///

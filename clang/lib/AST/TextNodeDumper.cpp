@@ -3415,6 +3415,10 @@ void TextNodeDumper::VisitOpenACCRoutineDeclAttr(
     });
 }
 
+void TextNodeDumper::VisitOMPCaptureKindAttr(const OMPCaptureKindAttr *A) {
+  OS << " " << llvm::omp::getOpenMPClauseName(A->getCaptureKind());
+}
+
 void TextNodeDumper::VisitEmbedExpr(const EmbedExpr *S) {
   AddChild("begin", [=] { OS << S->getStartingElementPos(); });
   AddChild("number of elements", [=] { OS << S->getDataElementCount(); });

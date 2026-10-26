@@ -195,6 +195,14 @@ template <typename T, typename Class>
 inline constexpr bool is_property_list_for_v =
     is_property_list_for<T, Class>::value;
 
+namespace property::detail {
+// A single property or a property list that is for `Class`; the form used by
+// the constraints of every property-accepting entry point.
+template <typename T, typename Class>
+inline constexpr bool is_property_or_list_for_v =
+    is_property_for_v<T, Class> || is_property_list_for_v<T, Class>;
+} // namespace property::detail
+
 // The properties container.
 template <typename... EncodedProperties>
 class __SYCL_EBO properties

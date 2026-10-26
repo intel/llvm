@@ -822,6 +822,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   ZeDeviceVectorWidthExt.Supported =
       ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeDeviceGetPriorityLevels",
+                   reinterpret_cast<void **>(
+                       &ZeQueuePriorityExt.zeDeviceGetPriorityLevels)));
+
+  ZeQueuePriorityExt.Supported =
+      ZeQueuePriorityExt.zeDeviceGetPriorityLevels != nullptr;
   return UR_RESULT_SUCCESS;
 }
 

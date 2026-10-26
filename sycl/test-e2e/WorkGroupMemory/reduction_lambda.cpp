@@ -1,8 +1,10 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 #include <iostream>
 
 #include "common.hpp"

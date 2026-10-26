@@ -305,6 +305,7 @@ runs:
       # Run dpsycl-ls
       dpsycl-ls --verbose
   - name: Build and run benchmarks
+    id: run_benchmarks
     shell: bash
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
@@ -396,6 +397,16 @@ runs:
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
       done
+  - name: Upload github summaries as artifact
+    if: ${{ !cancelled() && steps.run_benchmarks.outcome != 'skipped' }}
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+    with:
+      name: benchmark-summaries-${{ env.SAVE_NAME }}
+      path: |
+        ./github_summary_exe.md
+        ./github_summary_reg.md
+      if-no-files-found: ignore
+      retention-days: 7
   - name: Push benchmarks results
     if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
     shell: bash

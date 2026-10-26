@@ -553,10 +553,13 @@ static void addSYCLDeviceSanitizerLibs(
     if (SYCLTargetStr.starts_with("spir64_x86_64"))
       return AOT_CPU;
 
-    if (SYCLTargetStr == "intel_gpu_pvc")
+    // Resolve intel_gpu_* so that every alias of a device (e.g.
+    // intel_gpu_12_60_7 for pvc) selects the same library.
+    StringRef GenDevice = SYCL::gen::resolveGenDevice(SYCLTargetStr);
+    if (GenDevice == "pvc")
       return AOT_PVC;
 
-    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+    if (GenDevice == "dg2" || GenDevice.starts_with("acm_g"))
       return AOT_DG2;
 
     if (SYCLTargetStr.starts_with("spir64_gen")) {

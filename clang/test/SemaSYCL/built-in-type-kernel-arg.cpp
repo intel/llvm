@@ -115,33 +115,33 @@ int main() {
 // GEN-AS-NEXT: DeclRefExpr {{.*}} 'test_struct' lvalue ParmVar {{.*}} '_arg_s'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *, __wrapper_class) __attribute__((device_kernel))'
-// CHECK: ParmVarDecl {{.*}} used _arg_new_data_addr '__global int *'
-// CHECK: ParmVarDecl {{.*}} used _arg_data_addr '__global int *'
+// CHECK: {{.*}}kernel_pointer{{.*}} 'void ({{\[\[clang::sycl_global\]\]}} int *, {{\[\[clang::sycl_global\]\]}} int *, __wrapper_class) __attribute__((device_kernel))'
+// CHECK: ParmVarDecl {{.*}} used _arg_new_data_addr '{{\[\[clang::sycl_global\]\]}} int *'
+// CHECK: ParmVarDecl {{.*}} used _arg_data_addr '{{\[\[clang::sycl_global\]\]}} int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_ptr_array '__wrapper_class'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}built-in-type-kernel-arg.cpp{{.*}})'
 
 // Check that lambda fields of pointer types are initialized
 // CHECK: InitListExpr
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_new_data_addr' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue ParmVar {{.*}} '_arg_new_data_addr' '{{\[\[clang::sycl_global\]\]}} int *'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_data_addr' '__global int *'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue ParmVar {{.*}} '_arg_data_addr' '{{\[\[clang::sycl_global\]\]}} int *'
 // GLOB-AS: InitListExpr {{.*}} 'int *[2]'
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 // GEN-AS-NEXT: ArrayInitLoopExpr {{.*}} 'int *[2]'

@@ -103,8 +103,7 @@ struct deci_test_cases {
   }
 };
 
-template <template <typename> typename test_struct>
-vector<cmplx<double>> cplx_test_cases<test_struct>::std_test_values = {
+static const vector<cmplx<double>> cplx_default_test_values = {
     cmplx(1, 1),
     cmplx(-1, 1),
     cmplx(1, -1),
@@ -118,6 +117,21 @@ vector<cmplx<double>> cplx_test_cases<test_struct>::std_test_values = {
     cmplx(NANd, INFINITYd),
     cmplx(INFINITYd, NANd),
 };
+
+template <template <typename> typename test_struct>
+vector<cmplx<double>> cplx_test_cases<test_struct>::std_test_values =
+    cplx_default_test_values;
+
+// Large arguments for the inverse functions: z + sqrt(z^2 -+ 1) cancels for
+// real(z) < 0 (imag(z) > 0 for asin) and used to yield -inf. Beyond half's
+// range these round to inf and exercise the special-case paths instead.
+static vector<cmplx<double>> with_large_args(vector<cmplx<double>> v) {
+  v.insert(v.end(), {cmplx(-4e7, 1.), cmplx(-9e7, 1.), cmplx(-4.45712982e8, 1.),
+                     cmplx(-4.5e15, 1.), cmplx(-1e8, -1.), cmplx(-1., 1e8),
+                     cmplx(-1., -1e8), cmplx(1., 1e8), cmplx(-0., 1e8),
+                     cmplx(-1e8, 0.), cmplx(-1e8, -0.)});
+  return v;
+}
 
 template <template <typename> typename test_struct>
 vector<tuple<cmplx<double>, cmplx<double>>>
@@ -138,8 +152,16 @@ vector<tuple<double, double>> deci_test_cases<test_struct>::comp_test_values =
 // test_acos
 template <> const char *cplx_test_cases<test_acos>::test_name = "acos test";
 
+template <>
+vector<cmplx<double>> cplx_test_cases<test_acos>::std_test_values =
+    with_large_args(cplx_default_test_values);
+
 // test_asin
 template <> const char *cplx_test_cases<test_asin>::test_name = "asin test";
+
+template <>
+vector<cmplx<double>> cplx_test_cases<test_asin>::std_test_values =
+    with_large_args(cplx_default_test_values);
 
 // test_atan
 template <> const char *cplx_test_cases<test_atan>::test_name = "atan test";
@@ -169,8 +191,16 @@ vector<tuple<cmplx<double>, cmplx<double>>>
 // test_acosh
 template <> const char *cplx_test_cases<test_acosh>::test_name = "acosh test";
 
+template <>
+vector<cmplx<double>> cplx_test_cases<test_acosh>::std_test_values =
+    with_large_args(cplx_default_test_values);
+
 // test_asinh
 template <> const char *cplx_test_cases<test_asinh>::test_name = "asinh test";
+
+template <>
+vector<cmplx<double>> cplx_test_cases<test_asinh>::std_test_values =
+    with_large_args(cplx_default_test_values);
 
 // test_atanh
 template <> const char *cplx_test_cases<test_atanh>::test_name = "atanh test";
