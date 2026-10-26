@@ -20,6 +20,14 @@
 
 #include <type_traits>
 
+template <typename T>
+inline constexpr bool __sycl_cmath_use_native_v =
+#ifdef __FAST_MATH__
+    std::is_same_v<T, float>;
+#else
+    false;
+#endif
+
 // Promotion templates: the C++ standard library provides overloads that allow
 // arguments of math functions to be promoted. Any floating-point argument is
 // allowed to accept any integer type, which should then be promoted to double.
@@ -71,7 +79,7 @@ using __sycl_promote_t =
 //       supports C++23.
 // TODO: constexpr support for these functions (C++23, C++26)
 //
-// The following 4 macros provide an easy way to define these overloads for
+// The following macros provide an easy way to define these overloads for
 // basic built-ins with one or two floating-point parameters.
 //
 // The double and the f suffixed versions must be defined in the global
@@ -89,6 +97,32 @@ using __sycl_promote_t =
   __SYCL_DEVICE float NAME(float x) { return __spirv_ocl_##NAME(x); }          \
   template <typename T> __SYCL_DEVICE __sycl_promote_t<T> NAME(T x) {          \
     return __spirv_ocl_##NAME((double)x);                                      \
+  }
+
+#define __SYCL_SPIRV_MAP_UNARY_NATIVE_C(NAME)                                  \
+  template <typename T>                                                       \
+  __SYCL_DEVICE T __sycl_cmath_##NAME(T x) {                                  \
+    if constexpr (__sycl_cmath_use_native_v<T>)                                \
+      return __spirv_ocl_native_##NAME(x);                                    \
+    else                                                                     \
+      return __spirv_ocl_##NAME(x);                                           \
+  }                                                                          \
+  __SYCL_DEVICE_C float NAME##f(float x) {                                    \
+    return __sycl_cmath_##NAME(x);                                            \
+  }                                                                          \
+  __SYCL_DEVICE_C double NAME(double x) {                                    \
+    return __sycl_cmath_##NAME(x);                                            \
+  }
+
+#define __SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(NAME)                                \
+  using ::NAME;                                                              \
+  using ::NAME##f;                                                           \
+  __SYCL_DEVICE float NAME(float x) {                                        \
+    return ::__sycl_cmath_##NAME(x);                                          \
+  }                                                                          \
+  template <typename T>                                                      \
+  __SYCL_DEVICE __sycl_promote_t<T> NAME(T x) {                               \
+    return ::__sycl_cmath_##NAME((double)x);                                  \
   }
 
 #define __SYCL_SPIRV_MAP_BINARY_C(NAME)                                        \
@@ -142,28 +176,28 @@ __SYCL_SPIRV_MAP_BINARY_C(fdim);
 /// Exponential functions
 //
 
-__SYCL_SPIRV_MAP_UNARY_C(exp);
-__SYCL_SPIRV_MAP_UNARY_C(exp2);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(exp);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(exp2);
 __SYCL_SPIRV_MAP_UNARY_C(expm1);
-__SYCL_SPIRV_MAP_UNARY_C(log);
-__SYCL_SPIRV_MAP_UNARY_C(log10);
-__SYCL_SPIRV_MAP_UNARY_C(log2);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(log);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(log10);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(log2);
 __SYCL_SPIRV_MAP_UNARY_C(log1p);
 
 /// Power functions
 //
 
 __SYCL_SPIRV_MAP_BINARY_C(pow);
-__SYCL_SPIRV_MAP_UNARY_C(sqrt);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(sqrt);
 __SYCL_SPIRV_MAP_UNARY_C(cbrt);
 __SYCL_SPIRV_MAP_BINARY_C(hypot);
 
 /// Trigonometric functions
 //
 
-__SYCL_SPIRV_MAP_UNARY_C(sin);
-__SYCL_SPIRV_MAP_UNARY_C(cos);
-__SYCL_SPIRV_MAP_UNARY_C(tan);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(sin);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(cos);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_C(tan);
 __SYCL_SPIRV_MAP_UNARY_C(asin);
 __SYCL_SPIRV_MAP_UNARY_C(acos);
 __SYCL_SPIRV_MAP_UNARY_C(atan);
@@ -331,24 +365,24 @@ __SYCL_DEVICE __sycl_promote_t<T, U> remquo(T x, U y, int *q) {
 // using ::nanf;
 
 // Exponential functions
-__SYCL_SPIRV_MAP_UNARY_CXX(exp);
-__SYCL_SPIRV_MAP_UNARY_CXX(exp2);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(exp);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(exp2);
 __SYCL_SPIRV_MAP_UNARY_CXX(expm1);
-__SYCL_SPIRV_MAP_UNARY_CXX(log);
-__SYCL_SPIRV_MAP_UNARY_CXX(log10);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(log);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(log10);
 __SYCL_SPIRV_MAP_UNARY_CXX(log1p);
-__SYCL_SPIRV_MAP_UNARY_CXX(log2);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(log2);
 
 // Power functions
 __SYCL_SPIRV_MAP_BINARY_CXX(pow);
-__SYCL_SPIRV_MAP_UNARY_CXX(sqrt);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(sqrt);
 __SYCL_SPIRV_MAP_UNARY_CXX(cbrt);
 __SYCL_SPIRV_MAP_BINARY_CXX(hypot);
 
 // Trigonometric functions
-__SYCL_SPIRV_MAP_UNARY_CXX(sin);
-__SYCL_SPIRV_MAP_UNARY_CXX(cos);
-__SYCL_SPIRV_MAP_UNARY_CXX(tan);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(sin);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(cos);
+__SYCL_SPIRV_MAP_UNARY_NATIVE_CXX(tan);
 __SYCL_SPIRV_MAP_UNARY_CXX(asin);
 __SYCL_SPIRV_MAP_UNARY_CXX(acos);
 __SYCL_SPIRV_MAP_UNARY_CXX(atan);
@@ -497,6 +531,8 @@ __SYCL_DEVICE_C int _dsign(double x) { return __builtin_signbit(x); }
 #undef __SYCL_SPIRV_MAP_BINARY_CXX
 #undef __SYCL_SPIRV_MAP_UNARY_C
 #undef __SYCL_SPIRV_MAP_UNARY_CXX
+#undef __SYCL_SPIRV_MAP_UNARY_NATIVE_C
+#undef __SYCL_SPIRV_MAP_UNARY_NATIVE_CXX
 #undef __SYCL_DEVICE_C
 #undef __SYCL_DEVICE
 #endif // __SYCL_DEVICE_ONLY__
