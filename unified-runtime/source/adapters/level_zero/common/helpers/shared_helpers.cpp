@@ -320,6 +320,11 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_external_memory_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_EXTERNAL_MEMORY_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }

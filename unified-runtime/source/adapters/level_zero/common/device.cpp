@@ -1554,15 +1554,9 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP: {
     // Only report support if the driver can export device allocations as at
     // least one external memory type.
-    ze_device_external_memory_properties_t ExtMemProps{};
-    ExtMemProps.stype = ZE_STRUCTURE_TYPE_DEVICE_EXTERNAL_MEMORY_PROPERTIES;
-    ze_result_t ZeResult = ZE_CALL_NOCHECK(zeDeviceGetExternalMemoryProperties,
-                                           (Device->ZeDevice, &ExtMemProps));
-    if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-      return ReturnValue(false);
-    if (ZeResult != ZE_RESULT_SUCCESS)
-      return ze2urResult(ZeResult);
-    return ReturnValue(ExtMemProps.memoryAllocationExportTypes != 0);
+    return ReturnValue(
+        Device->ZeDeviceExternalMemoryProperties->memoryAllocationExportTypes !=
+        0);
   }
   case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
@@ -2134,6 +2128,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceMemoryAccessProperties.Compute =
       [ZeDevice](ze_device_memory_access_properties_t &Properties) {
         ZE_CALL_NOCHECK(zeDeviceGetMemoryAccessProperties,
+                        (ZeDevice, &Properties));
+      };
+
+  ZeDeviceExternalMemoryProperties.Compute =
+      [ZeDevice](ze_device_external_memory_properties_t &Properties) {
+        // If the query fails, the export types remain zero-initialized and
+        // no export support is reported.
+        ZE_CALL_NOCHECK(zeDeviceGetExternalMemoryProperties,
                         (ZeDevice, &Properties));
       };
 
