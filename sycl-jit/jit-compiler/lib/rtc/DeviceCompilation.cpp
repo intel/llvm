@@ -634,6 +634,7 @@ public:
   std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
   std::string_view getLibclcDir() const { return LibclcDir; }
+  std::string_view getStdlibPath() const { return StdlibPathBase; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
@@ -641,6 +642,7 @@ private:
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
+  std::string StdlibPathBase = (Prefix + "/lib/").str();
 
   PrecompiledPreambles Preambles;
 };
@@ -801,12 +803,12 @@ static void getDeviceLibraries(const ArgList &Args,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {
+      "libsycl-crt",       "libsycl-cmath",
 #if defined(_WIN32)
-                                             "libsycl-msvc-math",
+      "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf",
-                                             "libclang_rt.builtins"};
+      "libsycl-imf",       "libc",          "libclang_rt.builtins"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -866,6 +868,8 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     std::string LibPath;
     if (LibName.find("libspirv") != std::string::npos)
       LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
+    else if (LibName == "libc.bc")
+      LibPath = (TC.getStdlibPath() + "/" + TripleName + "/" + LibName).str();
     else if (LibName == "libclang_rt.builtins.bc")
       LibPath =
           (TC.getPrefix() + getCompilerRTSuffix() + TripleName + "/" + LibName)

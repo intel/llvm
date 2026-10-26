@@ -6165,11 +6165,21 @@ class OffloadingActionBuilder final {
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
-      if (TC->getTriple().isSPIROrSPIRV()) {
+      bool LinkDeviceLibc = false;
+      bool LinkDeviceBuiltin = false;
+      bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
+                                        options::OPT_no_offloadlib, true);
+      if (TC->getTriple().isSPIROrSPIRV() && !NoOffloadLib) {
+        if (std::optional<std::string> StdlibPath = TC->getStdlibPath()) {
+          LinkDeviceLibc = true;
+          LibLocCandidates.emplace_back(*StdlibPath);
+        }
         SmallString<128> SPIRVCompilerRTPath(TC->getCompilerRTPath());
         llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
-        if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+        if (llvm::sys::fs::exists(SPIRVCompilerRTPath)) {
+          LinkDeviceBuiltin = true;
           LibLocCandidates.emplace_back(SPIRVCompilerRTPath);
+        }
       }
 
       // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
@@ -6183,6 +6193,10 @@ class OffloadingActionBuilder final {
       // has their own getDeviceLibs that we can potentially use.
       DeviceLibraries =
           SYCLTC.getDeviceLibNames(C.getDriver(), Args, TC->getTriple());
+      if (LinkDeviceLibc) {
+        ToolChain::BitCodeLibraryInfo DeviceLibcInfo("libc.bc");
+        DeviceLibraries.emplace_back(DeviceLibcInfo);
+      }
       // There is some work in upstream to enable compiler-rt builtins for
       // SYCL: https://github.com/llvm/llvm-project/pull/218528, we will
       // cherry-pick it to intel/llvm once it is merged. Before it happens,
@@ -6190,9 +6204,7 @@ class OffloadingActionBuilder final {
       // advance, so enable it in old model for now.
       // TODO: when upstream PR lands into intel/llvm, remove the special
       // handling for compiler-rt builtins here.
-      bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
-                                        options::OPT_no_offloadlib, true);
-      if (!NoOffloadLib) {
+      if (LinkDeviceBuiltin) {
         ToolChain::BitCodeLibraryInfo RTBuiltinInfo("libclang_rt.builtins.bc");
         DeviceLibraries.emplace_back(RTBuiltinInfo);
       }

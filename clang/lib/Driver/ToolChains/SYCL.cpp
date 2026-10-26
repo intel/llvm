@@ -909,6 +909,21 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
+      if (InputFilename.compare("libc.bc") == 0) {
+        std::optional<std::string> StdlibPath =
+            this->getToolChain().getStdlibPath();
+        if (StdlibPath) {
+          llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
+          bool IsSamePath = false;
+          auto EC =
+              llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
+          if (EC)
+            return false;
+          else
+            return IsSamePath;
+        } else
+          return false;
+      }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
@@ -2077,10 +2092,24 @@ SYCLToolChain::getDeviceLibs(
 
   SmallVector<SmallString<128>, 4> LibraryPaths;
   SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
+  bool LinkDeviceLibc = false;
+  bool NoOffloadLib = !DriverArgs.hasFlag(options::OPT_offloadlib,
+                                          options::OPT_no_offloadlib, true);
+  if (getTriple().isSPIROrSPIRV() && !NoOffloadLib) {
+    if (std::optional<std::string> StdlibPath = getStdlibPath()) {
+      LinkDeviceLibc = true;
+      LibraryPaths.emplace_back(*StdlibPath);
+    }
+  }
 
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
+
+  if (LinkDeviceLibc) {
+    ToolChain::BitCodeLibraryInfo RTBuiltinInfo("libc.bc");
+    DeviceLibs.emplace_back(RTBuiltinInfo);
+  }
 
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
