@@ -1,26 +1,23 @@
-// RUN: %{build} -o %t.default.out
-// RUN: %{run} %t.default.out
-// RUN: %{build} -ffast-math -o %t.fast-math.out
-// RUN: %{run} %t.fast-math.out
-// RUN: %{build} -fgpu-flush-denormals-to-zero -o %t.flush-denormals.out
-// RUN: %{run} %t.flush-denormals.out
-// RUN: %{build} -foffload-fp32-prec-div -o %t.prec-div.out
-// RUN: %{run} %t.prec-div.out
-// RUN: %{build} -foffload-fp32-prec-sqrt -o %t.prec-sqrt.out
-// RUN: %{run} %t.prec-sqrt.out
-// RUN: %{build} -ffp-contract=fast -o %t.fp-contract.out
-// RUN: %{run} %t.fp-contract.out
-// RUN: %{build} -ffp-contract=on -o %t.fp-contract-on.out
-// RUN: %{run} %t.fp-contract-on.out
-// RUN: %{build} -ffp-contract=fast-honor-pragmas -o %t.fp-contract-fast-honor-pragmas.out
-// RUN: %{run} %t.fp-contract-fast-honor-pragmas.out
-// RUN: %{build} -fgpu-approx-transcendentals -o %t.approx-transcendentals.out
-// RUN: %{run} %t.approx-transcendentals.out
+// This test checks that the outputs of std:: math functions and sycl:: math
+// built-ins are bitwise equal in device code.
 
-// UNSUPPORTED: target-native_cpu || cuda
-// UNSUPPORTED-INTENDED: The Native CPU and CUDA backends use code paths for
-// their built-in functions that differ from those used to implement the SYCL
-// math functions. This test is not expected to pass on those backends.
+// RUN: %{build} -fno-builtin -o %t.default.out
+// RUN: %{run} %t.default.out
+// RUN: %{build} -fno-builtin -ffast-math -o %t.fast-math.out
+// RUN: %{run} %t.fast-math.out
+// RUN: %{build} -fno-builtin -fgpu-flush-denormals-to-zero -o %t.flush-denormals.out
+// RUN: %{run} %t.flush-denormals.out
+// RUN: %{build} -fno-builtin -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -o %t.precise.out
+// RUN: %{run} %t.precise.out
+// RUN: %{build} -fno-builtin -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt -o %t.relaxed-precision.out
+// RUN: %{run} %t.relaxed-precision.out
+// RUN: %{build} -fno-builtin -ffp-contract=off -o %t.fp-contract-off.out
+// RUN: %{run} %t.fp-contract-off.out
+
+// UNSUPPORTED: target-native_cpu || cuda 
+// UNSUPPORTED-INTENDED: The Native CPU and CUDA backends lower std:: math
+// functions and sycl:: math built-ins differently than SPIR-V. This test is not
+// expected to pass on those backends
 
 #include <cmath>
 #include <cstdint>
@@ -103,23 +100,10 @@ static sycl::queue &test_queue() {
 }
 
 template <typename T> bool outputs_equal(T output, T expected) {
-  if constexpr (std::is_integral_v<T>) {
-    return output == expected;
-  } else {
-    using Bits =
-        std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
-    constexpr Bits magnitude_mask =
-        sizeof(T) == 4 ? 0x7fffffffULL : 0x7fffffffffffffffULL;
-    constexpr Bits infinity =
-        sizeof(T) == 4 ? 0x7f800000ULL : 0x7ff0000000000000ULL;
-    const Bits actual_bits = sycl::bit_cast<Bits>(output);
-    const Bits expected_bits = sycl::bit_cast<Bits>(expected);
-    return actual_bits == expected_bits ||
-           ((actual_bits & magnitude_mask) == 0 &&
-            (expected_bits & magnitude_mask) == 0) ||
-           ((actual_bits & magnitude_mask) > infinity &&
-            (expected_bits & magnitude_mask) > infinity);
-  }
+  using Bits = std::conditional_t<sizeof(T) == 4, std::uint32_t, std::uint64_t>;
+  const Bits actual_bits = sycl::bit_cast<Bits>(output);
+  const Bits expected_bits = sycl::bit_cast<Bits>(expected);
+  return actual_bits == expected_bits;
 }
 
 template <typename T, typename Fn>
@@ -283,9 +267,7 @@ int main() {
   };                                                                           \
   TEST_TYPES(FN)
 
-  if (test_fp64) {
-    MATH_FN(ldexp)
-  }
+  MATH_FN(ldexp)
 #undef MATH_FN
 
   // genfloat -> genfloat * OUTPUT_TYPE (modf: genfloat; frexp: int)
@@ -304,9 +286,7 @@ int main() {
   TEST_TYPES(FN)
 
   MATH_FN(modf, T)
-  if (test_fp64) {
-    MATH_FN(frexp, int)
-  }
+  MATH_FN(frexp, int)
 #undef MATH_FN
 
   // genfloat * genfloat -> genfloat * int

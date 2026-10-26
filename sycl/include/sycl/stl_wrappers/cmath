@@ -19,6 +19,15 @@ _dsign(double x);
 #endif // defined(__NVPTX__) || defined(__AMDGCN__)
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
 
+// Define device-specific built-ins for SYCL device compilation by forwarding
+// calls to DeviceLib. This ensures we don't rely on Clang's built-in
+// instructions for these functions.
+#if defined(__SYCL_DEVICE_ONLY__)
+#pragma push_macro("__builtin_fmodf")
+#undef __builtin_fmodf
+#define __builtin_fmodf(x, y) (::fmodf((x), (y)))
+#endif
+
 // Include real STL <cmath> header - the next one from the include search
 // directories.
 #if defined(__has_include_next)
@@ -31,6 +40,11 @@ _dsign(double x);
 // where the following would result in the <cmath> we want. This is obviously
 // hacky, but the best we can do...
 #include <../include/cmath>
+#endif
+
+// Restore the original built-in definitions for device compilation.
+#if defined(__SYCL_DEVICE_ONLY__)
+#pragma pop_macro("__builtin_fmodf")
 #endif
 
 // *** <sycl/builtins.hpp> ***
@@ -53,6 +67,14 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC float log10f(float x);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double log10(double x);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float modff(float x, float *intpart);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double modf(double x, double *intpart);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float ceilf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double ceil(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float floorf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double floor(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float roundf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double round(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float truncf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double trunc(double x);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float exp2f(float x);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double exp2(double x);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float expm1f(float x);
@@ -83,8 +105,16 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC float remainderf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double remainder(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float remquof(float x, float y, int *q);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double remquo(double x, double y, int *q);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float fabsf(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double fabs(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float copysignf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double copysign(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float nextafterf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double nextafter(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float fmaxf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double fmax(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float fminf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double fmin(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float fdimf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double fdim(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float fmaf(float x, float y, float z);
