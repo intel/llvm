@@ -14,7 +14,7 @@
 // RUN: %{build} -fno-builtin -ffp-contract=off -o %t.fp-contract-off.out
 // RUN: %{run} %t.fp-contract-off.out
 
-// UNSUPPORTED: target-native_cpu || cuda 
+// UNSUPPORTED: target-native_cpu || cuda
 // UNSUPPORTED-INTENDED: The Native CPU and CUDA backends lower std:: math
 // functions and sycl:: math built-ins differently than SPIR-V. This test is not
 // expected to pass on those backends
