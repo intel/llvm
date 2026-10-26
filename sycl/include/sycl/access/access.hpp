@@ -123,19 +123,6 @@ inline constexpr mode_target_tag_t<access_mode::write, target::host_task>
 
 namespace detail {
 
-// access::target::host_buffer, host_image and access::mode::atomic are
-// deprecated.
-__SYCL_SUPPRESS_DEPRECATED_PUSH
-constexpr bool isTargetHostAccess(access::target T) {
-  return T == access::target::host_buffer || T == access::target::host_image;
-}
-
-constexpr bool modeNeedsOldData(access::mode m) {
-  return m == access::mode::read || m == access::mode::write ||
-         m == access::mode::read_write || m == access::mode::atomic;
-}
-__SYCL_SUPPRESS_DEPRECATED_POP
-
 constexpr bool modeWritesNewData(access::mode m) {
   return m != access::mode::read;
 }
