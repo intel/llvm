@@ -10,10 +10,10 @@
 // v1 creates a single regular command queue for the whole run:
 // CHECK:  zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 1
 //
-// L0v2 reuses a small pool of immediate command lists. Creating one per
-// submission would give about 1000, so 1-99 is a loose bound on the pool size.
-// Every list that was created must be destroyed.
-// CHECK-V2: zeCommandListCreateImmediate = [[N:[1-9][0-9]?]]{{([[:space:]]|$)}}
+// L0v2 creates a queue's immediate command lists once, in its constructor (a
+// pool of 4 today), so the count must not grow with the 1000 submissions; 1-16
+// leaves headroom. Every list that was created must be destroyed.
+// CHECK-V2: zeCommandListCreateImmediate = [[N:[1-9]|1[0-6]]]{{([[:space:]]|$)}}
 // CHECK-V2: zeCommandListCreate = 0     \---> zeCommandListDestroy = [[N]]{{([[:space:]]|$)}}
 //
 
