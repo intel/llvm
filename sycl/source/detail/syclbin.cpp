@@ -178,12 +178,34 @@ bool isIRModuleFormat(ur::DeviceBinaryType Format) {
          Format == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 }
 
-// Maps a runtime device image format to its SYCLBIN IR module type enum
-// value. The list of valid IR types is currently SPIR-V (0), PTX (1) and
-// AMDGCN (2). Today the runtime only emits SPIR-V IR modules, so we hardcode 0
-// here. Mirrors the same hardcode in llvm/lib/Object/SYCLBIN.cpp.
-// TODO: Determine type from the input.
-uint32_t getIRModuleType(ur::DeviceBinaryType /*Format*/) { return 0; }
+// Maps a runtime device image format to its SYCLBIN IR module type enum value.
+SYCLBIN::IRModuleType getIRModuleType(ur::DeviceBinaryType Format) {
+  assert(isIRModuleFormat(Format) && "Not an IR module format");
+  // TODO: LLVM IR bitcode is recorded as SPIR-V, which is not correct.
+  (void)Format;
+  return SYCLBIN::IRModuleType::SPIRV;
+}
+
+// Runtime representation of a SYCLBIN IR module type.
+struct IRModuleFormatInfo {
+  ur::DeviceBinaryType Format;
+  const char *DeviceTargetSpec;
+};
+
+// Maps a SYCLBIN IR module type enum value to the corresponding runtime device
+// image format and target spec. This is the inverse of getIRModuleType.
+IRModuleFormatInfo getIRModuleFormatInfo(uint32_t RawIRModuleType) {
+  switch (static_cast<SYCLBIN::IRModuleType>(RawIRModuleType)) {
+  case SYCLBIN::IRModuleType::SPIRV:
+    return {SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64};
+  case SYCLBIN::IRModuleType::PTX:
+  case SYCLBIN::IRModuleType::AMDGCN:
+    break;
+  }
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Unsupported IR module type in SYCLBIN: " +
+                            std::to_string(RawIRModuleType));
+}
 
 // Serializes a property set (name + entries) into the textual format consumed
 // by PropertySetRegistry::read by routing through PropertySetRegistry::write.
@@ -566,7 +588,7 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
       ID.Bytes = Bytes;
       PropertySetRegistry IRMProps;
       IRMProps.add(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
-                   getIRModuleType(Image->getFormat()));
+                   static_cast<uint32_t>(getIRModuleType(Image->getFormat())));
       IRMProps.add(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "target",
                    std::string_view{Triple});
       ID.Metadata = serializePropSetRegistry(IRMProps);
@@ -764,12 +786,28 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
       SYCLBIN::IRModule &IRM = AM.IRModules[J];
 
+      // Files without a type are treated as SPIR-V, as they were before the
+      // type was read. Look up without inserting into the parsed registry.
+      assert(IRM.Metadata != nullptr);
+      uint32_t RawIRModuleType =
+          static_cast<uint32_t>(SYCLBIN::IRModuleType::SPIRV);
+      const PropertySetRegistry::MapTy &IRMetadataSets =
+          IRM.Metadata->getPropSets();
+      auto SetIt =
+          IRMetadataSets.find(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA);
+      if (SetIt != IRMetadataSets.end()) {
+        auto TypeIt = SetIt->second.find("type");
+        if (TypeIt != SetIt->second.end())
+          RawIRModuleType = TypeIt->second.asUint32();
+      }
+      const IRModuleFormatInfo FormatInfo =
+          getIRModuleFormatInfo(RawIRModuleType);
+
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
-      DeviceBinary.Format = SYCL_DEVICE_BINARY_TYPE_SPIRV; // TODO: Determine.
-      DeviceBinary.DeviceTargetSpec =
-          __SYCL_DEVICE_BINARY_TARGET_SPIRV64; // TODO: Determine.
+      DeviceBinary.Format = FormatInfo.Format;
+      DeviceBinary.DeviceTargetSpec = FormatInfo.DeviceTargetSpec;
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
       DeviceBinary.BinaryStart =

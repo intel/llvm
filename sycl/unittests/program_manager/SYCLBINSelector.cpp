@@ -236,3 +236,78 @@ TEST(SYCLBINSelector, ExportOnlyLibraryNotSurfacedForInput) {
       << "Export-only native library must not be surfaced for an input "
          "request";
 }
+
+namespace {
+
+// Serialize a single SPIR-V IR module into an input-state SYCLBIN blob.
+std::vector<char> serializeSPIRVSYCLBIN(detail::device_impl &Dev) {
+  unittest::MockDeviceImage Mock{unittest::makeEmptyKernels({"IRModuleKernel"}),
+                                 unittest::MockPropertySet{}};
+  sycl_device_binary_struct Struct = Mock.convertToNativeType();
+  detail::RTDeviceBinaryImage Img{&Struct};
+  detail::SYCLBIN::ImageInput Input;
+  Input.Image = &Img;
+  Input.Devices = {&Dev};
+  return detail::SYCLBIN::serializeImages(
+      {Input}, static_cast<uint8_t>(bundle_state::input));
+}
+
+// Replaces the only occurrence of From in Bytes with an equally sized To.
+void patchBytes(std::vector<char> &Bytes, std::string_view From,
+                std::string_view To) {
+  ASSERT_EQ(From.size(), To.size());
+  std::string_view View{Bytes.data(), Bytes.size()};
+  size_t Pos = View.find(From);
+  ASSERT_NE(Pos, std::string_view::npos);
+  ASSERT_EQ(View.find(From, Pos + 1), std::string_view::npos);
+  std::copy(To.begin(), To.end(), Bytes.begin() + Pos);
+}
+
+} // namespace
+
+// An IR module is written with the SPIR-V type and loaded back as SPIR-V.
+TEST(SYCLBINIRModuleType, SPIRVRoundTrip) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  std::vector<char> Bytes = serializeSPIRVSYCLBIN(Dev);
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+  std::vector<const detail::RTDeviceBinaryImage *> Selected =
+      Binaries.getBestCompatibleImages(Dev, bundle_state::input);
+
+  ASSERT_EQ(Selected.size(), 1u);
+  EXPECT_EQ(Selected[0]->getFormat(), SYCL_DEVICE_BINARY_TYPE_SPIRV);
+}
+
+// A file whose IR module metadata has no type is treated as SPIR-V.
+TEST(SYCLBINIRModuleType, MissingTypeDefaultsToSPIRV) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  std::vector<char> Bytes = serializeSPIRVSYCLBIN(Dev);
+  patchBytes(Bytes, "type=1|0", "tyqe=1|0");
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+  std::vector<const detail::RTDeviceBinaryImage *> Selected =
+      Binaries.getBestCompatibleImages(Dev, bundle_state::input);
+
+  ASSERT_EQ(Selected.size(), 1u);
+  EXPECT_EQ(Selected[0]->getFormat(), SYCL_DEVICE_BINARY_TYPE_SPIRV);
+}
+
+// PTX and AMDGCN IR modules (and unknown types) are not supported by the
+// runtime and must be rejected instead of being loaded as SPIR-V.
+TEST(SYCLBINIRModuleType, UnsupportedTypeThrows) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  for (const char *Type : {"type=1|1", "type=1|2", "type=1|7"}) {
+    std::vector<char> Bytes = serializeSPIRVSYCLBIN(Dev);
+    patchBytes(Bytes, "type=1|0", Type);
+    try {
+      detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+      FAIL() << "Expected feature_not_supported for " << Type;
+    } catch (const sycl::exception &E) {
+      EXPECT_EQ(E.code(), make_error_code(errc::feature_not_supported));
+    }
+  }
+}
