@@ -188,8 +188,9 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(Device->CLDevice, info_name, CLSize,
                                          CLValue.data(), nullptr));
 
-    /* The OpenCL implementation returns a value of 0 if no properties are
-     * supported. UR will return a size of 0 for now.
+    /* If device partitioning is not supported, OpenCL may return either a size
+     * of 0 or an array containing a single 0. UR reports a size of 0 in both
+     * cases.
      */
     if (pPropSizeRet && (CLSize == 0 || CLValue[0] == 0)) {
       *pPropSizeRet = 0;
