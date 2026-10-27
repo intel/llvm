@@ -35,3 +35,112 @@ _dsign(double x);
 
 // *** <sycl/builtins.hpp> ***
 #include "__sycl_cmath_wrapper_impl.hpp"
+
+#include <sycl/detail/defines_elementary.hpp>
+
+#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __GLIBC__
+extern "C" {
+// MS UCRT supports most of the C standard library but <complex.h> is
+// an exception.
+extern __DPCPP_SYCL_EXTERNAL_LIBC float cimagf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double cimag(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float crealf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double creal(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float cargf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double carg(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float cabsf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double cabs(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cprojf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cproj(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cexpf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cexp(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ clogf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ clog(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cpowf(float __complex__ x,
+                                                          float __complex__ y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cpow(double __complex__ x,
+                                                          double __complex__ y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ csqrtf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ csqrt(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ csinhf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ csinh(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ ccoshf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ ccosh(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ ctanhf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ ctanh(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ csinf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ csin(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ ccosf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ ccos(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ ctanf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ ctan(double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cacosf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cacos(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cacoshf(
+    float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cacosh(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ casinf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ casin(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ casinhf(
+    float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ casinh(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ catanf(float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ catan(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ catanhf(
+    float __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ catanh(
+    double __complex__ z);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ cpolarf(float rho,
+                                                            float theta);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ cpolar(double rho,
+                                                            double theta);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ __mulsc3(float a, float b,
+                                                             float c, float d);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __muldc3(double a,
+                                                              double b,
+                                                              double c,
+                                                              double d);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float __complex__ __divsc3(float a, float b,
+                                                             float c, float d);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __divdc3(double a,
+                                                              double b,
+                                                              double c,
+                                                              double d);
+}
+#elif defined(_WIN32)
+extern "C" {
+// TODO: documented C runtime library APIs must be recognized as
+//       builtins by FE. This includes _dpcomp, _dsign, _dtest,
+//       _fdpcomp, _fdsign, _fdtest, _hypotf, _wassert.
+//       APIs used by STL, such as _Cosh, are undocumented, even though
+//       they are open-sourced. Recognizing them as builtins is not
+//       straightforward currently.
+extern __DPCPP_SYCL_EXTERNAL_LIBC double _Cosh(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int _dpcomp(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int _dsign(double x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC short _Dtest(double *px);
+extern __DPCPP_SYCL_EXTERNAL_LIBC short _dtest(double *px);
+extern __DPCPP_SYCL_EXTERNAL_LIBC short _Exp(double *px, double y, short eoff);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float _FCosh(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int _fdpcomp(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int _fdsign(float x);
+extern __DPCPP_SYCL_EXTERNAL_LIBC short _FDtest(float *px);
+extern __DPCPP_SYCL_EXTERNAL_LIBC short _fdtest(float *px);
+extern __DPCPP_SYCL_EXTERNAL_LIBC short _FExp(float *px, float y, short eoff);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float _FSinh(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC double _Sinh(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL_LIBC float _hypotf(float x, float y);
+}
+#endif
+#endif // __SYCL_DEVICE_ONLY__
