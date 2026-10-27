@@ -120,27 +120,12 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC double __complex__ __divdc3(double a,
 }
 #elif defined(_WIN32)
 extern "C" {
-// TODO: documented C runtime library APIs must be recognized as
-//       builtins by FE. This includes _dpcomp, _dsign, _dtest,
-//       _fdpcomp, _fdsign, _fdtest, _hypotf, _wassert.
-//       APIs used by STL, such as _Cosh, are undocumented, even though
-//       they are open-sourced. Recognizing them as builtins is not
-//       straightforward currently.
-extern __DPCPP_SYCL_EXTERNAL_LIBC double _Cosh(double x, double y);
+// TODO: documented C runtime library APIs must be recognized as builtins by FE.
+//       This includes _dpcomp, _dtest, _fdpcomp, _fdtest.
 extern __DPCPP_SYCL_EXTERNAL_LIBC int _dpcomp(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC int _dsign(double x);
-extern __DPCPP_SYCL_EXTERNAL_LIBC short _Dtest(double *px);
 extern __DPCPP_SYCL_EXTERNAL_LIBC short _dtest(double *px);
-extern __DPCPP_SYCL_EXTERNAL_LIBC short _Exp(double *px, double y, short eoff);
-extern __DPCPP_SYCL_EXTERNAL_LIBC float _FCosh(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC int _fdpcomp(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC int _fdsign(float x);
-extern __DPCPP_SYCL_EXTERNAL_LIBC short _FDtest(float *px);
 extern __DPCPP_SYCL_EXTERNAL_LIBC short _fdtest(float *px);
-extern __DPCPP_SYCL_EXTERNAL_LIBC short _FExp(float *px, float y, short eoff);
-extern __DPCPP_SYCL_EXTERNAL_LIBC float _FSinh(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC double _Sinh(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC float _hypotf(float x, float y);
 }
 #endif
 #endif // __SYCL_DEVICE_ONLY__
