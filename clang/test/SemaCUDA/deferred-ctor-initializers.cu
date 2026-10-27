@@ -6,11 +6,11 @@
 // RUN:   -fcuda-is-device -x hip -std=c++17 -fsyntax-only -verify=device %s
 
 // FIXME: intel/llvm currently lacks the deferred-diagnostic deduplication of
-// upstream #185926 (reverted downstream, see CMPLRLLVM-74216). Until it is
-// relanded, a diagnostic reachable from several callers is emitted once per
-// caller chain ('host-error 2' and 'host-note 7' for device_function below) and
-// call stack notes read 'called by' instead of 'which is called by'. Restore
-// the upstream expectations when the deduplication is relanded.
+// upstream #185926. Until it is relanded, a diagnostic reachable from several
+// callers is emitted once per caller chain ('host-error 2' and 'host-note 7'
+// for device_function below) and call stack notes read 'called by' instead
+// of 'which is called by'. Restore the upstream expectations when the
+// deduplication is relanded.
 
 #define __host__ __attribute__((host))
 #define __device__ __attribute__((device))
