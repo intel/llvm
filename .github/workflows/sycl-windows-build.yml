@@ -126,8 +126,10 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer $env:GITHUB_TOKEN"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
@@ -139,21 +141,22 @@ jobs:
     - uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
       with:
         arch: x64
-    - name: check-artifact-value
+    - name: Check toolchain_artifact value
       if: ${{ inputs.upload_artifact && inputs.toolchain_artifact == '' }}
-      shell: cmd
       run: |
-        echo ERROR: toolchain_artifact is required when upload_artifact is true
-        exit /b 1
+        Write-Error "toolchain_artifact is required when upload_artifact is true"
+        exit 1
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
       if: ${{ !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
+      env:
+        BUILD_CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
       run: |
         git config --system core.longpaths true
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "CCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "CCACHE_DIR=D:\github\_work\cache\$env:BUILD_CACHE_SUFFIX" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "LIT_OPTS='-j$env:NUMBER_OF_PROCESSORS $LIT_OPTS'" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Register cleanup after job is finished
@@ -166,17 +169,19 @@ jobs:
     - name: Configure
       shell: cmd
       env:
-         ARGS: ${{ inputs.build_configure_extra_args }}
+        ARGS: ${{ inputs.build_configure_extra_args }}
+        BUILD_CACHE_SUFFIX: ${{inputs.build_cache_suffix}}
+        CXX: ${{inputs.cxx}}
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       run: |
         mkdir build
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
-        IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
+        IF NOT EXIST D:\github\_work\cache\%BUILD_CACHE_SUFFIX% MKDIR D:\github\_work\cache\%BUILD_CACHE_SUFFIX%
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults --use-zstd %ARGS% ^
-          "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
-          "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
+          "-DCMAKE_C_COMPILER=%CXX%" ^
+          "-DCMAKE_CXX_COMPILER=%CXX%" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
@@ -184,14 +189,18 @@ jobs:
     - name: Build
       id: build
       shell: bash
+      env:
+        BUILD_TARGET: ${{ inputs.build_target }}
       run: |
-        cmake --build build --target ${{ inputs.build_target }}
+        cmake --build build --target "$BUILD_TARGET"
     - run: build/bin/clang++ --version
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
       shell: bash
+      env:
+        CXX_IS_ICX: ${{ inputs.cxx == 'icx' }}
       run: |
-        if [[ "${{ inputs.cxx == 'icx' }}" == "true" ]]; then
+        if [[ "$CXX_IS_ICX" == "true" ]]; then
           # https://github.com/intel/llvm/issues/22619
           export LIT_FILTER_OUT="tools/obj2yaml/DXContainer/SRCIPart"
         fi
@@ -239,7 +248,9 @@ jobs:
 
     - name: Pack toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
-      run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
+      env:
+            ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
+      run: tar -czf "$env:ARTIFACT_FILENAME" -C install .
     - name: Upload toolchain release
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -256,9 +267,11 @@ jobs:
 
     - name: Pack toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
+      env:
+            ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
       shell: bash
       run: |
-        tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
+        tar -czf "$ARTIFACT_FILENAME" -C install .
     - name: Upload toolchain
       if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -302,8 +315,10 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer $env:GITHUB_TOKEN"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
