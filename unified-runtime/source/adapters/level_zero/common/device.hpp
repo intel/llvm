@@ -346,6 +346,8 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
+  ZeCache<ZeStruct<ze_device_external_memory_properties_t>>
+      ZeDeviceExternalMemoryProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
   ZeCache<ZeStruct<ze_device_cache_line_size_ext_t>>
       ZeDeviceCacheLinePropertiesExt;
