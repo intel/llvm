@@ -2096,10 +2096,9 @@ SYCLToolChain::getDeviceLibs(
   bool NoOffloadLib = !DriverArgs.hasFlag(options::OPT_offloadlib,
                                           options::OPT_no_offloadlib, true);
   if (getTriple().isSPIROrSPIRV() && !NoOffloadLib) {
-    if (std::optional<std::string> StdlibPath = getStdlibPath()) {
-      LinkDeviceLibc = true;
+    LinkDeviceLibc = true;
+    if (std::optional<std::string> StdlibPath = getStdlibPath())
       LibraryPaths.emplace_back(*StdlibPath);
-    }
   }
 
   // Formulate all of the device libraries needed for this compilation.
