@@ -8,6 +8,12 @@
 
 #pragma once
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
+// Forward declare sinf function before including cmath to enable compilation of
+// math functions defined in UCRT headers.
+static __attribute__((sycl_device_only, always_inline)) float sinf(float);
+#endif
+
 // Include real STL <cmath> header - the next one from the include search
 // directories.
 #if defined(__has_include_next)

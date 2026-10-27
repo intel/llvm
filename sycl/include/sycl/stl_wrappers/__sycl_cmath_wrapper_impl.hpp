@@ -15,8 +15,8 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 // The 'sycl_device_only' attribute enables device-side overloading.
-#define __SYCL_DEVICE inline __attribute__((sycl_device_only, always_inline))
-#define __SYCL_DEVICE_C extern "C" __SYCL_DEVICE
+#define __SYCL_DEVICE __attribute__((sycl_device_only, always_inline)) static
+#define __SYCL_DEVICE_C __SYCL_DEVICE
 
 #include <type_traits>
 
@@ -187,7 +187,18 @@ __SYCL_SPIRV_MAP_BINARY_C(hypot);
 /// Trigonometric functions
 //
 
-__SYCL_SPIRV_MAP_UNARY_NATIVE_C(sin);
+template <typename T> __SYCL_DEVICE T __sycl_cmath_sin(T x) {
+  if constexpr (std::is_same_v<T, float>) {
+    if (x == 0.0f)
+      return x;
+  }
+  if constexpr (__sycl_cmath_use_native_v<T>) {
+    return __spirv_ocl_native_sin(x);
+  }
+  return __spirv_ocl_sin(x);
+}
+__SYCL_DEVICE_C float sinf(float x) { return __sycl_cmath_sin(x); }
+__SYCL_DEVICE_C double sin(double x) { return __sycl_cmath_sin(x); }
 __SYCL_SPIRV_MAP_UNARY_NATIVE_C(cos);
 __SYCL_SPIRV_MAP_UNARY_NATIVE_C(tan);
 __SYCL_SPIRV_MAP_UNARY_C(asin);
