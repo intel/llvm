@@ -34,10 +34,10 @@ int main(int argc, char *argv[]) {
   else
     P = ext::intel::property::queue::no_immediate_command_list();
 
-  // CHECK-STD: zeCommandListCreateImmediate = 1
-  // CHECK-IMM: zeCommandListCreateImmediate = 2
+  // CHECK-STD: zeCommandListCreateImmediate = 1{{([[:space:]]|$)}}
+  // CHECK-IMM: zeCommandListCreateImmediate = 2{{([[:space:]]|$)}}
   // L0v2 out-of-order queues use a fixed pool of 4 immediate command lists.
-  // CHECK-IMM-V2: zeCommandListCreateImmediate = 4
+  // CHECK-IMM-V2: zeCommandListCreateImmediate = 4{{([[:space:]]|$)}}
   queue Q1{P};
   queue_submit(Q1);
 
