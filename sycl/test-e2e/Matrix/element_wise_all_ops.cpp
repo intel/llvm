@@ -9,7 +9,7 @@
 
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Xspirv-translator=spir64 --spirv-ext=+SPV_EXT_float8,+SPV_INTEL_float4,+SPV_INTEL_int4,+SPV_INTEL_fp_conversions -o %t.out
 // RUN: %{run} %t.out
 
 #include "common.hpp"
