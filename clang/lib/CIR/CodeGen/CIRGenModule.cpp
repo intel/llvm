@@ -2825,7 +2825,10 @@ static std::string getMangledNameImpl(CIRGenModule &cgm, GlobalDecl gd,
                    "getMangledName: multi-version functions");
     }
   }
-  if (cgm.getLangOpts().GPURelocatableDeviceCode) {
+  // Make unique name for device side static file-scope variable for HIP.
+  if (cgm.getASTContext().shouldExternalize(nd) &&
+      cgm.getLangOpts().GPURelocatableDeviceCode &&
+      cgm.getLangOpts().CUDAIsDevice) {
     cgm.errorNYI(nd->getSourceRange(),
                  "getMangledName: GPU relocatable device code");
   }
