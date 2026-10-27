@@ -327,7 +327,8 @@ set(sycl-compiler_deps
 set(crt_obj_deps wrapper.h device.h spirv_vars.h fallback-cstring.hpp ${sycl-compiler_deps})
 set(cmath_obj_deps
   device_math.h device.h fallback-cmath.hpp fallback-cmath-fp64.hpp
-  device_complex.h fallback-complex.hpp fallback-complex-fp64.hpp complex_wrapper.hpp ${sycl-compiler_deps})
+  device_complex.h fallback-complex.hpp fallback-complex-fp64.hpp complex_wrapper.hpp
+  sycl-headers ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
 set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
@@ -442,10 +443,16 @@ add_devicelibs(libsycl-crt
   DEPENDENCIES ${crt_obj_deps}
   EXTRA_OPTS $<$<BOOL:${HAS_NO_INVALID_NORETURN_WARN_FLAG}>:-Wno-invalid-noreturn>)
 
+# Implementation of complex math functions such as cpow and catanh depend on
+# complex number div/mul operation covering underflow/overflow, compiler-rt
+# builtin library provides __mulsc3/__muldc3/__divsc3/__divdc3 which meet this
+# requirement. Clang will emit these builtin calls when seeing complex number
+# mul/div expression with '-fno-fast-math' applied.
 add_devicelibs(libsycl-cmath
   SRC cmath_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
-  DEPENDENCIES ${cmath_obj_deps})
+  DEPENDENCIES ${cmath_obj_deps}
+  EXTRA_OPTS -fno-fast-math)
 if(MSVC)
   add_devicelibs(libsycl-msvc-math
     SRC msvc_math.cpp

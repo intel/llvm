@@ -13,7 +13,6 @@ function(add_l0_loader_kernels_test name)
     target_link_libraries(${name}-test PRIVATE
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${name}-test PRIVATE
@@ -26,7 +25,6 @@ function(add_l0_loader_devices_test name)
     target_link_libraries(${name}-test PRIVATE
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${name}-test PRIVATE
@@ -51,12 +49,14 @@ add_testing_binary(confirm_version confirm_version.cpp)
 
 add_l0_loader_devices_test(ze_calls event_cache_tests.cpp)
 add_l0_loader_devices_test(multi_queue multi_device_event_cache_tests.cpp)
+add_l0_loader_devices_test(float_atomics_ext urDeviceGetInfoFloatAtomics.cpp)
 
 add_conformance_devices_test(ipc ipc.cpp)
 target_link_libraries(ipc-test PRIVATE ur_umf)
 
 add_conformance_devices_test(mem_buffer_map urEnqueueMemBufferMapHostPtr.cpp)
 add_conformance_devices_test(device_select_binary urDeviceSelectBinary.cpp)
+add_conformance_devices_test(cross_queue_wait urEnqueueCrossQueueWaitFinish.cpp)
 
 add_l0_loader_devices_test(mem_buffer_create_with_native_handle urMemBufferCreateWithNativeHandleShared.cpp)
 

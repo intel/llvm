@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "HIPUtility.h"
+#include "clang/Basic/TargetID.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Options/Options.h"
@@ -37,15 +38,6 @@ using llvm::dyn_cast;
 namespace {
 const unsigned HIPCodeObjectAlign = 4096;
 } // namespace
-
-// Constructs a triple string for clang offload bundler.
-static std::string normalizeForBundler(const llvm::Triple &T,
-                                       bool HasTargetID) {
-  return HasTargetID ? (T.getArchName() + "-" + T.getVendorName() + "-" +
-                        T.getOSName() + "-" + T.getEnvironmentName())
-                           .str()
-                     : T.normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
-}
 
 // Collect undefined __hip_fatbin* and __hip_gpubin_handle* symbols from all
 // input object or archive files.
@@ -311,10 +303,9 @@ void HIP::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
     BoundArch BA = A->getOffloadingArch();
     BundlerTargetArg += ',' + OffloadKind + '-';
     if (BA.ArchName == "amdgcnspirv")
-      BundlerTargetArg +=
-          normalizeForBundler(llvm::Triple("spirv64-amd-amdhsa"), true);
+      BundlerTargetArg += "spirv64-amd-amdhsa-";
     else
-      BundlerTargetArg += normalizeForBundler(InputTriple, !BA.empty());
+      BundlerTargetArg += normalizeForBundler(InputTriple, BA.ArchName);
     if (BA)
       BundlerTargetArg += '-' + BA.ArchName.str();
   }

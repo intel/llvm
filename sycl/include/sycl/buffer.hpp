@@ -211,8 +211,7 @@ class buffer : public detail::buffer_plain,
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForBuffer =
-      khr::is_property_for_v<PropertyOrList, buffer> ||
-      khr::is_property_list_for_v<PropertyOrList, buffer>;
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList, buffer>;
 
   template <typename PropertyOrList>
   static property_list khrToPropertyList(const PropertyOrList &Props) {
@@ -644,8 +643,8 @@ public:
         dimensions, sizeof(T), detail::rangeToArray(Range).data());
   }
 
-  buffer(buffer &&rhs,
-         const detail::code_location CodeLoc = detail::code_location::current())
+  buffer(buffer &&rhs, const detail::code_location CodeLoc =
+                           detail::code_location::current()) noexcept
       : buffer_plain(std::move(rhs.impl)), Range(rhs.Range),
         OffsetInBytes(rhs.OffsetInBytes), IsSubBuffer(rhs.IsSubBuffer) {
     buffer_plain::constructorNotification(

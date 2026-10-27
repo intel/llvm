@@ -1,0 +1,28 @@
+-- Verify that invalid row indices are diagnosed instead of being used to
+-- index the table out of bounds. %S/Inputs/a.txt has 2 rows, so the only
+-- valid indices are 0 and 1.
+
+-- Negative index must not pass the bounds check.
+RUN: not file-table-tform --copy_single_file=A,-1 %S/Inputs/a.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-OOB %s
+RUN: not file-table-tform --replace_cell=A,-1 %S/Inputs/a.txt %S/Inputs/gold.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-OOB %s
+
+-- Index equal to the number of rows is one past the end.
+RUN: not file-table-tform --copy_single_file=A,2 %S/Inputs/a.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-OOB %s
+RUN: not file-table-tform --replace_cell=A,2 %S/Inputs/a.txt %S/Inputs/gold.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-OOB %s
+
+-- Non-numeric index must not abort the tool.
+RUN: not file-table-tform --copy_single_file=A,abc %S/Inputs/a.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-INVALID %s
+RUN: not file-table-tform --replace_cell=A,abc %S/Inputs/a.txt %S/Inputs/gold.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-INVALID %s
+
+-- Index which does not fit into an 'int' must not abort the tool either.
+RUN: not file-table-tform --copy_single_file=A,99999999999999999999 %S/Inputs/a.txt -o %t.txt 2>&1 \
+RUN:   | FileCheck --check-prefix=CHECK-INVALID %s
+
+CHECK-OOB: usage ERROR: row index is out of bounds
+CHECK-INVALID: usage ERROR: invalid row index

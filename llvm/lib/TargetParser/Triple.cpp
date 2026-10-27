@@ -18,7 +18,6 @@
 #include "llvm/TargetParser/ARMTargetParser.h"
 #include "llvm/TargetParser/ARMTargetParserCommon.h"
 #include "llvm/TargetParser/Host.h"
-#include "llvm/TargetParser/TargetParser.h"
 #include <cassert>
 #include <cstring>
 using namespace llvm;
@@ -64,8 +63,6 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
     return "bpfeb";
   case bpfel:
     return "bpfel";
-  case fpga:
-    return "fpga";
   case csky:
     return "csky";
   case dxil:
@@ -196,6 +193,8 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
       return "arm64ec";
     if (SubArch == AArch64SubArch_arm64e)
       return "arm64e";
+    if (SubArch == AArch64SubArch_arm64e_x1)
+      return "arm64e.x1";
     if (SubArch == AArch64SubArch_lfi)
       return "aarch64_lfi";
     break;
@@ -362,9 +361,6 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case riscv64be:
     return "riscv";
 
-  case fpga:
-    return "fpga";
-
   case ve:
     return "ve";
   case csky:
@@ -528,7 +524,6 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
       .Case("wasm64", wasm64)
       .Case("renderscript32", renderscript32)
       .Case("renderscript64", renderscript64)
-      .Case("fpga", fpga)
       .Case("ve", ve)
       .Case("csky", csky)
       .Case("loongarch32", loongarch32)
@@ -625,6 +620,7 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
           .Case("arm64", Triple::aarch64)
           .Case("arm64_32", Triple::aarch64_32)
           .Case("arm64e", Triple::aarch64)
+          .Case("arm64e.x1", Triple::aarch64)
           .Case("arm64ec", Triple::aarch64)
           .Case("arm", Triple::arm)
           .Case("armeb", Triple::armeb)
@@ -680,7 +676,6 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
           .Case("lanai", Triple::lanai)
           .Case("renderscript32", Triple::renderscript32)
           .Case("renderscript64", Triple::renderscript64)
-          .StartsWith("fpga", Triple::fpga)
           .Case("shave", Triple::shave)
           .Case("ve", Triple::ve)
           .Case("wasm32", Triple::wasm32)
@@ -754,11 +749,7 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
   if (SubArchName.starts_with("spir")) {
     StringRef SA(SubArchName);
     if (SA.consume_front("spir64_") || SA.consume_front("spir_")) {
-      if (SA == "fpga")
-        return Triple::SPIRSubArch_fpga;
-      else if (SA == "fpga_image")
-        return Triple::SPIRSubArch_fpga_image;
-      else if (SA == "gen")
+      if (SA == "gen")
         return Triple::SPIRSubArch_gen;
       else if (SA == "gen_image")
         return Triple::SPIRSubArch_gen_image;
@@ -774,6 +765,8 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
 
   if (SubArchName == "arm64e")
     return Triple::AArch64SubArch_arm64e;
+  if (SubArchName == "arm64e.x1")
+    return Triple::AArch64SubArch_arm64e_x1;
 
   if (SubArchName == "arm64ec")
     return Triple::AArch64SubArch_arm64ec;
@@ -874,6 +867,7 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
         .Case("12.01", Triple::AMDGPUSubArch1201)
         .Case("12.5", Triple::AMDGPUSubArch12_5)
         .Case("12.50", Triple::AMDGPUSubArch1250)
+        .Case("12.50s", Triple::AMDGPUSubArch1250S)
         .Case("12.51", Triple::AMDGPUSubArch1251)
         .Case("13", Triple::AMDGPUSubArch13)
         .Case("13.10", Triple::AMDGPUSubArch1310)
@@ -1000,7 +994,6 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::avr:
   case Triple::bpfeb:
   case Triple::bpfel:
-  case Triple::fpga:
   case Triple::csky:
   case Triple::hexagon:
   case Triple::hsail64:
@@ -1778,7 +1771,6 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::arc:
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
-  case llvm::Triple::fpga:
   case llvm::Triple::csky:
   case llvm::Triple::dxil:
   case llvm::Triple::hexagon:
@@ -1891,7 +1883,6 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::arc:
   case Triple::arm:
   case Triple::armeb:
-  case Triple::fpga:
   case Triple::csky:
   case Triple::dxil:
   case Triple::hexagon:
@@ -1993,7 +1984,6 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::UnknownArch:
   case Triple::arc:
   case Triple::avr:
-  case Triple::fpga:
   case Triple::csky:
   case Triple::dxil:
   case Triple::hexagon:
@@ -2559,19 +2549,21 @@ ExceptionHandling Triple::getDefaultExceptionHandling() const {
   return ExceptionHandling::None;
 }
 
-static FloatABI::ABIType getARMDefaultFloatABI(const Triple &T) {
+static FloatABI::ABIType getARMDefaultFloatABI(const Triple &T,
+                                               StringRef ABIName) {
   Triple::EnvironmentType Env = T.getEnvironment();
   bool IsHard =
       Env == Triple::GNUEABIHF || Env == Triple::GNUEABIHFT64 ||
       Env == Triple::MuslEABIHF || Env == Triple::EABIHF ||
       (T.isOSBinFormatMachO() && T.getSubArch() == Triple::ARMSubArch_v7em) ||
-      T.isOSWindows() || ARM::computeTargetABI(T, "") == ARM::ARM_ABI_AAPCS16;
+      T.isOSWindows() ||
+      ARM::computeTargetABI(T, ABIName) == ARM::ARM_ABI_AAPCS16;
   return IsHard ? FloatABI::Hard : FloatABI::Soft;
 }
 
-FloatABI::ABIType Triple::getDefaultFloatABI() const {
+FloatABI::ABIType Triple::getDefaultFloatABI(StringRef ABIName) const {
   if (isARM() || isThumb())
-    return getARMDefaultFloatABI(*this);
+    return getARMDefaultFloatABI(*this, ABIName);
 
   // MIPS defaults to hard float, except on FreeBSD which uses soft float.
   if (isMIPS())
@@ -2584,6 +2576,8 @@ FloatABI::ABIType Triple::getDefaultFloatABI() const {
   return FloatABI::Hard;
 }
 
+ThreadModel Triple::getDefaultThreadModel() const { return ThreadModel::POSIX; }
+
 LongDoubleFormat Triple::getDefaultLongDoubleFormat() const {
   switch (getArch()) {
   case loongarch64:
@@ -2591,13 +2585,17 @@ LongDoubleFormat Triple::getDefaultLongDoubleFormat() const {
   case riscv64:
   case riscv32be:
   case riscv64be:
-  case sparc:
-  case sparcel:
   case sparcv9:
   case systemz:
   case ve:
   case wasm32:
   case wasm64:
+    return LongDoubleFormat::IEEEquad;
+  case sparc:
+  case sparcel:
+    // GCC uses IEEE double for bare-metal and RTEMS SPARC V8 targets.
+    if (getOS() == UnknownOS || getOS() == RTEMS)
+      return LongDoubleFormat::IEEEdouble;
     return LongDoubleFormat::IEEEquad;
   case ppc:
   case ppcle:

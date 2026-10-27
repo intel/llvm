@@ -392,7 +392,7 @@ optimizeFunction(Function *OldF,
   Instruction *At = &*(NewF->getEntryBlock().begin());
 
   for (unsigned I = 0; I < NewInsts.size(); ++I) {
-    NewInsts[I]->insertBefore(At);
+    NewInsts[I]->insertBefore(At->getIterator());
   }
   return NewF;
 }

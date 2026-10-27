@@ -229,7 +229,8 @@ struct ur_queue_handle_t_ : ur_object_t {
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      ur_context_handle_t Context, ur_device_handle_t Device,
                      bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
-                     int ForceComputeIndex = -1);
+                     int ForceComputeIndex = -1,
+                     std::optional<int32_t> Priority = std::nullopt);
 
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
   // PI queue is in general a one to many mapping to L0 native queues.
@@ -371,6 +372,10 @@ struct ur_queue_handle_t_ : ur_object_t {
 
   // Keeps the properties of this queue.
   ur_queue_flags_t Properties;
+
+  // The priority levels 1, 0 and -1 for the low, normal and high priority
+  // classes. Set by a numeric priority or by the priority flags.
+  int32_t PriorityClass = 0;
 
   // Keeps track of whether we are using Counter-based Events
   bool CounterBasedEventsEnabled = false;
@@ -689,9 +694,6 @@ struct ur_queue_handle_t_ : ur_object_t {
 
   // Threshold for cleaning up the EventList for immediate command lists.
   size_t getImmdCmmdListsEventCleanupThreshold();
-
-  // Pointer to the unified handle.
-  ur_queue_handle_t_ *UnifiedHandle;
 
   ur::RefCount RefCount;
 };
