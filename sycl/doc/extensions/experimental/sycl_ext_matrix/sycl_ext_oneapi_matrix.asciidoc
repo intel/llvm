@@ -587,21 +587,6 @@ of the matrix, which is not necessarily the way the matrix is layed
 out in memory. Thus, these template parameters have the same meaning
 in `joint_matrix_prefetch` as they do for `joint_matrix_load`.
 
-=== `joint_matrix` Element Indexing
-A particular element at row index `row` and column index `col` of
-matrix `m` is returned using `joint_matrix_element`.
-
-```c++
-namespace sycl::ext::oneapi::experimental::matrix {
-
-template <typename Group, typename T, size_t Rows, size_t Cols,
-          use Use, layout Layout>
-T joint_matrix_element(joint_matrix<Group, T, Use, Rows, Cols, Layout> &m,
-                       size_t row, size_t col);
-
-} // namespace sycl::ext::oneapi::experimental::matrix
-```
-
 === Support for Machine Learning Types
 Some devices support special matrix element types that are commonly
 used in machine learning algorithms.
@@ -795,8 +780,7 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 ```
 
 === MXFP Matrix Support
-The APIs `joint_matrix_bmad`, `joint_matrix_max_reduction_rows`,
-`joint_matrix_max_reduction_cols`, and `joint_matrix_convert` defined in
+The APIs `joint_matrix_bmad` and `joint_matrix_convert` defined in
 this section may be used only on a device that supports the
 corresponding `matrix_type`. If the input or output type is
 `fp4_e2m1_x`, the application must check that the device reports a
@@ -848,37 +832,6 @@ Each device supports only certain combinations of types for the `A`,
 the query operations to ensure that the combination of types and
 scales is supported on the device where the kernel calling
 `joint_matrix_bmad` runs.
-
-==== Max Reduction
-For the calculation of scales `Ascale`, `Bscale`, we introduce two new
-APIs `joint_matrix_max_reduction_rows` to compute the max reduction
-along a block of rows in a joint matrix, and
-`joint_matrix_max_reduction_cols` to compute the max reduction along a
-block of columns in a joint matrix. In
-`joint_matrix_max_reduction_rows`, the input matrix has `RowsxCols` elements
-and the output has `Rows` rows and `Cols/32` columns. In
-`joint_matrix_max_reduction_cols`, the input matrix has `RowsxCols` elements
-and the output has `Rows/32` rows and `Cols` columns. Each
-element of the output matrix of `use::scale` is a max value for a
-group of 32 elements in the corresponding row or column in the input matrix.
-
-```c++
-namespace sycl::ext::oneapi::experimental::matrix {
-
-template <typename Group, typename T, std::size_t Rows, std::size_t Cols,
-          use Use, layout Layout>
-joint_matrix<Group, T, use::scale, Rows, Cols/32, Layout>
-  joint_matrix_max_reduction_rows(Group g,
-    const joint_matrix<Group, T, Use, Rows, Cols, Layout> &A);
-
-template <typename Group, typename T, std::size_t Rows, std::size_t Cols,
-          use Use, layout Layout>
-joint_matrix<Group, T, use::scale, Rows/32, Cols, Layout>
-  joint_matrix_max_reduction_cols(Group g,
-    const joint_matrix<Group, T, Use, Rows, Cols, Layout> &B);
-
-} // namespace sycl::ext::oneapi::experimental::matrix
-```
 
 ==== 4 bits Data Types Conversions
 This API `joint_matrix_convert` extends the existing 4 bits scalar
@@ -940,74 +893,6 @@ sycl::ext::oneapi::experimental::fp4_e2m1_x<2> | bfloat16
 
 
 |======================
-
-==== Example
-In this example, A and B data type is already in FP4 and in
-memory. The quantization is a post-processing step to down convert
-the result of GEMM `joint_matrix_bmad` from bfloat to FP4 to be used
-for the next layer of compute.
-The quantizations of matrix C consists of three steps:
-
-. `compute_scale` user function making a pipeline that feeds directly
-the scales to `joint_matrix_bmad`. Here, N size is 32. This is because
-32 elements of C along the N dimension share the same scale. So
-`compute_scale` takes C matrix with N size is 32. For `compute_scale`,
-`joint_matrix_max_reduction_rows` is used to calculate the max
-reduction along the rows where the input matrix `C` has 32x32 elements
-and the output `CscaleTemp` has 32x1 elements. Then, a conversion to
-`sycl::ext::oneapi::experimental::fp8_e8m0_x<1>` is performed to return
-`Cscale`.
-
-. Each row of Matrix C of type `bfloat16` is divided by `Cscale` row
-element.
-
-.  C is converted to FP4 before it is stored in memory for the
-next layer of GEMM.
-
-//tK/block_scaling_size is not always 1 as we will support bigger
-// combinations to fill up the GRFs (K=64)
-
-```c++
-// FP4 matrices and their scales are already in memory
-joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp4_e2m1_x<2>,
-             use::a, 32, 64, layout::row_major> As;
-joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp4_e2m1_x<2>,
-             use::b, 64, 32, layout::row_major> Bs;
-joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
-             use::scale, 32, 2, layout::row_major> Ascale;
-joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
-             use::scale, 2, 32, layout::row_major> Bscale;
-
-joint_matrix<sub_group, bfloat16, use::accumulator, 32, 32> C;
-joint_matrix_fill(sg, C, 0);
-for (int k = 0; k < K; k += 64) {
-   joint_matrix_load(sg, As, memA + offsetA, K);
-   joint_matrix_load(sg, Bs, memB + offsetB, N);
-   joint_matrix_load(sg, Ascale, memAscale + offsetA, K);
-   joint_matrix_load(sg, Bscale, memBscale + offsetB, K);
-   joint_matrix_bmad(sg, C, As, Bs, Ascale, Bscale, C);
-}
-// C quantization to be used for the next layer
-joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp4_e2m1_x<2>,
-             use::accumulator, 32, 32> Cs;
-joint_matrix<sub_group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
-             use::scale, 32, 1, layout::row_major> Cscale;
-// compute_scale(C, &Cscale)
-joint_matrix<sub_group, bfloat16, use::scale, 32, 1,
-             layout::row_major> CscaleTemp;
-CscaleTemp = joint_matrix_max_reduction_rows(C);
-// Conversion and change of use
-joint_matrix_copy(Cscale, CscaleTemp);
-
-joint_matrix_apply(sg, C, [&](T &x, size_t row, size_t col) {
-            x = x / joint_matrix_element(Cscale, row, col/32);
-});
-// Conversion from bfloat16 C to FP4 Cs
-joint_matrix_convert(sg, C, Cs);
-//Store in memory to be used by the next layer
-joint_matrix_store(sg, Cs, memC + offsetC, N, layout::row_major);
-joint_matrix_store(sg, Cscale, memCscale + offsetC, N);
-```
 
 === Query Interface
 Most devices support only certain values for the `Rows` and `Cols`
@@ -1544,7 +1429,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_cri`
 .1+| `matrix_type::fp4_e2m1`  .1+| `matrix_type::fp4_e2m1` .1+|
 `matrix_type::fp32`, `matrix_type::bf16` |
-`matrix_type::fp32`, `matrix_type::bf16`  .1+| 8 |  16 .1+|  32 |
+`matrix_type::fp32`, `matrix_type::bf16`  .1+| 8 |  16 .1+|  64 |
 `architecture::intel_gpu_cri`
 |======================
 
