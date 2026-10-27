@@ -274,9 +274,10 @@ void tools::gnutools::StaticLibTool::ConstructJob(
 // -flink-huge-device-code works around it.
 static constexpr uint64_t HugeDeviceCodeWarnThreshold = 1ull << 30; // 1GiB
 
-// Sums the size of only those link inputs that carry wrapped device code,
-// i.e. skips host objects, static archives, and other linker inputs that
-// don't contribute to the offload sections the warning is about.
+// Sums the size of only those link inputs that carry wrapped device code.
+// Device code extracted from a static archive surfaces as its own tagged
+// input elsewhere in the pipeline, so it's still counted; this just skips
+// host objects and other inputs that aren't wrapped device code themselves.
 static uint64_t getTotalDeviceCodeObjectSize(ArrayRef<InputInfo> Inputs) {
   uint64_t Total = 0;
 

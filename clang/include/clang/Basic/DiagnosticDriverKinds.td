@@ -1000,7 +1000,7 @@ def err_drv_target_variant_invalid : Error<
 def warn_drv_fsycl_with_c_type : Warning<
   "treating '%0' input as '%1' when -fsycl is used">, InGroup<ExpectedFileType>;
 def warn_drv_huge_device_code : Warning<
-  "total link input size of %0 may overflow 32-bit relocations in the host "
+  "total device code size of %0 may overflow 32-bit relocations in the host "
   "link; consider linking with '-flink-huge-device-code'">,
   InGroup<LargeDeviceKernel>;
 
