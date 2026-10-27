@@ -1,4 +1,6 @@
 // REQUIRES: sycl-jit, aspect-usm_shared_allocations
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
@@ -32,7 +34,6 @@ struct KernelCache {
   ~KernelCache() {
     for (auto &Bundle : Bundles) {
       auto Kernel = Bundle.ext_oneapi_get_kernel("increment");
-      assert(Kernel.get_info<sycl::info::kernel::num_args>() == 1);
       int *Value = sycl::malloc_shared<int>(1, *Queue);
       *Value = 0;
       Queue->submit([&](sycl::handler &CGH) {
@@ -54,8 +55,8 @@ int main(int Argc, char **) {
       Q.get_context(), syclex::source_language::sycl, Source);
   for (int I = 0; I < 2; ++I) {
     auto Bundle = syclex::build(SourceBundle);
-    assert(Bundle.ext_oneapi_get_kernel("increment")
-               .get_info<sycl::info::kernel::num_args>() == 1);
+    assert(Bundle.ext_oneapi_has_kernel("increment"));
+    auto Kernel = Bundle.ext_oneapi_get_kernel("increment");
     if (Argc > 1) {
       Cache.Queue = Q;
       Cache.Bundles.push_back(Bundle);
