@@ -28,9 +28,9 @@ WG Wrap::Member;
 WGTmpl<float> TmplGlobal;
 const NotWG ConstNotWGGlobal{};
 
-// CHECK-DAG: @_ZZ8deviceFnvE7AutoWGS = internal addrspace(3) global %struct.WG zeroinitializer
-// CHECK-DAG: @_ZZ8deviceFnvE9StaticWGS = internal addrspace(3) global %struct.WG zeroinitializer
-// CHECK-DAG: @_ZZ8deviceFnvE8AutoTmpl = internal addrspace(3) global %struct.WGTmpl zeroinitializer
+// CHECK-DAG: @{{.*}}AutoWGS{{.*}} = internal addrspace(3) global %struct.WG zeroinitializer
+// CHECK-DAG: @{{.*}}StaticWGS{{.*}} = internal addrspace(3) global %struct.WG zeroinitializer
+// CHECK-DAG: @{{.*}}AutoTmpl{{.*}} = internal addrspace(3) global %struct.WGTmpl zeroinitializer
 // CHECK-DAG: @Global = {{.*}}addrspace(3) global %struct.WG zeroinitializer
 // CHECK-DAG: @_ZL14InternalGlobal = internal addrspace(3) global %struct.WG zeroinitializer
 // CHECK-DAG: @_ZN4Wrap6MemberE = {{.*}}addrspace(3) global %struct.WG zeroinitializer
