@@ -146,16 +146,17 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
       << "Result of enqueueing blocked command should be BLOCKED.\n";
   ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
 
-  // But if the enqueue type is blocking we should not exit early.
+  // Blocking enqueue exits early too, rather than waiting under the graph lock,
+  // and registers the root to be enqueued once A is unblocked.
 
-  EXPECT_CALL(A, enqueue).Times(0);
-  EXPECT_CALL(B, enqueue).Times(1);
-
+  Res = detail::EnqueueResultT{};
   Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
-  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED.\n";
-  ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
+  ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
+  ASSERT_EQ(1u, A.MBlockedUsers.size());
+  ASSERT_EQ(A.getEvent(), A.MBlockedUsers[0]);
 }
 
 // This unit test is for workaround described in GraphProcessor::enqueueCommand
