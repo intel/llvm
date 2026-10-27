@@ -36,11 +36,14 @@ ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
     return ReturnValue(false);
   case UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  // The low, normal and high priority classes are the priority levels 1, 0
+  // and -1, see urQueueCreate.
   case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
-    return ReturnValue(static_cast<ur_bool_t>(false));
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+    return ReturnValue(int32_t{-1});
   case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP:
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(int32_t{1});
   default:
     return ur::level_zero::urDeviceGetInfo(hDeviceOpque, propName, propSize,
                                            propValue, propSizeRet);
