@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS
   ABI
   AggressiveInstCombine
   Analysis
+  BinaryFormat
   BitReader
   BitWriter
   CodeGen

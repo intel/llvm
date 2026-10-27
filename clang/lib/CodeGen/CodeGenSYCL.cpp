@@ -14,7 +14,7 @@
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
 #include "clang/Basic/DiagnosticFrontend.h"
-#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -112,14 +112,13 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
     return nullptr;
   }
   std::unique_ptr<llvm::MemoryBuffer> Buffer = std::move(BufferOrErr.get());
-  // A wrapper module in bitcode form already carries the registration
-  // descriptor the SYCL runtime expects. It is linked into the host module by
-  // loadLinkModules, so there is nothing to embed here. In SYCL CUDA
-  // compatibility mode the file is the CUDA fat binary, which CUDA registers.
-  if (getLangOpts().CUDA ||
-      llvm::isBitcode(
-          reinterpret_cast<const unsigned char *>(Buffer->getBufferStart()),
-          reinterpret_cast<const unsigned char *>(Buffer->getBufferEnd())))
+  // The SYCL runtime registers device images through a descriptor that also
+  // carries their properties, kernel entries and options. loadLinkModules
+  // wraps an offload binary container into such a descriptor, so there is
+  // nothing to embed here. In SYCL CUDA compatibility mode the file is the
+  // CUDA fat binary, which CUDA registers.
+  if (getLangOpts().CUDA || llvm::identify_magic(Buffer->getBuffer()) ==
+                                llvm::file_magic::offload_binary)
     return nullptr;
   llvm::Function *RegistrationFunc = nullptr;
   if (llvm::Error Err = llvm::offloading::wrapSYCLBinaries(
@@ -132,4 +131,25 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
     return nullptr;
   }
   return RegistrationFunc;
+}
+
+llvm::Function *CodeGenModule::createSYCLRegisterLibFunc() {
+  assert(!LangOpts.SYCLUniquePrefix.empty() &&
+         "Expected non-empty SYCL unique prefix");
+  std::string RegisterFuncName =
+      "__sycl_registerlib_" + LangOpts.SYCLUniquePrefix;
+  llvm::FunctionType *RegisterFTy =
+      llvm::FunctionType::get(VoidTy, /*isVarArg=*/false);
+  // Declare the symbol and emit a global constructor that calls it.
+  llvm::FunctionCallee RegisterFunc =
+      getModule().getOrInsertFunction(RegisterFuncName, RegisterFTy);
+  llvm::Function *SYCLRegisterLibCtor = CreateGlobalInitOrCleanUpFunction(
+      RegisterFTy, "__sycl_registerlib_ctor",
+      getTypes().arrangeNullaryFunction(), SourceLocation());
+  llvm::BasicBlock *Entry =
+      llvm::BasicBlock::Create(getLLVMContext(), "entry", SYCLRegisterLibCtor);
+  llvm::IRBuilder<> Builder(Entry);
+  Builder.CreateCall(RegisterFunc);
+  Builder.CreateRetVoid();
+  return SYCLRegisterLibCtor;
 }
