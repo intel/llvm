@@ -154,6 +154,9 @@ B matrix must have the value `use::b`. The C and D matrices must both
 have the value `use::accumulator`. This is used by backend
 implementations to reason about the layout of the matrix in
 registers.
+In the case of matrix multiply and add with block scaling, `scale` use
+value indicates that the matrix contains the scaling factors needed
+for the operation.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -1104,6 +1107,9 @@ descriptors that can be queried using `get_info` API.
 |`ext::oneapi::experimental::info::device::matrix_combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
 and types on this device
+|`ext::oneapi::experimental::info::device::matrix_scaled_combinations` |
+`std::vector<combination>`| tells the set of supported matrix sizes
+and types that can be used in `joint_matrix_bmad` operation on this device
 |======================
 
 The runtime query returns a vector of `matrix_combinations` of `combination`
@@ -1115,6 +1121,10 @@ continuous or discrete number of sizes. If a device support a
 continuous number of sizes, the `max_*` variant is applied and only
 the maximum number is returned. However, if a device supports a
 discrete list of numbers so the `msize, nsize, ksize` variant is applied.
+
+In the case of `joint_matrix_bmad` operation, the
+`matrix_scaled_combinations` descriptor returns a vector of
+`combination` type.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -1153,7 +1163,8 @@ struct combination {
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-Each combination of the `matrix_combinations` vector composes the types and
+Each combination of the `matrix_combinations` vector and the
+`matrix_scaled_combinations` vector composes the types and
 sizes of A, B, C, and D matrices supported by the device
 implementation. The table below provides a description of each member
 of the `combination` struct.
@@ -1404,7 +1415,7 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
-`matrix_type::fp32` .2+| `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
+`matrix_type::fp32` | `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
@@ -1551,6 +1562,53 @@ be used. An attempt to run the compiled code on an unsupported architecture will
 |16 |16 |16
 .1+|`matrix_type::fp64`  .1+| `matrix_type::fp64`
 |16 |16 |4
+|======================
+
+=== Appendix II: `joint_matrix_bmad` Combinations Per Hardware
+
+==== Intel XMX
+This is currently available in devices with the architecture
+`architecture::intel_gpu_cri`
+[frame="none",options="header"]
+|======================
+| A type | B type | C type | D type | M | N | K | device
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16` .3+|
+`matrix_type::fp32`, `matrix_type::fp16` .3+| `matrix_type::fp32`,
+`matrix_type::fp16` |  8 |  16 |  16
+.3+|`architecture::intel_gpu_cri`
+|32|32|32
+|32|32|64
+.3+| `matrix_type::bf16`  .3+| `matrix_type::bf16` .3+|
+`matrix_type::fp32`, `matrix_type::bf16` .3+| `matrix_type::fp32`,
+`matrix_type::bf16`|  8 |  16 |  16
+.3+|`architecture::intel_gpu_cri`
+|32|32|32
+|32|32|64
+.2+| `matrix_type::fp8_e5m2`  .2+| `matrix_type::fp8_e5m2` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16` |  8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp8_e5m2`  .2+| `matrix_type::fp8_e4m3` .2+|
+`matrix_type::fp32` , `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16`|  8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp8_e4m3`  .2+| `matrix_type::fp8_e5m2` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+|`matrix_type::fp32`,
+`matrix_type::bf16` | 8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp8_e4m3`  .2+| `matrix_type::fp8_e4m3` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16` |  8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp4_e2m1`  .2+| `matrix_type::fp4_e2m1` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16` |  8 |  16 .2+|  64
+.2+|`architecture::intel_gpu_cri`
+|32|32
 |======================
 
 === Revision History
