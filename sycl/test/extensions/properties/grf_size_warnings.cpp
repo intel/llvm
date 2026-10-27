@@ -1,17 +1,17 @@
 // This test verifies that the unsupported combinations of the grf_size /
 // grf_size_automatic kernel properties produce a compilation
-// error.
+// warning.
 
-// RUN: not %clangxx -fsycl -fsycl-device-only -fsycl-targets=intel_gpu_bmg_g21 -DCASE=0 %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=intel_gpu_bmg_g21 -DCASE=0 %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-AOT-512
 
-// RUN: not %clangxx -fsycl -fsycl-device-only -DCASE=1 %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-device-only -DCASE=1 %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-ESIMD-512
 
-// RUN: not %clangxx -fsycl -fsycl-device-only -fsycl-targets=intel_gpu_bmg_g21 -DCASE=2 %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=intel_gpu_bmg_g21 -DCASE=2 %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-AOT-ESIMD-256
 
-// RUN: not %clangxx -fsycl -fsycl-device-only -fsycl-targets=intel_gpu_bmg_g21 -DCASE=3 %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=intel_gpu_bmg_g21 -DCASE=3 %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-AOT-ESIMD-AUTO
 
 #include <sycl/ext/intel/esimd.hpp>
@@ -47,10 +47,10 @@ int main() {
   return 0;
 }
 
-// CHECK-AOT-512: error: grf_size<512> is not supported with ahead-of-time compilation.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
+// CHECK-AOT-512: warning: grf_size<512> is not supported with ahead-of-time compilation.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
 
-// CHECK-ESIMD-512: error: grf_size<512> is not supported with ESIMD.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
+// CHECK-ESIMD-512: warning: grf_size<512> is not supported with ESIMD.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
 
-// CHECK-AOT-ESIMD-256: error: grf_size<256> is not supported with ESIMD and ahead-of-time compilation.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
+// CHECK-AOT-ESIMD-256: warning: grf_size<256> is not supported with ESIMD and ahead-of-time compilation.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
 
-// CHECK-AOT-ESIMD-AUTO: error: grf_size_automatic is not supported with ESIMD and ahead-of-time-compilation.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.
+// CHECK-AOT-ESIMD-AUTO: warning: grf_size_automatic is not supported with ESIMD and ahead-of-time-compilation.{{.*}}Consider using the maximum_registers and maximum_registers_automatic properties.

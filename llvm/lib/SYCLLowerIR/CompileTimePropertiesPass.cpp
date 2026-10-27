@@ -319,7 +319,8 @@ bool diagnoseUnsupportedGrfSizeUsage(const Function &F, uint32_t PropVal) {
   std::string Msg = (Reason + " Consider using the maximum_registers and "
                               "maximum_registers_automatic properties.")
                         .str();
-  F.getContext().diagnose(DiagnosticInfoUnsupported(F, Msg, F.getSubprogram()));
+  F.getContext().diagnose(
+      DiagnosticInfoUnsupported(F, Msg, F.getSubprogram(), DS_Warning));
   return false;
 }
 
