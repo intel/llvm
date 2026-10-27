@@ -2,7 +2,7 @@
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %if !level_zero_v2_adapter %{%{build} %level_zero_options -o %t.out%}
 // RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out%}
 // RUN: %if !level_zero_v2_adapter %{env UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out%}
 //
