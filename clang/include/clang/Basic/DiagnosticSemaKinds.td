@@ -14014,6 +14014,11 @@ def warn_sycl_old_and_new_kernel_attributes : Warning<
   InGroup<IgnoredAttributes>;
 def err_attribute_argument_is_not_valid : Error<
   "%0 attribute requires integer constant value 0 or 1">;
+def warn_sycl_work_group_scope_dtor : Warning<
+  "%select{variable|captured variable}0 %1 "
+  "%select{declared at|copied into the kernel object at}0 work group scope "
+  "has a non-trivial destructor">,
+  InGroup<SyclWorkGroupDtor>;
 
 // SPIR-V builtins diagnostics
 def err_spirv_invalid_target : Error<
