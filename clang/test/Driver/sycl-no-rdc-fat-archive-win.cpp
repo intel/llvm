@@ -5,18 +5,27 @@
 /// compiler-rt builtins library (libclang_rt.builtins.bc).
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
+/// Compiler will try to find clang-offload-bundler tool in directory
+/// specified with '-ccc-install-dir', so create a simulated installation
+/// in temporary directory and copy clang-offload-bundler and all dummy
+/// dummy devicelib files there.
+// RUN: rm -rf %t && mkdir -p %t/bin
+// RUN: cp -R %S/Inputs/SYCL/lib %t/lib
+// RUN: cp %llvmshlibdir/../bin/clang-offload-bundler.exe %t/bin/
+// DEFINE: %{clang_install_dir} = %/t/bin
+
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
 // RUN: %clangxx -target x86_64-pc-windows-msvc -fsycl %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t_lib.a %t1_bundle.o
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=off --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_kernel --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_source --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=off /clang:--sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=auto /clang:--sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_kernel /clang:--sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_source /clang:--sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=off -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=auto -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_kernel -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_source -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=off -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=auto -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_kernel -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_source -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // CHECK: 0: input, "[[INPUT:.+\.a]]", object, (host-sycl)
 // CHECK: 1: input, "[[INPUT]]", archive
 // CHECK: 2: clang-offload-unbundler, {1}, tempfilelist
