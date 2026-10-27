@@ -16,6 +16,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
+#include <optional>
 #include <sstream>
 
 namespace sycl {
@@ -194,17 +195,17 @@ struct IRModuleFormatInfo {
 
 // Maps a SYCLBIN IR module type enum value to the corresponding runtime device
 // image format and target spec. This is the inverse of getIRModuleType.
-IRModuleFormatInfo getIRModuleFormatInfo(uint32_t RawIRModuleType) {
+std::optional<IRModuleFormatInfo>
+getIRModuleFormatInfo(uint32_t RawIRModuleType) {
   switch (static_cast<SYCLBIN::IRModuleType>(RawIRModuleType)) {
   case SYCLBIN::IRModuleType::SPIRV:
-    return {SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64};
+    return IRModuleFormatInfo{SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                              __SYCL_DEVICE_BINARY_TARGET_SPIRV64};
   case SYCLBIN::IRModuleType::PTX:
   case SYCLBIN::IRModuleType::AMDGCN:
     break;
   }
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Unsupported IR module type in SYCLBIN: " +
-                            std::to_string(RawIRModuleType));
+  return std::nullopt;
 }
 
 // Serializes a property set (name + entries) into the textual format consumed
@@ -772,12 +773,15 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
 
     // Set up the abstract module descriptor.
-    AMDesc.NumJITBinaries = AM.IRModules.size();
+    // The number of JIT binaries is set below, as IR modules of unsupported
+    // types are skipped. Their slots are left unused to keep the native
+    // binaries at a fixed offset.
+    AMDesc.NumJITBinaries = 0;
     AMDesc.NumNativeBinaries = AM.NativeDeviceCodeImages.size();
     AMDesc.JITBinaries = CurrentBinaryImagesStart;
-    AMDesc.NativeBinaries = CurrentBinaryImagesStart + AMDesc.NumJITBinaries;
+    AMDesc.NativeBinaries = CurrentBinaryImagesStart + AM.IRModules.size();
     CurrentBinaryImagesStart +=
-        AMDesc.NumJITBinaries + AM.NativeDeviceCodeImages.size();
+        AM.IRModules.size() + AM.NativeDeviceCodeImages.size();
 
     // Construct properties from SYCLBIN metadata.
     std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
@@ -800,14 +804,16 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
         if (TypeIt != SetIt->second.end())
           RawIRModuleType = TypeIt->second.asUint32();
       }
-      const IRModuleFormatInfo FormatInfo =
+      std::optional<IRModuleFormatInfo> FormatInfo =
           getIRModuleFormatInfo(RawIRModuleType);
+      if (!FormatInfo)
+        continue;
 
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
-      DeviceBinary.Format = FormatInfo.Format;
-      DeviceBinary.DeviceTargetSpec = FormatInfo.DeviceTargetSpec;
+      DeviceBinary.Format = FormatInfo->Format;
+      DeviceBinary.DeviceTargetSpec = FormatInfo->DeviceTargetSpec;
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
       DeviceBinary.BinaryStart =
@@ -820,7 +826,8 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
       // Create an image from it.
-      AMDesc.JITBinaries[J] = RTDeviceBinaryImage{&DeviceBinary};
+      AMDesc.JITBinaries[AMDesc.NumJITBinaries++] =
+          RTDeviceBinaryImage{&DeviceBinary};
     }
 
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
