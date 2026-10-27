@@ -8,7 +8,7 @@
 /// Compiler will try to find clang-offload-bundler tool in directory
 /// specified with '-ccc-install-dir', so create a simulated installation
 /// in temporary directory and copy clang-offload-bundler and all dummy
-/// dummy devicelib files there.
+/// devicelib files there.
 // RUN: rm -rf %t && mkdir -p %t/bin
 // RUN: cp -R %S/Inputs/SYCL/lib %t/lib
 // RUN: cp %llvmshlibdir/../bin/clang-offload-bundler.exe %t/bin/
