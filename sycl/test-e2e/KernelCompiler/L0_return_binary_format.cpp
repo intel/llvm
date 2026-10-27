@@ -21,7 +21,7 @@
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 const char *Source = R"(
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 extern "C" SYCL_EXTERNAL
