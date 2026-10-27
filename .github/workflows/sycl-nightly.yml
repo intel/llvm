@@ -123,7 +123,7 @@ jobs:
       toolchain_artifact: sycl_linux_libcxx
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
-  build-linux-debug-all-backends:
+  build_linux_debug_all_backends:
     needs: get_date
     if: github.repository == 'intel/llvm'
     strategy:
@@ -386,7 +386,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
-  build-win-debug-all-backends:
+  build_win_debug_all_backends:
     needs: get_date
     if: github.repository == 'intel/llvm'
     strategy:
@@ -603,12 +603,15 @@ jobs:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
       id: tag
+      env:
+        EVENT_NAME_IS_SCHEDULE: ${{ github.event_name == 'schedule' }}
+        DATE: ${{ needs.get_date.outputs.date }}
       run: |
-        if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
-          echo "TAG=${{ needs.get_date.outputs.date }}" >> "$GITHUB_OUTPUT"
+        if [ "$EVENT_NAME_IS_SCHEDULE" == "true" ]; then
+          echo "TAG=$DATE" >> "$GITHUB_OUTPUT"
         else
           # TODO: Use date of the commit?
-          echo "TAG=${{ needs.get_date.outputs.date }}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "TAG=$DATE-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
       uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
