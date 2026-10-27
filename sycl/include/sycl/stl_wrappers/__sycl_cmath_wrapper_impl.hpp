@@ -15,7 +15,7 @@
 #ifdef __SYCL_DEVICE_ONLY__
 
 // The 'sycl_device_only' attribute enables device-side overloading.
-#define __SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
+#define __SYCL_DEVICE inline __attribute__((sycl_device_only, always_inline))
 #define __SYCL_DEVICE_C extern "C" __SYCL_DEVICE
 
 #include <type_traits>
@@ -140,8 +140,8 @@ using __sycl_promote_t =
 /// Basic operations
 //
 
-__SYCL_DEVICE_C float fabsf(float x) { return x < 0 ? -x : x; }
-__SYCL_DEVICE_C double fabs(double x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE_C float fabsf(float x) { return __spirv_ocl_fabs(x); }
+__SYCL_DEVICE_C double fabs(double x) { return __spirv_ocl_fabs(x); }
 
 __SYCL_SPIRV_MAP_BINARY_C(fmod);
 __SYCL_SPIRV_MAP_BINARY_C(remainder);
@@ -313,14 +313,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 // Basic operations
 // using ::abs is already pulled in above
-__SYCL_DEVICE float abs(float x) { return x < 0 ? -x : x; }
-__SYCL_DEVICE double abs(double x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE float abs(float x) { return __spirv_ocl_fabs(x); }
+__SYCL_DEVICE double abs(double x) { return __spirv_ocl_fabs(x); }
 
 using ::fabs;
 using ::fabsf;
-__SYCL_DEVICE float fabs(float x) { return x < 0 ? -x : x; }
+__SYCL_DEVICE float fabs(float x) { return __spirv_ocl_fabs(x); }
 template <typename T> __SYCL_DEVICE __sycl_promote_t<T> fabs(T x) {
-  return x < 0 ? -x : x;
+  return __spirv_ocl_fabs(static_cast<__sycl_promote_t<T>>(x));
 }
 
 using ::fdim;
