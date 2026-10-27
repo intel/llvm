@@ -1208,8 +1208,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   // Return early if nosanitize_memory module flag is present for the module.
   if (checkIfAlreadyInstrumented(M, "nosanitize_memory"))
     return PreservedAnalyses::all();
-  const InstrumentationOptions &Opts =
-      M.getContext().getLibraryOptions().get<InstrumentationOptions>();
+  const InstrumentationOptions &Opts = getInstrumentationOptions(M);
   MemorySanitizerOptions MSanOpts = resolveOptions(Opts, Options);
   bool Modified = false;
   const auto &TargetTriple = Triple(M.getTargetTriple());

@@ -1083,6 +1083,7 @@ void RequirementHandler::initAvailableCapabilitiesForVulkan(
                     Capability::StorageBufferArrayDynamicIndexing,
                     Capability::StorageImageArrayDynamicIndexing,
                     Capability::DerivativeControl,
+                    Capability::SampleRateShading,
                     Capability::MinLod,
                     Capability::ImageQuery,
                     Capability::ImageGatherExtended,

@@ -105,8 +105,7 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                bool DisableSimplifyLibCalls,
                                IntrusiveRefCntPtr<vfs::FileSystem> VFS,
                                const TargetLibraryInfoImpl *TLII) {
-  const PassesOptions &Opts =
-      M.getContext().getLibraryOptions().get<PassesOptions>();
+  const PassesOptions &Opts = getPassesOptions(M.getContext());
   if (valueOr(Opts.force_new_pm_codegen, TM.shouldDefaultToNewPM())) {
     return runCodeGenPipelineNewPM(TM, M, OS, DwoOS, CGFT, DisableVerify, VFS,
                                    TLII);
