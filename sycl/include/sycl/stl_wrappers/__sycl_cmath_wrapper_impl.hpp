@@ -501,24 +501,6 @@ _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 #endif
 
-#if defined(_WIN32)
-__SYCL_DEVICE_C double _Cosh(double x, double y) { return cosh(x) * y; }
-__SYCL_DEVICE_C float _FCosh(float x, float y) { return coshf(x) * y; }
-__SYCL_DEVICE_C short _Dtest(double *p) { return fpclassify(*p); }
-__SYCL_DEVICE_C short _FDtest(float *p) { return fpclassify(*p); }
-__SYCL_DEVICE_C double _Sinh(double x, double y) { return sinh(x) * y; }
-__SYCL_DEVICE_C float _FSinh(float x, float y) { return sinhf(x) * y; }
-__SYCL_DEVICE_C short _Exp(double *px, double y, short eoff) {
-  return exp(*px) * ldexp(y, eoff);
-}
-__SYCL_DEVICE_C short _FExp(float *px, float y, short eoff) {
-  return exp(*px) * ldexp(y, eoff);
-}
-__SYCL_DEVICE_C float _hypotf(float x, float y) { return hypotf(x, y); }
-__SYCL_DEVICE_C int _fdsign(float x) { return __builtin_signbit(x); }
-__SYCL_DEVICE_C int _dsign(double x) { return __builtin_signbit(x); }
-#endif // defined(_WIN32)
-
 #undef __SYCL_SPIRV_MAP_BINARY_C
 #undef __SYCL_SPIRV_MAP_BINARY_CXX
 #undef __SYCL_SPIRV_MAP_UNARY_C
