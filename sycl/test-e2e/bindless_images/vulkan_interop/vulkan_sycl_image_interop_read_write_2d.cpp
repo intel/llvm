@@ -3,10 +3,6 @@
 // REQUIRES: vulkan
 // REQUIRES: windows
 
-// DG2 accesses imported images as if they were uncompressed.
-// XFAIL: windows && run-mode && gpu-intel-dg2
-// XFAIL-TRACKER: GSD-13691
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // Fills an image with Vulkan (copy or clear), reads it and writes it in place

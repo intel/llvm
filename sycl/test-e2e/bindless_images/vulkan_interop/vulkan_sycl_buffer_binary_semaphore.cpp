@@ -5,10 +5,6 @@
 // Linux fix tracked by GSD-12371, landed in driver 38362.
 // REQUIRES-INTEL-DRIVER: lin: 38362
 
-// Hangs on Windows Gen12.
-// UNSUPPORTED: windows && gpu-intel-gen12
-// UNSUPPORTED-TRACKER: TODO
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
 // RUN: %{run} %t.out --dual-sem

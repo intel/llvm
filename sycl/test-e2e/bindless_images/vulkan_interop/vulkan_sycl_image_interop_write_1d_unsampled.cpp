@@ -6,14 +6,6 @@
 // https://github.com/intel/llvm/issues/22858
 // REQUIRES-INTEL-DRIVER: lin: 39809
 
-// Independent of the driver gate above: on Windows the writes land at the
-// wrong offsets in an imported OPTIMAL-tiled 1D image (float/1ch/32: 8 of 32).
-// XFAIL: windows && run-mode
-// XFAIL-TRACKER: GSD-12373
-
-// UNSUPPORTED: cuda-ge-13
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21808
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 /*

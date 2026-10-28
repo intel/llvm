@@ -4,10 +4,6 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
-// Fails on Linux DG2 and ARL with Level Zero, passes on Linux Gen12 and CUDA.
-// UNSUPPORTED: linux && level_zero && !gpu-intel-gen12
-// UNSUPPORTED-TRACKER: GSD-12357
-
 /*
     Run all the vulkan formats through a write test. Note this is unsampled
    only, you can't "write" with the image sampler.

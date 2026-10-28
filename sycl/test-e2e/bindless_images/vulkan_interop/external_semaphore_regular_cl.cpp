@@ -5,9 +5,6 @@
 // versions.
 // REQUIRES-INTEL-DRIVER: lin: 39758, win: 101.9030
 
-// XFAIL: windows && run-mode && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23249
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: env UR_L0_BATCH_SIZE=8 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out \
 // RUN:   2>&1 | FileCheck --check-prefixes=CHECK%if level_zero_v2_adapter %{,CHECK-V2%} %else %{,CHECK-V1%} %s
