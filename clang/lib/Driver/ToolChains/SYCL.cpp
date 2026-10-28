@@ -1577,8 +1577,11 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(
-      SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
+  // Compilations that stop at or before the compile phase (-E, --precompile,
+  // -fsyntax-only) emit no IR, so they need no device libraries.
+  if (getDriver().getFinalPhase(DriverArgs) > phases::Compile)
+    BCLibs.append(
+        SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
   for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
@@ -2101,6 +2104,35 @@ SYCLToolChain::getDeviceLibs(
     // found, emit an error.
     if (!DeviceLibFound)
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
+  }
+
+  // Link compiler-rt builtins bitcode (libclang_rt.builtins.bc) for spirv64.
+  // The builtins are target infrastructure rather than SYCL runtime, so they
+  // are only suppressed by --no-offloadlib.
+  if (getTriple().getArch() == llvm::Triple::spirv64 &&
+      DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
+                         true)) {
+    bool BuiltinsFound = false;
+    // Per-target layout: lib/<triple>/libclang_rt.builtins.bc.
+    if (std::optional<std::string> RuntimeDir = getRuntimePath()) {
+      SmallString<128> BCPath(*RuntimeDir);
+      llvm::sys::path::append(BCPath, "libclang_rt.builtins.bc");
+      if (getVFS().exists(BCPath)) {
+        BCLibs.emplace_back(std::string(BCPath), /*ShouldInternalize=*/true);
+        BuiltinsFound = true;
+      }
+    }
+    if (!BuiltinsFound) {
+      // Flat layout (LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF):
+      // lib/<os>/libclang_rt.builtins-spirv64.bc.
+      SmallString<128> BCPath(HostTC.getCompilerRTPath());
+      llvm::sys::path::append(BCPath, "libclang_rt.builtins-spirv64.bc");
+      if (getVFS().exists(BCPath))
+        BCLibs.emplace_back(std::string(BCPath), /*ShouldInternalize=*/true);
+      else
+        getDriver().Diag(diag::err_drv_device_lib_not_found)
+            << /*compiler-rt builtins*/ 1 << BCPath;
+    }
   }
   return BCLibs;
 }

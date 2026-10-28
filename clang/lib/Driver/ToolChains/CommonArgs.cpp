@@ -3275,7 +3275,7 @@ bool tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
       CC1Args.push_back(DriverArgs.MakeArgString(LibclcFile));
       return true;
     }
-    D.Diag(diag::err_drv_libclc_not_found) << LibclcFile;
+    D.Diag(diag::err_drv_device_lib_not_found) << /*libclc*/ 0 << LibclcFile;
     return false;
   }
 
@@ -3342,7 +3342,7 @@ bool tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
       return true;
   }
 
-  D.Diag(diag::err_drv_libclc_not_found) << "libclc.bc";
+  D.Diag(diag::err_drv_device_lib_not_found) << /*libclc*/ 0 << "libclc.bc";
   return false;
 }
 
