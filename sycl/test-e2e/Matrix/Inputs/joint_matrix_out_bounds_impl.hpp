@@ -9,6 +9,12 @@
 #include <iostream>
 #include <sycl/usm.hpp>
 
+// The CRI simulator does not finish this size within the test timeout, so the
+// tests build a smaller one there.
+#ifndef MATRIX_SIZE
+#define MATRIX_SIZE 1024
+#endif
+
 template <typename Tab, size_t TM, size_t TN, size_t TK, layout B_layout>
 class mult;
 
@@ -148,14 +154,16 @@ void test() {
 
 template <layout A_layout, layout B_layout> void test_all() {
   std::cout << "bf16: ";
-  test<bfloat16, float, /*MATRIX_M*/ 1024 + 24, /*MATRIX_N*/ 1024 + 24,
-       /*MATRIX_K*/ 1024 + 24, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, A_layout,
+  test<bfloat16, float, /*MATRIX_M*/ MATRIX_SIZE + 24,
+       /*MATRIX_N*/ MATRIX_SIZE + 24,
+       /*MATRIX_K*/ MATRIX_SIZE + 24, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, A_layout,
        B_layout>();
   std::cout << "half: ";
-  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 8, 16, 16, A_layout,
-       B_layout>();
+  test<half, float, MATRIX_SIZE + 24, MATRIX_SIZE + 24, MATRIX_SIZE + 24, 8, 16,
+       16, A_layout, B_layout>();
   std::cout << "int8: ";
-  test<int8_t, int32_t, 1024, 1024, 1024 + 16, 8, 16, 32, A_layout, B_layout>();
+  test<int8_t, int32_t, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE + 16, 8, 16, 32,
+       A_layout, B_layout>();
 }
 
 template <layout A_layout, layout B_layout> void test_all_big_shapes() {
