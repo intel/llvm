@@ -358,9 +358,10 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-// Note: this function can be called on Windows twice:
-//  1) when library is unloaded via FreeLibrary
-//  2) when process is being terminated
+// Note: on Windows this function is called from DllMain when the library is
+// unloaded via FreeLibrary, or from the static shutdown handler when the
+// library is linked statically. It is not called from DllMain during process
+// termination, see DllMain.
 void shutdown_early(bool CanJoinThreads = true) {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   if (!GlobalHandler::RTGlobalObjHandler)
@@ -483,15 +484,24 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
+    // lpReserved != NULL if library is unloaded during process termination.
+    // In this case Windows has already terminated all other threads without
+    // unwinding, and backend libraries (e.g. the OpenCL ICD loader) may have
+    // been deinitialized by their own DLL_PROCESS_DETACH, so backend calls made
+    // by shutdown_early can fail. Skip it and let the OS reclaim the resources,
+    // but still record the termination so that shutdown_late does not wait for
+    // scheduler access held by the terminated threads.
+    if (lpReserved != NULL) {
+      ProcessTerminating.store(true, std::memory_order_release);
+      break;
+    }
+
     try {
       // WA for threads handling. We must call join() or detach() on host task
       // execution thread to avoid UB. lpReserved == NULL if library is unloaded
       // via FreeLibrary. In this case we can't join threads within DllMain call
-      // due to global loader lock and DLL_THREAD_DETACH signalling. lpReserved
-      // != NULL if library is unloaded during process termination. In this case
-      // Windows terminates threads but leave them in signalled state, prevents
-      // DLL_THREAD_DETACH notification and we can call join() as NOP.
-      shutdown_early(lpReserved != NULL);
+      // due to global loader lock and DLL_THREAD_DETACH signalling.
+      shutdown_early(false);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;
