@@ -71,12 +71,27 @@ def _build_command(build_dir, targets, parallelism):
     return command
 
 
-def _find_profdata_tool(instrumented_dir, requested_tool):
+def _find_profdata_tool(host_clang, requested_tool, dry_run):
     if requested_tool:
-        return Path(requested_tool).resolve()
+        tool = Path(requested_tool).absolute()
+        if not dry_run and not tool.is_file():
+            raise RuntimeError(f"llvm-profdata was not found at {tool}")
+        return tool
 
     executable = "llvm-profdata.exe" if os.name == "nt" else "llvm-profdata"
-    return instrumented_dir / "bin" / executable
+    if dry_run and Path(host_clang).parent == Path("."):
+        return Path(executable)
+
+    # Raw profile formats are tied to the compiler-rt profile runtime used by
+    # the host compiler. Use llvm-profdata from that same toolchain rather than
+    # the newly built (and potentially format-incompatible) LLVM toolchain.
+    host_tool = Path(host_clang).resolve().with_name(executable)
+    if dry_run or host_tool.is_file():
+        return host_tool
+    raise RuntimeError(
+        f"A host llvm-profdata matching {host_clang} is required. "
+        "Install it beside the host Clang or pass --llvm-profdata."
+    )
 
 
 def _find_host_compilers(requested_clang, requested_clangxx, dry_run):
@@ -250,7 +265,9 @@ def run_pgo_build(args):
         cwd=source_dir,
     )
 
-    profdata_tool = _find_profdata_tool(instrumented_dir, args.llvm_profdata)
+    profdata_tool = _find_profdata_tool(
+        host_clang, args.llvm_profdata, args.dry_run
+    )
     _merge_profiles(runner, profdata_tool, profile_dir, profile_output)
 
     if args.profile_only:
@@ -324,7 +341,7 @@ def _parse_args(argv=None):
     )
     parser.add_argument(
         "--llvm-profdata",
-        help="llvm-profdata executable (default: instrumented build's tool)",
+        help="llvm-profdata executable (default: host Clang toolchain's tool)",
     )
     parser.add_argument("--profile-output", help="merged profile output path")
     parser.add_argument(

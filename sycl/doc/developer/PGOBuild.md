@@ -20,7 +20,10 @@ python3 buildbot/pgo.py --parallelism "$(nproc)"
 ```
 
 The driver finds `clang` and `clang++` on `PATH`. Use `--host-clang` and
-`--host-clangxx` when the host toolchain is installed elsewhere.
+`--host-clangxx` when the host toolchain is installed elsewhere. Profile data
+is merged with `llvm-profdata` from the same host toolchain because raw profile
+formats may differ between LLVM releases. Use `--llvm-profdata` to select an
+explicit compatible tool when it is not installed beside the host Clang.
 
 The driver always performs a clean DPC++ build using the instrumented compiler;
 this is the required training workload and provides representative C, C++,

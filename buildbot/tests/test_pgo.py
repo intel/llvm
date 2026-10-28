@@ -56,6 +56,42 @@ class PgoCommandTest(unittest.TestCase):
             "--cmake-opt=-DLLVM_PROFDATA_FILE=out/dpcpp.profdata", command
         )
 
+    def test_profdata_tool_comes_from_host_clang_toolchain(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            toolchain = Path(temporary_directory)
+            clang = toolchain / "clang"
+            suffix = ".exe" if os.name == "nt" else ""
+            profdata = toolchain / f"llvm-profdata{suffix}"
+            clang.touch()
+            profdata.touch()
+
+            found = PGO._find_profdata_tool(
+                str(clang), requested_tool=None, dry_run=False
+            )
+
+            self.assertEqual(found, profdata.resolve())
+
+    def test_missing_host_profdata_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            clang = Path(temporary_directory) / "clang"
+            clang.touch()
+
+            with self.assertRaisesRegex(RuntimeError, "host llvm-profdata"):
+                PGO._find_profdata_tool(
+                    str(clang), requested_tool=None, dry_run=False
+                )
+
+    def test_explicit_profdata_override_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            profdata = Path(temporary_directory) / "custom-profdata"
+            profdata.touch()
+
+            found = PGO._find_profdata_tool(
+                "clang", requested_tool=str(profdata), dry_run=False
+            )
+
+            self.assertEqual(found, profdata.absolute())
+
     def test_dry_run_build_plan_covers_sycl_training(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             source_dir = Path(temporary_directory)
