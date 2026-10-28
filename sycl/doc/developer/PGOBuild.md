@@ -9,7 +9,7 @@ build is not modified.
 
 - A host Clang installation that includes the profile runtime.
 - CMake and Ninja (or another CMake generator).
-- Enough disk space for two complete DPC++ build directories.
+- Enough disk space for three complete DPC++ build directories.
 
 ## Build
 
@@ -22,10 +22,15 @@ python3 buildbot/pgo.py --parallelism "$(nproc)"
 The driver finds `clang` and `clang++` on `PATH`. Use `--host-clang` and
 `--host-clangxx` when the host toolchain is installed elsewhere.
 
-The default training workload runs `check-clang`, `check-llvm`, and
-`check-sycl`. These targets exercise the compiler front end, optimization and
-code-generation paths, and SYCL-specific compilation. To use a workload that
-better represents a deployment, replace the defaults by repeating
+The driver always performs a clean DPC++ build using the instrumented compiler;
+this is the required training workload and provides representative C, C++,
+optimization, and host code-generation coverage. Before that build, the default
+training workload also runs `check-clang`, `check-llvm`, and `check-sycl` for
+broader compiler and SYCL coverage. Instrumentation diagnostics can make these
+FileCheck-based tests fail, so their exit status is reported but does not stop
+the required training build. The instrumented compiler reserves additional
+value-profile counters to avoid known profiler warnings that would otherwise
+pollute test output. To replace these supplemental targets, repeat
 `--training-target`:
 
 ```bash
@@ -46,13 +51,14 @@ python3 buildbot/pgo.py \
 Use `--dry-run` to inspect every configuration, build, training, and profile
 merge command without changing the build tree.
 
-The driver requires fresh instrumented, profile, and optimized output paths.
-Choose a new `--out-dir` for another run; this prevents profiles from an older
-compiler or training workload from contaminating the result.
+The driver requires fresh instrumented, training, profile, and optimized output
+paths. Choose a new `--out-dir` for another run; this prevents profiles from an
+older compiler or training workload from contaminating the result.
 
 The resulting paths are:
 
 - `build-pgo/instrumented`: instrumented toolchain and raw profiles;
+- `build-pgo/training`: clean DPC++ build compiled by the instrumented toolchain;
 - `build-pgo/dpcpp.profdata`: merged profile;
 - `build-pgo/optimized`: PGO-optimized toolchain.
 

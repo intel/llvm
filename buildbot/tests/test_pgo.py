@@ -1,8 +1,11 @@
 import argparse
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 PGO_SCRIPT = Path(__file__).resolve().parents[1] / "pgo.py"
@@ -21,6 +24,8 @@ class PgoCommandTest(unittest.TestCase):
             [
                 "LLVM_BUILD_INSTRUMENTED=IR",
                 "LLVM_PROFILE_DATA_DIR=out/instrumented/profiles",
+                f"CMAKE_C_FLAGS={PGO.INSTRUMENTED_PROFILE_FLAGS}",
+                f"CMAKE_CXX_FLAGS={PGO.INSTRUMENTED_PROFILE_FLAGS}",
             ],
             ["--no-assertions"],
         )
@@ -28,6 +33,11 @@ class PgoCommandTest(unittest.TestCase):
         self.assertIn("--cmake-opt=-DLLVM_BUILD_INSTRUMENTED=IR", command)
         self.assertIn(
             "--cmake-opt=-DLLVM_PROFILE_DATA_DIR=out/instrumented/profiles",
+            command,
+        )
+        self.assertIn(
+            "--cmake-opt=-DCMAKE_CXX_FLAGS="
+            f"{PGO.INSTRUMENTED_PROFILE_FLAGS}",
             command,
         )
         self.assertEqual(command[-1], "--no-assertions")
@@ -72,6 +82,49 @@ class PgoCommandTest(unittest.TestCase):
             self.assertIn("check-sycl", PGO.DEFAULT_TRAINING_TARGETS)
             self.assertFalse((source_dir / "out").exists())
 
+    def test_dry_run_configures_training_build_with_instrumented_compilers(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source_dir = Path(temporary_directory)
+            (source_dir / "buildbot").mkdir()
+            (source_dir / "buildbot" / "configure.py").touch()
+            arguments = argparse.Namespace(
+                src_dir=str(source_dir),
+                out_dir=str(source_dir / "out"),
+                cmake_gen="Ninja",
+                host_clang="clang",
+                host_clangxx="clang++",
+                configure_arg=[],
+                training_target=None,
+                build_target="all",
+                parallelism=2,
+                llvm_profdata=None,
+                profile_output=None,
+                profile_only=False,
+                dry_run=True,
+            )
+
+            with mock.patch("builtins.print") as print_mock:
+                PGO.run_pgo_build(arguments)
+
+            plan = "\n".join(
+                call.args[0] for call in print_mock.call_args_list if call.args
+            )
+            resolved_source = source_dir.resolve()
+            training_dir = resolved_source / "out" / "training"
+            instrumented_bin = (
+                resolved_source / "out" / "instrumented" / "bin"
+            )
+            suffix = ".exe" if os.name == "nt" else ""
+            self.assertIn(str(training_dir), plan)
+            self.assertIn(
+                f"CMAKE_C_COMPILER={instrumented_bin / f'clang{suffix}'}",
+                plan,
+            )
+            self.assertIn(
+                f"CMAKE_CXX_COMPILER={instrumented_bin / f'clang++{suffix}'}",
+                plan,
+            )
+
     def test_dry_run_uses_explicit_host_compilers(self):
         clang, clangxx = PGO._find_host_compilers(
             "toolchain/bin/clang", "toolchain/bin/clang++", dry_run=True
@@ -79,6 +132,54 @@ class PgoCommandTest(unittest.TestCase):
 
         self.assertEqual(clang, "toolchain/bin/clang")
         self.assertEqual(clangxx, "toolchain/bin/clang++")
+
+    def test_host_compiler_paths_preserve_clangxx_driver_name(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            toolchain = Path(temporary_directory)
+            clang = toolchain / "clang"
+            clangxx = toolchain / "clang++"
+            clang.touch()
+            try:
+                clangxx.symlink_to(clang)
+            except OSError as error:
+                self.skipTest(f"cannot create a compiler symlink: {error}")
+
+            found_clang, found_clangxx = PGO._find_host_compilers(
+                str(clang), str(clangxx), dry_run=False
+            )
+
+            self.assertEqual(found_clang, os.path.abspath(clang))
+            self.assertEqual(found_clangxx, os.path.abspath(clangxx))
+            self.assertTrue(found_clangxx.endswith("clang++"))
+
+    def test_host_compiler_lookup_does_not_resolve_paths(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            toolchain = Path(temporary_directory)
+            clang = toolchain / "clang"
+            clangxx = toolchain / "clang++"
+            clang.touch()
+            clangxx.touch()
+
+            with mock.patch.object(
+                Path,
+                "resolve",
+                side_effect=AssertionError("compiler path was resolved"),
+            ):
+                PGO._find_host_compilers(
+                    str(clang), str(clangxx), dry_run=False
+                )
+
+    def test_training_target_failures_are_nonfatal(self):
+        runner = mock.Mock()
+        runner.run.side_effect = subprocess.CalledProcessError(1, ["cmake"])
+
+        with mock.patch("builtins.print") as print_mock:
+            PGO._run_training_targets(
+                runner, Path("instrumented"), ["check-clang"], 2
+            )
+
+        print_mock.assert_called_once()
+        self.assertIn("continuing", print_mock.call_args.args[0])
 
     def test_existing_instrumented_build_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -89,6 +190,7 @@ class PgoCommandTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "stale profile data"):
                 PGO._validate_fresh_outputs(
                     instrumented_dir,
+                    output_dir / "training",
                     output_dir / "optimized",
                     output_dir / "dpcpp.profdata",
                     profile_only=False,

@@ -3,8 +3,9 @@
 
 The script deliberately composes buildbot/configure.py instead of duplicating
 the DPC++ CMake configuration. It produces an instrumented toolchain, exercises
-that toolchain with compiler-focused test targets, merges the raw profiles, and
-then builds an optimized toolchain from the merged profile.
+that toolchain with compiler-focused test targets and a clean training build,
+merges the raw profiles, and then builds an optimized toolchain from the merged
+profile.
 """
 
 import argparse
@@ -18,6 +19,9 @@ import sys
 
 
 DEFAULT_TRAINING_TARGETS = ("check-clang", "check-llvm", "check-sycl")
+INSTRUMENTED_PROFILE_FLAGS = (
+    "-Xclang -mllvm -Xclang -vp-counters-per-site=6"
+)
 
 
 def _format_command(command):
@@ -90,7 +94,36 @@ def _find_host_compilers(requested_clang, requested_clangxx, dry_run):
             "A host Clang++ compiler is required. Add clang++ to PATH or pass "
             "--host-clangxx."
         )
-    return str(Path(clang).resolve()), str(Path(clangxx).resolve())
+    # Do not resolve symlinks here. Clang selects C or C++ driver behavior from
+    # argv[0], and distributions commonly make clang++ a symlink to clang.
+    return os.path.abspath(clang), os.path.abspath(clangxx)
+
+
+def _instrumented_compilers(instrumented_dir):
+    suffix = ".exe" if os.name == "nt" else ""
+    return (
+        instrumented_dir / "bin" / f"clang{suffix}",
+        instrumented_dir / "bin" / f"clang++{suffix}",
+    )
+
+
+def _clear_raw_profiles(profile_dir):
+    for profile in profile_dir.glob("*.profraw"):
+        profile.unlink()
+
+
+def _run_training_targets(runner, build_dir, targets, parallelism):
+    try:
+        runner.run(_build_command(build_dir, targets, parallelism))
+    except subprocess.CalledProcessError as error:
+        # Instrumentation runtime diagnostics can be observed by FileCheck and
+        # make otherwise useful test workloads fail. Keep the coverage and
+        # rely on the required clean training build as the success gate.
+        print(
+            "warning: training test targets returned "
+            f"{error.returncode}; continuing with the training build",
+            file=sys.stderr,
+        )
 
 
 def _merge_profiles(runner, profdata_tool, profile_dir, output_file):
@@ -114,9 +147,9 @@ def _merge_profiles(runner, profdata_tool, profile_dir, output_file):
 
 
 def _validate_fresh_outputs(
-    instrumented_dir, optimized_dir, profile_output, profile_only
+    instrumented_dir, training_dir, optimized_dir, profile_output, profile_only
 ):
-    outputs = [instrumented_dir, profile_output]
+    outputs = [instrumented_dir, training_dir, profile_output]
     if not profile_only:
         outputs.append(optimized_dir)
     existing = [path for path in outputs if path.exists()]
@@ -138,6 +171,7 @@ def run_pgo_build(args):
         )
 
     instrumented_dir = output_dir / "instrumented"
+    training_dir = output_dir / "training"
     optimized_dir = output_dir / "optimized"
     profile_dir = instrumented_dir / "profiles"
     profile_output = (
@@ -149,7 +183,11 @@ def run_pgo_build(args):
     runner = CommandRunner(args.dry_run)
     if not runner.dry_run:
         _validate_fresh_outputs(
-            instrumented_dir, optimized_dir, profile_output, args.profile_only
+            instrumented_dir,
+            training_dir,
+            optimized_dir,
+            profile_output,
+            args.profile_only,
         )
     host_clang, host_clangxx = _find_host_compilers(
         args.host_clang, args.host_clangxx, args.dry_run
@@ -163,6 +201,8 @@ def run_pgo_build(args):
     instrumented_options = common_options + [
         "LLVM_BUILD_INSTRUMENTED=IR",
         f"LLVM_PROFILE_DATA_DIR={profile_dir}",
+        f"CMAKE_C_FLAGS={INSTRUMENTED_PROFILE_FLAGS}",
+        f"CMAKE_CXX_FLAGS={INSTRUMENTED_PROFILE_FLAGS}",
     ]
     runner.run(
         _configure_command(
@@ -179,8 +219,34 @@ def run_pgo_build(args):
         _build_command(instrumented_dir, [args.build_target], args.parallelism),
         cwd=source_dir,
     )
+
+    instrumented_clang, instrumented_clangxx = _instrumented_compilers(
+        instrumented_dir
+    )
     runner.run(
-        _build_command(instrumented_dir, training_targets, args.parallelism),
+        _configure_command(
+            configure_script,
+            source_dir,
+            training_dir,
+            args.cmake_gen,
+            [
+                f"CMAKE_C_COMPILER={instrumented_clang}",
+                f"CMAKE_CXX_COMPILER={instrumented_clangxx}",
+            ],
+            args.configure_arg,
+        ),
+        cwd=source_dir,
+    )
+    if not runner.dry_run:
+        # Discard profiles emitted while building/configuring the instrumented
+        # compiler. Only the explicit workloads below should train PGO.
+        _clear_raw_profiles(profile_dir)
+
+    _run_training_targets(
+        runner, instrumented_dir, training_targets, args.parallelism
+    )
+    runner.run(
+        _build_command(training_dir, [args.build_target], args.parallelism),
         cwd=source_dir,
     )
 
