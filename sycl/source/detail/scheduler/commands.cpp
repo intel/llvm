@@ -2856,6 +2856,29 @@ void enqueueImpKernel(
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage, void *KernelFuncPtr) {
+  // Ensure the global range is evenly divisible by the local range.
+  // Don't rely on the driver as it may support uneven work group sizes.
+  if (NDRDesc.LocalSize[0] != 0) {
+    for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+      if (NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0) {
+        auto makeDimStr = [&](const std::array<size_t, 3> &Arr) {
+          std::string S = "{";
+          for (size_t J = 0; J < NDRDesc.Dims; ++J) {
+            if (J > 0)
+              S += ", ";
+            S += std::to_string(Arr[J]);
+          }
+          return S + "}";
+        };
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::nd_range),
+            "Global work size " + makeDimStr(NDRDesc.GlobalSize) +
+                " is not evenly divisible by local work-group size " +
+                makeDimStr(NDRDesc.LocalSize));
+      }
+    }
+  }
+
   // Run OpenCL kernel
   context_impl &ContextImpl = Queue.getContextImpl();
   device_impl &DeviceImpl = Queue.getDeviceImpl();
