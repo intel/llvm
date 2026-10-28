@@ -146,9 +146,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_71_4 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_p -DMAC_STR=MTL_H
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_h -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=xe_lpgplus_b0 -DMAC_STR=ARL_H
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=arl_h -DMAC_STR=ARL_H
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_74_4 -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=xe_lpgplus_b0 -DMAC_STR=ARL_H
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=arl_h -DMAC_STR=ARL_H
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg -DMAC_STR=BMG
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g21 -### %s 2>&1 | \
