@@ -7,6 +7,7 @@
 // REQUIRES: v2
 // UNSUPPORTED: system-windows
 
+#include <vector>
 #include <ze_api.h>
 
 #include "../../../conformance/enqueue/helpers.h"
@@ -66,6 +67,125 @@ TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
   kernel = nullptr;
 
   ASSERT_SUCCESS(urEventRelease(event));
+}
+
+struct urKernelReclamationTest : uur::urKernelExecutionTest {
+  void SetUp() override {
+    ASSERT_EQ(zeInit(ZE_INIT_FLAG_GPU_ONLY), ZE_RESULT_SUCCESS);
+    program_name = "foo";
+    UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+  }
+};
+INSTANTIATE_TEST_SUITE_P(
+    , urKernelReclamationTest,
+    testing::Combine(
+        testing::ValuesIn(uur::DevicesEnvironment::instance->devices),
+        testing::Values(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
+                        static_cast<ur_queue_flag_t>(
+                            UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE |
+                            UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE))),
+    uur::devicePrinter);
+
+TEST_P(urKernelReclamationTest, ReleaseCompletedKernelsWithoutQueueFinish) {
+  size_t global_size = 1;
+  size_t global_offset = 0;
+  auto zeGate = createZeEvent(context, device);
+  uur::raii::Event gate;
+  ASSERT_SUCCESS(urEventCreateWithNativeHandle(
+      reinterpret_cast<ur_native_handle_t>(zeGate.get()), context, nullptr,
+      gate.ptr()));
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, gate.ptr(), nullptr));
+
+  std::vector<uur::raii::Kernel> kernels(256);
+  for (auto &submittedKernel : kernels) {
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), submittedKernel.ptr()));
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, submittedKernel, 1, &global_offset, &global_size, nullptr,
+        GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+  }
+
+  uint32_t references = 0;
+  ASSERT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_GT(references, 1u);
+
+  // Reusing a kernel after a checkpoint needs a separate retained reference.
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+  uur::raii::Event completed;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, completed.ptr()));
+  ASSERT_EQ(zeEventHostSignal(zeGate.get()), ZE_RESULT_SUCCESS);
+  ASSERT_SUCCESS(urEventWait(1, completed.ptr()));
+
+  auto zeNextGate = createZeEvent(context, device);
+  uur::raii::Event nextGate;
+  ASSERT_SUCCESS(urEventCreateWithNativeHandle(
+      reinterpret_cast<ur_native_handle_t>(zeNextGate.get()), context, nullptr,
+      nextGate.ptr()));
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(queue, 1, nextGate.ptr(), nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+
+  // Further submissions must retire completed kernels without queue finish.
+  // Exercise every command list of an out-of-order queue.
+  for (size_t i = 0; i < 4; ++i) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernel, 1, &global_offset, &global_size, nullptr, GetNumArgs(),
+        GetArgs(), nullptr, 0, nullptr, nullptr));
+  }
+
+  EXPECT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_GT(references, 1u);
+  EXPECT_SUCCESS(urKernelGetInfo(kernels[1], UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 1u);
+  ASSERT_EQ(zeEventHostSignal(zeNextGate.get()), ZE_RESULT_SUCCESS);
+  uur::raii::Event drained;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, drained.ptr()));
+  ASSERT_SUCCESS(urEventWait(1, drained.ptr()));
+}
+
+TEST_P(urKernelReclamationTest, CapturedKernelsAreNotCheckpointed) {
+  ur_bool_t supported = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+      sizeof(supported), &supported, nullptr));
+  if (!supported)
+    GTEST_SKIP() << "Graph capture is not supported.";
+
+  std::vector<uur::raii::Kernel> kernels(32);
+  for (auto &capturedKernel : kernels) {
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), capturedKernel.ptr()));
+  }
+
+  size_t global_size = 1;
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue));
+  for (size_t repeat = 0; repeat < 2; ++repeat) {
+    for (auto &capturedKernel : kernels) {
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, capturedKernel, 1, nullptr, &global_size, nullptr,
+          GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+    }
+  }
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &graph));
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+
+  uint32_t references = 0;
+  ASSERT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 2u);
 }
 
 struct urMultiQueueLaunchKernelDeferFreeTest

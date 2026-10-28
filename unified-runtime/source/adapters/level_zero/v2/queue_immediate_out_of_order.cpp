@@ -25,8 +25,8 @@ std::array<ur_command_list_manager, N> createCommandListManagers(
         hContext->getCommandListCache().getImmediateCommandList(
             hDevice->ZeDevice,
             {true, ordinal, true /* always enable copy offload */},
-            ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
-            priorityLevel));
+            ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index, priorityLevel),
+        true);
   });
 }
 
