@@ -561,7 +561,8 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     default:
       return false;
     }
-  } else if (TargetFn->getName().starts_with("_Z18__spirv_ocl_printf")) {
+  } else if (TargetFn->getName() == "printf" ||
+             TargetFn->getName().starts_with("_Z18__spirv_ocl_printf")) {
     Type *Int8Ty = Type::getInt8Ty(Ctx);
     // The first argument is a string pointer. Subsequent arguments may include
     // pointer-valued arguments, corresponding to %s or %p parameters.
