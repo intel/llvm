@@ -6,9 +6,10 @@
 // RUN: %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Span %s
 
 // Before C++20 a trivially copyable sequence of raw_kernel_arg would bind as
-// one kernel argument, so nd_launch rejects a sequence.
+// one kernel argument, so every launch function rejects a sequence. The queue
+// and handler forms share an instantiation, hence five errors for ten calls.
 
-// CHECK: Passing the arguments of a sycl::kernel as a sequence requires C++20
+// CHECK-COUNT-5: Passing the arguments of a sycl::kernel as a sequence requires C++20
 
 #include <sycl/sycl.hpp>
 
@@ -18,6 +19,7 @@
 namespace oneapiext = sycl::ext::oneapi::experimental;
 
 void argument_list_as_a_container(sycl::queue Q, sycl::handler &CGH,
+                                  sycl::range<1> Range,
                                   sycl::nd_range<1> NdRange,
                                   const sycl::kernel &Kernel) {
   int Value = 1;
@@ -27,17 +29,31 @@ void argument_list_as_a_container(sycl::queue Q, sycl::handler &CGH,
   sycl::span<const oneapiext::raw_kernel_arg> Span{Vector.data(),
                                                    Vector.size()};
 
+  oneapiext::single_task(Q, Kernel, SEQUENCE);
+  oneapiext::single_task(CGH, Kernel, SEQUENCE);
+  oneapiext::parallel_for(Q, Range, Kernel, SEQUENCE);
+  oneapiext::parallel_for(CGH, Range, Kernel, SEQUENCE);
+  oneapiext::parallel_for(Q, oneapiext::launch_config{Range}, Kernel, SEQUENCE);
+  oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel,
+                          SEQUENCE);
   oneapiext::nd_launch(Q, NdRange, Kernel, SEQUENCE);
   oneapiext::nd_launch(CGH, NdRange, Kernel, SEQUENCE);
+  oneapiext::nd_launch(Q, oneapiext::launch_config{NdRange}, Kernel, SEQUENCE);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel,
+                       SEQUENCE);
 }
 
 void one_argument_at_a_time(sycl::queue Q, sycl::handler &CGH,
-                            sycl::nd_range<1> NdRange,
+                            sycl::range<1> Range, sycl::nd_range<1> NdRange,
                             const sycl::kernel &Kernel) {
   // A single raw_kernel_arg and typed arguments are still accepted.
   int Value = 1;
   int *Pointer = nullptr;
+  oneapiext::single_task(Q, Kernel,
+                         oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
+  oneapiext::parallel_for(CGH, Range, Kernel, Pointer, Value);
   oneapiext::nd_launch(Q, NdRange, Kernel,
                        oneapiext::raw_kernel_arg{&Value, sizeof(Value)});
-  oneapiext::nd_launch(CGH, NdRange, Kernel, Pointer, Value);
+  oneapiext::nd_launch(CGH, oneapiext::launch_config{NdRange}, Kernel, Pointer,
+                       Value);
 }
