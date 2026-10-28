@@ -17,11 +17,8 @@ import shutil
 import subprocess
 import sys
 
-
 DEFAULT_TRAINING_TARGETS = ("check-clang", "check-llvm", "check-sycl")
-INSTRUMENTED_PROFILE_FLAGS = (
-    "-Xclang -mllvm -Xclang -vp-counters-per-site=6"
-)
+INSTRUMENTED_PROFILE_FLAGS = "-Xclang -mllvm -Xclang -vp-counters-per-site=6"
 
 
 def _format_command(command):
@@ -156,9 +153,7 @@ def _merge_profiles(runner, profdata_tool, profile_dir, output_file):
 
     if not runner.dry_run:
         output_file.parent.mkdir(parents=True, exist_ok=True)
-    runner.run(
-        [str(profdata_tool), "merge", f"-output={output_file}", *profiles]
-    )
+    runner.run([str(profdata_tool), "merge", f"-output={output_file}", *profiles])
 
 
 def _validate_fresh_outputs(
@@ -181,9 +176,7 @@ def run_pgo_build(args):
     output_dir = Path(args.out_dir).resolve()
     configure_script = source_dir / "buildbot" / "configure.py"
     if not configure_script.is_file():
-        raise RuntimeError(
-            f"Expected the DPC++ configure script at {configure_script}"
-        )
+        raise RuntimeError(f"Expected the DPC++ configure script at {configure_script}")
 
     instrumented_dir = output_dir / "instrumented"
     training_dir = output_dir / "training"
@@ -235,9 +228,7 @@ def run_pgo_build(args):
         cwd=source_dir,
     )
 
-    instrumented_clang, instrumented_clangxx = _instrumented_compilers(
-        instrumented_dir
-    )
+    instrumented_clang, instrumented_clangxx = _instrumented_compilers(instrumented_dir)
     runner.run(
         _configure_command(
             configure_script,
@@ -257,17 +248,13 @@ def run_pgo_build(args):
         # compiler. Only the explicit workloads below should train PGO.
         _clear_raw_profiles(profile_dir)
 
-    _run_training_targets(
-        runner, instrumented_dir, training_targets, args.parallelism
-    )
+    _run_training_targets(runner, instrumented_dir, training_targets, args.parallelism)
     runner.run(
         _build_command(training_dir, [args.build_target], args.parallelism),
         cwd=source_dir,
     )
 
-    profdata_tool = _find_profdata_tool(
-        host_clang, args.llvm_profdata, args.dry_run
-    )
+    profdata_tool = _find_profdata_tool(host_clang, args.llvm_profdata, args.dry_run)
     _merge_profiles(runner, profdata_tool, profile_dir, profile_output)
 
     if args.profile_only:

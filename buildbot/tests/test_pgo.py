@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from unittest import mock
 
-
 PGO_SCRIPT = Path(__file__).resolve().parents[1] / "pgo.py"
 SPEC = importlib.util.spec_from_file_location("dpcpp_pgo", PGO_SCRIPT)
 PGO = importlib.util.module_from_spec(SPEC)
@@ -36,8 +35,7 @@ class PgoCommandTest(unittest.TestCase):
             command,
         )
         self.assertIn(
-            "--cmake-opt=-DCMAKE_CXX_FLAGS="
-            f"{PGO.INSTRUMENTED_PROFILE_FLAGS}",
+            "--cmake-opt=-DCMAKE_CXX_FLAGS=" f"{PGO.INSTRUMENTED_PROFILE_FLAGS}",
             command,
         )
         self.assertEqual(command[-1], "--no-assertions")
@@ -52,9 +50,7 @@ class PgoCommandTest(unittest.TestCase):
             [],
         )
 
-        self.assertIn(
-            "--cmake-opt=-DLLVM_PROFDATA_FILE=out/dpcpp.profdata", command
-        )
+        self.assertIn("--cmake-opt=-DLLVM_PROFDATA_FILE=out/dpcpp.profdata", command)
 
     def test_profdata_tool_comes_from_host_clang_toolchain(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -77,9 +73,7 @@ class PgoCommandTest(unittest.TestCase):
             clang.touch()
 
             with self.assertRaisesRegex(RuntimeError, "host llvm-profdata"):
-                PGO._find_profdata_tool(
-                    str(clang), requested_tool=None, dry_run=False
-                )
+                PGO._find_profdata_tool(str(clang), requested_tool=None, dry_run=False)
 
     def test_explicit_profdata_override_is_preserved(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -147,9 +141,7 @@ class PgoCommandTest(unittest.TestCase):
             )
             resolved_source = source_dir.resolve()
             training_dir = resolved_source / "out" / "training"
-            instrumented_bin = (
-                resolved_source / "out" / "instrumented" / "bin"
-            )
+            instrumented_bin = resolved_source / "out" / "instrumented" / "bin"
             suffix = ".exe" if os.name == "nt" else ""
             self.assertIn(str(training_dir), plan)
             self.assertIn(
@@ -201,18 +193,14 @@ class PgoCommandTest(unittest.TestCase):
                 "resolve",
                 side_effect=AssertionError("compiler path was resolved"),
             ):
-                PGO._find_host_compilers(
-                    str(clang), str(clangxx), dry_run=False
-                )
+                PGO._find_host_compilers(str(clang), str(clangxx), dry_run=False)
 
     def test_training_target_failures_are_nonfatal(self):
         runner = mock.Mock()
         runner.run.side_effect = subprocess.CalledProcessError(1, ["cmake"])
 
         with mock.patch("builtins.print") as print_mock:
-            PGO._run_training_targets(
-                runner, Path("instrumented"), ["check-clang"], 2
-            )
+            PGO._run_training_targets(runner, Path("instrumented"), ["check-clang"], 2)
 
         print_mock.assert_called_once()
         self.assertIn("continuing", print_mock.call_args.args[0])
