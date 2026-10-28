@@ -3059,6 +3059,10 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
                            "First operand of decoration must be the kind"))
       return;
     auto DecoKind = static_cast<Decoration>(DecoKindConst->getZExtValue());
+    // May already be set from an SPV-IR builtin name postfix.
+    if (DecoKind == DecorationSaturatedConversion &&
+        Target->hasDecorate(DecoKind))
+      continue;
 
     const size_t NumOperands = DecoMD->getNumOperands();
     switch (static_cast<size_t>(DecoKind)) {
