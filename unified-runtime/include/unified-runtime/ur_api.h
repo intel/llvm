@@ -14085,7 +14085,7 @@ typedef enum ur_exp_event_flag_t {
   /// be combined with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING.
   UR_EXP_EVENT_FLAG_IPC_EXP = UR_BIT(1),
   /// A new native event is created instead of reusing one previously
-  /// released to the adapter's event pool. Once released, the event will
+  /// released to the adapter's event pool. Once released, the event may
   /// still be returned to the pool.
   UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION = UR_BIT(2),
   /// @cond

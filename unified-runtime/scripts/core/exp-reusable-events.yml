@@ -39,7 +39,7 @@ etors:
       value: "$X_BIT(2)"
       desc: >
             A new native event is created instead of reusing one previously
-            released to the adapter's event pool. Once released, the event will
+            released to the adapter's event pool. Once released, the event may
             still be returned to the pool.
 
 --- #--------------------------------------------------------------------------
