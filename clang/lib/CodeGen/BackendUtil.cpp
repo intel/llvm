@@ -1445,7 +1445,8 @@ void EmitAssemblyHelper::RunCodegenPipeline(
 
   TimeCodegenPasses([&]() {
     Error CodeGenError = runCodeGenPipeline(
-        *TM, *TheModule, *OS, DwoOS, CGFT, !CodeGenOpts.VerifyModule,
+        *TM, *TheModule, *OS, DwoOS ? &DwoOS->os() : nullptr, CGFT,
+        !CodeGenOpts.VerifyModule,
         /*DisableSimplifyLibCalls=*/false, CI.getVirtualFileSystemPtr(),
         TLII.get());
     if (CodeGenError)
