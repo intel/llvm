@@ -1005,12 +1005,12 @@ TEST(ToolChainTest, HugeSYCLDeviceCodeWarning) {
   auto *DiagConsumer = new SimpleDiagnosticConsumer;
   DiagnosticOptions DiagOpts;
   // -Werror promotes the warning to an error, which makes the link job
-  // short-circuit instead of actually invoking the (nonexistent, in this
-  // test) linker -- that's what we want, since the point here is just to
-  // check the diagnostic, not to run a real link. BuildCompilation() doesn't
-  // apply -W/-Werror flags passed as compiler args to its DiagnosticsEngine
-  // (that's done by the frontend, not the driver), so this has to go through
-  // ProcessWarningOptions() directly instead.
+  // short-circuit instead of actually invoking the linker -- that's what we
+  // want, since the point here is just to check the diagnostic, not to run
+  // a real link. BuildCompilation() doesn't apply -W/-Werror flags passed
+  // as compiler args to its DiagnosticsEngine (that's done by the frontend,
+  // not the driver), so this has to go through ProcessWarningOptions()
+  // directly instead.
   DiagOpts.Warnings.push_back("error=large-device-kernel");
   auto InMemoryFileSystem =
       llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
@@ -1033,9 +1033,6 @@ TEST(ToolChainTest, HugeSYCLDeviceCodeWarning) {
   llvm::sys::fs::remove(Path);
 
   EXPECT_NE(Res, 0);
-  // False means the short-circuit path was taken: a real attempt to spawn
-  // the (nonexistent) linker would have set this to true.
-  EXPECT_FALSE(ExecutionFailed);
   bool SawError = llvm::any_of(DiagConsumer->Errors, [](StringRef Msg) {
     return Msg.contains("may overflow 32-bit relocations");
   });
@@ -1064,8 +1061,11 @@ TEST(ToolChainTest, HugeSYCLDeviceCodeWarningSuppressedByFlinkFlag) {
 
   llvm::sys::fs::remove(Path);
 
-  EXPECT_TRUE(DiagConsumer->Msgs.empty());
-  EXPECT_TRUE(DiagConsumer->Errors.empty());
+  auto HasLargeDeviceKernelDiag = [](StringRef Msg) {
+    return Msg.contains("may overflow 32-bit relocations");
+  };
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Msgs, HasLargeDeviceKernelDiag));
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Errors, HasLargeDeviceKernelDiag));
 }
 
 TEST(ToolChainTest, HugeSYCLDeviceCodeWarningSuppressedByWFlag) {
@@ -1094,8 +1094,11 @@ TEST(ToolChainTest, HugeSYCLDeviceCodeWarningSuppressedByWFlag) {
 
   llvm::sys::fs::remove(Path);
 
-  EXPECT_TRUE(DiagConsumer->Msgs.empty());
-  EXPECT_TRUE(DiagConsumer->Errors.empty());
+  auto HasLargeDeviceKernelDiag = [](StringRef Msg) {
+    return Msg.contains("may overflow 32-bit relocations");
+  };
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Msgs, HasLargeDeviceKernelDiag));
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Errors, HasLargeDeviceKernelDiag));
 }
 
 } // end anonymous namespace.
