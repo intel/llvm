@@ -518,14 +518,18 @@ behavior of CUDA's `<<<>>>` launch).  See
 <<launching-by-name-example, Launching a free function kernel by name>> for a
 complete example.
 
-This macro requires support from both the host compiler and the device
-compiler: the host compiler resolves the kernel to launch, and the device
-compiler uses the same resolution to emit the selected kernel.  An
-implementation defines the macro only when it provides this support;
-applications can test whether `SYCL_EXT_ONEAPI_KERNEL_FUNCTION` is defined to
-determine whether the feature is available.  The remaining APIs of
-this extension need support only from the device compiler, so they can be used
-with any host compiler.
+The `SYCL_EXT_ONEAPI_KERNEL_FUNCTION` macro is an optional part of this
+extension.  When the implementation does not support this feature, it does not
+define the macro.  Therefore, applications can test for the existence of the
+macro in order to determine if the feature is supported.
+
+[_Note:_ For implementations that use separate host and device compilation
+passes, implementation of this macro normally requires special support in the
+host compiler.  Since some implementations of SYCL cannot add special support to
+the host compiler, the extension makes this macro an optional feature.  The
+remaining APIs of this extension need support only from the device compiler, so
+they can be used with any host compiler.
+_{endnote}_]
 
 === New kernel bundle member functions
 
