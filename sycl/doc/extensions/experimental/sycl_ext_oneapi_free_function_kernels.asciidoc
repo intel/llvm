@@ -485,7 +485,7 @@ SYCL_EXT_ONEAPI_KERNEL_FUNCTION(kernel-name, args...)
 Expands to the arguments of an enclosing free function kernel launch
 (`single_task` or `nd_launch`).  The macro resolves `kernel-name` against the
 types of `args` using ordinary C++ overload resolution and template argument
-deduction — exactly as the expression `kernel-name(args...)` would — and forms
+deduction — exactly as the expression `+kernel-name(args...)+` would — and forms
 a launch of the resolved free function kernel with `args` as its kernel
 arguments.  It is used in the position of the `kernel_function<Func>` argument
 and the kernel arguments of a launch function, for example:
