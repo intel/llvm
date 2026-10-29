@@ -10,11 +10,16 @@
 // via __SYCL_STANDALONE_DEBUG.
 
 #include <sycl/device.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 
-void use(sycl::device &, sycl::queue &) {}
+void use(sycl::device &, sycl::exception &, sycl::handler &, sycl::queue &) {}
 
 // Only a definition is `distinct` and has an `elements:` list; a forward
-// declaration has neither.
-// CHECK-DAG: distinct !DICompositeType(tag: DW_TAG_class_type, name: "device",{{.*}} elements: ![[#]], identifier: "_ZTSN4sycl3_V16deviceE")
-// CHECK-DAG: distinct !DICompositeType(tag: DW_TAG_class_type, name: "queue",{{.*}} elements: ![[#]], identifier: "_ZTSN4sycl3_V15queueE")
+// declaration has neither. (std::exception shares the name "exception" but is
+// a forward declaration here, so it cannot match.)
+// CHECK-DAG: distinct !DICompositeType(tag: DW_TAG_class_type, name: "device",{{.*}} elements:
+// CHECK-DAG: distinct !DICompositeType(tag: DW_TAG_class_type, name: "exception",{{.*}} elements:
+// CHECK-DAG: distinct !DICompositeType(tag: DW_TAG_class_type, name: "handler",{{.*}} elements:
+// CHECK-DAG: distinct !DICompositeType(tag: DW_TAG_class_type, name: "queue",{{.*}} elements:
