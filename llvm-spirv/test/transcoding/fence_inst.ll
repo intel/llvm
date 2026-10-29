@@ -18,29 +18,34 @@
 ; CHECK-SPIRV: Constant [[#UINT]] [[#CD:]] 0
 
 ; 0x2 Workgroup
-; CHECK-SPIRV: Constant [[#UINT]] [[#ID1:]] 2
-; CHECK-SPIRV: Constant [[#UINT]] [[#ID2:]] 4
-; CHECK-SPIRV: Constant [[#UINT]] [[#ID3:]] 8
-; CHECK-SPIRV: Constant [[#UINT]] [[#ID4:]] 16
+; CHECK-SPIRV-DAG: Constant [[#UINT]] [[#ID1:]] 2818
+; CHECK-SPIRV-DAG: Constant [[#UINT]] [[#ID2:]] 2820
+; CHECK-SPIRV-DAG: Constant [[#UINT]] [[#ID3:]] 2824
+; CHECK-SPIRV-DAG: Constant [[#UINT]] [[#ID4:]] 2832
+; CHECK-SPIRV-DAG: Constant [[#UINT]] [[#NUM4:]] 4
+; CHECK-SPIRV-DAG: Constant [[#UINT]] [[#NUM2:]] 2
 
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID1]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID2]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID3]]
-; CHECK-SPIRV: MemoryBarrier [[#ID2]] [[#ID4]]
-; CHECK-SPIRV: MemoryBarrier [[#ID1]] [[#ID2]]
+; CHECK-SPIRV: MemoryBarrier [[#NUM4]] [[#ID4]]
+; CHECK-SPIRV: MemoryBarrier [[#NUM2]] [[#ID2]]
 
 
 ; CHECK-LLVM: define spir_kernel void @fence_test_kernel1{{.*}} #0 {{.*}}
-; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 0)
+; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 7)
 
 ; CHECK-LLVM: define spir_kernel void @fence_test_kernel2{{.*}} #0 {{.*}}
-; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 0)
+; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 7)
 
 ; CHECK-LLVM: define spir_kernel void @fence_test_kernel3{{.*}} #0 {{.*}}
-; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 0)
+; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 7)
 
 ; CHECK-LLVM: define spir_kernel void @fence_test_kernel4{{.*}} #0 {{.*}}
-; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 0)
+; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 7)
+
+; CHECK-LLVM: define spir_kernel void @fence_test_kernel5{{.*}} #0 {{.*}}
+; CHECK-LLVM-NEXT: call spir_func void @_Z9mem_fencej(i32 7)
 
 ; ModuleID = 'fence_inst.bc'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

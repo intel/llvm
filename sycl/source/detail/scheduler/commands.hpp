@@ -128,6 +128,13 @@ public:
       ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
 
+  /// This constructor takes a pre-built event and can be used for commands,
+  /// which require custom logic related to how the event is created.
+  Command(
+      CommandType Type, queue_impl *Queue, EventImplPtr Event,
+      ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints = {});
+
   /// \param NewDep dependency to be added
   /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return an optional connection cmd to enqueue
@@ -147,12 +154,11 @@ public:
 
   /// Checks if the command is enqueued, and calls enqueueImp.
   ///
-  /// \param EnqueueResult is set to the specific status if enqueue failed.
-  /// \param Blocking if this argument is true, function will wait for the
-  ///        command to be unblocked before calling enqueueImp.
+  /// \param EnqueueResult is set to the specific status if enqueue failed or
+  ///        the command is blocked.
   /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return true if the command is enqueued.
-  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+  virtual bool enqueue(EnqueueResultT &EnqueueResult,
                        std::vector<Command *> &ToCleanUp);
 
   bool isFinished();
@@ -244,7 +250,10 @@ public:
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand);
 
-  bool isHostTask() const;
+  /// Returns true iff this command represents a host task. Only ExecCGCommand
+  /// can, so the base implementation always returns false: the command type
+  /// alone does not imply the dynamic type of the command.
+  virtual bool isHostTask() const { return false; }
 
 protected:
   std::shared_ptr<queue_impl> MQueue;
@@ -642,6 +651,10 @@ public:
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
+  bool isHostTask() const final {
+    return getCG().getType() == CGType::CodeplayHostTask;
+  }
+
   // MEmptyCmd is only employed if this command refers to host-task.
   // The mechanism of lookup for single EmptyCommand amongst users of
   // host-task-representing command is unreliable. This unreliability roots in
@@ -665,6 +678,8 @@ private:
   ur_result_t enqueueImpQueue();
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
+
+  static EventImplPtr makeEvent(const detail::CG &CG, queue_impl *Queue);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

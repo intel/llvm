@@ -106,6 +106,13 @@ def err_drv_no_sycl_device_lib
     : Error<"cannot find expected SYCL device library '%0'. Pass "
             "'--no-offloadlib' to "
             "build without the SYCL device libraries">;
+def err_drv_offload_bundler_not_found : Error<
+  "cannot find 'clang-offload-bundler' in '%0', which is required to inspect "
+  "'%1' for offload device code">;
+def err_drv_sycl_no_rdc_multiple_targets : Error<
+  "'%0' is not supported with multiple SYCL offloading targets">;
+
+
 // SYCL Windows-specific diagnostics
 def err_drv_sycl_requires_dynamic_crt : Error<
   "SYCL requires dynamic C++ runtime (/MD or /MDd); "
@@ -193,6 +200,11 @@ def warn_drv_unsupported_option_for_processor : Warning<
 def warn_drv_unsupported_option_for_runtime : Warning<
   "ignoring '%0' option as it is not currently supported for runtime '%1'">,
   InGroup<OptionIgnored>;
+def warn_drv_hexagon_reserved_caller_saved_reg : Warning<
+  "reserving the caller-saved register '%0' may lead to incorrect code if it "
+  "is not also reserved in all other translation units and libraries; you are "
+  "responsible for ensuring the register is managed consistently">,
+  InGroup<DiagGroup<"hexagon-reserved-caller-saved">>;
 def warn_drv_unsupported_openmp_library : Warning<
   "the library '%0=%1' is not supported, OpenMP will not be enabled">,
   InGroup<OptionIgnored>;
@@ -446,6 +458,11 @@ def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;
 def err_drv_incompatible_omp_arch : Error<"OpenMP target architecture '%0' pointer size is incompatible with host '%1'">;
 def err_drv_option_conflict : Error<"the option %0 conflicts with %1">;
+def err_drv_dyndbg_lto : Error<"'-fdynamic-debugging' incompatible with '-flto'">;
+def err_drv_dyndbg_incompatible : Error<"'-fdynamic-debugging' incompatible with '%0'">;
+def err_drv_dyndbg_ir : Error<"'-fdynamic-debugging' incompatible with IR input">;
+def warn_drv_dyndbg_req_debug : Warning<"'-fdynamic-debugging' ignored: requires debug info">,
+    InGroup<DynamicDebugging>;
 def err_drv_omp_host_target_not_supported : Error<
   "target '%0' is not a supported OpenMP host target">;
 def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
@@ -453,6 +470,11 @@ def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
   "compatible with offloading; e.g., '-fopenmp=libomp' or '-fopenmp=libiomp5'">;
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
+def err_drv_syclbin_link_mixed_inputs : Error<
+  "SYCLBIN file '%0' cannot be linked with non-SYCLBIN input '%1' when using "
+  "'-fsycl-link'">;
+def err_drv_syclbin_link_requires_opt : Error<
+  "linking SYCLBIN files with '-fsycl-link' requires '%0'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
@@ -461,6 +483,8 @@ def err_drv_sycl_thinlto_split_off: Error<
   "'%0' is not supported when '%1' is set with '-fsycl'">;
 def err_drv_sycl_offload_arch_new_driver: Error<
   "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
+def err_drv_not_supported_new_model : Error<
+  "'%0' is not supported with the new offloading model; use '%1' instead">;
 def err_drv_sycl_offload_arch_missing_value : Error<
   "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
 def warn_drv_offload_target_duplicate
@@ -473,6 +497,8 @@ def warn_drv_sycl_target_missing : Warning<
   InGroup<SyclTarget>;
 def err_drv_no_rdc_sycl_target_missing : Error<
   "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
+def err_drv_sycl_no_rdc_unsupported : Error<
+  "'%0' is not supported with '%1' when using the new offloading model">;
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-non-user-code option can be used only in conjunction with %0">;
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
@@ -687,8 +713,8 @@ def err_analyzer_checker_option_invalid_input : Error<
 def err_analyzer_checker_incompatible_analyzer_option : Error<
   "checker cannot be enabled with analyzer option '%0' == %1">;
 def err_analyzer_not_built_with_z3 : Error<
-  "analyzer constraint manager 'z3' is only available if LLVM was built with "
-  "-DLLVM_ENABLE_Z3_SOLVER=ON">;
+  "analyzer constraint manager 'unsupported-z3' is only available if LLVM was "
+  "built with -DLLVM_ENABLE_Z3_SOLVER=ON">;
 
 def warn_drv_needs_hvx : Warning<
   "%0 requires HVX, use -mhvx/-mhvx= to enable it">,
@@ -744,6 +770,12 @@ def remark_printing_module_graph : Remark<
 def err_module_defined_outside_of_module_source : Error<
   "module '%0' is defined in file '%1', but module declarations are only "
   "allowed in C++ module inputs; use the '.cppm' extension or '-x c++module'">;
+def err_drv_depscan_log_path_empty : Error<
+  "'-fdepscan-log-path=' requires a non-empty file path">;
+def err_drv_depscan_log_path_inconsistent : Error<
+  "'-fdepscan-log-path' set inconsistently within a dependency scan: "
+  "%select{no log path|log path '%1'}0 conflicts with "
+  "%select{no log path|log path '%3'}2 requested earlier">;
 
 def warn_drv_delayed_template_parsing_after_cxx20 : Warning<
   "-fdelayed-template-parsing is deprecated after C++20">,
@@ -911,6 +943,9 @@ def err_drv_cannot_mix_options : Error<"cannot specify '%1' along with '%0'">;
 def err_drv_invalid_object_mode : Error<
   "OBJECT_MODE setting %0 is not recognized and is not a valid setting">;
 
+def err_drv_compile_mode_unsupported_aix : Error<
+  "32-bit compile mode is not supported. Use OBJECT_MODE=64, -maix64 or -m64">;
+
 def err_roptr_requires_data_sections: Error<"-mxcoff-roptr is supported only with -fdata-sections">;
 def err_roptr_cannot_build_shared: Error<"-mxcoff-roptr is not supported with -shared">;
 
@@ -964,6 +999,10 @@ def err_drv_target_variant_invalid : Error<
   "unsupported '%0' value '%1'; use 'ios-macabi' instead">;
 def warn_drv_fsycl_with_c_type : Warning<
   "treating '%0' input as '%1' when -fsycl is used">, InGroup<ExpectedFileType>;
+def warn_drv_huge_device_code : Warning<
+  "total device code size of %0 may overflow 32-bit relocations in the host "
+  "link; consider linking with '-flink-huge-device-code'">,
+  InGroup<LargeDeviceKernel>;
 
 def err_drv_invalid_directx_shader_module : Error<
   "invalid profile : %0">;

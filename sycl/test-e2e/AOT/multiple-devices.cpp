@@ -10,7 +10,8 @@
 // targets, and that compilation occurs for those targets.
 
 // UNSUPPORTED: new-offload-model
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20988
+// UNSUPPORTED-INTENDED: This test is specific to the old offload model. See
+// below for more info and a test for the new offload model.
 //
 // Explanation: Old offloading model was accepting compilation of a fat binary
 // for AOT target without specifying specific device. In that case specific
@@ -27,17 +28,17 @@
 // REQUIRES: opencl-aot, ocloc, any-device-is-cpu, any-device-is-gpu, target-spir, opencl-cpu-rt
 
 // Produce a fat object for all targets (generic SPIR-V, CPU, GPU)
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen %S/Inputs/aot.cpp -c -o %t.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,%{gpu_aot_target} %S/Inputs/aot.cpp -c -o %t.o
 
 // Verify that AOT compilation occurs for the targets (GPU, CPU)
 // specified in the link command line. Note that generic SPIR-V compilation
 // is enabled by default even when AOT GPU or CPU targets are specified.
-// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_cpu_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-AOT-CPU --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-GENERIC
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64,%{gpu_aot_target} -v %t.o -o %t_cpu_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-AOT-CPU --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-GENERIC
 // RUN: %{run} %t_cpu_gpu.out
 
 // Verify that AOT compilation occurs for the targets (GPU) specified in
 // the link command line.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -v %t.o -o %t_spv_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-GENERIC --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-NO-AOT-CPU
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{gpu_aot_target} -v %t.o -o %t_spv_gpu.out -Wno-unused-command-line-argument 2>&1 | FileCheck %s --check-prefix=CHECK-GENERIC --check-prefix=CHECK-AOT-GPU --check-prefix=CHECK-NO-AOT-CPU
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t_spv_gpu.out
 

@@ -67,7 +67,7 @@ bool test_one_array(queue &myQueue) {
   auto out_buffer = buffer<int, 1>(&output[0], num_items);
 
   myQueue.submit([&](handler &cgh) {
-    auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
+    auto output_accessor = out_buffer.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class one_array>(num_items, [=](sycl::id<1> index) {
       output_accessor[index] = input1[0][index] + input2[2][1][index] + 1;
@@ -90,7 +90,7 @@ bool test_two_arrays(queue &myQueue) {
   auto out_buffer = buffer<int, 1>(&output[0], num_items);
 
   myQueue.submit([&](handler &cgh) {
-    auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
+    auto output_accessor = out_buffer.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class two_arrays>(num_items, [=](sycl::id<1> index) {
       output_accessor[index] = input1[index] + input2[index];
@@ -118,10 +118,10 @@ bool test_accessor_arrays_1(queue &myQueue) {
 
   myQueue.submit([&](handler &cgh) {
     using Accessor =
-        accessor<int, 1, access::mode::read_write, access::target::device>;
+        accessor<int, 1, access_mode::read_write, access::target::device>;
     Accessor a[2] = {
-        in_buffer1.get_access<access::mode::read_write>(cgh),
-        in_buffer2.get_access<access::mode::read_write>(cgh),
+        in_buffer1.get_access<access_mode::read_write>(cgh),
+        in_buffer2.get_access<access_mode::read_write>(cgh),
     };
 
     cgh.parallel_for<class accessor_arrays_1>(
@@ -150,12 +150,12 @@ bool test_accessor_arrays_2(queue &myQueue) {
 
   myQueue.submit([&](handler &cgh) {
     using Accessor =
-        accessor<int, 1, access::mode::read_write, access::target::device>;
-    Accessor a[4] = {in_buffer1.get_access<access::mode::read_write>(cgh),
-                     in_buffer2.get_access<access::mode::read_write>(cgh),
-                     in_buffer1.get_access<access::mode::read_write>(cgh),
-                     in_buffer2.get_access<access::mode::read_write>(cgh)};
-    auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
+        accessor<int, 1, access_mode::read_write, access::target::device>;
+    Accessor a[4] = {in_buffer1.get_access<access_mode::read_write>(cgh),
+                     in_buffer2.get_access<access_mode::read_write>(cgh),
+                     in_buffer1.get_access<access_mode::read_write>(cgh),
+                     in_buffer2.get_access<access_mode::read_write>(cgh)};
+    auto output_accessor = out_buffer.get_access<access_mode::write>(cgh);
 
     cgh.parallel_for<class accessor_arrays_2>(
         num_items, [=](sycl::id<1> index) {

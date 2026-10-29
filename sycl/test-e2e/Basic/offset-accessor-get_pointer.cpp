@@ -17,7 +17,7 @@
 using namespace sycl;
 
 void test_across_ranges() {
-  constexpr auto r_w = access::mode::read_write;
+  constexpr auto r_w = access_mode::read_write;
   constexpr unsigned long width = 4;
   constexpr unsigned long count = width * width;
   constexpr unsigned long count3D = width * width * width; // 64

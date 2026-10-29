@@ -8,13 +8,20 @@
 
 #pragma once
 
+#include <tuple>
+#include <type_traits>
 #include <utility>
+
+#if __has_include(<span>)
+#include <span>
+#endif
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -47,6 +54,88 @@ struct NoPropertyHasCompileTimeKernelEffect<properties_t<Ts...>> {
   static constexpr bool value =
       !(HasCompileTimeEffect<Ts>::value || ... || false);
 };
+
+// The runtime knows nothing about the C++ types of a free function kernel's
+// parameters, so the only place the declared parameter types are available is
+// here, where the kernel is named by a pointer-to-function template argument.
+// Peeling the function type off that pointer gives the parameter types, which
+// lets the enqueue functions below hand exactly those types to
+// `handler::set_args`.
+template <typename FuncPtrT> struct free_function_kernel_params;
+template <typename RetT, typename... ParamsT>
+struct free_function_kernel_params<RetT (*)(ParamsT...)> {
+  using type = std::tuple<ParamsT...>;
+};
+// `noexcept` is part of the function type, so it needs its own specialization.
+template <typename RetT, typename... ParamsT>
+struct free_function_kernel_params<RetT (*)(ParamsT...) noexcept> {
+  using type = std::tuple<ParamsT...>;
+};
+
+template <auto *Func>
+using free_function_kernel_params_t =
+    typename free_function_kernel_params<decltype(Func)>::type;
+
+// The enqueue functions taking a `kernel_function_s<Func>` are constrained on
+// `Func` being callable with the arguments the user provides, as required by
+// the specification of the free function kernels extension. Beside matching the
+// specification, this reports arguments whose types the kernel cannot accept
+// (and a wrong number of arguments) at the call site, instead of letting them
+// reach `handler::set_args` where nothing knows what the kernel expects.
+template <auto *Func, typename... ArgsT>
+using enable_if_kernel_invocable_t =
+    std::enable_if_t<std::is_invocable_v<decltype(Func), ArgsT...>>;
+
+// Identifies the `kernel_function_s` tag naming a free function kernel. The
+// generic `nd_launch` overloads take an arbitrary callable followed by a pack
+// of reductions, so they also accept that tag with the kernel arguments
+// trailing it and would try to launch the tag itself as a kernel object.
+// Excluding it keeps a call whose arguments do not satisfy the constraint above
+// from quietly falling back to those overloads, which fail deep inside the
+// header instead of reporting the mismatched arguments at the call site. The
+// generic `single_task` overloads need no such exclusion: they take no trailing
+// pack, so an argument list that fails the constraint does not fit them in the
+// first place.
+template <typename T> struct is_kernel_function : std::false_type {};
+template <auto *Func>
+struct is_kernel_function<kernel_function_s<Func>> : std::true_type {};
+
+template <typename KernelT>
+using enable_if_not_kernel_function_t =
+    std::enable_if_t<!is_kernel_function<KernelT>::value>;
+
+// Converts a single argument to the type of the free function kernel parameter
+// it is passed to, mirroring what would happen if the kernel was called
+// directly. Arguments which already have the parameter type are returned by
+// reference so that they keep their value category.
+template <typename ParamT, typename ArgT>
+constexpr decltype(auto) convertKernelArg(ArgT &&Arg) {
+  using DecayedParamT = std::remove_cv_t<std::remove_reference_t<ParamT>>;
+  if constexpr (std::is_same_v<std::decay_t<ArgT>, DecayedParamT>)
+    return std::forward<ArgT>(Arg);
+  else
+    return static_cast<DecayedParamT>(std::forward<ArgT>(Arg));
+}
+
+template <typename ParamsT, size_t... Is, typename... ArgsT>
+void setKernelArgsImpl(handler &CGH, std::index_sequence<Is...>,
+                       ArgsT &&...Args) {
+  CGH.set_args(convertKernelArg<std::tuple_element_t<Is, ParamsT>>(
+      std::forward<ArgsT>(Args))...);
+}
+
+// Sets the arguments of a free function kernel whose parameter types are the
+// elements of `ParamsT`, converting each argument to the type of the
+// corresponding kernel parameter first. Keyed on the parameter types rather
+// than on the kernel function pointer so that the submit helpers below can use
+// it without naming `Func`. Callers are constrained on
+// `enable_if_kernel_invocable_t`, so the number of arguments matches the number
+// of parameters and each conversion is valid.
+template <typename ParamsT, typename... ArgsT>
+void setKernelArgs(handler &CGH, ArgsT &&...Args) {
+  setKernelArgsImpl<ParamsT>(CGH, std::index_sequence_for<ArgsT...>{},
+                             std::forward<ArgsT>(Args)...);
+}
 } // namespace detail
 
 // Available only when Range is range or nd_range
@@ -97,6 +186,101 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
     return MLaunchConfig.getProperties();
   }
 };
+
+// The argument type as the kernel sees it.
+template <typename T>
+using unqualified_arg_t = std::remove_cv_t<std::remove_reference_t<T>>;
+
+// An argument that is bound as its own bytes with no further interpretation or
+// special captures. Excludes arguments of types Accessors, Stream, etc.
+template <typename T>
+inline constexpr bool is_scalar_kernel_arg_v =
+    std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_pointer_v<T>;
+
+// An argument that can be bound without a handler: a scalar, an array of
+// scalars, or a `raw_kernel_arg`. Anything else keeps using the command group
+// path.
+template <typename T, typename ArgT = unqualified_arg_t<T>>
+inline constexpr bool is_direct_kernel_arg_v =
+    is_scalar_kernel_arg_v<ArgT> ||
+    (std::is_array_v<ArgT> &&
+     is_scalar_kernel_arg_v<std::remove_all_extents_t<ArgT>>) ||
+    std::is_same_v<ArgT, raw_kernel_arg>;
+
+// The kind such an argument is bound with. A pointer keeps its kind, since a
+// backend may bind a pointer through a different entry point than bytes.
+// `cl_mem` is the exception: it names a memory object, so it is bound as the
+// bytes of the handle, as `handler::setArgHelper` does.
+template <typename T, typename ArgT = unqualified_arg_t<T>>
+inline constexpr sycl::detail::kernel_param_kind_t kernel_arg_kind_v =
+    (std::is_pointer_v<ArgT> && !std::is_same_v<ArgT, sycl::OpenCLMemT>)
+        ? sycl::detail::kernel_param_kind_t::kind_pointer
+        : sycl::detail::kernel_param_kind_t::kind_std_layout;
+
+template <typename T>
+sycl::detail::KernelArgView makeKernelArgView(const T &Arg) {
+  using sycl::detail::kernel_param_kind_t;
+  using ArgT = unqualified_arg_t<T>;
+  if constexpr (std::is_same_v<ArgT, raw_kernel_arg>)
+    return {RawKernelArgAccess::getData(Arg), RawKernelArgAccess::getSize(Arg),
+            RawKernelArgAccess::isPointer(Arg)
+                ? kernel_param_kind_t::kind_pointer
+                : kernel_param_kind_t::kind_std_layout};
+  else
+    return {&Arg, sizeof(ArgT), kernel_arg_kind_v<T>};
+}
+
+#if __cpp_lib_span
+inline void setRawKernelArgs(handler &CGH,
+                             std::span<const raw_kernel_arg> Args) {
+  // An lvalue would pick the generic set_arg and bind the object itself.
+  for (size_t I = 0; I < Args.size(); ++I)
+    CGH.set_arg(static_cast<int>(I), raw_kernel_arg{Args[I]});
+}
+#endif
+
+#if __cpp_lib_span
+// A single argument that converts to std::span is the argument list itself,
+// which the parameter pack overloads would otherwise take as one argument.
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_container_v =
+    sizeof...(ArgsT) == 1 &&
+    (std::is_convertible_v<ArgsT, std::span<const raw_kernel_arg>> && ...);
+#else
+// Without std::span there is no sequence overload to forward to.
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_container_v = false;
+#endif
+
+#if !__cpp_lib_span
+template <typename T, typename = void>
+inline constexpr bool is_raw_kernel_arg_sequence_v =
+    std::is_array_v<T> &&
+    std::is_same_v<std::remove_all_extents_t<T>, raw_kernel_arg>;
+template <typename T>
+inline constexpr bool is_raw_kernel_arg_sequence_v<
+    T, std::void_t<decltype(std::declval<const T &>().size()),
+                   decltype(std::declval<const T &>().data())>> =
+    std::is_convertible_v<decltype(std::declval<const T &>().data()),
+                          const raw_kernel_arg *>;
+
+template <typename... ArgsT>
+inline constexpr bool is_arg_list_sequence_v =
+    sizeof...(ArgsT) == 1 &&
+    (is_raw_kernel_arg_sequence_v<unqualified_arg_t<ArgsT>> && ...);
+#endif
+
+// Rejects an argument list passed as a sequence before C++20, where a trivially
+// copyable one would otherwise bind as a single kernel argument.
+template <typename... ArgsT> void diagnoseArgListSequence() {
+#if !__cpp_lib_span
+  static_assert(!is_arg_list_sequence_v<ArgsT...>,
+                "Passing the arguments of a sycl::kernel as a sequence "
+                "requires C++20, where the overloads taking a std::span of "
+                "raw_kernel_arg are available. Compile with C++20 or pass the "
+                "arguments as a parameter pack.");
+#endif
+}
 
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
@@ -180,31 +364,70 @@ void single_task(queue Q, const kernel &KernelObj, ArgsT &&...Args) {
   });
 }
 
+// Free function kernel single_task enqueue functions. These enqueue the free
+// function kernel `Func` directly instead of wrapping `Func` in a helper
+// kernel. Wrapping generated a second, duplicate device kernel and dropped the
+// free function's compile-time kernel properties (e.g. sub_group_size,
+// work_group_size). See intel/llvm#22706. The handler resolves the kernel by
+// name through its cached getDeviceKernelInfo<Func>, so no kernel bundle is
+// built per launch.
 namespace detail {
-template <auto *Func, int tag, typename... ArgsT>
-struct SingleTaskFreeFunctionKernelWrapper;
+// Func-free submit helpers for free function kernels. These are templated only
+// on the kernel's parameter types and the argument types (and, for nd_launch,
+// dimensionality/properties) and take the already-resolved DeviceKernelInfo* -
+// never the kernel function pointer `Func`. That keeps the kernel's
+// (potentially huge) mangled signature out of the submit closure's name and
+// every host symbol reached from it, which is the dominant host object size
+// cost of free function kernels under MSVC. `Func` is spelled exactly once, in
+// getDeviceKernelInfo<Func>() at the call site. See CMPLRLLVM-77222.
+template <typename ParamsT, typename... ArgsT>
+void single_task_free_submit(const queue &Q, sycl::detail::DeviceKernelInfo *KI,
+                             ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    setKernelArgs<ParamsT>(CGH, std::forward<ArgsT>(Args)...);
+    CGH.single_task_free_function(KI);
+  });
+}
+
+template <int Dimensions, typename ParamsT, typename... ArgsT>
+void nd_launch_free_submit(const queue &Q, nd_range<Dimensions> Range,
+                           sycl::detail::DeviceKernelInfo *KI,
+                           ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    setKernelArgs<ParamsT>(CGH, std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, Range, empty_properties_t{});
+  });
+}
+
+template <int Dimensions, typename Properties, typename ParamsT,
+          typename... ArgsT>
+void nd_launch_free_config_submit(
+    const queue &Q, launch_config<nd_range<Dimensions>, Properties> Config,
+    sycl::detail::DeviceKernelInfo *KI, ArgsT &&...Args) {
+  submit(Q, [&](handler &CGH) {
+    LaunchConfigAccess<nd_range<Dimensions>, Properties> ConfigAccess(Config);
+    setKernelArgs<ParamsT>(CGH, std::forward<ArgsT>(Args)...);
+    CGH.nd_launch_free_function(KI, ConfigAccess.getRange(),
+                                ConfigAccess.getProperties());
+  });
+}
 } // namespace detail
 
-// Free function kernel single_task enqueue functions
 template <auto *Func, typename... ArgsT>
-void single_task(queue Q, [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-                 ArgsT &&...Args) {
-  // Here and in the next function, we use the
-  // SingleTaskFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
-  // problems with other host compilers
-  detail::submit_kernel_direct_single_task<
-      detail::SingleTaskFreeFunctionKernelWrapper<Func, 1, ArgsT...>>(
-      std::move(Q), [Args...]() { Func(Args...); });
+detail::enable_if_kernel_invocable_t<Func, ArgsT...>
+single_task(handler &CGH, kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::setKernelArgs<detail::free_function_kernel_params_t<Func>>(
+      CGH, std::forward<ArgsT>(Args)...);
+  CGH.single_task_free_function(&sycl::detail::getDeviceKernelInfo<Func>());
 }
 
 template <auto *Func, typename... ArgsT>
-void single_task(handler &CGH,
-                 [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-                 ArgsT &&...Args) {
-  CGH.single_task<
-      detail::SingleTaskFreeFunctionKernelWrapper<Func, 2, ArgsT...>>(
-      [Args...]() { Func(Args...); });
+detail::enable_if_kernel_invocable_t<Func, ArgsT...>
+single_task(queue Q, kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::single_task_free_submit<detail::free_function_kernel_params_t<Func>,
+                                  ArgsT...>(
+      std::move(Q), &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 template <typename T>
@@ -341,16 +564,18 @@ void parallel_for(queue Q, launch_config<range<Dimensions>, Properties> Config,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
-void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(handler &CGH, nd_range<Dimensions> Range, const KernelType &KernelObj,
+          ReductionsT &&...Reductions) {
   CGH.parallel_for<KernelName>(Range, std::forward<ReductionsT>(Reductions)...,
                                KernelObj);
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
-               ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
+          ReductionsT &&...Reductions) {
   // TODO The handler-less path does not support reductions, and
   // kernel functions with the kernel_handler type argument yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
@@ -368,9 +593,9 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(handler &CGH,
-               launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(handler &CGH, launch_config<nd_range<Dimensions>, Properties> Config,
+          const KernelType &KernelObj, ReductionsT &&...Reductions) {
 
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
@@ -382,8 +607,9 @@ void nd_launch(handler &CGH,
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
+detail::enable_if_not_kernel_function_t<KernelType>
+nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+          const KernelType &KernelObj, ReductionsT &&...Reductions) {
   // TODO The handler-less path does not support reductions, and
   // kernel functions with the kernel_handler type argument yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
@@ -405,20 +631,91 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   }
 }
 
+#if __cpp_lib_span
+template <int Dimensions>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args);
+#endif
+
 template <int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                const kernel &KernelObj, ArgsT &&...Args) {
-  CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(Range, KernelObj);
+  detail::diagnoseArgListSequence<ArgsT...>();
+  if constexpr (detail::is_arg_list_container_v<ArgsT...>) {
+#if __cpp_lib_span
+    nd_launch(CGH, Range, KernelObj,
+              std::span<const raw_kernel_arg>{std::forward<ArgsT>(Args)...});
+#endif
+  } else {
+    CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
+    CGH.parallel_for(Range, KernelObj);
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions>
+void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
+               std::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc =
+                   sycl::detail::code_location::current());
+
+// A sequence comes here rather than to the parameter pack overload below,
+// which has no parameter to take the caller's code location.
+template <
+    int Dimensions, typename ArgListT,
+    typename = std::enable_if_t<detail::is_arg_list_container_v<ArgListT>>>
+void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
+               ArgListT &&Args,
+               const sycl::detail::code_location &CodeLoc =
+                   sycl::detail::code_location::current()) {
+  nd_launch(std::move(Q), Range, KernelObj,
+            std::span<const raw_kernel_arg>{std::forward<ArgListT>(Args)},
+            CodeLoc);
+}
+#endif
 
 template <int Dimensions, typename... ArgsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
                ArgsT &&...Args) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
-  });
+  detail::diagnoseArgListSequence<ArgsT...>();
+  // The handler-less path only takes arguments that can be bound directly,
+  // anything else goes through the handler overload above.
+  if constexpr ((detail::is_direct_kernel_arg_v<ArgsT> && ...)) {
+    // The array is one element longer than the pack so that a zero-argument
+    // kernel stays well formed.
+    const sycl::detail::KernelArgView ArgViews[sizeof...(ArgsT) + 1] = {
+        detail::makeKernelArgView(Args)...};
+    sycl::detail::tls_code_loc_t TlsCodeLocCapture{
+        sycl::detail::code_location::current()};
+    sycl::submit_kernel_obj_direct_without_event_impl(
+        Q, sycl::detail::nd_range_view(Range), KernelObj, ArgViews,
+        sizeof...(ArgsT), TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch(CGH, Range, KernelObj, std::forward<ArgsT>(Args)...);
+    });
+  }
 }
+
+#if __cpp_lib_span
+template <int Dimensions>
+void nd_launch(handler &CGH, nd_range<Dimensions> Range,
+               const kernel &KernelObj, std::span<const raw_kernel_arg> Args) {
+  detail::setRawKernelArgs(CGH, Args);
+  CGH.parallel_for(Range, KernelObj);
+}
+
+template <int Dimensions>
+void nd_launch(queue Q, nd_range<Dimensions> Range, const kernel &KernelObj,
+               std::span<const raw_kernel_arg> Args,
+               const sycl::detail::code_location &CodeLoc) {
+  sycl::detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  sycl::submit_kernel_obj_direct_without_event_impl(
+      Q, sycl::detail::nd_range_view(Range), KernelObj, Args.data(),
+      Args.size(), TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+}
+#endif // __cpp_lib_span
 
 template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
@@ -440,63 +737,56 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
   });
 }
 
-namespace detail {
-template <auto *Func, int Dimensions, int tag, typename... ArgsT>
-struct NdRangeFreeFunctionKernelWrapper;
-
-} // namespace detail
-
-// Free function kernel nd_launch enqueue functions
+// Free function kernel nd_launch enqueue functions. These enqueue the free
+// function kernel `Func` directly instead of wrapping `Func` in a helper
+// kernel. Wrapping generated a second, duplicate device kernel and dropped the
+// free function's compile-time kernel properties (e.g. sub_group_size,
+// work_group_size). See intel/llvm#22706. The handler resolves the kernel by
+// name through its cached getDeviceKernelInfo<Func>, so no kernel bundle is
+// built per launch.
 template <auto *Func, int Dimensions, typename... ArgsT>
-void nd_launch(queue Q, nd_range<Dimensions> Range,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-               ArgsT &&...Args) {
-  // Here and in the next 3 functions, we use the
-  // NdRangeFreeFunctionKernelWrapper declared above to generate unique
-  // kernel names for the lambda at compile-time. Unnamed lambdas tend to cause
-  // problems with other host compilers
-  detail::submit_kernel_direct_parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 1, ArgsT...>>(
-      std::move(Q), Range,
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+detail::enable_if_kernel_invocable_t<Func, ArgsT...>
+nd_launch(handler &CGH, nd_range<Dimensions> Range, kernel_function_s<Func>,
+          ArgsT &&...Args) {
+  detail::setKernelArgs<detail::free_function_kernel_params_t<Func>>(
+      CGH, std::forward<ArgsT>(Args)...);
+  CGH.nd_launch_free_function(&sycl::detail::getDeviceKernelInfo<Func>(), Range,
+                              empty_properties_t{});
 }
 
 template <auto *Func, int Dimensions, typename... ArgsT>
-void nd_launch(handler &CGH, nd_range<Dimensions> Range,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-               ArgsT &&...Args) {
-  CGH.parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 2, ArgsT...>>(
-      Range, [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+detail::enable_if_kernel_invocable_t<Func, ArgsT...>
+nd_launch(queue Q, nd_range<Dimensions> Range, kernel_function_s<Func>,
+          ArgsT &&...Args) {
+  detail::nd_launch_free_submit<
+      Dimensions, detail::free_function_kernel_params_t<Func>, ArgsT...>(
+      std::move(Q), Range, &sycl::detail::getDeviceKernelInfo<Func>(),
+      std::forward<ArgsT>(Args)...);
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-               ArgsT &&...Args) {
-
+detail::enable_if_kernel_invocable_t<Func, ArgsT...>
+nd_launch(handler &CGH, launch_config<nd_range<Dimensions>, Properties> Config,
+          kernel_function_s<Func>, ArgsT &&...Args) {
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
-  detail::submit_kernel_direct_parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 3, ArgsT...>>(
-      std::move(Q), ConfigAccess.getRange(),
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); }, {},
-      ConfigAccess.getProperties());
+  detail::setKernelArgs<detail::free_function_kernel_params_t<Func>>(
+      CGH, std::forward<ArgsT>(Args)...);
+  CGH.nd_launch_free_function(&sycl::detail::getDeviceKernelInfo<Func>(),
+                              ConfigAccess.getRange(),
+                              ConfigAccess.getProperties());
 }
 
 template <auto *Func, int Dimensions, typename Properties, typename... ArgsT>
-void nd_launch(handler &CGH,
-               launch_config<nd_range<Dimensions>, Properties> Config,
-               [[maybe_unused]] kernel_function_s<Func> KernelFunc,
-               ArgsT &&...Args) {
-  ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
-                                                        Properties>
-      ConfigAccess(Config);
-  CGH.parallel_for<
-      detail::NdRangeFreeFunctionKernelWrapper<Func, Dimensions, 4, ArgsT...>>(
-      ConfigAccess.getRange(), ConfigAccess.getProperties(),
-      [Args...](sycl::nd_item<Dimensions>) { Func(Args...); });
+detail::enable_if_kernel_invocable_t<Func, ArgsT...>
+nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
+          kernel_function_s<Func>, ArgsT &&...Args) {
+  detail::nd_launch_free_config_submit<
+      Dimensions, Properties, detail::free_function_kernel_params_t<Func>,
+      ArgsT...>(std::move(Q), Config,
+                &sycl::detail::getDeviceKernelInfo<Func>(),
+                std::forward<ArgsT>(Args)...);
 }
 
 inline void memcpy(handler &CGH, void *Dest, const void *Src, size_t NumBytes) {

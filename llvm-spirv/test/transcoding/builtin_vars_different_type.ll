@@ -1,7 +1,8 @@
 ; RUN: llvm-spirv %s -o %t.spv -spirv-ext=+SPV_INTEL_vector_compute
 ; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.out.bc
 ; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-SPV-IR
-; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown -filetype=obj %s -o %t.llc.spv %}
+
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv32-unknown-unknown --spirv-ext=+SPV_EXT_long_vector -filetype=obj %s -o %t.llc.spv %}
 ; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv --spirv-target-env=SPV-IR -o %t.llc.rev.bc %}
 ; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
 ; RUN: %if spirv-backend %{ FileCheck %s --check-prefix=CHECK-LLC < %t.llc.rev.ll %}

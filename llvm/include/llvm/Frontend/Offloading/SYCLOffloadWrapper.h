@@ -9,11 +9,14 @@
 #ifndef LLVM_CLANG_TOOLS_CLANG_LINKER_WRAPPER_SYCL_OFFLOAD_WRAPPER_H
 #define LLVM_CLANG_TOOLS_CLANG_LINKER_WRAPPER_SYCL_OFFLOAD_WRAPPER_H
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
+#include "llvm/Support/StringSaver.h"
 
 #include <string>
 #include <utility>
@@ -23,12 +26,27 @@ namespace llvm {
 namespace offloading {
 
 // SYCL binary image formats supported.
+//
+// BIF_Compressed marks a zstd-compressed payload. The runtime re-derives the
+// real format (SPIR-V / LLVM bitcode / native) post-decompression by reading
+// the magic-number, unless the pre-compression format is recorded in the
+// OriginalFormatPropName property.
 enum class SYCLBinaryImageFormat {
-  BIF_None,   // Undetermined Image kind
-  BIF_Native, // Native Image kind
-  BIF_SPIRV,  // SPIR-V
-  BIF_LLVMBC  // LLVM bitcode
+  BIF_None,      // Undetermined Image kind
+  BIF_Native,    // Native Image kind
+  BIF_SPIRV,     // SPIR-V
+  BIF_LLVMBC,    // LLVM bitcode
+  BIF_Compressed // zstd-compressed image; format-of-original unknown
 };
+
+/// Returns the ABI value of \p Format shared with the SYCL runtime.
+int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format);
+
+/// Returns the SYCL image format for an ABI value, or an error if invalid.
+Expected<SYCLBinaryImageFormat> int8ToBinaryImageFormat(int8_t Format);
+
+/// Misc property with the pre-compression format; mirrored in SYCL RT.
+constexpr char OriginalFormatPropName[] = "originalFormat";
 
 struct SYCLImage {
   SYCLImage() = default;
@@ -71,13 +89,25 @@ struct SYCLWrappingOptions {
 /// Wraps the input bundled images and accompanied data into the module \p M
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Settings that allows to turn on optional data and settings.
-/// \param _PreviewBreakingChanges Enable preview breaking changes that are not
-///        backward compatible with the existing SYCL Runtime.
 /// \returns Error if wrapping fails, success otherwise.
 llvm::Error
 wrapSYCLBinaries(llvm::Module &M, const llvm::SmallVector<SYCLImage> &Images,
-                 SYCLWrappingOptions Options = SYCLWrappingOptions(),
-                 bool _PreviewBreakingChanges = false);
+                 SYCLWrappingOptions Options = SYCLWrappingOptions());
+
+/// Records the fields of \p Image other than the image bytes in the string
+/// table \p StringData of an offload binary entry, so that a fat binary can be
+/// wrapped later by readSYCLImages() and wrapSYCLBinaries(). \p Saver owns the
+/// serialized strings, which must outlive the offload binary serialization.
+void addSYCLImageStrings(
+    const SYCLImage &Image,
+    llvm::MapVector<llvm::StringRef, llvm::StringRef> &StringData,
+    llvm::StringSaver &Saver);
+
+/// Reads SYCL images from the offload binary container in \p Buffer, whose
+/// entries carry the strings recorded by addSYCLImageStrings(). The returned
+/// images reference the data of \p Buffer, which must outlive them.
+llvm::Expected<llvm::SmallVector<SYCLImage>>
+readSYCLImages(llvm::MemoryBufferRef Buffer);
 
 } // namespace offloading
 } // namespace llvm

@@ -500,10 +500,13 @@ bool isInternalSPIRVBuiltin(StringRef Name, StringRef &DemangledName) {
     return false;
   constexpr unsigned DemangledNameLenStart = 2;
   size_t Start = Name.find_first_not_of("0123456789", DemangledNameLenStart);
-  if (!Name.substr(Start, Name.size() - 1)
-           .starts_with(kSPIRVName::InternalBuiltinPrefix))
+  if (!Name.substr(Start).starts_with(kSPIRVName::InternalBuiltinPrefix))
     return false;
-  DemangledName = llvm::itaniumDemangle(Name.data(), false);
+  size_t Len = 0;
+  if (Name.substr(DemangledNameLenStart, Start - DemangledNameLenStart)
+          .getAsInteger(10, Len))
+    return false;
+  DemangledName = Name.substr(Start, Len);
   DemangledName.consume_front(kSPIRVName::InternalBuiltinPrefix);
   return true;
 }
@@ -2003,6 +2006,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       return true;
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         !BM->hasCapability(CapabilityLongVectorEXT) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(false, InvalidFunctionCall,
                   II->getCalledOperand()->getName().str());
@@ -2022,6 +2026,7 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       return true;
     if ((!Ty->isIntegerTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         !BM->hasCapability(CapabilityLongVectorEXT) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(false, InvalidFunctionCall,
                   II->getCalledOperand()->getName().str());
@@ -2343,6 +2348,78 @@ bool lowerBuiltins(SPIRVModule *BM, Module *M) {
   return true;
 }
 
+static AtomicOrdering mapSPIRVMemSemToAtomicOrdering(unsigned MemSem) {
+  switch (mapSPIRVMemOrderToOCL(MemSem)) {
+  case OCLMO_relaxed:
+    return AtomicOrdering::Monotonic;
+  case OCLMO_acquire:
+    return AtomicOrdering::Acquire;
+  case OCLMO_release:
+    return AtomicOrdering::Release;
+  case OCLMO_acq_rel:
+    return AtomicOrdering::AcquireRelease;
+  case OCLMO_seq_cst:
+    return AtomicOrdering::SequentiallyConsistent;
+  }
+  llvm_unreachable("Unexpected SPIR-V memory semantics");
+}
+
+static SyncScope::ID mapSPIRVScopeToLLVM(LLVMContext &Ctx, uint32_t Scope,
+                                         bool IsAMDGCN) {
+  switch (Scope) {
+  case ScopeInvocation:
+    return SyncScope::SingleThread;
+  case ScopeSubgroup:
+    return Ctx.getOrInsertSyncScopeID(IsAMDGCN ? "wavefront" : "subgroup");
+  case ScopeWorkgroup:
+    return Ctx.getOrInsertSyncScopeID("workgroup");
+  case ScopeDevice:
+    return Ctx.getOrInsertSyncScopeID(IsAMDGCN ? "agent" : "device");
+  case ScopeCrossDevice:
+  default:
+    return SyncScope::System;
+  }
+}
+
+void lowerAtomicWrapCalls(Module *M) {
+  bool IsAMDGCN = M->getTargetTriple().isAMDGCN();
+  for (Function &F : *M) {
+    StringRef Name = F.getName();
+    bool IsUInc = Name.starts_with(kSPIRVName::TranslateSPIRVAtomicUIncWrap);
+    if (!IsUInc && !Name.starts_with(kSPIRVName::TranslateSPIRVAtomicUDecWrap))
+      continue;
+    auto Op = IsUInc ? AtomicRMWInst::UIncWrap : AtomicRMWInst::UDecWrap;
+
+    SmallVector<CallInst *, 8> Calls;
+    for (User *U : F.users())
+      if (auto *CI = dyn_cast<CallInst>(U))
+        Calls.push_back(CI);
+
+    for (CallInst *CI : Calls) {
+      Value *Ptr = CI->getArgOperand(0);
+      auto Scope = cast<ConstantInt>(CI->getArgOperand(1))->getZExtValue();
+      auto MemSem = cast<ConstantInt>(CI->getArgOperand(2))->getZExtValue();
+      Value *Val = CI->getArgOperand(3);
+      bool IsVolatile = cast<ConstantInt>(CI->getArgOperand(4))->isOne();
+      bool IsElementwise = cast<ConstantInt>(CI->getArgOperand(5))->isOne();
+
+      AtomicOrdering Ordering = mapSPIRVMemSemToAtomicOrdering(MemSem);
+      SyncScope::ID SSID =
+          mapSPIRVScopeToLLVM(CI->getContext(), Scope, IsAMDGCN);
+
+      IRBuilder<> Builder(CI);
+      auto *RMW = Builder.CreateAtomicRMW(Op, Ptr, Val, {}, Ordering, SSID);
+      RMW->setVolatile(IsVolatile);
+      RMW->setElementwise(IsElementwise);
+
+      RMW->copyMetadata(*CI);
+
+      CI->replaceAllUsesWith(RMW);
+      CI->eraseFromParent();
+    }
+  }
+}
+
 bool postProcessBuiltinReturningStruct(Function *F) {
   Module *M = F->getParent();
   LLVMContext *Context = &M->getContext();
@@ -2528,6 +2605,7 @@ public:
       addUnsignedArg(2);
       break;
     case OpGroupNonUniformRotateKHR:
+      addUnsignedArg(2);
       if (ArgTys.size() == 4)
         addUnsignedArg(3);
       break;
@@ -2636,6 +2714,7 @@ public:
       break;
     case OpUDotKHR:
     case OpUDotAccSatKHR:
+    case OpUMulExtended:
       addUnsignedArg(-1);
       break;
     case OpSUDotKHR:

@@ -13,6 +13,8 @@
 #include "device.hpp"
 #include "platform.hpp"
 
+#include <algorithm>
+
 cl_command_queue_info mapURQueueInfoToCL(const ur_queue_info_t PropName) {
 
   switch (PropName) {
@@ -100,8 +102,39 @@ ur_result_t ur_queue_handle_t_::makeWithNative(native_type NativeQueue,
           hNativeHandle, nullptr, nullptr, &Device));
       UrDevice = cast(Device);
     }
+    ur_queue_flags_t PriorityFlags = 0;
+    oclv::OpenCLVersion Version;
+    UR_RETURN_ON_FAILURE(UrDevice->Platform->getPlatformVersion(Version));
+    bool PrioritySupported = false;
+    // CL_QUEUE_PRIORITY_KHR is a creation property, not a queue-info query.
+    // OpenCL 3.0 adds the query for the original creation properties array.
+    if (Version >= oclv::V3_0)
+      UR_RETURN_ON_FAILURE(
+          UrDevice->supportsQueuePriorities(PrioritySupported));
+    if (PrioritySupported) {
+      size_t PropertiesSize = 0;
+      CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+          NativeQueue, CL_QUEUE_PROPERTIES_ARRAY, 0, nullptr, &PropertiesSize));
+      if (PropertiesSize) {
+        std::vector<cl_queue_properties> Properties(
+            PropertiesSize / sizeof(cl_queue_properties));
+        CL_RETURN_ON_FAILURE(
+            clGetCommandQueueInfo(NativeQueue, CL_QUEUE_PROPERTIES_ARRAY,
+                                  PropertiesSize, Properties.data(), nullptr));
+        for (size_t I = 0; I + 1 < Properties.size() && Properties[I]; I += 2) {
+          if (Properties[I] == CL_QUEUE_PRIORITY_KHR) {
+            if (Properties[I + 1] == CL_QUEUE_PRIORITY_LOW_KHR)
+              PriorityFlags = UR_QUEUE_FLAG_PRIORITY_LOW;
+            else if (Properties[I + 1] == CL_QUEUE_PRIORITY_HIGH_KHR)
+              PriorityFlags = UR_QUEUE_FLAG_PRIORITY_HIGH;
+            break;
+          }
+        }
+      }
+    }
     auto URQueue = std::make_unique<ur_queue_handle_t_>(NativeQueue, UrContext,
                                                         UrDevice, false);
+    URQueue->PriorityFlags = PriorityFlags;
     Queue = cast(URQueue.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -132,6 +165,36 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
   CL_RETURN_ON_FAILURE_AND_SET_NULL(CurPlatform->getPlatformVersion(Version),
                                     phQueue);
 
+  // The priority levels 1, 0 and -1 are the low, medium and high queue
+  // priorities of cl_khr_priority_hints.
+  int32_t PriorityLevel = 0;
+  bool PrioritySupported = false;
+  // The priority flag that selects PriorityLevel, if any.
+  ur_queue_flags_t AppliedPriorityFlag = 0;
+  if (pProperties) {
+    const ur_queue_flags_t PriorityFlags =
+        pProperties->flags &
+        (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH);
+    const auto *PriorityProperties =
+        find_stype_node<ur_exp_queue_priority_properties_t>(pProperties);
+    if (PriorityProperties || PriorityFlags) {
+      UR_RETURN_ON_FAILURE(Device->supportsQueuePriorities(PrioritySupported));
+    }
+    if (PriorityProperties) {
+      if (PriorityFlags)
+        return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+      if (!PrioritySupported)
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      PriorityLevel = std::clamp<int32_t>(PriorityProperties->priority, -1, 1);
+    } else if (PriorityFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
+      PriorityLevel = 1;
+      AppliedPriorityFlag = UR_QUEUE_FLAG_PRIORITY_LOW;
+    } else if (PriorityFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
+      PriorityLevel = -1;
+      AppliedPriorityFlag = UR_QUEUE_FLAG_PRIORITY_HIGH;
+    }
+  }
+
   cl_int RetErr = CL_INVALID_OPERATION;
 
   bool InOrder = !(CLProperties & SupportByOpenCL &
@@ -154,15 +217,21 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
     return UR_RESULT_SUCCESS;
   }
 
-  /* TODO: Add support for CL_QUEUE_PRIORITY_KHR */
-  cl_queue_properties CreationFlagProperties[] = {
-      CL_QUEUE_PROPERTIES, CLProperties & SupportByOpenCL, 0};
+  cl_queue_properties CreationFlagProperties[5] = {
+      CL_QUEUE_PROPERTIES, CLProperties & SupportByOpenCL, 0, 0, 0};
+  if (PrioritySupported && PriorityLevel != 0) {
+    CreationFlagProperties[2] = CL_QUEUE_PRIORITY_KHR;
+    CreationFlagProperties[3] = PriorityLevel > 0 ? CL_QUEUE_PRIORITY_LOW_KHR
+                                                  : CL_QUEUE_PRIORITY_HIGH_KHR;
+  }
   cl_command_queue Queue = clCreateCommandQueueWithProperties(
       Context->CLContext, Device->CLDevice, CreationFlagProperties, &RetErr);
   CL_RETURN_ON_FAILURE(RetErr);
   try {
     auto URQueue =
         std::make_unique<ur_queue_handle_t_>(Queue, Context, Device, InOrder);
+    if (PrioritySupported)
+      URQueue->PriorityFlags = AppliedPriorityFlag;
     *phQueue = cast(URQueue.release());
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -179,6 +248,7 @@ ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
   cl_command_queue_info CLCommandQueueInfo = mapURQueueInfoToCL(propName);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   if (propName == UR_QUEUE_INFO_EMPTY) {
+    std::lock_guard<std::mutex> Lock(Queue->LastEventMutex);
     if (!Queue->LastEvent) {
       // Check the status of the queue under OpenCL backend.
       cl_event Event;
@@ -194,11 +264,11 @@ ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
       }
       return ReturnValue(false);
     } else {
-      ur_event_status_t Status;
-      UR_RETURN_ON_FAILURE(ur::opencl::urEventGetInfo(
-          cast(Queue->LastEvent), UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-          sizeof(ur_event_status_t), (void *)&Status, nullptr));
-      if (Status == UR_EVENT_STATUS_COMPLETE) {
+      cl_int QueryResult;
+      CL_RETURN_ON_FAILURE(
+          clGetEventInfo(Queue->LastEvent, CL_EVENT_COMMAND_EXECUTION_STATUS,
+                         sizeof(QueryResult), &QueryResult, nullptr));
+      if (QueryResult == CL_COMPLETE) {
         return ReturnValue(true);
       }
       return ReturnValue(false);
@@ -250,7 +320,8 @@ ur_result_t urQueueGetInfo(ur_queue_handle_t hQueue, ur_queue_info_t propName,
         Queue->CLQueue, CLCommandQueueInfo, sizeof(QueueProperties),
         &QueueProperties, nullptr));
 
-    return ReturnValue(mapCLQueuePropsToUR(QueueProperties));
+    return ReturnValue(mapCLQueuePropsToUR(QueueProperties) |
+                       Queue->PriorityFlags);
   }
   case UR_QUEUE_INFO_REFERENCE_COUNT: {
     return ReturnValue(Queue->RefCount.getCount());

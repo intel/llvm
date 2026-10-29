@@ -22,7 +22,7 @@ static void log_pi(const char *msg) { std::cout << msg << std::endl; }
 
 static void use_mem(buffer<int, 1> buf, queue q) {
   q.submit([&](handler &cgh) {
-    auto acc = buf.get_access<access::mode::read_write>(cgh);
+    auto acc = buf.get_access<access_mode::read_write>(cgh);
     cgh.parallel_for<class sum1>(range<1>(buf.size()),
                                  [=](item<1> itemID) { acc[itemID] += 1; });
   });

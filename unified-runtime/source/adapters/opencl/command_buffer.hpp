@@ -45,6 +45,10 @@ struct ur_exp_command_buffer_handle_t_ : handle_base {
   ur_device_handle_t_ *hDevice;
   /// OpenCL command-buffer object.
   cl_command_buffer_khr CLCommandBuffer;
+  /// OpenCL function used to create the command-buffer object.
+  cl_ext::clCreateCommandBufferKHR_fn CLCreateCommandBufferKHR;
+  /// OpenCL function used to release the command-buffer object.
+  cl_ext::clReleaseCommandBufferKHR_fn CLReleaseCommandBufferKHR;
   /// Set to true if the kernel commands in the command-buffer can be updated,
   /// false otherwise
   bool IsUpdatable;
@@ -67,6 +71,7 @@ struct ur_exp_command_buffer_handle_t_ : handle_base {
                                   bool IsUpdatable, bool IsInOrder)
       : handle_base(), hInternalQueue(hQueue), hContext(hContext),
         hDevice(hDevice), CLCommandBuffer(CLCommandBuffer),
+        CLCreateCommandBufferKHR(nullptr), CLReleaseCommandBufferKHR(nullptr),
         IsUpdatable(IsUpdatable), IsInOrder(IsInOrder), IsFinalized(false),
         LastSubmission(nullptr) {}
 

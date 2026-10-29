@@ -9,7 +9,7 @@
 #pragma once
 
 #include "../common.hpp"
-#include "../device.hpp"
+#include "../common/device.hpp"
 
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
@@ -24,9 +24,9 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
-struct ur_queue_immediate_in_order_t : ur_object, ur_queue_t_ {
+struct ur_queue_immediate_in_order_t : ur_object_t, ur_queue_t_ {
 private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
@@ -39,6 +39,7 @@ public:
                                 uint32_t ordinal,
                                 ze_command_queue_priority_t priority,
                                 std::optional<int32_t> index,
+                                std::optional<int32_t> priorityLevel,
                                 event_flags_t eventFlags,
                                 ur_queue_flags_t flags);
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
@@ -583,4 +584,4 @@ public:
   ur::RefCount RefCount;
 };
 
-} // namespace v2
+} // namespace ur::level_zero::v2

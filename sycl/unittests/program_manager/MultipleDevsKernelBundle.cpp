@@ -18,6 +18,7 @@
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/IOSandbox.h>
 
 #include <gtest/gtest.h>
 
@@ -219,6 +220,13 @@ protected:
 protected:
   unittest::UrMock<> Mock;
   platform Plt;
+  // This test makes many calls to llvm::sys::fs calls, which as of RFC
+  // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
+  // now errors upon using llvm::sys::fs calls without disabling the sandbox.
+  //
+  // Disable the sandbox for the duration of this test.
+  llvm::sys::sandbox::ScopedSetting BypassSandbox =
+      llvm::sys::sandbox::scopedDisable();
 };
 
 // Test to check that we can create input kernel bundle and call build twice for
@@ -481,12 +489,12 @@ static ur_result_t redefinedurProgramGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-// https://github.com/intel/llvm/issues/18122
-TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
-  // Create temporary directory for the persistent cache in the directory of the
-  // test binary.
-  std::string PersistentCachePath = sycl::detail::OSUtil::getCurrentDSODir() +
-                                    detail::OSUtil::DirSep + "persistent_cache";
+TEST_P(MultipleDevsKernelBundleTest, PersistentCache) {
+  llvm::SmallString<256> PersistentCachePath;
+  ASSERT_NO_ERROR(llvm::sys::fs::createUniqueDirectory(
+      sycl::detail::OSUtil::getCurrentDSODir() + detail::OSUtil::DirSep +
+          "persistent_cache",
+      PersistentCachePath));
   // Set environment variables to enable persistent cache and set the cache
   // path.
   ScopedEnvVar var1("SYCL_CACHE_PERSISTENT", "1",
@@ -501,9 +509,6 @@ TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
 
   mock::getCallbacks().set_after_callback("urProgramGetInfo",
                                           &redefinedurProgramGetInfo);
-  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
-  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
-  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
 
   // Get devices and create a context with at least 3 devices
   std::vector<sycl::device> Devices =
@@ -541,7 +546,7 @@ TEST_P(MultipleDevsKernelBundleTest, DISABLED_PersistentCache) {
   // Verify the number of urProgramCreateWithBinary calls
   EXPECT_EQ(ProgramCreateWithBinaryCounter, 1)
       << "Expect 1 urProgramCreateWithBinary calls";
-  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(PersistentCachePath));
 }
 
 INSTANTIATE_TEST_SUITE_P(MultipleDevsKernelBundleTestInstance,

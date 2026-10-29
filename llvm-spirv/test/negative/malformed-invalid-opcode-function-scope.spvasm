@@ -1,0 +1,22 @@
+; Test that llvm-spirv gracefully rejects a SPIR-V module where a
+; module-scope instruction (OpDecorate) appears directly after OpFunction
+; instead of OpFunctionParameter or OpLabel.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o /dev/null 2>&1 | FileCheck %s
+
+; CHECK: unexpected opcode {{[0-9]+}} in function definition
+
+; SPIR-V
+; Version: 1.0
+               OpCapability Kernel
+               OpCapability Addresses
+               OpMemoryModel Physical32 OpenCL
+       %void = OpTypeVoid
+    %fn_type = OpTypeFunction %void
+       %func = OpFunction %void None %fn_type
+               OpDecorate %void RelaxedPrecision
+      %label = OpLabel
+               OpReturn
+               OpFunctionEnd

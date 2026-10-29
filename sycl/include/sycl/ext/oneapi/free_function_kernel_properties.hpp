@@ -10,6 +10,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #include <type_traits>
@@ -21,74 +22,6 @@ namespace detail {
 
 template <typename T>
 using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
-
-template <typename PropertyT> struct FunctionPropertyMetaInfo;
-
-template <size_t... Xs> struct FunctionPropertyAllNonZero {
-  static constexpr bool value = true;
-};
-template <size_t X, size_t... Xs> struct FunctionPropertyAllNonZero<X, Xs...> {
-  static constexpr bool value =
-      X > 0 && FunctionPropertyAllNonZero<Xs...>::value;
-};
-
-inline constexpr size_t FunctionPropertyDecimalBase = 10;
-
-template <size_t... Sizes> struct FunctionPropertySizeList {};
-template <char... Chars> struct FunctionPropertyCharList {};
-
-template <char... Chars> struct FunctionPropertyCharsToStr {
-  static constexpr const char value[] = {Chars..., '\0'};
-};
-
-template <typename List, typename ParsedList, char... Chars>
-struct FunctionPropertySizeListToStrHelper;
-
-template <size_t Value, size_t... Values, char... ParsedChars, char... Chars>
-struct FunctionPropertySizeListToStrHelper<
-    FunctionPropertySizeList<Value, Values...>,
-    FunctionPropertyCharList<ParsedChars...>, Chars...>
-    : FunctionPropertySizeListToStrHelper<
-          FunctionPropertySizeList<Value / FunctionPropertyDecimalBase,
-                                   Values...>,
-          FunctionPropertyCharList<ParsedChars...>,
-          '0' + (Value % FunctionPropertyDecimalBase), Chars...> {};
-
-template <size_t... Values, char... ParsedChars, char... Chars>
-struct FunctionPropertySizeListToStrHelper<
-    FunctionPropertySizeList<0, Values...>,
-    FunctionPropertyCharList<ParsedChars...>, Chars...>
-    : FunctionPropertySizeListToStrHelper<
-          FunctionPropertySizeList<Values...>,
-          FunctionPropertyCharList<ParsedChars..., Chars..., ','>> {};
-
-template <size_t... Values, char... ParsedChars>
-struct FunctionPropertySizeListToStrHelper<
-    FunctionPropertySizeList<0, Values...>,
-    FunctionPropertyCharList<ParsedChars...>>
-    : FunctionPropertySizeListToStrHelper<
-          FunctionPropertySizeList<Values...>,
-          FunctionPropertyCharList<ParsedChars..., '0', ','>> {};
-
-template <char... ParsedChars, char... Chars>
-struct FunctionPropertySizeListToStrHelper<
-    FunctionPropertySizeList<0>, FunctionPropertyCharList<ParsedChars...>,
-    Chars...> : FunctionPropertyCharsToStr<ParsedChars..., Chars...> {};
-
-template <char... ParsedChars>
-struct FunctionPropertySizeListToStrHelper<
-    FunctionPropertySizeList<0>, FunctionPropertyCharList<ParsedChars...>>
-    : FunctionPropertyCharsToStr<ParsedChars..., '0'> {};
-
-template <>
-struct FunctionPropertySizeListToStrHelper<FunctionPropertySizeList<>,
-                                           FunctionPropertyCharList<>>
-    : FunctionPropertyCharsToStr<> {};
-
-template <size_t... Sizes>
-struct FunctionPropertySizeListToStr
-    : FunctionPropertySizeListToStrHelper<FunctionPropertySizeList<Sizes...>,
-                                          FunctionPropertyCharList<>> {};
 
 } // namespace detail
 
@@ -175,7 +108,7 @@ struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
   static_assert(
       sizeof...(Dims) + 1 <= 3,
       "work_group_size property currently only supports up to three values.");
-  static_assert(detail::FunctionPropertyAllNonZero<Dim0, Dims...>::value,
+  static_assert(detail::AllNonZero<Dim0, Dims...>::value,
                 "work_group_size property must only contain non-zero values.");
 
   static constexpr size_t dimensions = sizeof...(Dims) + 1;
@@ -199,7 +132,7 @@ struct property_value<work_group_size_hint_key,
                 "work_group_size_hint property currently only supports up to "
                 "three values.");
   static_assert(
-      detail::FunctionPropertyAllNonZero<Dim0, Dims...>::value,
+      detail::AllNonZero<Dim0, Dims...>::value,
       "work_group_size_hint property must only contain non-zero values.");
 
   constexpr size_t operator[](int Dim) const {
@@ -234,7 +167,7 @@ struct property_value<max_work_group_size_key,
   static_assert(
       sizeof...(Dims) + 1 <= 3,
       "max_work_group_size currently only supports up to three values.");
-  static_assert(detail::FunctionPropertyAllNonZero<Dim0, Dims...>::value,
+  static_assert(detail::AllNonZero<Dim0, Dims...>::value,
                 "max_work_group_size must only contain non-zero values.");
 
   static constexpr size_t dimensions = sizeof...(Dims) + 1;
@@ -281,12 +214,12 @@ inline constexpr max_linear_work_group_size_key::value_t<Size>
 namespace detail {
 
 template <int Dims>
-struct FunctionPropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
+struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
   static constexpr const char *name = "sycl-nd-range-kernel";
   static constexpr int value = Dims;
 };
 
-template <> struct FunctionPropertyMetaInfo<single_task_kernel_key::value_t> {
+template <> struct PropertyMetaInfo<single_task_kernel_key::value_t> {
   static constexpr const char *name = "sycl-single-task-kernel";
   static constexpr int value = 0;
 };
@@ -310,28 +243,13 @@ struct HasCompileTimeEffect<max_linear_work_group_size_key::value_t<Size>>
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
   static constexpr const char *name = "sycl-work-group-size";
-  static constexpr const char *value =
-      FunctionPropertySizeListToStr<Dim0, Dims...>::value;
-};
-template <size_t Dim0, size_t... Dims>
-struct FunctionPropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
-  static constexpr const char *name = "sycl-work-group-size";
-  static constexpr const char *value =
-      FunctionPropertySizeListToStr<Dim0, Dims...>::value;
+  static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
 };
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_hint_key::value_t<Dim0, Dims...>> {
   static constexpr const char *name = "sycl-work-group-size-hint";
-  static constexpr const char *value =
-      FunctionPropertySizeListToStr<Dim0, Dims...>::value;
-};
-template <size_t Dim0, size_t... Dims>
-struct FunctionPropertyMetaInfo<
-    work_group_size_hint_key::value_t<Dim0, Dims...>> {
-  static constexpr const char *name = "sycl-work-group-size-hint";
-  static constexpr const char *value =
-      FunctionPropertySizeListToStr<Dim0, Dims...>::value;
+  static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
 };
 
 template <uint32_t Size>
@@ -339,33 +257,15 @@ struct PropertyMetaInfo<sub_group_size_key::value_t<Size>> {
   static constexpr const char *name = "sycl-sub-group-size";
   static constexpr uint32_t value = Size;
 };
-template <uint32_t Size>
-struct FunctionPropertyMetaInfo<sub_group_size_key::value_t<Size>> {
-  static constexpr const char *name = "sycl-sub-group-size";
-  static constexpr uint32_t value = Size;
-};
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<max_work_group_size_key::value_t<Dim0, Dims...>> {
   static constexpr const char *name = "sycl-max-work-group-size";
-  static constexpr const char *value =
-      FunctionPropertySizeListToStr<Dim0, Dims...>::value;
-};
-template <size_t Dim0, size_t... Dims>
-struct FunctionPropertyMetaInfo<
-    max_work_group_size_key::value_t<Dim0, Dims...>> {
-  static constexpr const char *name = "sycl-max-work-group-size";
-  static constexpr const char *value =
-      FunctionPropertySizeListToStr<Dim0, Dims...>::value;
+  static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
 };
 
 template <size_t Size>
 struct PropertyMetaInfo<max_linear_work_group_size_key::value_t<Size>> {
-  static constexpr const char *name = "sycl-max-linear-work-group-size";
-  static constexpr size_t value = Size;
-};
-template <size_t Size>
-struct FunctionPropertyMetaInfo<max_linear_work_group_size_key::value_t<Size>> {
   static constexpr const char *name = "sycl-max-linear-work-group-size";
   static constexpr size_t value = Size;
 };
@@ -378,10 +278,10 @@ struct FunctionPropertyMetaInfo<max_linear_work_group_size_key::value_t<Size>> {
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)                                \
   [[__sycl_detail__::add_ir_attributes_function(                               \
-      sycl::ext::oneapi::experimental::detail::FunctionPropertyMetaInfo<       \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
           sycl::ext::oneapi::experimental::detail::remove_cvref_t<             \
               decltype(PROP)>>::name,                                          \
-      sycl::ext::oneapi::experimental::detail::FunctionPropertyMetaInfo<       \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
           sycl::ext::oneapi::experimental::detail::remove_cvref_t<             \
               decltype(PROP)>>::value)]]
 #else

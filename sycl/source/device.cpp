@@ -45,7 +45,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(const device &rhs) = default;
-device::device(device &&rhs) = default;
+device::device(device &&rhs) noexcept = default;
 
 device::device(OpenCLDeviceIdT DeviceId) {
   detail::adapter_impl &Adapter =
@@ -256,6 +256,7 @@ __SYCL_DEVICE_INFO_INST(is_endian_little, bool)
 __SYCL_DEVICE_INFO_INST(is_available, bool)
 __SYCL_DEVICE_INFO_INST(is_compiler_available, bool)
 __SYCL_DEVICE_INFO_INST(is_linker_available, bool)
+// Legacy SYCL 1.2.1 descriptor kept on the ABI surface intentionally.
 __SYCL_DEVICE_INFO_INST(execution_capabilities,
                         std::vector<info::execution_capability>)
 __SYCL_DEVICE_INFO_INST(queue_profiling, bool)
@@ -281,10 +282,7 @@ __SYCL_DEVICE_INFO_INST(partition_type_affinity_domain,
                         info::partition_affinity_domain)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(atomic64, bool)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(reference_count, uint32_t)
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(usm_device_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_host_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_shared_allocations, bool)
@@ -292,8 +290,12 @@ __SYCL_DEVICE_INFO_INST(usm_restricted_shared_allocations, bool)
 __SYCL_DEVICE_INFO_INST(usm_system_allocations, bool)
 __SYCL_DEVICE_INFO_INST(image_max_array_size, size_t)
 __SYCL_DEVICE_INFO_INST(opencl_c_version, std::string)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(sub_group_independent_forward_progress, bool)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_srgb, bool)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_intel_pci_address, std::string)
 __SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_count, uint32_t)
 __SYCL_DEVICE_INFO_INST(ext_intel_gpu_eu_simd_width, uint32_t)
@@ -307,6 +309,7 @@ __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_1d, id<1>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_2d, id<2>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_work_groups_3d, id<3>)
 __SYCL_DEVICE_INFO_INST(ext_oneapi_max_global_work_groups, size_t)
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_DEVICE_INFO_INST(ext_oneapi_cuda_cluster_group, bool)
 #undef __SYCL_DEVICE_INFO_INST
 
@@ -361,6 +364,8 @@ __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, xe_cores_per_cluster,
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, eus_per_xe_core, uint32_t)
 __SYCL_INTEL_DEVICE_INST(ext::intel::info::device, max_lanes_per_hw_thread,
                          uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, ip_version, uint32_t)
+__SYCL_INTEL_DEVICE_INST(ext::intel::info::device, igca, ext::intel::info::igca)
 #undef __SYCL_INTEL_DEVICE_INST
 
 #define __SYCL_ONEAPI_DEVICE_INST(NS, NAME, RETURN_T)                          \
@@ -391,7 +396,19 @@ __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::experimental::info::device,
                           composite_device, sycl::device)
 __SYCL_ONEAPI_DEVICE_INST(ext::oneapi::info::device, num_compute_units, size_t)
+__SYCL_ONEAPI_DEVICE_INST(
+    ext::oneapi::info::device, priority_range,
+    ext::oneapi::info::device::priority_range::return_type)
 #undef __SYCL_ONEAPI_DEVICE_INST
+
+#define __SYCL_KHR_DEVICE_INST(NS, NAME, RETURN_T)                             \
+  template __SYCL_EXPORT detail::ABINeutralT_t<RETURN_T>                       \
+  device::get_info_impl<NS::NAME>() const;
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range_size, size_t)
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range<1>, range<1>)
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range<2>, range<2>)
+__SYCL_KHR_DEVICE_INST(khr::info::device, max_work_group_range<3>, range<3>)
+#undef __SYCL_KHR_DEVICE_INST
 
 #define __SYCL_ONEAPI_PROGRESS_INST(NAME, SCOPE)                               \
   template __SYCL_EXPORT detail::ABINeutralT_t<                                \

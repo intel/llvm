@@ -432,6 +432,20 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   }
 
   if (auto *VecTy = dyn_cast<FixedVectorType>(T)) {
+    unsigned NumElements = VecTy->getNumElements();
+    bool IsNonStandardCount =
+        !(NumElements == 2 || NumElements == 3 || NumElements == 4 ||
+          NumElements == 8 || NumElements == 16);
+    if (IsNonStandardCount &&
+        !BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_long_vector) &&
+        !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute)) {
+      BM->getErrorLog().checkError(
+          false, SPIRVEC_RequiresExtension,
+          "SPV_EXT_long_vector or SPV_INTEL_vector_compute\n"
+          "NOTE: LLVM module contains a vector with an unsupported number of "
+          "components, translation of which requires one of these extensions");
+      return nullptr;
+    }
     if (VecTy->getElementType()->isPointerTy() ||
         isa<TypedPointerType>(VecTy->getElementType())) {
       // SPV_INTEL_masked_gather_scatter extension changes 2.16.1. Universal
@@ -927,11 +941,14 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       // generation.
       if (!BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
           !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_int4) &&
-          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4)) {
-        std::string ErrorStr = "One of the following extensions: "
-                               "SPV_EXT_float8, SPV_INTEL_float4, "
-                               "SPV_INTEL_int4 should be enabled to process "
-                               "conversion builtins";
+          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float4) &&
+          !BM->isAllowedToUseExtension(
+              ExtensionID::SPV_EXT_ocp_microscaling_types)) {
+        std::string ErrorStr =
+            "One of the following extensions: "
+            "SPV_EXT_float8, SPV_EXT_ocp_microscaling_types, "
+            "SPV_INTEL_float4, SPV_INTEL_int4 should be enabled to process "
+            "conversion builtins";
         getErrorLog().checkError(false, SPIRVEC_RequiresExtension, F, ErrorStr);
       }
       return nullptr;
@@ -951,7 +968,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
           SPIRVEC_RequiresExtension, "SPV_KHR_uniform_group_instructions\n");
     BM->setName(BF, F->getName().str());
   }
-  if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
+  if (!isKernel(F) && F->hasName() &&
+      F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
 
   // Translate OpenCL/SYCL buffer_location metadata if it's attached to the
@@ -1050,8 +1068,8 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
 
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_maximum_registers))
     transFunctionMetadataAsExecutionMode(BF, F);
-  else
-    transFunctionMetadataAsUserSemanticDecoration(BF, F);
+
+  transFunctionMetadataAsUserSemanticDecoration(BF, F);
 
   transAuxDataInst(BF, F);
 
@@ -1195,32 +1213,32 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
 
 void LLVMToSPIRVBase::transFunctionMetadataAsExecutionMode(SPIRVFunction *BF,
                                                            Function *F) {
-  SmallVector<MDNode *, 1> RegisterAllocModeMDs;
-  F->getMetadata("RegisterAllocMode", RegisterAllocModeMDs);
+  SmallVector<MDNode *, 1> MaximumRegistersMDs;
+  F->getMetadata("MaximumRegisters", MaximumRegistersMDs);
 
-  for (unsigned I = 0; I < RegisterAllocModeMDs.size(); I++) {
-    auto *RegisterAllocMode = RegisterAllocModeMDs[I]->getOperand(0).get();
-    if (isa<MDString>(RegisterAllocMode)) {
-      StringRef Str = getMDOperandAsString(RegisterAllocModeMDs[I], 0);
+  for (unsigned I = 0; I < MaximumRegistersMDs.size(); I++) {
+    auto *MaximumRegisters = MaximumRegistersMDs[I]->getOperand(0).get();
+    if (isa<MDString>(MaximumRegisters)) {
+      StringRef Str = getMDOperandAsString(MaximumRegistersMDs[I], 0);
       NamedMaximumNumberOfRegisters NamedValue =
           SPIRVNamedMaximumNumberOfRegistersNameMap::rmap(Str.str());
       BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
           OpExecutionMode, BF, ExecutionModeNamedMaximumRegistersINTEL,
           NamedValue)));
-    } else if (isa<MDNode>(RegisterAllocMode)) {
-      auto *RegisterAllocNodeMDOp =
-          getMDOperandAsMDNode(RegisterAllocModeMDs[I], 0);
-      int Num = getMDOperandAsInt(RegisterAllocNodeMDOp, 0);
+    } else if (isa<MDNode>(MaximumRegisters)) {
+      auto *MaxRegNodeMDOp =
+          getMDOperandAsMDNode(MaximumRegistersMDs[I], 0);
+      int Num = getMDOperandAsInt(MaxRegNodeMDOp, 0);
       auto *Const =
           BM->addConstant(transType(Type::getInt32Ty(F->getContext())), Num);
       BF->addExecutionMode(BM->add(new SPIRVExecutionModeId(
           BF, ExecutionModeMaximumRegistersIdINTEL, Const->getId())));
     } else {
-      int64_t RegisterAllocVal =
-          mdconst::dyn_extract<ConstantInt>(RegisterAllocMode)->getZExtValue();
+      int64_t MaxRegVal =
+          mdconst::dyn_extract<ConstantInt>(MaximumRegisters)->getZExtValue();
       BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
           OpExecutionMode, BF, ExecutionModeMaximumRegistersINTEL,
-          RegisterAllocVal)));
+          MaxRegVal)));
     }
   }
 }
@@ -1628,11 +1646,26 @@ SPIRVInstruction *LLVMToSPIRVBase::transBinaryInst(BinaryOperator *B,
 SPIRVInstruction *LLVMToSPIRVBase::transCmpInst(CmpInst *Cmp,
                                                 SPIRVBasicBlock *BB) {
   auto *Op0 = Cmp->getOperand(0);
-  SPIRVValue *TOp0 = transValue(Op0, BB);
-  SPIRVValue *TOp1 = transValue(Cmp->getOperand(1), BB);
-  // TODO: once the translator supports SPIR-V 1.4, update the condition below:
-  // if (/* */->isPointerTy() && /* it is not allowed to use SPIR-V 1.4 */)
+  auto *Op1 = Cmp->getOperand(1);
+  SPIRVValue *TOp0 = transValue(Op0, BB, true, FuncTransMode::Pointer);
+  SPIRVValue *TOp1 = transValue(Op1, BB, true, FuncTransMode::Pointer);
   if (Op0->getType()->isPointerTy()) {
+#if 1 // INTEL_CUSTOMIZATION
+    // CMPLRLLVM-76619: Fall back to OpConvertPtrToU + OpIEqual/OpINotEqual.
+#else
+    auto P = Cmp->getPredicate();
+    if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4) &&
+        (P == ICmpInst::ICMP_EQ || P == ICmpInst::ICMP_NE) &&
+        Cmp->getOperand(1)->getType()->isPointerTy()) {
+      // OpPtrEqual/OpPtrNotEqual require both operands to be of the same
+      // pointer type. Bitcast the second operand to the first operand's
+      // type if they differ.
+      if (TOp1->getType() != TOp0->getType())
+        TOp1 = BM->addUnaryInst(OpBitcast, TOp0->getType(), TOp1, BB);
+      Op OC = P == ICmpInst::ICMP_EQ ? OpPtrEqual : OpPtrNotEqual;
+      return BM->addBinaryInst(OC, transType(Cmp->getType()), TOp0, TOp1, BB);
+    }
+#endif // INTEL_CUSTOMIZATION
     unsigned AS = cast<PointerType>(Op0->getType())->getAddressSpace();
     SPIRVType *Ty = transType(getSizetType(AS));
     TOp0 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp0, BB);
@@ -2015,8 +2048,10 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicStore(StoreInst *ST,
                                               SPIRVBasicBlock *BB) {
   spv::Scope S = toSPIRVScope(ST->getContext(), ST->getSyncScopeID());
 
-  std::vector<Value *> Ops{ST->getPointerOperand(), getUInt32(M, S),
-                           getUInt32(M, transAtomicOrdering(ST->getOrdering())),
+  Value *Ptr = ST->getPointerOperand();
+  auto MemSem = transAtomicOrdering(ST->getOrdering()) |
+                getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+  std::vector<Value *> Ops{Ptr, getUInt32(M, S), getUInt32(M, MemSem),
                            ST->getValueOperand()};
   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
 
@@ -2028,9 +2063,10 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicLoad(LoadInst *LD,
                                              SPIRVBasicBlock *BB) {
   spv::Scope S = toSPIRVScope(LD->getContext(), LD->getSyncScopeID());
 
-  std::vector<Value *> Ops{
-      LD->getPointerOperand(), getUInt32(M, S),
-      getUInt32(M, transAtomicOrdering(LD->getOrdering()))};
+  Value *Ptr = LD->getPointerOperand();
+  auto MemSem = transAtomicOrdering(LD->getOrdering()) |
+                getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+  std::vector<Value *> Ops{Ptr, getUInt32(M, S), getUInt32(M, MemSem)};
   std::vector<SPIRVValue *> SPIRVOps = transValue(Ops, BB);
 
   return mapValue(LD, BM->addInstTemplate(OpAtomicLoad, BM->getIds(SPIRVOps),
@@ -2580,6 +2616,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                LoopControl, Parameters, SuccessorTrue);
       }
     }
+    // Starting with SPIR-V 1.6, the True Label and False Label of an
+    // "OpBranchConditional" must not be the same, so emit an unconditional
+    // branch - always valid, required for 1.6+
+    if (SuccessorTrue == SuccessorFalse)
+      return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
+
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
@@ -2634,8 +2676,16 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                    FuncTransMode::Pointer);
       if (Val->getType() != Ty)
         Val = BM->addUnaryInst(OpBitcast, Ty, Val, BB);
-      IncomingPairs.push_back(Val);
-      IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
+      SPIRVValue *Block = transValue(Phi->getIncomingBlock(I), nullptr);
+      bool IsDuplicate = false;
+      for (size_t Idx = 1; Idx < IncomingPairs.size(); Idx += 2) {
+        if (IncomingPairs[Idx] == Block)
+          IsDuplicate = true;
+      }
+      if (!IsDuplicate) {
+        IncomingPairs.push_back(Val);
+        IncomingPairs.push_back(Block);
+      }
     }
     return mapValue(V, BM->addPhiInst(Ty, IncomingPairs, BB));
   }
@@ -2785,11 +2835,15 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
     AtomicRMWInst::BinOp Op = ARMW->getOperation();
+    // uinc_wrap/udec_wrap have no opcode. On AMD targets SPIRVRegularizeLLVM
+    // rewrites them into a helper call so they never reach here; other targets
+    // reach here and are diagnosed as unsupported.
     bool SupportedAtomicInst =
         AtomicRMWInst::isFPOperation(Op)
             ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FSub ||
                Op == AtomicRMWInst::FMin || Op == AtomicRMWInst::FMax)
-            : Op != AtomicRMWInst::Nand;
+            : (Op != AtomicRMWInst::Nand && Op != AtomicRMWInst::UIncWrap &&
+               Op != AtomicRMWInst::UDecWrap);
     if (!BM->getErrorLog().checkError(
             SupportedAtomicInst, SPIRVEC_InvalidInstruction, V,
             "Atomic " + AtomicRMWInst::getOperationName(Op).str() +
@@ -2797,9 +2851,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       return nullptr;
 
     AtomicOrderingCABI Ordering = llvm::toCABI(ARMW->getOrdering());
-    auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
+    Value *Ptr = ARMW->getPointerOperand();
+    auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering)) |
+                  getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
     std::vector<Value *> Operands(4);
-    Operands[0] = ARMW->getPointerOperand();
+    Operands[0] = Ptr;
     spv::Scope S = toSPIRVScope(ARMW->getContext(), ARMW->getSyncScopeID());
     Operands[1] = getUInt32(M, S);
     Operands[2] = getUInt32(M, MemSem);
@@ -2920,8 +2976,9 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
     ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,             \
                       #NAME " requires exactly 1 extra operand");              \
     auto *StrDecoEO = dyn_cast<MDString>(DecoMD->getOperand(1));               \
-    ErrLog.checkError(StrDecoEO, SPIRVEC_InvalidLlvmModule,                    \
-                      #NAME " requires extra operand to be a string");         \
+    if (!ErrLog.checkError(StrDecoEO, SPIRVEC_InvalidLlvmModule,               \
+                           #NAME " requires extra operand to be a string"))    \
+      return;                                                                  \
     Target->addDecorate(                                                       \
         new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str()));  \
     break;                                                                     \
@@ -2933,8 +2990,9 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
                       #NAME " requires exactly 1 extra operand");              \
     auto *IntDecoEO =                                                          \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
-    ErrLog.checkError(IntDecoEO, SPIRVEC_InvalidLlvmModule,                    \
-                      #NAME " requires extra operand to be an integer");       \
+    if (!ErrLog.checkError(IntDecoEO, SPIRVEC_InvalidLlvmModule,               \
+                           #NAME " requires extra operand to be an integer"))  \
+      return;                                                                  \
     Target->addDecorate(new SPIRVDecorate##NAME(                               \
         Target, static_cast<TYPE>(IntDecoEO->getZExtValue())));                \
     break;                                                                     \
@@ -2946,13 +3004,16 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
                       #NAME " requires exactly 2 extra operands");             \
     auto *IntDecoEO1 =                                                         \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));              \
-    ErrLog.checkError(IntDecoEO1, SPIRVEC_InvalidLlvmModule,                   \
-                      #NAME " requires first extra operand to be an integer"); \
+    if (!ErrLog.checkError(IntDecoEO1, SPIRVEC_InvalidLlvmModule,              \
+                           #NAME                                               \
+                           " requires first extra operand to be an integer"))  \
+      return;                                                                  \
     auto *IntDecoEO2 =                                                         \
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));              \
-    ErrLog.checkError(IntDecoEO2, SPIRVEC_InvalidLlvmModule,                   \
-                      #NAME                                                    \
-                      " requires second extra operand to be an integer");      \
+    if (!ErrLog.checkError(IntDecoEO2, SPIRVEC_InvalidLlvmModule,              \
+                           #NAME                                               \
+                           " requires second extra operand to be an integer")) \
+      return;                                                                  \
     Target->addDecorate(new SPIRVDecorate##NAME(                               \
         Target, static_cast<TYPE1>(IntDecoEO1->getZExtValue()),                \
         static_cast<TYPE2>(IntDecoEO2->getZExtValue())));                      \
@@ -2979,14 +3040,16 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
   assert(ArgDecoMD && "Decoration list must be a metadata node");
   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
-    ErrLog.checkError(DecoMD, SPIRVEC_InvalidLlvmModule,
-                      "Decoration does not name metadata");
+    if (!ErrLog.checkError(DecoMD, SPIRVEC_InvalidLlvmModule,
+                           "Decoration does not name metadata"))
+      return;
     ErrLog.checkError(DecoMD->getNumOperands() > 0, SPIRVEC_InvalidLlvmModule,
                       "Decoration metadata must have at least one operand");
     auto *DecoKindConst =
         mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(0));
-    ErrLog.checkError(DecoKindConst, SPIRVEC_InvalidLlvmModule,
-                      "First operand of decoration must be the kind");
+    if (!ErrLog.checkError(DecoKindConst, SPIRVEC_InvalidLlvmModule,
+                           "First operand of decoration must be the kind"))
+      return;
     auto DecoKind = static_cast<Decoration>(DecoKindConst->getZExtValue());
 
     const size_t NumOperands = DecoMD->getNumOperands();
@@ -2996,8 +3059,9 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
       // Alignment decorations.
       auto *Alignment =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(Alignment, SPIRVEC_InvalidLlvmModule,
-                        "Alignment operand must be an integer.");
+      if (!ErrLog.checkError(Alignment, SPIRVEC_InvalidLlvmModule,
+                             "Alignment operand must be an integer."))
+        return;
       Target->setAlignment(Alignment->getZExtValue());
       break;
     }
@@ -3024,6 +3088,21 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
     case DecorationStableKernelArgumentINTEL:
     case DecorationRestrict: {
       Target->addDecorate(new SPIRVDecorate(DecoKind, Target));
+      break;
+    }
+    case DecorationUniformId: {
+      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+                        "UniformId requires exactly 1 extra operand");
+      auto *ScopeEO = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      if (!ErrLog.checkError(
+              ScopeEO, SPIRVEC_InvalidLlvmModule,
+              "UniformId requires extra operand to be an integer"))
+        return;
+      SPIRVModule *BM = Target->getModule();
+      SPIRVValue *ScopeConst = BM->addIntegerConstant(BM->addIntegerType(32),
+                                                      ScopeEO->getZExtValue());
+      Target->addDecorate(
+          new SPIRVDecorateId(DecoKind, Target, ScopeConst->getId()));
       break;
     }
     case DecorationBufferLocationINTEL:
@@ -3054,13 +3133,15 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
                         "MergeINTEL requires exactly 3 extra operands");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          Name, SPIRVEC_InvalidLlvmModule,
-          "MergeINTEL requires first extra operand to be a string");
+      if (!ErrLog.checkError(
+              Name, SPIRVEC_InvalidLlvmModule,
+              "MergeINTEL requires first extra operand to be a string"))
+        return;
       auto *Direction = dyn_cast<MDString>(DecoMD->getOperand(2));
-      ErrLog.checkError(
-          Direction, SPIRVEC_InvalidLlvmModule,
-          "MergeINTEL requires second extra operand to be a string");
+      if (!ErrLog.checkError(
+              Direction, SPIRVEC_InvalidLlvmModule,
+              "MergeINTEL requires second extra operand to be a string"))
+        return;
       Target->addDecorate(new SPIRVDecorateMergeINTELAttr(
           Target, Name->getString().str(), Direction->getString().str()));
       break;
@@ -3069,13 +3150,15 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
                         "LinkageAttributes requires exactly 3 extra operands");
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          Name, SPIRVEC_InvalidLlvmModule,
-          "LinkageAttributes requires first extra operand to be a string");
+      if (!ErrLog.checkError(
+              Name, SPIRVEC_InvalidLlvmModule,
+              "LinkageAttributes requires first extra operand to be a string"))
+        return;
       auto *Type = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      ErrLog.checkError(
-          Type, SPIRVEC_InvalidLlvmModule,
-          "LinkageAttributes requires second extra operand to be an int");
+      if (!ErrLog.checkError(
+              Type, SPIRVEC_InvalidLlvmModule,
+              "LinkageAttributes requires second extra operand to be an int"))
+        return;
       auto TypeKind = static_cast<SPIRVLinkageTypeKind>(Type->getZExtValue());
       Target->addDecorate(new SPIRVDecorateLinkageAttr(
           Target, Name->getString().str(), TypeKind));
@@ -3091,16 +3174,18 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
                         "after the decoration kind number");
       auto *AccessMode =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          AccessMode, SPIRVEC_InvalidLlvmModule,
-          "HostAccessINTEL requires first extra operand to be an int");
+      if (!ErrLog.checkError(
+              AccessMode, SPIRVEC_InvalidLlvmModule,
+              "HostAccessINTEL requires first extra operand to be an int"))
+        return;
 
       HostAccessQualifier Q =
           static_cast<HostAccessQualifier>(AccessMode->getZExtValue());
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(2));
-      ErrLog.checkError(
-          Name, SPIRVEC_InvalidLlvmModule,
-          "HostAccessINTEL requires second extra operand to be a string");
+      if (!ErrLog.checkError(
+              Name, SPIRVEC_InvalidLlvmModule,
+              "HostAccessINTEL requires second extra operand to be a string"))
+        return;
 
       if (DecoKind == DecorationHostAccessINTEL)
         Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
@@ -3114,17 +3199,20 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
     case spv::internal::DecorationInitModeINTEL:
     case DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-      ErrLog.checkError(
-          static_cast<SPIRVVariableBase *>(Target)->getInitializer(),
-          SPIRVEC_InvalidLlvmModule,
-          "InitModeINTEL only be applied to a global (module "
-          "scope) variable which has an Initializer operand");
+      if (!ErrLog.checkError(
+              static_cast<SPIRVVariableBase *>(Target)->getInitializer(),
+              SPIRVEC_InvalidLlvmModule,
+              "InitModeINTEL only be applied to a global (module "
+              "scope) variable which has an Initializer operand"))
+        return;
 
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
                         "InitModeINTEL requires exactly 1 extra operand");
       auto *Trigger = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(Trigger, SPIRVEC_InvalidLlvmModule,
-                        "InitModeINTEL requires extra operand to be an int");
+      if (!ErrLog.checkError(
+              Trigger, SPIRVEC_InvalidLlvmModule,
+              "InitModeINTEL requires extra operand to be an int"))
+        return;
 
       InitializationModeQualifier Q =
           static_cast<InitializationModeQualifier>(Trigger->getZExtValue());
@@ -3141,9 +3229,10 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
                         "ImplementInCSRINTEL requires exactly 1 extra operand");
       auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          Value, SPIRVEC_InvalidLlvmModule,
-          "ImplementInCSRINTEL requires extra operand to be an integer");
+      if (!ErrLog.checkError(
+              Value, SPIRVEC_InvalidLlvmModule,
+              "ImplementInCSRINTEL requires extra operand to be an integer"))
+        return;
 
       Target->addDecorate(
           new SPIRVDecorateImplementInCSRINTEL(Target, Value->getZExtValue()));
@@ -3155,9 +3244,11 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
           NumOperands == 2, SPIRVEC_InvalidLlvmModule,
           "ImplementInRegisterMapINTEL requires exactly 1 extra operand");
       auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(Value, SPIRVEC_InvalidLlvmModule,
-                        "ImplementInRegisterMapINTEL requires extra operand to "
-                        "be an integer");
+      if (!ErrLog.checkError(
+              Value, SPIRVEC_InvalidLlvmModule,
+              "ImplementInRegisterMapINTEL requires extra operand to "
+              "be an integer"))
+        return;
 
       Target->addDecorate(new SPIRVDecorateImplementInRegisterMapINTEL(
           Target, Value->getZExtValue()));
@@ -3173,12 +3264,15 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
       auto *CacheControl =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      ErrLog.checkError(CacheLevel, SPIRVEC_InvalidLlvmModule,
-                        "CacheControlLoadINTEL cache level operand is required "
-                        "to be an integer");
-      ErrLog.checkError(CacheControl, SPIRVEC_InvalidLlvmModule,
-                        "CacheControlLoadINTEL cache control operand is "
-                        "required to be an integer");
+      if (!ErrLog.checkError(
+              CacheLevel, SPIRVEC_InvalidLlvmModule,
+              "CacheControlLoadINTEL cache level operand is required "
+              "to be an integer"))
+        return;
+      if (!ErrLog.checkError(CacheControl, SPIRVEC_InvalidLlvmModule,
+                             "CacheControlLoadINTEL cache control operand is "
+                             "required to be an integer"))
+        return;
 
       Target->addDecorate(new SPIRVDecorateCacheControlLoadINTEL(
           Target, CacheLevel->getZExtValue(),
@@ -3193,12 +3287,14 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
       auto *CacheControl =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      ErrLog.checkError(CacheLevel, SPIRVEC_InvalidLlvmModule,
-                        "CacheControlStoreINTEL cache level operand is "
-                        "required to be an integer");
-      ErrLog.checkError(CacheControl, SPIRVEC_InvalidLlvmModule,
-                        "CacheControlStoreINTEL cache control operand is "
-                        "required to be an integer");
+      if (!ErrLog.checkError(CacheLevel, SPIRVEC_InvalidLlvmModule,
+                             "CacheControlStoreINTEL cache level operand is "
+                             "required to be an integer"))
+        return;
+      if (!ErrLog.checkError(CacheControl, SPIRVEC_InvalidLlvmModule,
+                             "CacheControlStoreINTEL cache control operand is "
+                             "required to be an integer"))
+        return;
 
       Target->addDecorate(new SPIRVDecorateCacheControlStoreINTEL(
           Target, CacheLevel->getZExtValue(),
@@ -3220,9 +3316,10 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
 
       auto *DecoValEO1 =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          DecoValEO1, SPIRVEC_InvalidLlvmModule,
-          "First extra operand in default decoration case must be integer.");
+      if (!ErrLog.checkError(DecoValEO1, SPIRVEC_InvalidLlvmModule,
+                             "First extra operand in default decoration case "
+                             "must be integer."))
+        return;
       if (NumOperands == 2) {
         Target->addDecorate(
             new SPIRVDecorate(DecoKind, Target, DecoValEO1->getZExtValue()));
@@ -3231,9 +3328,10 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
 
       auto *DecoValEO2 =
           mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(2));
-      ErrLog.checkError(
-          DecoValEO2, SPIRVEC_InvalidLlvmModule,
-          "Second extra operand in default decoration case must be integer.");
+      if (!ErrLog.checkError(DecoValEO2, SPIRVEC_InvalidLlvmModule,
+                             "Second extra operand in default decoration case "
+                             "must be integer."))
+        return;
 
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
                         "At most 2 extra operands expected.");
@@ -3256,7 +3354,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       (isa<AtomicRMWInst>(V) && cast<AtomicRMWInst>(V)->isVolatile()))
     BV->setVolatile(true);
 
-  if (auto *BVO = dyn_cast_or_null<OverflowingBinaryOperator>(V)) {
+  if (auto *BVO = dyn_cast_or_null<OverflowingBinaryOperator>(V);
+      BVO && !BVO->getType()->isIntOrIntVectorTy(1)) {
     if (BVO->hasNoSignedWrap()) {
       BV->setNoIntegerDecorationWrap<DecorationNoSignedWrap>(true);
     }
@@ -3267,12 +3366,16 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
 
   if (auto *BVF = dyn_cast_or_null<FPMathOperator>(V)) {
     auto Opcode = BVF->getOpcode();
+    bool IsSPV16Op = (Opcode == Instruction::FNeg ||
+                      Opcode == Instruction::FCmp || BV->isExtInst()) &&
+                     BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6);
+    bool IsFC2Op =
+        BV->getOpCode() == OpFunctionCall &&
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
     if (Opcode == Instruction::FAdd || Opcode == Instruction::FSub ||
         Opcode == Instruction::FMul || Opcode == Instruction::FDiv ||
-        Opcode == Instruction::FRem ||
-        ((Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
-          BV->isExtInst()) &&
-         BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))) {
+        Opcode == Instruction::FRem || BV->getOpCode() == OpFmaKHR ||
+        IsSPV16Op || IsFC2Op) {
       bool AllowFloatControls2 =
           BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_float_controls2);
       bool AllowIntelFpFastMathMode =
@@ -3373,9 +3476,13 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       }
       if (M != 0) {
         BV->setFPFastMathMode(M);
-        if (Opcode == Instruction::FNeg || Opcode == Instruction::FCmp ||
-            BV->isExtInst())
+        if (IsSPV16Op)
           BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+        if (IsFC2Op) {
+          BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+          BM->addCapability(CapabilityFloatControls2);
+          BM->addExtension(ExtensionID::SPV_KHR_float_controls2);
+        }
       }
     }
   }
@@ -3412,7 +3519,8 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
     return true;
   }
   if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-    BM->setAlignment(BV, GV->getAlignment());
+    if (MaybeAlign Alignment = GV->getAlign())
+      BM->setAlignment(BV, Alignment->value());
     return true;
   }
   return true;
@@ -4135,6 +4243,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::round:
   case Intrinsic::roundeven:
   case Intrinsic::sin:
+  case Intrinsic::sincos:
   case Intrinsic::sqrt:
   case Intrinsic::tan:
   case Intrinsic::trunc:
@@ -4502,13 +4611,14 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
                                    std::to_string(BitWidth));
     }
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
     SPIRVValue *IntVal =
         BM->addVariable(ITy,
                         ITy->isTypeUntypedPointerKHR()
                             ? transType(II->getType()->getStructElementType(1))
                             : nullptr,
                         false, spv::internal::LinkageTypeInternal, nullptr, "",
-                        ITy->getStorageClass(), BB);
+                        ITy->getStorageClass(), EntryBB);
 
     std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB), IntVal};
 
@@ -4558,6 +4668,32 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     // Create the struct.
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVId> StructVals{Modf->getId(), IntegralVal->getId()};
+    return BM->addCompositeConstructInst(STy, StructVals, BB);
+  }
+  case Intrinsic::sincos: {
+    // llvm.sincos(x) returns {sin(x), cos(x)}, while OpenCLLIB::Sincos takes
+    // (x, cos_ptr) and returns sin(x), storing cos(x) via the pointer.
+    // Create a temporary function variable for the cos output, call OpenCL
+    // sincos, load the cos value, then construct the result struct.
+    SPIRVType *CosTy = transType(II->getType()->getStructElementType(1));
+    SPIRVType *CosPtrTy = BM->addPointerType(StorageClassFunction, CosTy);
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
+    SPIRVValue *CosPtr =
+        BM->addVariable(static_cast<SPIRVTypePointer *>(CosPtrTy), nullptr,
+                        false, spv::internal::LinkageTypeInternal, nullptr, "",
+                        StorageClassFunction, EntryBB);
+
+    SPIRVType *SinTy = transType(II->getType()->getStructElementType(0));
+    SPIRVValue *Arg = transValue(II->getArgOperand(0), BB);
+    std::vector<SPIRVValue *> Ops{Arg, CosPtr};
+    SPIRVValue *SinVal =
+        BM->addExtInst(SinTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                       OpenCLLIB::Sincos, Ops, BB);
+
+    SPIRVValue *CosVal = BM->addLoadInst(CosPtr, {}, BB, CosTy);
+
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVId> StructVals{SinVal->getId(), CosVal->getId()};
     return BM->addCompositeConstructInst(STy, StructVals, BB);
   }
   // Binary FP intrinsics
@@ -4888,6 +5024,55 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
                           std::move(Operands), BB);
   }
+  case Intrinsic::ushl_sat:
+  case Intrinsic::sshl_sat: {
+    Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *X = transValue(II->getArgOperand(0), BB);
+    SPIRVValue *Amt = transValue(II->getArgOperand(1), BB);
+
+    SPIRVType *ElemTy = Ty;
+    unsigned VecSize = 0;
+    if (auto *VecTy = dyn_cast<VectorType>(II->getType())) {
+      BoolTy = VectorType::get(BoolTy, VecTy->getElementCount());
+      ElemTy = transType(VecTy->getElementType());
+      VecSize = VecTy->getElementCount().getFixedValue();
+    }
+    unsigned BitWidth = ElemTy->getIntegerBitWidth();
+
+    auto MakeConst = [&](APInt Val) -> SPIRVValue * {
+      if (VecSize > 0) {
+        auto *Elem = BM->addConstant(ElemTy, Val);
+        std::vector<SPIRVValue *> Elems(VecSize, Elem);
+        return BM->addCompositeConstant(Ty, Elems);
+      }
+      return BM->addConstant(Ty, Val);
+    };
+
+    SPIRVValue *Shifted = BM->addBinaryInst(OpShiftLeftLogical, Ty, X, Amt, BB);
+
+    SPIRVValue *Overflow = nullptr;
+    SPIRVValue *SatVal = nullptr;
+    if (IID == Intrinsic::ushl_sat) {
+      SPIRVValue *ShiftedBack =
+          BM->addBinaryInst(OpShiftRightLogical, Ty, Shifted, Amt, BB);
+      Overflow =
+          BM->addCmpInst(OpINotEqual, transType(BoolTy), ShiftedBack, X, BB);
+      SatVal = MakeConst(APInt::getAllOnes(BitWidth));
+    } else {
+      SPIRVValue *ShiftedBack =
+          BM->addBinaryInst(OpShiftRightArithmetic, Ty, Shifted, Amt, BB);
+      Overflow =
+          BM->addCmpInst(OpINotEqual, transType(BoolTy), ShiftedBack, X, BB);
+      SPIRVValue *IsNeg =
+          BM->addCmpInst(OpSLessThan, transType(BoolTy), X,
+                         MakeConst(APInt::getZero(BitWidth)), BB);
+      SPIRVValue *IntMin = MakeConst(APInt::getSignedMinValue(BitWidth));
+      SPIRVValue *IntMax = MakeConst(APInt::getSignedMaxValue(BitWidth));
+      SatVal = BM->addSelectInst(IsNeg, IntMin, IntMax, BB);
+    }
+    return BM->addSelectInst(Overflow, SatVal, Shifted, BB);
+  }
   case Intrinsic::uadd_with_overflow: {
     return BM->addBinaryInst(OpIAddCarry, transType(II->getType()),
                              transValue(II->getArgOperand(0), BB),
@@ -5046,6 +5231,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return nullptr;
     }
     uint64_t NumElements = static_cast<ConstantInt *>(Len)->getZExtValue();
+    // A zero-sized memset is a no-op. Emitting OpCopyMemorySized with a Size
+    // operand of 0 is invalid SPIR-V, so drop the intrinsic entirely.
+    if (NumElements == 0)
+      return nullptr;
     auto *AT = ArrayType::get(Val->getType(), NumElements);
     SPIRVTypeArray *CompositeTy = static_cast<SPIRVTypeArray *>(transType(AT));
     SPIRVValue *Init;
@@ -5077,6 +5266,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                       MemAccess, BB);
   } break;
   case Intrinsic::memcpy:
+    // A zero-sized memcpy is a no-op. Emitting OpCopyMemorySized with a Size
+    // operand of 0 is invalid SPIR-V, so drop the intrinsic entirely.
+    if (auto *CI = dyn_cast<ConstantInt>(II->getOperand(2)))
+      if (CI->isZero())
+        return nullptr;
     return BM->addCopyMemorySizedInst(
         transValue(II->getOperand(0), BB), transValue(II->getOperand(1), BB),
         transValue(II->getOperand(2), BB),
@@ -5688,6 +5882,13 @@ SPIRVValue *LLVMToSPIRVBase::transFenceInst(FenceInst *FI,
     break;
   }
 
+  // A fence is not associated with a particular memory object, so make its
+  // memory semantics cover every storage class reachable in the OpenCL
+  // environment.
+  MemorySemantics |= MemorySemanticsWorkgroupMemoryMask |
+                     MemorySemanticsCrossWorkgroupMemoryMask |
+                     MemorySemanticsImageMemoryMask;
+
   Module *M = FI->getParent()->getModule();
   spv::Scope S = toSPIRVScope(FI->getContext(), FI->getSyncScopeID());
 
@@ -5731,8 +5932,9 @@ processMiniFPOrInt4Type(Type *LLVMTy, FPEncodingWrap Encoding,
   unsigned TyWidth = cast<IntegerType>(ScalarTy)->getBitWidth();
   unsigned VecSize = 0;
 
-  bool IsPacked =
-      Encoding == FPEncodingWrap::E2M1 || Encoding == FPEncodingWrap::Integer;
+  bool IsPacked = Encoding == FPEncodingWrap::E2M1 ||
+                  Encoding == FPEncodingWrap::E2M1INTEL ||
+                  Encoding == FPEncodingWrap::Integer;
   if (IsPacked &&
       (TyWidth == 8 || TyWidth == 16 || TyWidth == 32 || TyWidth == 64)) {
     // Int4 or FP4 packed in an integer: each N-bit integer holds N/4 values.
@@ -5793,21 +5995,6 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
     if (SPIRV::FPConvertToEncodingMap::find(DemangledName)) {
       FPConversionDesc FPDesc =
           SPIRV::FPConvertToEncodingMap::map(DemangledName);
-      // SPV_EXT_float8: when SPV_EXT_float8 is enabled and
-      // SPV_INTEL_fp_conversions is not, the
-      // ClampConvert<Src>To<E4M3|E5M2>INTEL builtin maps to OpFConvert
-      // decorated with SaturatedToLargestFloat8NormalConversionEXT instead of
-      // the SPV_INTEL_fp_conversions OpClampConvertFToFINTEL opcode. When both
-      // extensions are enabled, SPV_INTEL_fp_conversions wins to preserve the
-      // pre-existing encoding.
-      bool IsSaturatedFP8 =
-          FPDesc.ConvOpCode == internal::OpClampConvertFToFINTEL &&
-          (FPDesc.DstEncoding == FPEncodingWrap::E4M3 ||
-           FPDesc.DstEncoding == FPEncodingWrap::E5M2) &&
-          BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_float8) &&
-          !BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fp_conversions);
-      if (IsSaturatedFP8)
-        FPDesc.ConvOpCode = OpFConvert;
       Value *Src = CI->getOperand(0);
       Type *LLVMSrcTy = Src->getType();
       Type *LLVMDstTy = CI->getType();
@@ -5886,9 +6073,15 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
 
       SPIRVValue *Conv = BM->addInstTemplate(OC, BM->getIds(Ops), BB, DstTy);
 
-      if (IsSaturatedFP8)
+      if (FPDesc.Saturate)
         Conv->addDecorate(new SPIRVDecorate(
             DecorationSaturatedToLargestFloat8NormalConversionEXT, Conv));
+
+      // Target the conversion itself, not the bitcast possibly added below.
+      if (auto *IDecoMD = CI->getMetadata(SPIRV_MD_DECORATIONS)) {
+        transMetadataDecorations(IDecoMD, Conv);
+        CI->setMetadata(SPIRV_MD_DECORATIONS, nullptr);
+      }
 
       // Representable in LLVM FP types: bitcast is not needed.
       if (FPDesc.DstEncoding == FPEncodingWrap::IEEE754 ||
@@ -6059,22 +6252,36 @@ LLVMToSPIRVBase::transValue(const std::vector<Value *> &Args,
   return BArgs;
 }
 
-std::vector<SPIRVWord>
-LLVMToSPIRVBase::transValue(const std::vector<Value *> &Args,
-                            SPIRVBasicBlock *BB, SPIRVEntry *Entry) {
-  std::vector<SPIRVWord> Operands;
-  for (size_t I = 0, E = Args.size(); I != E; ++I) {
-    Operands.push_back(Entry->isOperandLiteral(I)
-                           ? cast<ConstantInt>(Args[I])->getZExtValue()
-                           : transValue(Args[I], BB)->getId());
-  }
-  return Operands;
-}
-
 std::vector<SPIRVWord> LLVMToSPIRVBase::transArguments(CallInst *CI,
                                                        SPIRVBasicBlock *BB,
                                                        SPIRVEntry *Entry) {
-  return transValue(getArguments(CI), BB, Entry);
+  std::vector<Value *> Args = getArguments(CI);
+  const bool UseUntypedPtr =
+      BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers);
+  std::vector<SPIRVWord> Operands;
+  for (size_t I = 0, E = Args.size(); I != E; ++I) {
+    if (Entry->isOperandLiteral(I)) {
+      Operands.push_back(cast<ConstantInt>(Args[I])->getZExtValue());
+      continue;
+    }
+    SPIRVValue *ArgVal = transValue(Args[I], BB);
+    SPIRVType *ArgTy = ArgVal->getType();
+    // Preserve element type for byval/sret args at call site even when
+    // SPV_KHR_untyped_pointers is enabled, for the same reason as function
+    // parameters. A BitCast is inserted to convert untyped to typed pointer.
+    if (UseUntypedPtr && ArgTy->isTypeUntypedPointerKHR()) {
+      Type *PointeeTy = CI->getParamByValType(I);
+      if (!PointeeTy)
+        PointeeTy = CI->getParamStructRetType(I);
+      if (PointeeTy) {
+        SPIRVType *TypedPtrTy = BM->addPointerType(
+            ArgVal->getType()->getPointerStorageClass(), transType(PointeeTy));
+        ArgVal = BM->addUnaryInst(OpBitcast, TypedPtrTy, ArgVal, BB);
+      }
+    }
+    Operands.push_back(ArgVal->getId());
+  }
+  return Operands;
 }
 
 SPIRVWord LLVMToSPIRVBase::transFunctionControlMask(Function *F) {
@@ -6083,10 +6290,15 @@ SPIRVWord LLVMToSPIRVBase::transFunctionControlMask(Function *F) {
       [&](Attribute::AttrKind Attr, SPIRVFunctionControlMaskKind Mask) {
         if (F->hasFnAttribute(Attr)) {
           if (Attr == Attribute::OptimizeNone) {
-            if (!BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_optnone))
+            if (BM->isAllowedToUseExtension(ExtensionID::SPV_EXT_optnone)) {
+              BM->addExtension(ExtensionID::SPV_EXT_optnone);
+              BM->addCapability(CapabilityOptNoneEXT);
+            } else if (BM->isAllowedToUseExtension(
+                           ExtensionID::SPV_INTEL_optnone)) {
+              BM->addExtension(ExtensionID::SPV_INTEL_optnone);
+              BM->addCapability(CapabilityOptNoneINTEL);
+            } else
               return;
-            BM->addExtension(ExtensionID::SPV_INTEL_optnone);
-            BM->addCapability(internal::CapabilityOptNoneINTEL);
           }
           FCM |= Mask;
         }
@@ -6461,6 +6673,8 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
   fpContractUpdateRecursive(I, getFPContract(I));
 
   if (isKernel(I)) {
+    BM->getErrorLog().checkError(I->hasName(), SPIRVEC_InvalidLlvmModule,
+                                 "Entry point function must have a name");
     auto Interface = collectEntryPointInterfaces(BF, I);
     BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
                       Interface);
@@ -6472,11 +6686,33 @@ bool isEmptyLLVMModule(Module *M) {
          M->global_empty(); // No global variables
 }
 
+// A module is VectorCompute when any function or global variable carries
+// VectorCompute metadata.
+static bool hasVectorComputeMetadata(Module *M) {
+  return any_of(*M,
+                [](const Function &F) {
+                  return F.hasFnAttribute(kVCMetadata::VCFunction);
+                }) ||
+         any_of(M->globals(), [](const GlobalVariable &GV) {
+           return GV.hasAttribute(kVCMetadata::VCGlobalVariable);
+         });
+}
+
 bool LLVMToSPIRVBase::translate() {
   BM->setGeneratorVer(KTranslatorVer);
 
+  if (!BM->getErrorLog().checkError(
+          M->getModuleInlineAsm().empty(), SPIRVEC_InvalidLlvmModule,
+          "Module-level inline assembly is not supported in SPIR-V"))
+    return false;
+
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
+
+  // Check before type translation so that SPIRVTypeVector can choose the
+  // matching capability.
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+    BM->setVectorCompute(hasVectorComputeMetadata(M));
 
   if (!lowerBuiltinCallsToVariables(M))
     return false;
@@ -7725,6 +7961,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       SPIRV::ExtensionID::SPV_INTEL_float_controls2,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_fpga_decorations,
       SPIRV::ExtensionID::SPV_INTEL_global_variable_host_access,
+      SPIRV::ExtensionID::SPV_EXT_optnone,
       SPIRV::ExtensionID::SPV_INTEL_optnone,
       SPIRV::ExtensionID::SPV_INTEL_usm_storage_classes,
       SPIRV::ExtensionID::SPV_INTEL_split_barrier,

@@ -1,4 +1,6 @@
 // REQUIRES: aspect-fp64, windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
@@ -11,8 +13,8 @@
 #include <sycl/detail/core.hpp>
 
 namespace s = sycl;
-constexpr s::access::mode sycl_read = s::access::mode::read;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_read = s::access_mode::read;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 #define TEST_NUM 38
 

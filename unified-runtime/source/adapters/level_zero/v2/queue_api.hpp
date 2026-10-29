@@ -15,8 +15,11 @@
 
 #pragma once
 
+#include "common.hpp"
 #include "queue_extensions.hpp"
 #include <unified-runtime/ur_api.h>
+
+namespace ur::level_zero::v2 {
 
 struct ur_queue_t_ : ur_queue_extensions {
   virtual ~ur_queue_t_();
@@ -185,3 +188,5 @@ struct ur_queue_t_ : ur_queue_extensions {
   virtual ur_result_t queueIsGraphCapteEnabledExp(bool *) = 0;
   virtual ur_result_t queueGetGraphExp(ur_exp_graph_handle_t *) = 0;
 };
+
+} // namespace ur::level_zero::v2

@@ -16,7 +16,7 @@ class KernelA;
 
 void submitKernel(sycl::queue &Queue, sycl::buffer<int, 1> &Buf) {
   Queue.submit([&](sycl::handler &Cgh) {
-    auto BufAcc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
+    auto BufAcc = Buf.get_access<sycl::access_mode::read_write>(Cgh);
     Cgh.single_task<KernelA>([=]() { (void)BufAcc[0]; });
   });
 }

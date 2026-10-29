@@ -18,25 +18,26 @@
 #include "lockable.hpp"
 #include "memory.hpp"
 
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "../common/latency_tracker.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
 #include "unified-runtime/ur_api.h"
 #include "ur.hpp"
+#include "ur_interface_loader.hpp"
 #include "ze_api.h"
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 ur_queue_batched_t::ur_queue_batched_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
-    event_flags_t eventFlags, ur_queue_flags_t flags)
+    std::optional<int32_t> priorityLevel, event_flags_t eventFlags,
+    ur_queue_flags_t flags)
     : regularCmdListDesc(v2::command_list_desc_t{
           true /* isInOrder*/, ordinal /* Ordinal*/,
           true /* copyOffloadEnable*/, false /*isMutable*/}),
@@ -49,7 +50,8 @@ ur_queue_batched_t::ur_queue_batched_t(
           hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
-              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)
+              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
+              priorityLevel)
 
       ) {
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
@@ -841,11 +843,28 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+
+  // Keep the external wait in a separate regular command list. Some drivers
+  // block the whole list at an external wait, including commands recorded
+  // before it, so submit any preceding work first.
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
+  UR_CALL(lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
-      getEvent(lockedBatch, phEvent));
+      getEvent(lockedBatch, phEvent)));
+
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Submit the external wait immediately so the external producer can release
+  // it without relying on a later operation to flush the batch.
+  return renewBatchUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
@@ -856,22 +875,29 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+
+  // Keep the external signal in a separate regular command list, ordered after
+  // all preceding work.
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   markIssuedCommandInBatch(lockedBatch);
 
-  return lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
-      hSemaphore, hasSignalValue, signalValue, waitListView,
-      getEvent(lockedBatch, phEvent));
-}
+  UR_CALL(
+      lockedBatch->getListManager().bindlessImagesSignalExternalSemaphoreExp(
+          hSemaphore, hasSignalValue, signalValue, waitListView,
+          getEvent(lockedBatch, phEvent)));
 
-// In case of queues with batched submissions, which use regular command lists
-// (similarly to command buffers), the start timestamp would be recorded as the
-// operation is submitted (event.recordStartTimestamp() in
-// appendTimestampRecordingExp does not use the queue but directly the device),
-// but the end timestamp would wait for the submission of the given regular
-// command list. The difference between the start and end timestamps would
-// reflect the delay in the batch submission, the difference between end
-// timestamps would reflect the actual time of execution.
-//
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Submit the external signal immediately so the external consumer can
+  // observe it without relying on a later operation to flush the batch.
+  return renewBatchUnlocked(lockedBatch);
+}
 
 ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
     bool blocking, uint32_t numEventsInWaitList,
@@ -1102,4 +1128,4 @@ ur_result_t ur_queue_batched_t::enqueueHostTaskExp(
       this->getEvent(batchLocked, phEvent));
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

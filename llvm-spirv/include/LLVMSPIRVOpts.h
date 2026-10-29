@@ -135,6 +135,13 @@ enum SPIRAddressSpace : uint32_t {
 
 using AddrSpaceMap = std::array<uint32_t, SPIRAS_Count>;
 
+/// \brief What the translator does with a module it cannot accept.
+///
+/// Ignore leaves the failure to be reported through the return value and the
+/// error string of the entry point, typical for embedded uses. Abort and Exit
+/// terminate the process, typical for standalone tools.
+enum class SPIRVDbgErrorHandlingKinds { Abort, Exit, Ignore };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
@@ -284,6 +291,11 @@ public:
     return mapAddrSpace(SPIRAS_Private);
   }
 
+  /// Install the built-in address-space map and program address space for the
+  /// target triple. Returns false for an untabled non-SPIR triple, which has no
+  /// map and would otherwise emit a triple/layout-mismatched module.
+  bool deriveTargetAddrSpaces();
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }
@@ -291,6 +303,13 @@ public:
 
   void setUseLLVMTarget(bool Flag) noexcept { UseLLVMTarget = Flag; }
   bool getUseLLVMTarget() const noexcept { return UseLLVMTarget; }
+
+  void setSPIRVTargetTriple(std::string Triple) noexcept {
+    SPIRVTargetTriple = std::move(Triple);
+  }
+  llvm::StringRef getSPIRVTargetTriple() const noexcept {
+    return SPIRVTargetTriple;
+  }
 
   void setFnVarCategory(uint32_t Category) noexcept {
     FnVarCategory = Category;
@@ -338,6 +357,13 @@ public:
   // success, false on failure.
   bool validateFnVarOpts() const;
 
+  SPIRVDbgErrorHandlingKinds getErrorHandlingKind() const noexcept {
+    return ErrorHandling;
+  }
+  void setErrorHandlingKind(SPIRVDbgErrorHandlingKinds Kind) noexcept {
+    ErrorHandling = Kind;
+  }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -366,6 +392,9 @@ private:
   // Unknown LLVM intrinsics will be translated as external function calls in
   // SPIR-V
   std::optional<ArgList> SPIRVAllowUnknownIntrinsics{};
+
+  // What to do with a module the translator cannot accept.
+  SPIRVDbgErrorHandlingKinds ErrorHandling = SPIRVDbgErrorHandlingKinds::Exit;
 
   // Enable support for extra DIExpression opcodes not listed in the SPIR-V
   // DebugInfo specification.
@@ -411,6 +440,9 @@ private:
 
   // Convert LLVM to SPIR-V using the LLVM SPIR-V Backend target
   bool UseLLVMTarget = false;
+
+  // Override target triple during reverse-translation.
+  std::string SPIRVTargetTriple = "";
 };
 
 } // namespace SPIRV

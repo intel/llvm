@@ -1,4 +1,4 @@
-; RUN: opt -mtriple amdgcn-unknown-amdhsa -passes='print<uniformity>' -disable-output %s 2>&1 | FileCheck %s
+; RUN: opt -mtriple amdgpu7.00-unknown-amdhsa -passes='print<uniformity>' -disable-output %s 2>&1 | FileCheck %s
 
 declare i32 @llvm.amdgcn.workitem.id.x() #0
 declare i32 @llvm.amdgcn.workitem.id.y() #0
@@ -142,7 +142,7 @@ define amdgpu_kernel void @workitem_id_y_uniform_in_subgroup(ptr %o) #3 !reqd_wo
 attributes #0 = { nounwind readnone }
 attributes #1 = { nounwind }
 attributes #2 = { "amdgpu-flat-work-group-size"="1,1" "amdgpu-no-wwm" }
-attributes #3 = { "target-cpu"="gfx900" "amdgpu-flat-work-group-size"="256,256" }
+attributes #3 = { "amdgpu-flat-work-group-size"="256,256" }
 
 !0 = !{i32 1, i32 1, i32 1}
 !1 = !{i32 2, i32 1, i32 1}

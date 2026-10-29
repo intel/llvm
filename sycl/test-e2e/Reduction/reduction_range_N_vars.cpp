@@ -12,8 +12,7 @@ using namespace sycl;
 template <typename... Ts> class KNameGroup;
 template <typename T, bool B> class KName;
 
-constexpr access::mode RW = access::mode::read_write;
-constexpr access::mode DW = access::mode::discard_write;
+constexpr access_mode RW = access_mode::read_write;
 
 template <typename RangeT>
 void printNVarsTestLabel(const RangeT &Range, bool ToCERR = false) {
@@ -158,7 +157,7 @@ int main() {
   int Error = 0;
 
   size_t GSize = 16;
-  if (Dev.get_info<info::device::usm_shared_allocations>())
+  if (Dev.has(aspect::usm_shared_allocations))
     Error += test<class Case1>(
         Q, GSize,
         RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{},
@@ -170,7 +169,7 @@ int main() {
 
   GSize = 5 * (256 + 1);
   auto Add = [](auto x, auto y) { return (x + y); };
-  if (Dev.get_info<info::device::usm_device_allocations>())
+  if (Dev.has(aspect::usm_device_allocations))
     Error += test<class Case2>(
         Q, GSize,
         RedFactory<UseBuf>{}.get<float>(Q, GSize, 0, 1000, std::plus<>{}),

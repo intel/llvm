@@ -5,6 +5,7 @@
 
 #include <numeric>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/max_work_groups.hpp>
 
 using namespace sycl;
 
@@ -33,17 +34,20 @@ void check(range<N> global, range<N> local, bool expect_fail = false) {
 int main() {
   queue q;
   device d = q.get_device();
-  id<1> max_1 = d.get_info<sycl::info::device::ext_oneapi_max_work_groups_1d>();
+  id<1> max_1 = d.get_info<
+      sycl::ext::oneapi::experimental::info::device::max_work_groups<1>>();
   check(range<1>(max_1[0] * lsize), range<1>(lsize));
   check(range<1>((max_1[0] + 1) * lsize), range<1>(lsize), true);
 
-  id<2> max_2 = d.get_info<sycl::info::device::ext_oneapi_max_work_groups_2d>();
+  id<2> max_2 = d.get_info<
+      sycl::ext::oneapi::experimental::info::device::max_work_groups<2>>();
   check(range<2>(1, max_2[1] * lsize), range<2>(1, lsize));
   check(range<2>(1, (max_2[1] + 1) * lsize), range<2>(1, lsize), true);
   check(range<2>(max_2[0] * lsize, 1), range<2>(lsize, 1));
   check(range<2>((max_2[0] + 1) * lsize, 1), range<2>(lsize, 1), true);
 
-  id<3> max_3 = d.get_info<sycl::info::device::ext_oneapi_max_work_groups_3d>();
+  id<3> max_3 = d.get_info<
+      sycl::ext::oneapi::experimental::info::device::max_work_groups<3>>();
   check(range<3>(1, 1, max_3[2] * lsize), range<3>(1, 1, lsize));
   check(range<3>(1, 1, (max_3[2] + 1) * lsize), range<3>(1, 1, lsize), true);
   check(range<3>(1, max_3[1] * lsize, 1), range<3>(1, lsize, 1));

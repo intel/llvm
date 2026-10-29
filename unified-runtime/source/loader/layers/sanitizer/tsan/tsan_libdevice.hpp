@@ -107,9 +107,8 @@ struct TsanRuntimeData {
   TsanErrorReport Report[TSAN_MAX_NUM_REPORTS];
 };
 
-constexpr auto kSPIR_TsanDeviceGlobalMetadata = "__TsanDeviceGlobalMetadata";
-
-constexpr auto kSPIR_TsanSpirKernelMetadata = "__TsanKernelMetadata";
+constexpr auto kSPIR_TsanDeviceGlobalMetadataPrefix =
+    "__TsanDeviceGlobalMetadata_";
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer

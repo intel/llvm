@@ -41,7 +41,7 @@ void testSpanCapture() {
   usm_span[0] += 100; // 101 modify first value using span affordance.
 
   event E = Q.submit([&](handler &cgh) {
-    auto can_read_from_span_acc = SpanRead.get_access<access::mode::write>(cgh);
+    auto can_read_from_span_acc = SpanRead.get_access<access_mode::write>(cgh);
     cgh.single_task<class hi>([=] {
       // read from the spans.
       can_read_from_span_acc[0] = vecUSM_span[0];
@@ -84,7 +84,7 @@ void testSpanOnDevice() {
   buffer<int, 1> SpanRead(NumberOfReadTestsRange);
 
   event E = Q.submit([&](handler &cgh) {
-    auto can_read_from_span_acc = SpanRead.get_access<access::mode::write>(cgh);
+    auto can_read_from_span_acc = SpanRead.get_access<access_mode::write>(cgh);
     cgh.single_task<class ha>([=] {
       // create a span on device, pass it to function that modifies it
       // read values back out.

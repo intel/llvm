@@ -29,6 +29,7 @@ namespace {
 constexpr StringRef SyclHostAccessAttr = "sycl-host-access";
 constexpr StringRef SyclPipelinedAttr = "sycl-pipelined";
 constexpr StringRef SyclGrfSizeAttr = "sycl-grf-size";
+constexpr StringRef SyclMaximumRegistersAttr = "sycl-maximum-registers";
 
 constexpr StringRef SpirvDecorMdKind = "spirv.Decorations";
 constexpr StringRef SpirvDecorCacheControlMdKind =
@@ -428,19 +429,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
-  // The sycl-single-task attribute currently only has an effect when targeting
-  // SPIR FPGAs, in which case it will generate a "max_global_work_dim" MD node
-  // with a 0 value, similar to applying [[intel::max_global_work_dim(0)]] to
-  // a SYCL single_target kernel.
-  if (AttrKindStr == "sycl-single-task" &&
-      Triple(M.getTargetTriple()).getSubArch() == Triple::SPIRSubArch_fpga) {
-    IntegerType *Ty = Type::getInt32Ty(Ctx);
-    Metadata *MDVal = ConstantAsMetadata::get(Constant::getNullValue(Ty));
-    SmallVector<Metadata *, 1> MD{MDVal};
-    return std::pair<std::string, MDNode *>("max_global_work_dim",
-                                            MDNode::get(Ctx, MD));
-  }
-
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
     //   !ip_interface !N
@@ -498,6 +486,22 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     Metadata *AttrMDArgs[] = {ConstantAsMetadata::get(
         Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)))};
     return std::pair<std::string, MDNode *>("RegisterAllocMode",
+                                            MDNode::get(Ctx, AttrMDArgs));
+  }
+
+  if (AttrKindStr == SyclMaximumRegistersAttr) {
+    uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
+    // Filter by the supported property values.
+    if (PropVal != 0 && PropVal != 128 && PropVal != 192 && PropVal != 256 &&
+        PropVal != 512)
+      return std::nullopt;
+    Metadata *AttrMDArgs[1];
+    if (PropVal == 0)
+      AttrMDArgs[0] = MDString::get(Ctx, "AutoINTEL");
+    else
+      AttrMDArgs[0] = ConstantAsMetadata::get(
+          Constant::getIntegerValue(Type::getInt32Ty(Ctx), APInt(32, PropVal)));
+    return std::pair<std::string, MDNode *>("MaximumRegisters",
                                             MDNode::get(Ctx, AttrMDArgs));
   }
 

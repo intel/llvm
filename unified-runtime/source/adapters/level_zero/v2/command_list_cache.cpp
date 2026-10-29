@@ -10,62 +10,31 @@
 #include "command_list_cache.hpp"
 #include "context.hpp"
 
-#include "../device.hpp"
+#include "../common/device.hpp"
 
-// UR copy of the deprecated
-// zex_intel_queue_copy_operations_offload_hint_exp_desc_t
-typedef struct _ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t {
-  ze_structure_type_ext_t stype; ///< [in] type of this structure
-  const void
-      *pNext; ///< [in][optional] must be null or a pointer to an
-              ///< extension-specific structure (i.e. contains stype and pNext).
-  ze_bool_t
-      copyOffloadEnabled; ///< [in] If set, try to offload copy operations to
-                          ///< different engines. Applicable only for compute
-                          ///< queues. This is only a hint. Driver may ignore it
-                          ///< per append call, based on platform capabilities
-                          ///< or internal heuristics. If not set, driver will
-                          ///< follow default behaviour. Copy operations will be
-                          ///< submitted to same engine as compute operations.
+namespace ur::level_zero::v2 {
 
-} ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t;
-
-// ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES is
-// deprecated and will be removed
-#ifdef ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
-#define UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES \
-  ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
-#else
-#define UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES \
-  static_cast<ze_structure_type_ext_t>(0x0003001B)
-#endif // ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES
-
-template <>
-ze_structure_type_ext_t getZexStructureType<
-    ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
-  return UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
-}
-
-bool v2::immediate_command_list_descriptor_t::operator==(
+bool immediate_command_list_descriptor_t::operator==(
     const immediate_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && IsInOrder == rhs.IsInOrder &&
-         Mode == rhs.Mode && Priority == rhs.Priority && Index == rhs.Index;
+         Mode == rhs.Mode && Priority == rhs.Priority && Index == rhs.Index &&
+         PriorityLevel == rhs.PriorityLevel;
 }
 
-bool v2::regular_command_list_descriptor_t::operator==(
+bool regular_command_list_descriptor_t::operator==(
     const regular_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && Ordinal == rhs.Ordinal &&
          IsInOrder == rhs.IsInOrder && Mutable == rhs.Mutable;
 }
 
-namespace v2 {
 inline size_t command_list_descriptor_hash_t::operator()(
     const command_list_descriptor_t &desc) const {
   if (auto ImmCmdDesc =
           std::get_if<immediate_command_list_descriptor_t>(&desc)) {
     return combine_hashes(0, ImmCmdDesc->ZeDevice, ImmCmdDesc->Ordinal,
                           ImmCmdDesc->IsInOrder, ImmCmdDesc->Mode,
-                          ImmCmdDesc->Priority, ImmCmdDesc->Index);
+                          ImmCmdDesc->Priority, ImmCmdDesc->Index,
+                          ImmCmdDesc->PriorityLevel);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     return combine_hashes(0, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder,
@@ -77,8 +46,6 @@ command_list_cache_t::command_list_cache_t(
     ze_context_handle_t ZeContext,
     supported_extensions_descriptor_t supportedExtensions)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{
-          supportedExtensions.ZeCopyOffloadExtensionSupported},
       ZeMutableCmdListExtentionSupported{
           supportedExtensions.ZeMutableCmdListExtentionSupported},
       ZeCopyOffloadQueueFlagSupported{
@@ -102,7 +69,8 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     requestedCopyOffload = false;
   }
 
-  if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
+  if (requestedCopyOffload && !ZeCopyOffloadQueueFlagSupported &&
+      !ZeCopyOffloadListFlagSupported) {
     UR_LOG(INFO,
            "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;
@@ -132,10 +100,28 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       QueueDesc.pNext = &offloadDesc;
     }
 
+    ZexStruct<ur_ze_queue_priority_desc_t> priorityDesc;
+    if (ImmCmdDesc->PriorityLevel.has_value()) {
+      // The driver reads both the priority and the deprecated copy offload
+      // descriptors from the head of the pNext chain, so they can't be
+      // chained together. Drop the offload descriptor: copy offload falls back
+      // to the driver default (disabled), which only matters if it was
+      // requested and ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT is unsupported.
+      if (QueueDesc.pNext && requestedCopyOffload) {
+        UR_LOG(INFO, "Copy offload is not supported together with a queue "
+                     "priority level by the driver.");
+      }
+      priorityDesc.priority = ImmCmdDesc->PriorityLevel.value();
+      QueueDesc.pNext = &priorityDesc;
+    }
+
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "
-           "device: {}, inOrder: {}",
-           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
+           "device: {}, inOrder: {}, priorityLevel: {}",
+           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder,
+           ImmCmdDesc->PriorityLevel
+               ? std::to_string(ImmCmdDesc->PriorityLevel.value())
+               : std::string("none"));
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
@@ -191,8 +177,12 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
     ze_device_handle_t ZeDevice, command_list_desc_t ListDesc,
     ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
-    std::optional<uint32_t> Index) {
+    std::optional<uint32_t> Index, std::optional<int32_t> PriorityLevel) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getImmediateCommandList");
+
+  // The driver derives the queue priority class from the priority level and
+  // ignores Priority, so only the default class is consistent with a level.
+  assert(!PriorityLevel || Priority == ZE_COMMAND_QUEUE_PRIORITY_NORMAL);
 
   immediate_command_list_descriptor_t Desc;
   Desc.ZeDevice = ZeDevice;
@@ -202,6 +192,7 @@ raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
   Desc.Mode = Mode;
   Desc.Priority = Priority;
   Desc.Index = Index;
+  Desc.PriorityLevel = PriorityLevel;
 
   auto [CommandList, _] = getCommandList(Desc).release();
   return raii::command_list_unique_handle(
@@ -284,4 +275,4 @@ size_t command_list_cache_t::getNumRegularCommandLists() {
   return NumLists;
 }
 
-} // namespace v2
+} // namespace ur::level_zero::v2

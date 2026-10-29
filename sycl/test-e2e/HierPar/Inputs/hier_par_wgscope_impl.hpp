@@ -42,7 +42,7 @@ static bool testWgScope(queue &Q) {
     int N = N_INNER_ITER;
 
     Q.submit([&](handler &cgh) {
-      auto DevPtr = Buf.get_access<access::mode::read_write>(cgh);
+      auto DevPtr = Buf.get_access<access_mode::read_write>(cgh);
 
       cgh.parallel_for_work_group<class hpar_hw>(
           range<1>(N_WG), range<1>(PHYS_WG_SIZE), [=](group<1> G) {
@@ -202,7 +202,7 @@ bool testPrivateMemory(queue &Q) {
   std::memset(Ptr, 0, RangeLength * sizeof(Ptr[0]));
   buffer<int, 1> Buf(Ptr, range<1>(RangeLength));
   Q.submit([&](handler &cgh) {
-    auto DevPtr = Buf.get_access<access::mode::read_write>(cgh);
+    auto DevPtr = Buf.get_access<access_mode::read_write>(cgh);
 
     cgh.parallel_for_work_group<class hpar_priv_mem>(
         range<2>(N_WG, 1), range<2>(WG_X_SIZE, WG_Y_SIZE), [=](group<2> G) {

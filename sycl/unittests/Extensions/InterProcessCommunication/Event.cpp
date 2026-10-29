@@ -158,8 +158,8 @@ protected:
 // UR handle (lazy materialization).
 TEST_F(IPCEventTests, MakeEventIPCFlagSet) {
   {
-    sycl::event Evt =
-        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
     EXPECT_TRUE(Evt.ext_oneapi_ipc_enabled());
   }
   // No UR handle was ever materialized, so nothing to release.
@@ -182,8 +182,8 @@ TEST_F(IPCEventTests, MakeEventNoIPCFlag) {
 // correct data.
 TEST_F(IPCEventTests, GetCallsURAndReturnsHandle) {
   {
-    sycl::event Evt =
-        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
 
     sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
 
@@ -195,8 +195,26 @@ TEST_F(IPCEventTests, GetCallsURAndReturnsHandle) {
     ASSERT_EQ(Data.size(), DummyHandleDataSize);
     EXPECT_EQ(memcmp(Data.data(), DummyHandleData, DummyHandleDataSize), 0);
   }
-  // get() materializes the UR event; it must be released on destruction.
+  // The handle is released via put on destruction and the materialized UR
+  // event is released too.
+  EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
   EXPECT_EQ(urEventRelease_counter, 1);
+}
+
+// Repeated get() on the same event exports the handle only once (it is cached
+// on the event) and returns the same data.
+TEST_F(IPCEventTests, RepeatedGetExportsOnce) {
+  {
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
+
+    sycl::ext::oneapi::experimental::ipc::handle H1 = ipcevt::get(Evt);
+    sycl::ext::oneapi::experimental::ipc::handle H2 = ipcevt::get(Evt);
+
+    EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
+    EXPECT_EQ(H1.data(), H2.data());
+  }
+  EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
 }
 
 // ipc::event::get on a non-IPC event throws errc::invalid.
@@ -213,21 +231,25 @@ TEST_F(IPCEventTests, GetOnNonIPCEventThrows) {
   EXPECT_EQ(urIPCGetEventHandleExp_counter, 0);
 }
 
-// ipc::event::put calls urIPCPutEventHandleExp with the handle data.
-TEST_F(IPCEventTests, PutCallsUR) {
+// put() is optional and does not release the handle: the event owns it and
+// releases it once on destruction, regardless of whether put() was called.
+TEST_F(IPCEventTests, PutIsOptionalNoOp) {
   {
-    sycl::event Evt =
-        syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    sycl::event Evt = syclexp::make_event(
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true}});
 
     sycl::ext::oneapi::experimental::ipc::handle H = ipcevt::get(Evt);
     EXPECT_EQ(urIPCGetEventHandleExp_counter, 1);
 
     ipcevt::put(H, Ctxt);
 
-    EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
+    // put() is a no-op: the handle is released with the event, not here.
+    EXPECT_EQ(urIPCPutEventHandleExp_counter, 0);
     EXPECT_EQ(urIPCOpenEventHandleExp_counter, 0);
   }
-  // The materialized UR event must be released on destruction.
+  // Exactly one release happens on destruction, whether or not put() was
+  // called.
+  EXPECT_EQ(urIPCPutEventHandleExp_counter, 1);
   EXPECT_EQ(urEventRelease_counter, 1);
 }
 
@@ -293,7 +315,8 @@ TEST_F(IPCEventTests, MakeEventNoAspectThrows) {
 
   bool caught = false;
   try {
-    (void)syclexp::make_event(Ctxt, syclexp::properties{syclexp::enable_ipc});
+    (void)syclexp::make_event(Ctxt,
+                              syclexp::properties{syclexp::enable_ipc{true}});
   } catch (const sycl::exception &E) {
     caught = true;
     EXPECT_EQ(E.code(),
@@ -308,8 +331,8 @@ TEST_F(IPCEventTests, MakeEventIPCAndProfilingThrows) {
   bool caught = false;
   try {
     (void)syclexp::make_event(
-        Ctxt,
-        syclexp::properties{syclexp::enable_ipc, syclexp::enable_profiling});
+        Ctxt, syclexp::properties{syclexp::enable_ipc{true},
+                                  syclexp::enable_profiling{true}});
   } catch (const sycl::exception &E) {
     caught = true;
     EXPECT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));

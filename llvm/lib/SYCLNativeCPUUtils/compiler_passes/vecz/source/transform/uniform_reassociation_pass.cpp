@@ -334,7 +334,7 @@ bool Reassociator::run(llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
   if (LI) {
     // Unlike the dominator trees, LoopInfo::verify() returns void and asserts
     // internally on failure, for some reason
-    LI->verify(*DT);
+    LI->verify();
   }
 
   return true;

@@ -33,10 +33,10 @@ and not recommended to use in production environment.
     The following triples are supported by default:
     * spir64 - this is the default generic SPIR-V target;
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;
-    * spir64_gen - generate code ahead of time for Intel Processor Graphics;
+    * intel_gpu_<arch> - generate code ahead of time for Intel Processor
+      Graphics; see the list of intel_gpu_* values below;
     Full target triples can also be used:
-    * spir64-unknown-unknown, spir64_x86_64-unknown-unknown,
-      spir64_gen-unknown-unknown
+    * spir64-unknown-unknown, spir64_x86_64-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
     * amdgcn-amd-amdhsa - generate code ahead of time for HIP target;
@@ -145,6 +145,19 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1151 - GCN GFX11 (RDNA 3) architecture
     * amd_gpu_gfx1200 - GCN GFX12 (RDNA 4) architecture
     * amd_gpu_gfx1201 - GCN GFX12 (RDNA 4) architecture
+
+    Deprecated: spir64_gen (spir64_gen-unknown-unknown) is deprecated in favor
+    of the intel_gpu_* values above. It emits a deprecation warning by default,
+    and is an error with --offload-new-driver. To migrate
+    '-fsycl-targets=spir64_gen -Xsycl-target-backend "-device <value>"':
+    * a device name, e.g. "-device pvc": use -fsycl-targets=intel_gpu_pvc;
+    * a full IP version, e.g. "-device 12.60.7": use
+      -fsycl-targets=intel_gpu_12_60_7;
+    * a list, e.g. "-device pvc,dg2": use
+      -fsycl-targets=intel_gpu_pvc,intel_gpu_dg2;
+    * "-device *", hex device IDs (e.g. 0x0BD5), partial versions (e.g.
+      12.60) and devices without an intel_gpu_* value (e.g. pvc-sdv) have
+      no equivalent; list the intel_gpu_* values of the devices to target.
 
 ## Language options
 
@@ -264,6 +277,11 @@ and not recommended to use in production environment.
 
     Pass "options" to the device code linker, when linking multiple device
     object modules. T is specific target device triple.
+
+**`--ocloc-path=<dir>`**
+
+    Path to the `ocloc` tool, which is used for ahead of time compilation
+    targeting Intel GPUs.
 
 ## Link options
 
@@ -473,7 +491,8 @@ and not recommended to use in production environment.
     Exposes exported symbols in a generated target library to allow for
     visibility to other modules.
 
-    NOTE: This flag is only supported for spir64_gen AOT targets.
+    NOTE: This flag is only supported for Intel GPU AOT targets
+    (intel_gpu_*).
 
 **`-ftarget-register-alloc-mode=<arg>`**
 
@@ -490,6 +509,17 @@ and not recommended to use in production environment.
     __INTEL_PREVIEW_BREAKING_CHANGES.
     When this option is used in conjunction with -fsycl, the driver will link
     against an alternate form of libsycl, libsycl-preview.
+
+**`-W[no-]sycl-undefined-func-in-image`**
+
+    Controls the SYCL link-time "Undefined function <name> found in <image>"
+    warning. Enabled by default. Use `-Wno-sycl-undefined-func-in-image`
+    when the symbol is resolved at runtime. This option only silences the
+    diagnostic; it does not change generated device code or how the SYCL
+    runtime attempts to resolve the symbol.
+
+    Only -W[no-]sycl-undefined-func-in-image controls this warning. -w,
+    -Wno-everything and -Werror=sycl-undefined-func-in-image do not apply.
 
 # Example: SYCL device code compilation
 

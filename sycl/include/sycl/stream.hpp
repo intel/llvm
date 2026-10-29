@@ -25,6 +25,7 @@
 #include <sycl/half_type.hpp>           // for half, operator-, operator<
 #include <sycl/handler.hpp>             // for handler
 #include <sycl/item.hpp>                // for item
+#include <sycl/khr/properties.hpp>      // for khr properties
 #include <sycl/nd_item.hpp>             // for nd_item
 #include <sycl/nd_range.hpp>            // for nd_range
 #include <sycl/property_list.hpp>       // for property_list
@@ -813,13 +814,14 @@ inline void writeGroup(GlobalBufAccessorT &GlobalFlushBuf,
   unsigned Len = 0;
   Len += append(Buf, "group(");
   Len += append(Buf + Len, "id: ");
-  Len += ArrayToStr(Buf + Len, Group.get_id());
+  Len += ArrayToStr(Buf + Len, Group.get_group_id());
   Len += append(Buf + Len, ", global_range: ");
-  Len += ArrayToStr(Buf + Len, Group.get_global_range());
+  auto GroupRange = Group.get_group_range();
+  Len += ArrayToStr(Buf + Len, GroupRange * Group.get_max_local_range());
   Len += append(Buf + Len, ", local_range: ");
   Len += ArrayToStr(Buf + Len, Group.get_local_range());
   Len += append(Buf + Len, ", group_range: ");
-  Len += ArrayToStr(Buf + Len, Group.get_group_range());
+  Len += ArrayToStr(Buf + Len, GroupRange);
   Buf[Len++] = ')';
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
@@ -957,6 +959,12 @@ private:
         GlobalFlushBuf{GlobalFlushBuf} {}
 #endif
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  template <typename PropertyOrList>
+  static constexpr bool KhrPropsForStream =
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList, stream>;
+#endif
+
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
@@ -970,6 +978,15 @@ public:
   // TODO: Merge with other stream constructor and give PropList default value.
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
          const property_list &PropList);
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // sycl_khr_properties stream constructor.
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<KhrPropsForStream<PropertyOrList>>>
+  stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
+         PropertyOrList)
+      : stream(BufferSize, MaxStatementSize, CGH, property_list{}) {}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
 #ifdef __SYCL_DEVICE_ONLY__
   // We need the definitions of these functions in the header for device,

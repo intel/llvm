@@ -11,8 +11,11 @@
 #include "detail/persistent_device_code_cache.hpp"
 #include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
+#include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/IOSandbox.h>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 
@@ -27,18 +30,6 @@
            << "error number: " << EC.value() << "\n"                           \
            << "error message: " << EC.message() << "\n";                       \
   }
-
-// TODO: Introduce common unit tests header and move it there
-static void set_env(const char *name, const char *value) {
-#ifdef _WIN32
-  (void)_putenv_s(name, value ? value : "");
-#else
-  if (value)
-    (void)setenv(name, value, /*overwrite*/ 1);
-  else
-    (void)unsetenv(name);
-#endif
-}
 
 namespace {
 using namespace sycl;
@@ -113,6 +104,20 @@ public:
 
   std::string RootSYCLCacheDir;
 
+  // Cache directory of the current test, see SetTestSYCLCacheDirEnv().
+  static constexpr const char *TestCacheDirEnvVar =
+      "SYCL_UNITTEST_PERSISTENT_CACHE_TEST_DIR";
+  std::string TestCacheDir;
+  bool OwnsTestCacheDir = false;
+
+  // This test makes many calls to llvm::sys::fs calls, which as of RFC
+  // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
+  // now errors upon using llvm::sys::fs calls without disabling the sandbox.
+  //
+  // Disable the sandbox for the duration of this test.
+  llvm::sys::sandbox::ScopedSetting BypassSandbox =
+      llvm::sys::sandbox::scopedDisable();
+
   // Caches the initial value of the SYCL_CACHE_PERSISTENT environment variable
   // before overwriting it with the new value.
   // Tear-down will reset the environment variable.
@@ -130,23 +135,37 @@ public:
 
     // Set the environment variable and signal the configuration file and the
     // persistent cache.
-    set_env("SYCL_CACHE_PERSISTENT", NewValue);
+    unittest::set_env("SYCL_CACHE_PERSISTENT", NewValue);
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
     SYCLCachePersistentChanged = true;
   }
 
   // Set SYCL_CACHE_MAX_SIZE.
   void SetDiskCacheEvictionEnv(const char *NewValue) {
-    set_env("SYCL_CACHE_MAX_SIZE", NewValue);
+    unittest::set_env("SYCL_CACHE_MAX_SIZE", NewValue);
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_MAX_SIZE>::reset();
   }
 
-  void AppendToSYCLCacheDirEnv(const char *SubDir) {
-    std::string NewSYCLCacheDirPath{RootSYCLCacheDir};
-    if (NewSYCLCacheDirPath.back() != '\\' && NewSYCLCacheDirPath.back() != '/')
-      NewSYCLCacheDirPath += '/';
-    NewSYCLCacheDirPath += SubDir;
-    set_env("SYCL_CACHE_DIR", NewSYCLCacheDirPath.c_str());
+  // Points SYCL_CACHE_DIR to a cache directory owned by the current test.
+  //
+  // The directory is unique per test *and* per process: the same test may be
+  // run by several processes at once (e.g. concurrent test runs sharing
+  // SYCL_CACHE_DIR) and those must not remove or overwrite each other's cache
+  // items.
+  void SetTestSYCLCacheDirEnv() {
+    if (const char *InheritedDir = getenv(TestCacheDirEnvVar);
+        InheritedDir && *InheritedDir) {
+      TestCacheDir = InheritedDir;
+    } else {
+      llvm::SmallString<256> UniqueDir;
+      ASSERT_NO_ERROR(llvm::sys::fs::create_directories(RootSYCLCacheDir));
+      ASSERT_NO_ERROR(llvm::sys::fs::createUniqueDirectory(
+          RootSYCLCacheDir + "/pdcc", UniqueDir));
+      TestCacheDir = std::string{UniqueDir};
+      OwnsTestCacheDir = true;
+      unittest::set_env(TestCacheDirEnvVar, TestCacheDir.c_str());
+    }
+    unittest::set_env("SYCL_CACHE_DIR", TestCacheDir.c_str());
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
   }
 
@@ -169,7 +188,7 @@ public:
   }
 
   void ResetSYCLCacheDirEnv() {
-    set_env("SYCL_CACHE_DIR", RootSYCLCacheDir.c_str());
+    unittest::set_env("SYCL_CACHE_DIR", RootSYCLCacheDir.c_str());
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
   }
 
@@ -178,10 +197,11 @@ public:
       FAIL() << "Please set SYCL_CACHE_DIR environment variable pointing to "
                 "cache location.";
 
-    // Append the test name to the cache dir to prevent conflicts with other
-    // tests running in parallel.
-    AppendToSYCLCacheDirEnv(
-        ::testing::UnitTest::GetInstance()->current_test_info()->name());
+    // Use a separate cache directory to prevent conflicts with other tests
+    // running in parallel.
+    SetTestSYCLCacheDirEnv();
+    if (HasFatalFailure())
+      return;
 
     // Enable persistent cache
     SetSYCLCachePersistentEnv("1");
@@ -197,6 +217,11 @@ public:
     // Reset SYCL_CACHE_MAX_SIZE.
     SetDiskCacheEvictionEnv(nullptr);
     ResetSYCLCacheDirEnv();
+
+    if (OwnsTestCacheDir) {
+      unittest::set_env(TestCacheDirEnvVar, nullptr);
+      (void)llvm::sys::fs::remove_directories(TestCacheDir);
+    }
   }
 
   PersistentDeviceCodeCache() : Mock{}, Plt{sycl::platform()} {
@@ -282,7 +307,12 @@ protected:
 
 /* Checks that key values with \0 symbols are processed correctly
  */
+#ifdef _WIN32
+// https://github.com/intel/llvm/issues/23137
+TEST_P(PersistentDeviceCodeCache, DISABLED_KeysWithNullTermSymbol) {
+#else
 TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
+#endif
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -354,6 +384,59 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
           << "Corrupted image loaded from persistent cache";
     }
   }
+
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+}
+
+/* Images are not required to have offload entries: images which only provide
+ * virtual functions, device library images and images coming from a SYCLBIN
+ * file have none. Check that such images do not break the cache key and that
+ * the key still does not depend on the order the images are passed in.
+ */
+TEST_P(PersistentDeviceCodeCache, ImagesWithoutEntries) {
+  // Entry-less images are only told apart by their device code, so it must be
+  // distinct. "A" is a prefix of "AB" to also cover that case.
+  auto SetDeviceCode = [](sycl_device_binary_struct &Bin, const char *Code) {
+    Bin.BinaryStart = reinterpret_cast<const unsigned char *>(Code);
+    Bin.BinaryEnd = Bin.BinaryStart + strlen(Code);
+  };
+  _sycl_offload_entry_struct UnnamedEntry{/*addr*/ nullptr, /*name*/ nullptr,
+                                          /*size*/ 0, /*flags*/ 0,
+                                          /*reserved*/ 0};
+
+  // An image with a null entry range, one with an empty (but non-null) entry
+  // range and one whose single entry has no name.
+  sycl_device_binary_struct NullRangeBin = BinStruct, EmptyRangeBin = BinStruct,
+                            UnnamedEntryBin = BinStruct;
+  NullRangeBin.EntriesBegin = NullRangeBin.EntriesEnd = nullptr;
+  EmptyRangeBin.EntriesBegin = EmptyRangeBin.EntriesEnd = &UnnamedEntry;
+  UnnamedEntryBin.EntriesBegin = &UnnamedEntry;
+  UnnamedEntryBin.EntriesEnd = &UnnamedEntry + 1;
+  SetDeviceCode(NullRangeBin, "A");
+  SetDeviceCode(EmptyRangeBin, "AB");
+  SetDeviceCode(UnnamedEntryBin, "C");
+  detail::RTDeviceBinaryImage NullRangeImg{&NullRangeBin},
+      EmptyRangeImg{&EmptyRangeBin}, UnnamedEntryImg{&UnnamedEntryBin};
+
+  std::string BuildOptions{"--images-without-entries"};
+  std::vector<const detail::RTDeviceBinaryImage *> Imgs{
+      &Img, &NullRangeImg, &EmptyRangeImg, &UnnamedEntryImg};
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      *detail::getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, Imgs, {},
+                                                   BuildOptions, NativeProg);
+  EXPECT_TRUE(llvm::sys::fs::exists(ItemDir + "/0.bin"))
+      << "Failed to store cache item for images without entries";
+
+  // The item must be found again no matter which order the images come in.
+  std::reverse(Imgs.begin(), Imgs.end());
+  EXPECT_NE(detail::PersistentDeviceCodeCache::getItemFromDisc({Dev}, Imgs, {},
+                                                               BuildOptions)
+                .size(),
+            static_cast<size_t>(0))
+      << "Cache key depends on the order of images without entries";
 
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }

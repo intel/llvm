@@ -1,4 +1,11 @@
+// TODO: Remove 'UNSUPPORTED' below once
+// https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
+// intel/llvm.
+// UNSUPPORTED: new-offload-model
+// UNSUPPORTED-TRACKER: CMPLRLLVM-78263
 // REQUIRES: aspect-fp64
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
@@ -11,8 +18,8 @@
 
 using std::complex;
 namespace s = sycl;
-constexpr s::access::mode sycl_read = s::access::mode::read;
-constexpr s::access::mode sycl_write = s::access::mode::write;
+constexpr s::access_mode sycl_read = s::access_mode::read;
+constexpr s::access_mode sycl_write = s::access_mode::write;
 
 template <typename T> bool approx_equal_cmplx(complex<T> x, complex<T> y) {
   return approx_equal_fp(x.real(), y.real()) &&

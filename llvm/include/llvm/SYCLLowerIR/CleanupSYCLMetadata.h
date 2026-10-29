@@ -18,7 +18,8 @@
 
 namespace llvm {
 
-class CleanupSYCLMetadataPass : public PassInfoMixin<CleanupSYCLMetadataPass> {
+class CleanupSYCLMetadataPass
+    : public OptionalPassInfoMixin<CleanupSYCLMetadataPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
@@ -31,7 +32,7 @@ public:
 /// of a compilation stage and the references to the kernels callable from
 /// host must not have users.
 class CleanupSYCLMetadataFromLLVMUsed
-    : public PassInfoMixin<CleanupSYCLMetadataFromLLVMUsed> {
+    : public OptionalPassInfoMixin<CleanupSYCLMetadataFromLLVMUsed> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
@@ -45,7 +46,7 @@ public:
 /// variables, we remove them from llvm.compiler.used and erase them if they
 /// have no further uses.
 class RemoveDeviceGlobalFromLLVMCompilerUsed
-    : public PassInfoMixin<RemoveDeviceGlobalFromLLVMCompilerUsed> {
+    : public OptionalPassInfoMixin<RemoveDeviceGlobalFromLLVMCompilerUsed> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

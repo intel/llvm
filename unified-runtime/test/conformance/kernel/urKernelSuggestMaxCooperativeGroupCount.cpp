@@ -5,6 +5,8 @@
 
 #include <uur/fixtures.h>
 
+#include <array>
+
 struct urKernelSuggestMaxCooperativeGroupCountTest
     : uur::urKernelExecutionTest {
   void SetUp() override {
@@ -34,6 +36,36 @@ TEST_P(urKernelSuggestMaxCooperativeGroupCountTest, Success) {
   ASSERT_SUCCESS(urKernelSuggestMaxCooperativeGroupCount(
       kernel, device, n_dimensions, &local_size, 0, &suggested_work_groups));
   ASSERT_GE(suggested_work_groups, 0);
+}
+
+TEST_P(urKernelSuggestMaxCooperativeGroupCountTest, DynamicSharedMemory) {
+  uint64_t local_memory_size = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_LOCAL_MEM_SIZE,
+                                 sizeof(local_memory_size), &local_memory_size,
+                                 nullptr));
+  uint32_t compute_unit_count = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_NUM_COMPUTE_UNITS,
+                                 sizeof(compute_unit_count),
+                                 &compute_unit_count, nullptr));
+
+  ASSERT_SUCCESS(urKernelSuggestMaxCooperativeGroupCount(
+      kernel, device, n_dimensions, &local_size, 0, &suggested_work_groups));
+
+  // Check that increasing the dynamic shared memory size reduces
+  // the number of suggested work groups.
+  constexpr std::array<uint32_t, 4> divs = {8, 4, 2, 1};
+  uint32_t previous_suggested_work_groups = suggested_work_groups;
+  for (const uint32_t i : divs) {
+    const size_t dynamic_shared_memory_size = local_memory_size / i;
+    ASSERT_SUCCESS(urKernelSuggestMaxCooperativeGroupCount(
+        kernel, device, n_dimensions, &local_size, dynamic_shared_memory_size,
+        &suggested_work_groups));
+
+    ASSERT_LE(suggested_work_groups, previous_suggested_work_groups);
+    ASSERT_LE((uint64_t)suggested_work_groups,
+              (uint64_t)(compute_unit_count)*i);
+    previous_suggested_work_groups = suggested_work_groups;
+  }
 }
 
 TEST_P(urKernelSuggestMaxCooperativeGroupCountTest, InvalidNullHandleKernel) {

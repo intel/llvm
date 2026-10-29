@@ -291,6 +291,8 @@ class Builtin<string _Name, list<Type> _Signature, list<bit> _Attributes = Attr.
   bit IsConst = _Attributes[1];
   // Function attribute __attribute__((convergent))
   bit IsConv = _Attributes[2];
+  // Function attribute speculatable
+  bit IsSpeculatable = 0;
   // Is function a variadic one
   bit IsVariadic = 0;
   // OpenCL extensions to which the function belongs.
@@ -313,7 +315,7 @@ class OCLSPVBuiltin<string _Name, list<Type> _Signature, list<bit> _Attributes =
   SPVBuiltin<"ocl_" # _Name, _Signature, _Attributes> {}
 
 class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
-  OCLSPVBuiltin<_Name, _Signature, Attr.Const> {}
+  OCLSPVBuiltin<_Name, _Signature, Attr.Const> { let IsSpeculatable = 1; }
 
 //===----------------------------------------------------------------------===//
 //                 Definitions of types
@@ -715,6 +717,7 @@ foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS, DefaultAS] in {
 
 // 2.7. Miscellaneous Vector instructions
 
+let IsSpeculatable = 1 in {
 foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
   foreach VSize2 = [Vec2, Vec4, Vec8, Vec16] in {
     def : OCLSPVBuiltin<"shuffle", [GenericType<"TLAll" # VSize1.Name, TLAll, VSize1>,
@@ -731,6 +734,7 @@ foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
                                GenericType<"TLAllUnsigned" # VSize1.Name, TLAllUnsigned, VSize1>],
                   Attr.Const>;
   }
+}
 }
 
 // 2.8. Misc instructions
@@ -749,6 +753,7 @@ foreach name = ["GenericPtrMemSemantics"] in {
 }
 
 // 3.32.11. Conversion Instructions
+let IsSpeculatable = 1 in {
 foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
   foreach IType = TLUnsignedInts.List in {
     foreach FType = TLFloat.List in {
@@ -850,6 +855,7 @@ foreach InType = TLUnsignedInts.List in {
     }
   }
 }
+}
 
 foreach AS = [GlobalAS, LocalAS, PrivateAS] in {
   def : SPVBuiltin<"GenericCastToPtrExplicit", [PointerType<Char, AS>, PointerType<Char, GenericAS>], Attr.Const>;
@@ -864,6 +870,7 @@ foreach Ty = [Void, ConstType<Void>] in {
   def : SPVBuiltin<"GenericCastToPtr_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
 }
 
+let IsSpeculatable = 1 in {
 foreach Type = TLFloat.List in {
   foreach v = [2, 3, 4, 8, 16] in {
     def : SPVBuiltin<"VectorTimesScalar", [VectorType<Type, v>, VectorType<Type, v>, Type], Attr.Const>;
@@ -907,6 +914,7 @@ foreach name = ["LessOrGreater",
 
 foreach name = ["BitCount"] in {
   def : SPVBuiltin<name, [AIGenTypeN, AIGenTypeN], Attr.Const>;
+}
 }
 
 // 3.32.20. Barrier Instructions

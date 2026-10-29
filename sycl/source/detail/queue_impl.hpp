@@ -31,7 +31,10 @@
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 
+#include <algorithm>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -212,12 +215,15 @@ public:
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     verifyProps(PropList);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    // The discard_events property is incompatible with enable_profiling.
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
     // The following commented section provides a guideline on how to use the
     // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
@@ -375,6 +381,24 @@ public:
                               CodeLoc, IsTopCodeLoc);
   }
 
+  /// Submits an already built kernel with an explicit argument list, without
+  /// creating a handler or a command group object.
+  ///
+  /// \param RangeView is the execution range.
+  /// \param KernelImpl is the kernel to launch.
+  /// \param Args are the kernel arguments, as bytes plus their kind.
+  void submit_kernel_obj_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const sycl::detail::KernelArgView> Args,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  void submit_kernel_obj_direct_without_event(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const ext::oneapi::experimental::raw_kernel_arg> Args,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
   event submit_barrier_direct_with_event(sycl::span<const event> DepEvents,
                                          detail::CGType BarrierType,
                                          const detail::code_location &CodeLoc) {
@@ -390,6 +414,26 @@ public:
     submit_barrier_direct_impl(DepEvents, BarrierType, CodeLoc, false,
                                EventForReuse);
   }
+
+  /// Submits an asynchronous USM device allocation to the queue, without
+  /// creating a handler or a command group object.
+  ///
+  /// \param Pool is the memory pool to allocate from, or nullptr to use the
+  ///        default pool of the queue's device.
+  /// \param Size is the number of bytes to allocate.
+  /// \param CodeLoc is the code location of the submit call.
+  ///
+  /// \return the allocated pointer.
+  void *submit_async_malloc_direct(ur_usm_pool_handle_t Pool, size_t Size,
+                                   const detail::code_location &CodeLoc);
+
+  /// Submits an asynchronous USM free to the queue, without creating a handler
+  /// or a command group object.
+  ///
+  /// \param Ptr is the pointer to be freed.
+  /// \param CodeLoc is the code location of the submit call.
+  void submit_async_free_direct(void *Ptr,
+                                const detail::code_location &CodeLoc);
 
   void submit_graph_direct_without_event(
       const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
@@ -434,10 +478,35 @@ public:
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-  EventImplPtr submit_barrier_scheduler_bypass(
-      std::vector<detail::EventImplPtr> &BarrierDepEvents,
-      std::vector<detail::EventImplPtr> &DepEvents, detail::CGType BarrierType,
-      bool EventNeeded, const EventImplPtr &EventForReuse);
+  EventImplPtr
+  submit_barrier_scheduler_bypass(std::vector<detail::EventImplPtr> &DepEvents,
+                                  detail::CGType BarrierType, bool EventNeeded,
+                                  const EventImplPtr &EventForReuse);
+
+  /// Completes the submission of an asynchronous allocation using the scheduler
+  /// bypass fast path. The allocation itself has already been enqueued to the
+  /// backend by the caller, as the pointer has to be returned immediately.
+  ///
+  /// \param UREvent is the event of the enqueued allocation, if one was
+  ///        requested.
+  /// \param DepEvents is the list of event dependencies of the allocation.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  ///
+  /// \return a SYCL event representing the allocation or nullptr.
+  EventImplPtr submit_async_alloc_scheduler_bypass(
+      ur_event_handle_t UREvent, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded);
+
+  /// Submits an asynchronous free using the scheduler bypass fast path.
+  ///
+  /// \param Ptr is the pointer to be freed.
+  /// \param DepEvents is the list of event dependencies of the free.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  ///
+  /// \return a SYCL event representing the free or nullptr.
+  EventImplPtr submit_async_free_scheduler_bypass(
+      void *Ptr, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -480,26 +549,25 @@ public:
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
-    if (PropList
-            .has_property<ext::oneapi::property::queue::priority_normal>()) {
-      // Normal is the default priority, don't pass anything.
-      PrioritySeen = true;
-    }
-    if (PropList.has_property<ext::oneapi::property::queue::priority_low>()) {
-      if (PrioritySeen) {
+    auto CheckPriority = [&PrioritySeen]() {
+      if (PrioritySeen)
         throw sycl::exception(
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
-      }
-      CreationFlags |= UR_QUEUE_FLAG_PRIORITY_LOW;
       PrioritySeen = true;
+    };
+    // The numeric priority is passed separately, see getPriorityLevel().
+    if (PropList.has_property<ext::oneapi::property::queue::priority>())
+      CheckPriority();
+    // Normal is the default priority, don't pass anything.
+    if (PropList.has_property<ext::oneapi::property::queue::priority_normal>())
+      CheckPriority();
+    if (PropList.has_property<ext::oneapi::property::queue::priority_low>()) {
+      CheckPriority();
+      CreationFlags |= UR_QUEUE_FLAG_PRIORITY_LOW;
     }
     if (PropList.has_property<ext::oneapi::property::queue::priority_high>()) {
-      if (PrioritySeen) {
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Queue cannot be constructed with different priorities.");
-      }
+      CheckPriority();
       CreationFlags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
     }
     {
@@ -521,6 +589,21 @@ public:
     return CreationFlags;
   }
 
+  /// \return the numeric priority to pass to UR, or std::nullopt if the queue
+  /// uses the default priority.
+  std::optional<int> getPriorityLevel() const {
+    namespace prop = ext::oneapi::property::queue;
+    if (!has_property<prop::priority>())
+      return std::nullopt;
+
+    // {0, 0} if the device doesn't support priority levels.
+    auto [Lowest, Highest] =
+        MDevice.get_info<ext::oneapi::info::device::priority_range>();
+    int Level = std::clamp(get_property<prop::priority>().get_priority(),
+                           Highest, Lowest);
+    return Level == 0 ? std::nullopt : std::optional<int>{Level};
+  }
+
   /// Creates UR queue.
   ///
   /// \param Order specifies whether the queue being constructed as in-order
@@ -539,6 +622,13 @@ public:
           get_property<ext::intel::property::queue::compute_index>()
               .get_index();
       Properties.pNext = &IndexProperties;
+    }
+    ur_exp_queue_priority_properties_t PriorityProperties = {
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, 0};
+    if (std::optional<int> Level = getPriorityLevel()) {
+      PriorityProperties.priority = *Level;
+      PriorityProperties.pNext = Properties.pNext;
+      Properties.pNext = &PriorityProperties;
     }
     getAdapter().call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
                                                 &Queue);
@@ -655,6 +745,11 @@ public:
     setCommandGraphUnlocked(Graph);
   }
 
+  /// Put this queue into recording mode for \p Graph, acquiring both the
+  /// submission mutex and the graph mutex.
+  void
+  beginRecordingGraph(ext::oneapi::experimental::detail::graph_impl &Graph);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
     return MGraph.lock();
@@ -663,6 +758,18 @@ public:
   bool hasCommandGraph() const { return !MGraph.expired(); }
 
   bool isNativeRecording() const;
+
+  struct NativeRecordingResult {
+    ur_exp_graph_handle_t CapturedGraph = nullptr;
+    bool RecordingActive = false;
+    ur_result_t Result = UR_RESULT_SUCCESS;
+  };
+
+  /// Start native graph capture on this queue. The caller must
+  /// already hold the submission mutex.
+  NativeRecordingResult beginNativeRecording(ur_exp_graph_handle_t Graph);
+
+  NativeRecordingResult endNativeRecording();
 
   ext::oneapi::experimental::queue_state ext_oneapi_get_state_impl() const;
 
@@ -742,6 +849,19 @@ public:
   void waitForRuntimeLevelCmdsAndClear();
 
 protected:
+  /// Creates the event representing a command which has already been enqueued
+  /// to the backend through a scheduler bypass path.
+  ///
+  /// \param UREvent is the handle returned by the backend enqueue call.
+  /// \param DepEvents is the list of event dependencies of the command. They
+  /// are
+  ///        only adopted by the event of out-of-order queues, which have to
+  ///        keep them alive.
+  ///
+  /// \return the event representing the enqueued command.
+  EventImplPtr makeEnqueuedEvent(ur_event_handle_t UREvent,
+                                 std::vector<detail::EventImplPtr> &&DepEvents);
+
   EventImplPtr insertHelperBarrier();
 
   template <typename HandlerType = handler>
@@ -971,6 +1091,13 @@ protected:
   submit_direct(bool CallerNeedsEvent, sycl::span<const event> DepEvents,
                 SubmitCommandFuncType &SubmitCommandFunc, detail::CGType Type,
                 bool InsertBarrierForInOrderCommand);
+
+  template <typename ArgT>
+  void submit_kernel_obj_direct_impl(
+      const detail::nd_range_view &RangeView,
+      const std::shared_ptr<detail::kernel_impl> &KernelImpl,
+      sycl::span<const ArgT> Args, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc);
 
   /// Performs barrier submission to the queue.
   ///

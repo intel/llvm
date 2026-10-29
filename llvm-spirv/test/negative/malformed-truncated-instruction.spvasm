@@ -1,0 +1,21 @@
+; Test that llvm-spirv gracefully rejects a SPIR-V module truncated
+; mid-instruction. The raw words inject an OpVariable header claiming
+; WordCount=5 (!327739 = (5<<16)|59) followed by only 1 operand word,
+; then the file ends — 3 words short.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o /dev/null 2>&1 | FileCheck %s
+
+; CHECK: input SPIR-V module has a truncated instruction
+
+; SPIR-V
+; Version: 1.0
+               OpCapability Kernel
+               OpCapability Addresses
+               OpMemoryModel Physical32 OpenCL
+       %void = OpTypeVoid
+    %fn_type = OpTypeFunction %void
+       %func = OpFunction %void None %fn_type
+      %label = OpLabel
+               !327739 !1

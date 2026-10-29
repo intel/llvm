@@ -1,0 +1,25 @@
+; Test that llvm-spirv gracefully rejects a SPIR-V module with an unknown
+; opcode (8888) inside a function body instead of crashing. This exercises
+; the SPIRVDecoder::getEntry() path (SPIRVStream.cpp) rather than the
+; parseAndCreateSPIRVEntry path (SPIRVModule.cpp).
+;
+; The raw word !74424 encodes WordCount=1, OpCode=8888.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o /dev/null 2>&1 | FileCheck %s
+
+; CHECK: input SPIR-V module has an invalid or unknown opcode 8888
+
+; SPIR-V
+; Version: 1.0
+               OpCapability Kernel
+               OpCapability Addresses
+               OpMemoryModel Physical32 OpenCL
+       %void = OpTypeVoid
+    %fn_type = OpTypeFunction %void
+       %func = OpFunction %void None %fn_type
+      %label = OpLabel
+               !74424
+               OpReturn
+               OpFunctionEnd

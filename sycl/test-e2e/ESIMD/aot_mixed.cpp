@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 // TODO: Enable on other GPUs once internal ticket is fixed
 // REQUIRES: ocloc && gpu-intel-dg2
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" -o %t.sycl.out -DENABLE_SYCL=0 %s
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2 -o %t.sycl.out -DENABLE_SYCL=0 %s
 // RUN: %{run} %t.sycl.out
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2 -o %t.out %s
 // RUN: %{run} %t.out
 
 // This test checks the following ESIMD ahead-of-time compilation scenarios:
@@ -70,9 +70,9 @@ bool test_esimd(queue q) {
     buffer<float, 1> bufc(C, range<1>(Size));
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::read>(cgh);
-      auto PC = bufc.get_access<access::mode::write>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::read>(cgh);
+      auto PC = bufc.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class TestESIMD>(
           Size / VL, [=](id<1> i) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::esimd;
@@ -122,9 +122,9 @@ bool test_sycl(queue q) {
     buffer<float, 1> bufc(C, range<1>(Size));
 
     auto e = q.submit([&](handler &cgh) {
-      auto PA = bufa.get_access<access::mode::read>(cgh);
-      auto PB = bufb.get_access<access::mode::read>(cgh);
-      auto PC = bufc.get_access<access::mode::write>(cgh);
+      auto PA = bufa.get_access<access_mode::read>(cgh);
+      auto PB = bufb.get_access<access_mode::read>(cgh);
+      auto PC = bufc.get_access<access_mode::write>(cgh);
       cgh.parallel_for<class TestSYCL>(Size,
                                        [=](id<1> i) { PC[i] = PA[i] + PB[i]; });
     });

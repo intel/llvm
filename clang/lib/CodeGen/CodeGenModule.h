@@ -39,6 +39,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 #include <optional>
 
@@ -52,10 +53,6 @@ class DataLayout;
 class FunctionType;
 class LLVMContext;
 class IndexedInstrProfReader;
-
-namespace vfs {
-class FileSystem;
-}
 
 namespace abi {
 class ArgInfo;
@@ -575,6 +572,16 @@ private:
   /// was emitted for the class.
   llvm::SmallPtrSet<const CXXRecordDecl *, 16> RequireVectorDeletingDtor;
 
+  /// Pending MSVC __global_delete variants that may need forwarding bodies.
+  /// Maps each __global_delete wrapper alias to the corresponding global
+  /// ::operator delete FunctionDecl, in insertion order.
+  llvm::MapVector<llvm::GlobalAlias *, const FunctionDecl *>
+      PendingMSVCGlobalDeletes;
+
+  /// Whether this TU contains a direct use of global ::operator delete
+  /// (indicating that __global_delete forwarding bodies should be emitted).
+  bool HasDirectGlobalDelete = false;
+
   typedef std::pair<OrderGlobalInitsOrStermFinalizers, llvm::Function *>
       GlobalInitData;
 
@@ -658,7 +665,6 @@ private:
   void createSYCLRuntime();
   void createHLSLRuntime();
 
-  bool isTriviallyRecursive(const FunctionDecl *F);
   bool shouldEmitFunction(GlobalDecl GD);
   // Whether a global variable should be emitted by CUDA/HIP host/device
   // related attributes.
@@ -714,6 +720,7 @@ private:
   MetadataTypeMap MetadataIdMap;
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
+  MetadataTypeMap CallGraphMetadataIdMap;
 
   llvm::MapVector<StringRef, const RecordDecl *> TypesWithAspects;
   const EnumDecl *AspectsEnumDecl = nullptr;
@@ -727,7 +734,8 @@ private:
   llvm::DenseMap<const CXXRecordDecl *, std::optional<PointerAuthQualifier>>
       VTablePtrAuthInfos;
   std::optional<PointerAuthQualifier>
-  computeVTPointerAuthentication(const CXXRecordDecl *ThisClass);
+  computeVTPointerAuthentication(const CXXRecordDecl *ThisClass,
+                                 bool IsVTTEntry);
 
   AtomicOptions AtomicOpts;
 
@@ -937,8 +945,9 @@ public:
   const llvm::abi::TargetInfo &getLLVMABITargetInfo(llvm::abi::TypeBuilder &TB);
 
   /// True when -fexperimental-abi-lowering is in effect AND the active target
-  /// has an LLVMABI implementation we can route to.
-  bool shouldUseLLVMABILowering() const;
+  /// has an LLVMABI implementation that supports the given LLVM calling
+  /// convention. Unsupported CCs fall back to the legacy ABIInfo path.
+  bool shouldUseLLVMABILowering(unsigned CallingConv) const;
 
   /// Drive the experimental LLVMABI-based lowering path: map argument and
   /// return types into the LLVMABI library, ask its target lowering to fill
@@ -1173,13 +1182,14 @@ public:
                                    GlobalDecl SchemaDecl, QualType SchemaType);
 
   uint16_t getPointerAuthDeclDiscriminator(GlobalDecl GD);
-  std::optional<CGPointerAuthInfo>
-  getVTablePointerAuthInfo(CodeGenFunction *Context,
-                           const CXXRecordDecl *Record,
-                           llvm::Value *StorageAddress);
+
+  std::optional<CGPointerAuthInfo> getVTablePointerAuthInfo(
+      CodeGenFunction *Context, const CXXRecordDecl *Record,
+      llvm::Value *StorageAddress, bool IsVTTEntry = false);
 
   std::optional<PointerAuthQualifier>
-  getVTablePointerAuthentication(const CXXRecordDecl *thisClass);
+  getVTablePointerAuthentication(const CXXRecordDecl *thisClass,
+                                 bool IsVTTEntry = false);
 
   CGPointerAuthInfo EmitPointerAuthInfo(const RecordDecl *RD);
 
@@ -1348,8 +1358,6 @@ public:
   }
 
   void setAspectsEnumDecl(const EnumDecl *ED);
-
-  void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
 
   /// Given a builtin id for a function like "__builtin_fabsf", return a
   /// Function* for "fabsf".
@@ -1588,6 +1596,11 @@ public:
   /// of the given class.
   llvm::GlobalVariable::LinkageTypes getVTableLinkage(const CXXRecordDecl *RD);
 
+  /// Returns true if a vtable with the given linkage may be emitted with more
+  /// than one address in the program, because the vtable is weak and the
+  /// target's ABI allows weak vtables to be duplicated across images.
+  bool mayVTableBeDuplicated(llvm::GlobalValue::LinkageTypes Linkage) const;
+
   /// Return the store size, in character units, of the given LLVM type.
   CharUnits GetTargetTypeStoreSize(llvm::Type *Ty) const;
 
@@ -1683,6 +1696,24 @@ public:
   /// destructor definition in a form of alias to the actual definition.
   void requireVectorDestructorDefinition(const CXXRecordDecl *RD);
 
+  /// Record a pending __global_delete variant that may need a forwarding body.
+  void addPendingGlobalDelete(llvm::GlobalAlias *GlobalDeleteAlias,
+                              const FunctionDecl *OperatorDeleteFD);
+
+  /// Get or create the MSVC-compatible __global_delete wrapper for the given
+  /// global ::operator delete, registering it as a pending variant so a
+  /// forwarding body can be emitted if this TU directly uses global
+  /// ::operator delete.
+  llvm::Constant *
+  getOrCreateMSVCGlobalDeleteWrapper(const FunctionDecl *GlobOD);
+
+  /// Note that global ::operator delete is directly used in this TU.
+  void noteDirectGlobalDelete();
+
+  /// Emit __global_delete forwarding bodies for any pending variants,
+  /// if this TU directly uses global ::operator delete.
+  void emitGlobalDeleteForwardingBodies();
+
   /// Check that class need vector deleting destructor body.
   bool classNeedsVectorDestructor(const CXXRecordDecl *RD);
 
@@ -1772,6 +1803,22 @@ public:
   /// internal identifiers).
   llvm::Metadata *CreateMetadataIdentifierForType(QualType T);
 
+  /// Create a metadata identifier for the Call Graph Section.
+  /// This is a generalized type identifier that is guaranteed to be an
+  /// MDString.
+  llvm::Metadata *CreateMetadataIdentifierForCallGraphType(QualType T);
+
+  /// Applies C default argument promotions to a parameter type for Call Graph
+  /// Section type reconstruction.
+  QualType GetCallGraphPromotedType(QualType Ty) const;
+
+  /// Reconstructs a FunctionProtoType for an unprototyped function type
+  /// (FunctionNoProtoType) using the given parameter/argument types, applying
+  /// default argument promotions to ensure call-site and definition-site type
+  /// signatures match.
+  QualType ReconstructCallGraphPrototype(const FunctionNoProtoType *FNPT,
+                                         ArrayRef<QualType> ParamTypes) const;
+
   /// Create a metadata identifier that is intended to be used to check virtual
   /// calls via a member function pointer.
   llvm::Metadata *CreateMetadataIdentifierForVirtualMemPtrType(QualType T);
@@ -1785,11 +1832,11 @@ public:
   void createFunctionTypeMetadataForIcall(const FunctionDecl *FD,
                                           llvm::Function *F);
 
-  /// Create and attach type metadata if the function is a potential indirect
-  /// call target to support call graph section.
+  /// Create and attach callgraph metadata if the function is a potential
+  /// indirect call target to support call graph section.
   void createIndirectFunctionTypeMD(const FunctionDecl *FD, llvm::Function *F);
 
-  /// Create and attach type metadata to the given call.
+  /// Create and attach callee_type metadata to the given call.
   void createCalleeTypeMetadataForIcall(const QualType &QT, llvm::CallBase *CB);
 
   /// Set type metadata to the given function.
@@ -2187,6 +2234,23 @@ private:
   /// by clang-sycl-linker during device-code splitting.
   void addSYCLModuleIdAttr(llvm::Function *Fn);
 
+  /// Embed the finalized SYCL device binary named by -foffload-include-binary
+  /// into the host module.
+  /// \return the function that registers the binary with the runtime, or null
+  /// if the binary could not be read.
+  llvm::Function *embedSYCLDeviceBinary();
+
+  /// Emit a per-module __sycl_registerlib_<unique_identifier> reference that
+  /// ties the host and device sides of a translation unit together. This is
+  /// used to force linking of static libraries: we emit a global constructor
+  /// that references (calls) the symbol, creating an undefined reference that
+  /// forces the corresponding device static library member (which defines the
+  /// matching symbol) to be pulled in at link time. The device-side definition
+  /// is emitted by clang-linker-wrapper, so this is new offload model only. The
+  /// unique identifier is what ties the two sides together.
+  /// \return the global constructor that calls registerlib function.
+  llvm::Function *createSYCLRegisterLibFunc();
+
   /// Determine whether the definition must be emitted; if this returns \c
   /// false, the definition can be emitted lazily if it's used.
   bool MustBeEmitted(const ValueDecl *D);
@@ -2220,7 +2284,8 @@ private:
                                               const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
-                                               StringRef Suffix);
+                                               StringRef Suffix,
+                                               bool ForceString = false);
 
   /// Emit deactivation symbols for any PFP fields whose offset is taken with
   /// offsetof.

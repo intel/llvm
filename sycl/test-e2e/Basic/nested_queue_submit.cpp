@@ -20,7 +20,7 @@ void nestedSubmitParallelFor(sycl::queue &q) {
   {
     sycl::buffer<float> buf(array.data(), sycl::range<1>{n});
     q.submit([&](sycl::handler &h) {
-      auto acc = buf.get_access<sycl::access::mode::write>(h);
+      auto acc = buf.get_access<sycl::access_mode::write>(h);
       q.parallel_for<class zero>(sycl::range<1>{n},
                                  [=](sycl::id<1> i) { acc[i] = float(0.0); });
     });
@@ -60,7 +60,7 @@ int main() {
   test(q, nestedSubmitParallelFor);
   // All shortcut functions has a common part where nested call detection
   // happens. Testing only one of them is enough.
-  if (q.get_device().get_info<sycl::info::device::usm_device_allocations>())
+  if (q.get_device().has(sycl::aspect::usm_device_allocations))
     test(q, nestedSubmitMemset);
 
   return EXIT_SUCCESS;

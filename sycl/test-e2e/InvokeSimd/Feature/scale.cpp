@@ -90,8 +90,8 @@ template <class T, class QueueTY> bool test(QueueTY q) {
     sycl::range<1> LocalRange{VL};
 
     auto e = q.submit([&](handler &cgh) {
-      auto acca = bufa.template get_access<access::mode::read>(cgh);
-      auto accc = bufc.template get_access<access::mode::write>(cgh);
+      auto acca = bufa.template get_access<access_mode::read>(cgh);
+      auto accc = bufc.template get_access<access_mode::write>(cgh);
 
       cgh.parallel_for<TestID<T>>(
           nd_range<1>(GlobalRange, LocalRange),

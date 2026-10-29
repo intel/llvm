@@ -1,9 +1,9 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not} %}
 
 #include "../../graph_common.hpp"
 
@@ -30,7 +30,7 @@ int main() {
   if (!expectException(
           [&]() {
             Queue.submit([&](handler &CGH) {
-              auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
+              auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
               CGH.parallel_for(sycl::range<1>{N},
                                [=](sycl::id<1> Idx) { Acc[Idx] = 0; });
             });

@@ -1,10 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// XFAIL: level_zero&&gpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14430
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 //==---------- reinterpret.cpp --- SYCL buffer reinterpret basic test ------==//
 //
@@ -16,6 +12,7 @@
 
 #include <climits>
 #include <iostream>
+#include <numeric>
 #include <sycl/detail/core.hpp>
 
 // This tests verifies basic cases of using sycl::buffer::reinterpret
@@ -39,7 +36,7 @@ void execute_kernel(sycl::queue &cmd_queue, std::vector<OldType> &data,
 
   cmd_queue.submit([&](sycl::handler &cgh) {
     auto rb_acc =
-        reinterpret_subbuf.template get_access<sycl::access::mode::write>(cgh);
+        reinterpret_subbuf.template get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<KernelName>(
         reinterpret_subbuf.get_range(),
         [=](sycl::id<dim> index) { rb_acc[index] = val; });
@@ -48,20 +45,20 @@ void execute_kernel(sycl::queue &cmd_queue, std::vector<OldType> &data,
 }
 
 int main() {
-
   bool failed = false;
   sycl::queue cmd_queue;
-  size_t mem_base_align_in_bytes =
+
+  const size_t mem_base_align_in_bytes =
       cmd_queue.get_device()
           .get_info<sycl::info::device::mem_base_addr_align>() /
-      8;
+      CHAR_BIT;
 
   sycl::range<1> r1(1);
   sycl::range<1> r2(sizeof(unsigned int) / sizeof(unsigned char));
   sycl::buffer<unsigned int, 1> buf_i(r1);
   auto buf_char = buf_i.reinterpret<unsigned char>(r2);
   cmd_queue.submit([&](sycl::handler &cgh) {
-    auto acc = buf_char.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf_char.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class chars>(r2,
                                   [=](sycl::id<1> i) { acc[i] = UCHAR_MAX; });
   });
@@ -81,7 +78,7 @@ int main() {
   sycl::buffer<unsigned int, 1> buf_1d(r1d);
   auto buf_2d = buf_1d.reinterpret<unsigned int>(r2d);
   cmd_queue.submit([&](sycl::handler &cgh) {
-    auto acc2d = buf_2d.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc2d = buf_2d.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class ones>(r2d, [=](sycl::item<2> itemID) {
       size_t i = itemID.get_id(0);
       size_t j = itemID.get_id(1);
@@ -119,9 +116,17 @@ int main() {
   }
 
   // subbuffer reinterpret
+  // Sub-buffer offsets must be a multiple of the device's mem_base_addr_align,
+  // which Level Zero reports as just 1 byte. Round it up to a multiple of
+  // sizeof(int) so the offset is never 0 after converting to int elements, and
+  // so a char sub-buffer at that offset can be reinterpreted as int with
+  // natural alignment on both host and device.
+  const size_t aligned_offset_in_bytes =
+      std::lcm(mem_base_align_in_bytes, sizeof(int));
+
   // 1d int -> char
   {
-    std::size_t offset = mem_base_align_in_bytes / sizeof(int);
+    std::size_t offset = aligned_offset_in_bytes;
     std::size_t sub_buf_size = 16;
     std::vector<int> data(sub_buf_size + offset, 8);
     std::vector<int> expected_data(sub_buf_size + offset, 8);
@@ -143,7 +148,7 @@ int main() {
 
   // 1d char -> int
   {
-    std::size_t offset = mem_base_align_in_bytes / sizeof(char);
+    std::size_t offset = aligned_offset_in_bytes;
     std::size_t sub_buf_size = 16;
 
     std::vector<char> data(sub_buf_size + offset, 8);
@@ -169,7 +174,7 @@ int main() {
   // reinterpret subbuffer as 1D buffer of different data type
   {
 
-    std::size_t cols = mem_base_align_in_bytes / sizeof(int);
+    std::size_t cols = aligned_offset_in_bytes;
     std::size_t rows = 6, offset_rows = 2;
     sycl::range<2> rng(rows, cols);
 
@@ -194,7 +199,7 @@ int main() {
 
       cmd_queue.submit([&](sycl::handler &cgh) {
         auto rb_acc =
-            reinterpret_subbuf.get_access<sycl::access::mode::write>(cgh);
+            reinterpret_subbuf.get_access<sycl::access_mode::write>(cgh);
         cgh.parallel_for<class foo_3>(
             reinterpret_subbuf.get_range(),
             [=](sycl::id<1> index) { rb_acc[index] = 13; });
@@ -214,7 +219,7 @@ int main() {
   // int -> char
   {
     std::size_t offset_rows = 1, offset_cols = 0, subbuffer_rows = 1,
-                buf_row = 3, buf_col = mem_base_align_in_bytes / sizeof(int);
+                buf_row = 3, buf_col = aligned_offset_in_bytes;
     std::vector<int> data(buf_col * buf_row, 8);
     std::vector<int> expected_data(buf_col * buf_row, 8);
 
@@ -239,7 +244,7 @@ int main() {
   // char -> int
   {
     std::size_t offset_rows = 1, offset_cols = 0, subbuffer_rows = 1,
-                buf_row = 3, buf_col = mem_base_align_in_bytes / sizeof(char);
+                buf_row = 3, buf_col = aligned_offset_in_bytes;
     std::vector<char> data(buf_col * buf_row, 8);
     std::vector<char> expected_data(buf_col * buf_row, 8);
 
@@ -258,7 +263,7 @@ int main() {
     for (std::size_t i = 0; i < buf_row; ++i)
       for (std::size_t j = 0; j < buf_col; ++j)
         assert(data[i * buf_col + j] == expected_data[i * buf_col + j] &&
-               "2D sub buffer int->char reinterpret failed");
+               "2D sub buffer char->int reinterpret failed");
   }
 
   return failed;

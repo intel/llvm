@@ -131,9 +131,12 @@ protected:
   sycl::detail::GetMask<tangle<ParentGroup>>(tangle<ParentGroup> Group);
 };
 
+// Must be inlined into the caller: it captures a ballot mask that must reflect
+// the set of work-items active in the (potentially divergent) calling block.
+// See the comment on detail::commonGroupBallotImpl in sub_group_mask.hpp.
 template <typename ParentGroup>
-inline std::enable_if_t<std::is_same_v<ParentGroup, sycl::sub_group>,
-                        tangle<ParentGroup>>
+__SYCL_ALWAYS_INLINE inline std::enable_if_t<
+    std::is_same_v<ParentGroup, sycl::sub_group>, tangle<ParentGroup>>
 entangle([[maybe_unused]] ParentGroup parent) {
 #ifdef __SYCL_DEVICE_ONLY__
   // sync all work-items in parent group here

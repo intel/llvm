@@ -5,6 +5,8 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
+// REQUIRES: jit
+
 // UNSUPPORTED: ze_debug
 // UNSUPPORTED-INTENDED: This test uses interop that has the ownership on a
 // kernel.

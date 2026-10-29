@@ -1,11 +1,14 @@
 // RUN: %clangxx %s -fsycl -fsycl-link 2>&1 | FileCheck %s --check-prefix=CHECK-WARNING
 // RUN: %clangxx %s -fsycl -fsycl-link -fsycl-allow-device-image-dependencies 2>&1 | FileCheck --allow-empty %s --check-prefix=CHECK-WARNING-DYNAMIC
-// This test is intended to check that we emit a helpful warning message for
-// undefined user functions in a fully linked device image after the
-// sycl-post-link stage of compilation.
+// RUN: %clangxx %s -fsycl -fsycl-link -Wno-sycl-undefined-func-in-image 2>&1 | FileCheck --allow-empty %s --check-prefix=CHECK-WARNING-SUPPRESSED
+// This test checks that sycl-post-link emits the "Undefined function ..."
+// warning by default, that -fsycl-allow-device-image-dependencies suppresses
+// it (existing behaviour), and that -Wno-sycl-undefined-func-in-image
+// suppresses it.
 
 // CHECK-WARNING: warning: Undefined function _Z11external_f1ii found in
 // CHECK-WARNING-DYNAMIC-NOT: warning: Undefined function _Z11external_f1ii found in
+// CHECK-WARNING-SUPPRESSED-NOT: warning: Undefined function _Z11external_f1ii found in
 
 #include <sycl/sycl.hpp>
 

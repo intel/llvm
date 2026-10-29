@@ -21,27 +21,29 @@ constexpr sycl::specialization_id<int> int_id(42);
 class Functor1 {
 public:
   Functor1(short X_,
-           sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
+           sycl::accessor<int, 1, sycl::access_mode::read_write, target::device>
+               &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()() const { Acc[0] += X; }
 
 private:
   short X;
-  sycl::accessor<int, 1, mode::read_write, target::device> Acc;
+  sycl::accessor<int, 1, sycl::access_mode::read_write, target::device> Acc;
 };
 
 class Functor2 {
 public:
   Functor2(short X_,
-           sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
+           sycl::accessor<int, 1, sycl::access_mode::read_write, target::device>
+               &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()(sycl::id<1> id = 0) const { Acc[id] += X; }
 
 private:
   short X;
-  sycl::accessor<int, 1, mode::read_write, target::device> Acc;
+  sycl::accessor<int, 1, sycl::access_mode::read_write, target::device> Acc;
 };
 
 int main() {
@@ -58,7 +60,7 @@ int main() {
   Queue
       .submit([&](sycl::handler &cgh) {
         // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID1:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:23
-        auto A1 = Buf.get_access<mode::read_write>(cgh);
+        auto A1 = Buf.get_access<sycl::access_mode::read_write>(cgh);
         // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID2:.*]]|2016|1026|{{.*}}.cpp:[[# @LINE + 1]]:38
         sycl::local_accessor<int, 1> A2(Range, cgh);
         cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::nd_item<1> ndi) {
@@ -87,7 +89,7 @@ int main() {
 
   Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:20
-    auto Acc = Buf.get_access<mode::read_write>(cgh);
+    auto Acc = Buf.get_access<sycl::access_mode::read_write>(cgh);
     Functor1 F(Val, Acc);
     // CHECK-OPT: Node create|{{.*}}Functor1|{{.*}}.cpp:[[# @LINE - 4 ]]:9|{1, 1, 1}, {0, 0, 0}, {0, 0, 0}, 3
     // CHECK-NOOPT: Node create|{{.*}}Functor1|{{.*}}.cpp:[[# @LINE - 5 ]]:9|{1, 1, 1}, {0, 0, 0}, {0, 0, 0}, 5
@@ -99,7 +101,7 @@ int main() {
 
   Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:20
-    auto Acc = Buf.get_access<mode::read_write>(cgh);
+    auto Acc = Buf.get_access<sycl::access_mode::read_write>(cgh);
     Functor2 F(Val, Acc);
     // CHECK-OPT: Node create|{{.*}}Functor2|{{.*}}.cpp:[[# @LINE - 4 ]]:9|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 3
     // CHECK-NOOPT: Node create|{{.*}}Functor2|{{.*}}.cpp:[[# @LINE - 5 ]]:9|{5, 1, 1}, {0, 0, 0}, {0, 0, 0}, 5

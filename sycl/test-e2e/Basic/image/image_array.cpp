@@ -3,7 +3,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160589
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
@@ -57,9 +57,9 @@ int main() {
 
     TestQueue Q{sycl::default_selector_v};
 
-    constexpr auto SYCLRead = sycl::access::mode::read;
-    constexpr auto SYCLWrite = sycl::access::mode::write;
-    constexpr auto SYCLReadWrite = sycl::access::mode::read_write;
+    constexpr auto SYCLRead = sycl::access_mode::read;
+    constexpr auto SYCLWrite = sycl::access_mode::write;
+    constexpr auto SYCLReadWrite = sycl::access_mode::read_write;
 
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);

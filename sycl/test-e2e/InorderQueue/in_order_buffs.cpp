@@ -32,7 +32,7 @@ int main() {
     buffer<int, 1> bufA(dataA, range<1>(dataSize));
     buffer<int, 1> bufB(dataB, range<1>(dataSize));
     Queue.submit([&](handler &cgh) {
-      auto writeBuffer = bufA.get_access<access::mode::write>(cgh);
+      auto writeBuffer = bufA.get_access<access_mode::write>(cgh);
 
       // Create a range.
       auto myRange = range<1>(dataSize);
@@ -44,8 +44,8 @@ int main() {
     });
 
     Queue.submit([&](handler &cgh) {
-      auto writeBuffer = bufB.get_access<access::mode::write>(cgh);
-      auto readBuffer = bufA.get_access<access::mode::read>(cgh);
+      auto writeBuffer = bufB.get_access<access_mode::write>(cgh);
+      auto readBuffer = bufA.get_access<access_mode::read>(cgh);
 
       // Create a range.
       auto myRange = range<1>(dataSize);

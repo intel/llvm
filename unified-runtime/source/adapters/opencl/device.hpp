@@ -43,10 +43,10 @@ struct ur_device_handle_t_ : handle_base {
 
   ~ur_device_handle_t_() {
     if (ParentDevice) {
-      // This does not need protected by a lock; this destructor can only run
-      // exactly once. However, to prevent issues with the OpenCL handle being
-      // reused, CLDevice must still be alive here.
-      Platform->SubDevices.erase(CLDevice);
+      {
+        std::lock_guard lock{Platform->SubDevicesLock};
+        Platform->SubDevices.erase(CLDevice);
+      }
       [[maybe_unused]] auto Res = clReleaseDevice(CLDevice);
       assert(Res == CL_SUCCESS);
     }
@@ -111,6 +111,17 @@ struct ur_device_handle_t_ : handle_base {
     }
 
     return UR_RESULT_SUCCESS;
+  }
+
+  // Queue priorities need cl_khr_priority_hints and the queue properties of
+  // clCreateCommandQueueWithProperties, which was added in OpenCL 2.0.
+  ur_result_t supportsQueuePriorities(bool &Supported) {
+    oclv::OpenCLVersion Version;
+    UR_RETURN_ON_FAILURE(Platform->getPlatformVersion(Version));
+    Supported = false;
+    if (Version < oclv::V2_0)
+      return UR_RESULT_SUCCESS;
+    return checkDeviceExtensions({"cl_khr_priority_hints"}, Supported);
   }
 };
 

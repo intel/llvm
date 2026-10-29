@@ -18,21 +18,41 @@ namespace ext::oneapi::experimental {
 
 namespace detail {
 class dynamic_parameter_impl;
+struct RawKernelArgAccess;
 } // namespace detail
+
+struct pointer_arg_t {};
+inline constexpr pointer_arg_t pointer_arg{};
 
 class raw_kernel_arg {
 public:
   raw_kernel_arg(const void *bytes, size_t count)
       : MArgData(bytes), MArgSize(count) {}
 
+  template <typename T>
+  raw_kernel_arg(T *const *pointer_location, pointer_arg_t)
+      : MArgData(pointer_location), MArgSize(sizeof(T *)), MIsPointer(true) {}
+
 private:
   const void *MArgData;
   size_t MArgSize;
+  bool MIsPointer = false;
 
   friend class sycl::handler;
   // For sycl_ext_oneapi_graph integration
   friend class detail::dynamic_parameter_impl;
+  // For the enqueue paths that bind arguments without a handler
+  friend struct detail::RawKernelArgAccess;
 };
+
+namespace detail {
+// Helper for accessing the members of raw_kernel_arg.
+struct RawKernelArgAccess {
+  static const void *getData(const raw_kernel_arg &Arg) { return Arg.MArgData; }
+  static size_t getSize(const raw_kernel_arg &Arg) { return Arg.MArgSize; }
+  static bool isPointer(const raw_kernel_arg &Arg) { return Arg.MIsPointer; }
+};
+} // namespace detail
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

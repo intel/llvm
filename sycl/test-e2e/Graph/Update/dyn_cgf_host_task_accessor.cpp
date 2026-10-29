@@ -2,9 +2,6 @@
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// XFAIL: windows && (arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h || arch-intel_gpu_wcl)
-// XFAIL-TRACKER: GSD-12328
 
 // Tests using dynamic command groups to update a host task node that also uses
 // buffers/accessors
@@ -71,7 +68,7 @@ int main() {
 
     // Create two different command groups for the host task
     auto CGFA = [&](handler &CGH) {
-      auto AccC = BufferC.get_access<access::mode::read_write,
+      auto AccC = BufferC.get_access<access_mode::read_write,
                                      access::target::host_task>(CGH);
       CGH.host_task([=]() {
         for (size_t i = 0; i < Size; i++) {
@@ -80,7 +77,7 @@ int main() {
       });
     };
     auto CGFB = [&](handler &CGH) {
-      auto AccC = BufferC.get_access<access::mode::read_write,
+      auto AccC = BufferC.get_access<access_mode::read_write,
                                      access::target::host_task>(CGH);
       CGH.host_task([=]() {
         for (size_t i = 0; i < Size; i++) {

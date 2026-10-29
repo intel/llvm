@@ -24,14 +24,14 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/device.hpp"
+#include "common/physical_mem.hpp"
+#include "common/platform.hpp"
+#include "common/sampler.hpp"
 #include "context.hpp"
-#include "device.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
-#include "physical_mem.hpp"
-#include "platform.hpp"
 #include "program.hpp"
 #include "queue.hpp"
-#include "sampler.hpp"
 #include "usm.hpp"

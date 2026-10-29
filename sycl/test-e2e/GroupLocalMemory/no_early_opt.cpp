@@ -30,8 +30,8 @@ int main() {
     buffer<int *, 1> BufB{VecB.data(), range<1>(Size)};
 
     Q.submit([&](handler &Cgh) {
-      auto AccA = BufA.get_access<access::mode::read_write>(Cgh);
-      auto AccB = BufB.get_access<access::mode::read_write>(Cgh);
+      auto AccA = BufA.get_access<access_mode::read_write>(Cgh);
+      auto AccB = BufB.get_access<access_mode::read_write>(Cgh);
       Cgh.parallel_for<KernelA>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             multi_ptr<int, access::address_space::local_space,

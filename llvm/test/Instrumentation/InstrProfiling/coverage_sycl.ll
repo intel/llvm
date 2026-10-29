@@ -4,10 +4,10 @@ target triple = "spir64-unknown-unknown"
 
 @__profn_foo = private constant [3 x i8] c"foo"
 ; CHECK: @__profc_foo = private addrspace(1) global { ptr addrspace(1), i64 } zeroinitializer, section "__llvm_prf_cnts", comdat #0
-; CHECK: @__profd_foo = private addrspace(1) global { i64, i64, i64, i64, ptr, ptr, i32, [3 x i16], i32 } { i64 {{.*}}, i64 {{.*}}, i64 sub (i64 ptrtoint (ptr addrspace(1) @__profc_foo to i64)
+; CHECK: @__profd_foo = private addrspace(1) global { i64, i64, i64, i64, i64, ptr, ptr, i32, [3 x i16], i16, i32 } { i64 {{.*}}, i64 {{.*}}, i64 sub (i64 ptrtoint (ptr addrspace(1) @__profc_foo to i64)
 @__profn_bar = private constant [3 x i8] c"bar"
 ; CHECK: @__profc_bar = private addrspace(1) global { ptr addrspace(1), i64 } zeroinitializer, section "__llvm_prf_cnts", comdat #1
-; CHECK: @__profd_bar = private addrspace(1) global { i64, i64, i64, i64, ptr, ptr, i32, [3 x i16], i32 } { i64 {{.*}}, i64 {{.*}}, i64 sub (i64 ptrtoint (ptr addrspace(1) @__profc_bar to i64)
+; CHECK: @__profd_bar = private addrspace(1) global { i64, i64, i64, i64, i64, ptr, ptr, i32, [3 x i16], i16, i32 } { i64 {{.*}}, i64 {{.*}}, i64 sub (i64 ptrtoint (ptr addrspace(1) @__profc_bar to i64)
 
 ; CHECK: @__llvm_prf_nm = {{.*}} section "__llvm_prf_names"
 

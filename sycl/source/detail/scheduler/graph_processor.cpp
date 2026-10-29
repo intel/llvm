@@ -43,15 +43,17 @@ void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
     GraphReadLock.lock();
 }
 
-bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
-                                                  EnqueueResultT &EnqueueResult,
-                                                  Command *RootCommand,
-                                                  BlockingT Blocking) {
-  if (Cmd == RootCommand || Blocking)
+bool Scheduler::GraphProcessor::handleBlockingCmd(
+    Command *Cmd, EnqueueResultT &EnqueueResult, Command *RootCommand,
+    [[maybe_unused]] BlockingT Blocking) {
+  // A caller enqueueing itself does not block on itself.
+  if (Cmd == RootCommand)
     return true;
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
+      // Defer even Blocking=true callers; waitForEvent unlocks the graph and
+      // parks on the root's event, avoiding the CMPLRLLVM-77682 deadlock.
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
@@ -74,10 +76,26 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   if (Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
-  // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() && !Blocking) {
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
+  // Exit early if the command is blocked (e.g. by a live host accessor).
+  // Blocking callers must not wait here: they hold the graph read lock, and
+  // the thread that unblocks the command may need the graph lock to do so.
+  // Instead, register the root as a blocked user; it is enqueued when the
+  // command is unblocked, and waitForEvent waits for it with the lock dropped.
+  if (Cmd->isEnqueueBlocked()) {
+    if (Blocking) {
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+      // Re-check under the mutex the unblocking thread also takes, so that
+      // the root is either seen as a blocked user or enqueued normally.
+      if (Cmd->isEnqueueBlocked()) {
+        Cmd->addBlockedUserUnique(RootCommand->getEvent());
+        RootCommand->copySubmissionCodeLocation();
+        EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+        return false;
+      }
+    } else {
+      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+      return false;
+    }
   }
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
@@ -91,10 +109,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
 
   // Recursively enqueue all the implicit + explicit host dependencies and
   // exit immediately if any of the commands cannot be enqueued.
-  // Host task execution is asynchronous. In current implementation enqueue for
-  // this command will wait till host task completion by waitInternal call on
-  // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
-  // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
@@ -115,7 +129,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
-  bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  bool Result = Cmd->enqueue(EnqueueResult, ToCleanUp);
   if (Result)
     Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
   return Result;

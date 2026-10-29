@@ -142,6 +142,8 @@ jobs:
         echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
         echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
 
+  # The E2E binaries run here are built for GPU_AOT_TARGET in
+  # sycl-linux-build.yml; update it when adding or removing an Intel GPU runner.
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -162,7 +164,6 @@ jobs:
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
-            env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
@@ -177,6 +178,9 @@ jobs:
             skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
           - name: Intel / ARL with L0 v2
             runner: '["Linux", "arl"]'
+            image_options: >-
+              -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path
+              --privileged --cap-add SYS_ADMIN --memory=48g --memory-swap=56g
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
 

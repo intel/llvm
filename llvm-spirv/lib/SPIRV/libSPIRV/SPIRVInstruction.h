@@ -280,8 +280,14 @@ public:
     // instructions.
     updateModuleVersion();
   }
+  SPIRVWord getFixedWordCount() const override {
+    // OpCode word plus the optional result-type and
+    // result-id words. Operands beyond this are variable length.
+    return 1 + (hasType() ? 1 : 0) + (hasId() ? 1 : 0);
+  }
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
+    SPIRVCK(WordCount >= getFixedWordCount(), InvalidWordCount, "");
     auto NumOps = WordCount - 1;
     if (hasId())
       --NumOps;
@@ -511,6 +517,7 @@ public:
       return std::vector<SPIRVEntry *>(1, V);
     return std::vector<SPIRVEntry *>();
   }
+  SPIRVWord getFixedWordCount() const override { return FixedWC; }
 
 protected:
   void validate() const override {
@@ -727,12 +734,16 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(Op1)->isForward() || getValue(Op2)->isForward())
       return;
-    if (getValueType(Op1)->isTypeVector()) {
+    if (getValueType(Op1)->isTypeVector() ||
+        getValueType(Op1)->isTypeVectorIdEXT()) {
       Op1Ty = getValueType(Op1)->getVectorComponentType();
       Op2Ty = getValueType(Op2)->getVectorComponentType();
-      assert(getValueType(Op1)->getVectorComponentCount() ==
-                 getValueType(Op2)->getVectorComponentCount() &&
-             "Inconsistent Vector component width");
+      // getVectorComponentCount() won't work for OpTypeVectorIdEXT, as its
+      // count is not a literal and only known after being translated.
+      if (getValueType(Op1)->isTypeVector())
+        assert(getValueType(Op1)->getVectorComponentCount() ==
+                   getValueType(Op2)->getVectorComponentCount() &&
+               "Inconsistent Vector component width");
     } else if (getValueType(Op1)->isTypeCooperativeMatrixKHR()) {
       Op1Ty = getValueType(Op1)->getVectorComponentType();
       Op2Ty = getValueType(Op2)->getVectorComponentType();
@@ -1118,13 +1129,17 @@ protected:
     (void)Op1Ty;
     (void)Op2Ty;
     (void)ResTy;
-    if (getValueType(Op1)->isTypeVector()) {
+    if (getValueType(Op1)->isTypeVector() ||
+        getValueType(Op1)->isTypeVectorIdEXT()) {
       Op1Ty = getValueType(Op1)->getVectorComponentType();
       Op2Ty = getValueType(Op2)->getVectorComponentType();
       ResTy = Type->getVectorComponentType();
-      assert(getValueType(Op1)->getVectorComponentCount() ==
-                 getValueType(Op2)->getVectorComponentCount() &&
-             "Inconsistent Vector component width");
+      // getVectorComponentCount() won't work for OpTypeVectorIdEXT, as its
+      // count is not a literal and only known after being translated.
+      if (getValueType(Op1)->isTypeVector())
+        assert(getValueType(Op1)->getVectorComponentCount() ==
+                   getValueType(Op2)->getVectorComponentCount() &&
+               "Inconsistent Vector component width");
     } else {
       Op1Ty = getValueType(Op1);
       Op2Ty = getValueType(Op2);
@@ -1189,7 +1204,8 @@ protected:
         getValue(Op2)->isForward())
       return;
 
-    SPIRVType *ConTy = getValueType(Condition)->isTypeVector()
+    SPIRVType *ConTy = (getValueType(Condition)->isTypeVector() ||
+                        getValueType(Condition)->isTypeVectorIdEXT())
                            ? getValueType(Condition)->getVectorComponentType()
                            : getValueType(Condition);
     (void)ConTy;
@@ -1391,10 +1407,12 @@ public:
     if (getValue(Vector)->isForward() || getValue(Scalar)->isForward())
       return;
 
-    assert(getValueType(Vector)->isTypeVector() &&
+    assert((getValueType(Vector)->isTypeVector() ||
+            getValueType(Vector)->isTypeVectorIdEXT()) &&
            getValueType(Vector)->getVectorComponentType()->isTypeFloat() &&
            "First operand must be a vector of floating-point type");
-    assert(getValueType(getId())->isTypeVector() &&
+    assert((getValueType(getId())->isTypeVector() ||
+            getValueType(getId())->isTypeVectorIdEXT()) &&
            getValueType(getId())->getVectorComponentType()->isTypeFloat() &&
            "Result type must be a vector of floating-point type");
     assert(
@@ -1713,14 +1731,14 @@ protected:
     if (getValue(Op)->isForward())
       return;
     if (isGenericNegateOpCode(OpCode)) {
-      SPIRVType *ResTy =
-          Type->isTypeVector() || Type->isTypeCooperativeMatrixKHR()
-              ? Type->getVectorComponentType()
-              : Type;
-      SPIRVType *OpTy =
-          Type->isTypeVector() || Type->isTypeCooperativeMatrixKHR()
-              ? getValueType(Op)->getVectorComponentType()
-              : getValueType(Op);
+      SPIRVType *ResTy = Type->isTypeVector() || Type->isTypeVectorIdEXT() ||
+                                 Type->isTypeCooperativeMatrixKHR()
+                             ? Type->getVectorComponentType()
+                             : Type;
+      SPIRVType *OpTy = Type->isTypeVector() || Type->isTypeVectorIdEXT() ||
+                                Type->isTypeCooperativeMatrixKHR()
+                            ? getValueType(Op)->getVectorComponentType()
+                            : getValueType(Op);
 
       (void)ResTy;
       (void)OpTy;
@@ -2186,6 +2204,7 @@ protected:
     size_t TypeOpCode = this->getType()->getOpCode();
     switch (TypeOpCode) {
     case OpTypeVector:
+    case OpTypeVectorIdEXT:
       assert(Constituents.size() > 1 &&
              "There must be at least two Constituent operands in vector");
       break;
@@ -2218,6 +2237,7 @@ protected:
     assert(getValueType(Composite)->isTypeArray() ||
            getValueType(Composite)->isTypeStruct() ||
            getValueType(Composite)->isTypeVector() ||
+           getValueType(Composite)->isTypeVectorIdEXT() ||
            getValueType(Composite)->isTypeUntypedPointerKHR());
   }
 };
@@ -2245,6 +2265,7 @@ protected:
     assert(getValueType(Composite)->isTypeArray() ||
            getValueType(Composite)->isTypeStruct() ||
            getValueType(Composite)->isTypeVector() ||
+           getValueType(Composite)->isTypeVectorIdEXT() ||
            getValueType(Composite)->isTypeUntypedPointerKHR());
     assert(Type == getValueType(Composite));
   }
@@ -2452,7 +2473,8 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(VectorId)->isForward())
       return;
-    assert(getValueType(VectorId)->isTypeVector());
+    assert(getValueType(VectorId)->isTypeVector() ||
+           getValueType(VectorId)->isTypeVectorIdEXT());
   }
   SPIRVId VectorId;
   SPIRVId IndexId;
@@ -2489,7 +2511,8 @@ protected:
     SPIRVInstruction::validate();
     if (getValue(VectorId)->isForward())
       return;
-    assert(getValueType(VectorId)->isTypeVector());
+    assert(getValueType(VectorId)->isTypeVector() ||
+           getValueType(VectorId)->isTypeVectorIdEXT());
   }
   SPIRVId VectorId;
   SPIRVId IndexId;
@@ -2509,10 +2532,11 @@ protected:
     SPIRVInstruction::validate();
     [[maybe_unused]] SPIRVId Vector1 = Ops[0];
     assert(OpCode == OpVectorShuffle);
-    assert(Type->isTypeVector());
+    assert(Type->isTypeVector() || Type->isTypeVectorIdEXT());
     assert(Type->getVectorComponentType() ==
            getValueType(Vector1)->getVectorComponentType());
-    assert(Ops.size() - 2 == Type->getVectorComponentCount());
+    if (Type->isTypeVector())
+      assert(Ops.size() - 2 == Type->getVectorComponentCount());
   }
 };
 
@@ -3356,7 +3380,8 @@ protected:
     assert(getValueType(Vec1) == getValueType(Vec2) &&
            "Input vectors must have the same type");
     assert(getType()->isTypeInt() && "Result type must be an integer type");
-    assert(!getType()->isTypeVector() && "Result type must be scalar");
+    assert(!getType()->isTypeVector() && !getType()->isTypeVectorIdEXT() &&
+           "Result type must be scalar");
   }
 
 private:
@@ -4564,16 +4589,19 @@ public:
   }
 
 protected:
+  virtual unsigned getOperandsLiteralIndex() const { return 4; }
+
   void validate() const override {
     SPIRVInstTemplateBase::validate();
 
     // Check if FP4 or FP8 matrix operands are used
-    // Operands parameter is the last operand (index 4)
+    // Operands parameter is the last operand.
     auto *NonConstThis =
         const_cast<SPIRVSubgroupMatrixMultiplyAccumulateINTELInst *>(this);
-    if (NonConstThis->getOperands().size() > 4) {
-      const SPIRVConstant *OperandsConst =
-          static_cast<const SPIRVConstant *>(NonConstThis->getOperand(4));
+    const unsigned OperandsIdx = getOperandsLiteralIndex();
+    if (NonConstThis->getOperands().size() > OperandsIdx) {
+      const SPIRVConstant *OperandsConst = static_cast<const SPIRVConstant *>(
+          NonConstThis->getOperand(OperandsIdx));
       uint64_t OperandsMask = OperandsConst->getZExtIntValue();
 
       // FP4 operand bits
@@ -4594,15 +4622,16 @@ protected:
           spv::internal::
               IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat8E5M2INTELMask;
 
+      std::string InstName = OpCodeNameMap::map(getOpCode());
+
       if ((OperandsMask & FP4Mask) != 0) {
         getModule()->getErrorLog().checkError(
             getModule()->isAllowedToUseExtension(
                 ExtensionID::
                     SPV_INTEL_subgroup_matrix_multiply_accumulate_float4),
             SPIRVEC_RequiresExtension,
-            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float4\n"
-            "SubgroupMatrixMultiplyAccumulateINTEL with FP4 operand flags "
-            "requires this extension");
+            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float4\n" +
+                InstName + " with FP4 operand flags requires this extension");
         getModule()->addExtension(
             ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate_float4);
       }
@@ -4613,9 +4642,8 @@ protected:
                 ExtensionID::
                     SPV_INTEL_subgroup_matrix_multiply_accumulate_float8),
             SPIRVEC_RequiresExtension,
-            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float8\n"
-            "SubgroupMatrixMultiplyAccumulateINTEL with FP8 operand flags "
-            "requires this extension");
+            "SPV_INTEL_subgroup_matrix_multiply_accumulate_float8\n" +
+                InstName + " with FP8 operand flags requires this extension");
         getModule()->addExtension(
             ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate_float8);
       }
@@ -4632,6 +4660,47 @@ protected:
                             Op##x##INTEL, __VA_ARGS__>                         \
       SPIRV##x##INTEL;
 _SPIRV_OP(SubgroupMatrixMultiplyAccumulate, true, 7, true, 4)
+#undef _SPIRV_OP
+
+class SPIRVSubgroupScaledMatrixMultiplyAccumulateINTELInst
+    : public SPIRVSubgroupMatrixMultiplyAccumulateINTELInst {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroup_scaled_matrix_multiply_accumulate;
+  }
+
+protected:
+  unsigned getOperandsLiteralIndex() const override { return 6; }
+
+  void validate() const override {
+    SPIRVSubgroupMatrixMultiplyAccumulateINTELInst::validate();
+
+    // The Matrix Multiply Accumulate Operands literal is defined by the parent
+    // extension, so its extension and capability must be present too.
+    getModule()->getErrorLog().checkError(
+        getModule()->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate),
+        SPIRVEC_RequiresExtension,
+        "SPV_INTEL_subgroup_matrix_multiply_accumulate\n"
+        "SubgroupScaledMatrixMultiplyAccumulateINTEL depends on this "
+        "extension");
+    getModule()->addExtension(
+        ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate);
+    getModule()->addCapability(CapabilitySubgroupMatrixMultiplyAccumulateINTEL);
+  }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(
+        internal::CapabilitySubgroupScaledMatrixMultiplyAccumulateINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<                                                   \
+      SPIRVSubgroupScaledMatrixMultiplyAccumulateINTELInst,                    \
+      internal::Op##x##INTEL, __VA_ARGS__>                                     \
+      SPIRV##x##INTEL;
+_SPIRV_OP(SubgroupScaledMatrixMultiplyAccumulate, true, 9, true, 6)
 #undef _SPIRV_OP
 
 class SPIRVTernaryBitwiseFunctionINTELInst : public SPIRVInstTemplateBase {
@@ -4766,26 +4835,44 @@ public:
 _SPIRV_OP(FSigmoidINTEL)
 #undef _SPIRV_OP
 
-class SPIRVFPConversionINTELInstBase : public SPIRVInstTemplateBase {
+class SPIRVFPConversionFtoFINTELInstBase : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityFloatConversionsINTEL);
+    return getVec(internal::CapabilityFloatConversionsFtoFINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_fp_conversions;
   }
 };
-#define _SPIRV_OP(x, ...)                                                      \
-  typedef SPIRVInstTemplate<SPIRVFPConversionINTELInstBase,                    \
+
+#define _SPIRV_OP_FTOF(x, ...)                                                 \
+  typedef SPIRVInstTemplate<SPIRVFPConversionFtoFINTELInstBase,                \
                             internal::Op##x##INTEL, __VA_ARGS__>               \
       SPIRV##x##INTEL;
-_SPIRV_OP(ClampConvertFToF, true, 4, false)
-_SPIRV_OP(ClampConvertFToS, true, 4, false)
-_SPIRV_OP(StochasticRoundFToF, true, 5, true)
-_SPIRV_OP(ClampStochasticRoundFToF, true, 5, true)
-_SPIRV_OP(ClampStochasticRoundFToS, true, 5, true)
-#undef _SPIRV_OP
+_SPIRV_OP_FTOF(ClampConvertFToF, true, 4, false)
+_SPIRV_OP_FTOF(StochasticRoundFToF, true, 5, true)
+_SPIRV_OP_FTOF(ClampStochasticRoundFToF, true, 5, true)
+#undef _SPIRV_OP_FTOF
+
+class SPIRVFPConversionFtoSINTELInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityFloatConversionsFtoSINTEL);
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_fp_conversions;
+  }
+};
+
+#define _SPIRV_OP_FTOS(x, ...)                                                 \
+  typedef SPIRVInstTemplate<SPIRVFPConversionFtoSINTELInstBase,                \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP_FTOS(ClampConvertFToS, true, 4, false)
+_SPIRV_OP_FTOS(ClampStochasticRoundFToS, true, 5, true)
+#undef _SPIRV_OP_FTOS
 
 class SPIRVFmaKHRInstBase : public SPIRVInstTemplateBase {
 public:

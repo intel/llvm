@@ -145,6 +145,13 @@ void CodeGenFunction::EmitDecl(const Decl &D, bool EvaluateConditionDecl) {
     // None of these decls require codegen support.
     return;
 
+  case Decl::CXXExpansionStmt: {
+    const auto *ESD = cast<CXXExpansionStmtDecl>(&D);
+    assert(ESD->getInstantiations() && "expansion statement not expanded?");
+    EmitStmt(ESD->getInstantiations());
+    return;
+  }
+
   case Decl::NamespaceAlias:
     if (CGDebugInfo *DI = getDebugInfo())
         DI->EmitNamespaceAlias(cast<NamespaceAliasDecl>(D));
@@ -476,10 +483,6 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (D.hasAttr<AnnotateAttr>())
     CGM.AddGlobalAnnotations(&D, var);
 
-  // Emit Intel FPGA attribute annotation for a local static variable.
-  if (getLangOpts().SYCLIsDevice)
-    CGM.addGlobalIntelFPGAAnnotation(&D, var);
-
   if (auto *SA = D.getAttr<PragmaClangBSSSectionAttr>())
     var->addAttribute("bss-section", SA->getName());
   if (auto *SA = D.getAttr<PragmaClangDataSectionAttr>())
@@ -603,7 +606,6 @@ namespace {
   struct CallStackRestore final : EHScopeStack::Cleanup {
     Address Stack;
     CallStackRestore(Address Stack) : Stack(Stack) {}
-    bool isRedundantBeforeReturn() override { return true; }
     void Emit(CodeGenFunction &CGF, Flags flags) override {
       llvm::Value *V = CGF.Builder.CreateLoad(Stack);
       CGF.Builder.CreateStackRestore(V);
@@ -1208,7 +1210,7 @@ Address CodeGenModule::createUnnamedGlobalFrom(const VarDecl &D,
     GV->setAlignment(Align.getAsAlign());
     GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
     CacheEntry = GV;
-  } else if (CacheEntry->getAlignment() < uint64_t(Align.getQuantity())) {
+  } else if (CacheEntry->getAlign().valueOrOne() < Align.getAsAlign()) {
     CacheEntry->setAlignment(Align.getAsAlign());
   }
 
@@ -2381,7 +2383,8 @@ void CodeGenFunction::pushDestroyAndDeferDeactivation(
 }
 
 void CodeGenFunction::pushStackRestore(CleanupKind Kind, Address SPMem) {
-  EHStack.pushCleanup<CallStackRestore>(Kind, SPMem);
+  EHStack.pushCleanup<CallStackRestore>(
+      static_cast<CleanupKind>(Kind | StackRestore), SPMem);
 }
 
 void CodeGenFunction::pushKmpcAllocFree(
@@ -2889,7 +2892,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
        &D == CXXABIThisDecl)) {
     // We don't emit fake uses for coroutine parameters, other than `this`.
     if (auto *FnDecl = dyn_cast_or_null<FunctionDecl>(CurCodeDecl);
-        &D == CXXABIThisDecl || !FnDecl ||
+        &D == CXXABIThisDecl || !FnDecl || !FnDecl->getBody() ||
         FnDecl->getBody()->getStmtClass() != Stmt::CoroutineBodyStmtClass) {
       if (shouldExtendLifetime(getContext(), CurCodeDecl, D, CXXABIThisDecl))
         EHStack.pushCleanup<FakeUse>(NormalFakeUse, DeclPtr);

@@ -20,7 +20,7 @@ template <int Dim>
 struct cluster_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
           cluster_size<Dim>,
-          ::sycl::ext::oneapi::experimental::detail::ClusterLaunch> {
+          ::sycl::ext::oneapi::experimental::detail::PropKind::ClusterLaunch> {
   cluster_size(const range<Dim> &size) : size(size) {}
   sycl::range<Dim> get_cluster_size() const { return size; }
 

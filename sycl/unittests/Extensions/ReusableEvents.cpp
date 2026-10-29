@@ -33,11 +33,24 @@ int UrEventCreateExp_counter = 0;
 int UrEventRelease_counter = 0;
 int RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter = 0;
 int RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter = 0;
+bool LastCreateHadLowPowerSyncDesc = false;
 
 ur_result_t redefinedUrEventCreateExp(void *pParams) {
   auto params = *static_cast<ur_event_create_exp_params_t *>(pParams);
   **params.pphEvent = DummyEventHandle;
   EXPECT_EQ(*params.phContext, DummyContextHandle);
+
+  const ur_exp_event_desc_t *desc = *params.ppEventDesc;
+  for (const auto *base = static_cast<const ur_base_desc_t *>(desc->pNext);
+       base; base = static_cast<const ur_base_desc_t *>(base->pNext)) {
+    if (base->stype == UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC) {
+      const auto *sync =
+          reinterpret_cast<const ur_exp_event_sync_mode_desc_t *>(base);
+      if (sync->flags & UR_EXP_EVENT_SYNC_MODE_FLAG_LOW_POWER_WAIT)
+        LastCreateHadLowPowerSyncDesc = true;
+      break;
+    }
+  }
 
   UrEventCreateExp_counter++;
 
@@ -198,6 +211,7 @@ protected:
     ExpectedNumEventsInWaitListKernelLaunch = 0;
     CheckUrEventReleaseHandle = true;
     ReusableEventsSupported = true;
+    LastCreateHadLowPowerSyncDesc = false;
 
     mock::getCallbacks().set_replace_callback("urEventCreateExp",
                                               &redefinedUrEventCreateExp);
@@ -346,6 +360,52 @@ TEST_F(ReusableEventsTest, EnqueueSignalEventReusableEventsNotSupported) {
   Queue.wait();
 }
 
+// enqueue_signal_event, enqueue_wait_event and enqueue_wait_events with an
+// empty property list
+TEST_F(ReusableEventsTest, EnqueueWithEmptyPropertyList) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue SignalQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+  sycl::queue WaitQueue{Ctx, Dev, sycl::property::queue::in_order{}};
+
+  {
+    auto Event = syclex::make_event(Ctx);
+
+    EXPECT_NO_THROW({
+      syclex::enqueue_signal_event(SignalQueue, Event, syclex::properties{});
+    });
+
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
+    EXPECT_EQ(UrEventCreateExp_counter, 1);
+    EXPECT_EQ(UrEventRelease_counter, 0);
+
+    mock::getCallbacks().set_replace_callback(
+        "urEnqueueEventsWaitWithBarrierExt",
+        &redefinedUrEnqueueEventsWaitWithBarrierExt_wait);
+    ExpectedNumEventsInWaitList = 1;
+    std::vector<sycl::event> Events{Event};
+
+    EXPECT_NO_THROW({
+      syclex::enqueue_wait_event(WaitQueue, Event, syclex::properties{});
+    });
+    EXPECT_NO_THROW({
+      syclex::enqueue_wait_events(WaitQueue, Events, syclex::properties{});
+    });
+
+    EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 2);
+    EXPECT_EQ(UrEventCreateExp_counter, 1);
+  }
+
+  EXPECT_EQ(UrEventRelease_counter, 1);
+
+  SignalQueue.wait();
+  WaitQueue.wait();
+}
+
 // Default event constructor
 TEST_F(ReusableEventsTest, DefaultConstructor) {
   {
@@ -391,7 +451,7 @@ TEST_F(ReusableEventsTest, ProfilingInfoQuery) {
   sycl::platform Plt = Dev.get_platform();
 
   sycl::context Ctx{Dev};
-  syclex::properties PropList{syclex::enable_profiling};
+  syclex::properties PropList{syclex::enable_profiling{true}};
   auto event = syclex::make_event(Ctx, PropList);
   sycl::queue Queue{Ctx, Dev, sycl::property::queue::in_order{}};
 
@@ -443,7 +503,9 @@ TEST_F(ReusableEventsTest, EventInDependsOn) {
   Queue.wait();
 }
 
-// Cross-context events with wait
+// Cross-context event with wait.
+// Current limitation is that the cross-context wait
+// is not supported.
 TEST_F(ReusableEventsTest, CrossContextEventWait) {
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefinedUrDeviceGet);
@@ -467,26 +529,69 @@ TEST_F(ReusableEventsTest, CrossContextEventWait) {
 
   auto event = syclex::make_event(Ctx1);
 
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  bool exception = false;
 
-  syclex::enqueue_signal_event(Queue1, event);
+  // Current limitation is that an event from different context
+  // cannot be used with enqueue_wait_event
+  try {
+    syclex::enqueue_wait_event(Queue2, event);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
+  }
 
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_signal_counter, 1);
-
-  ExpectedNumEventsInWaitList = 1;
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueEventsWaitWithBarrierExt",
-      &redefinedUrEnqueueEventsWaitWithBarrierExt_wait);
-
-  // Event from different context should still work with enqueue_wait_event
-  EXPECT_NO_THROW({ syclex::enqueue_wait_event(Queue2, event); });
-
-  EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 1);
+  EXPECT_TRUE(exception);
 
   Queue1.wait();
   Queue2.wait();
+}
+
+// Cross-context events with wait (multiple events).
+// Current limitation is that the cross-context wait
+// is not supported.
+TEST_F(ReusableEventsTest, CrossContextEventsWait) {
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefinedUrDeviceGet);
+  mock::getCallbacks().set_replace_callback("urDeviceRelease",
+                                            &redefinedUrDeviceRelease);
+
+  sycl::platform Plt = sycl::platform();
+  auto Devices = Plt.get_devices();
+
+  if (Devices.size() < 2) {
+    GTEST_SKIP() << "Need at least 2 devices for this test";
+  }
+
+  const sycl::device Dev1 = Devices[0];
+  const sycl::device Dev2 = Devices[1];
+  sycl::context Ctx1{Dev1};
+  sycl::context Ctx2{Dev2};
+
+  sycl::queue Queue{Ctx1, Dev1};
+
+  // Check if the exception is thrown if one of the events
+  // has different context than the queue.
+  auto event1 = syclex::make_event(Ctx1);
+  auto event2 = syclex::make_event(Ctx2);
+
+  std::vector<sycl::event> events{event1, event2};
+
+  bool exception = false;
+
+  // Current limitation is that an event from different context
+  // cannot be used with enqueue_wait_event
+  try {
+    syclex::enqueue_wait_events(Queue, events);
+  } catch (sycl::exception const &e) {
+    exception = true;
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "Event context must match the queue context.");
+  }
+
+  EXPECT_TRUE(exception);
+
+  Queue.wait();
 }
 
 // Cross-context make_event and signal event - not allowed
@@ -540,6 +645,65 @@ TEST_F(ReusableEventsTest, EmptyEventVectorWait) {
 
   EXPECT_EQ(RedefinedUrEnqueueEventsWaitWithBarrierExt_wait_counter, 0);
 
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, LowPowerEventModeChainsSyncModeDesc) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  syclex::properties PropList{
+      syclex::event_mode{syclex::event_mode_enum::low_power}};
+  auto event = syclex::make_event(Ctx, PropList);
+
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_TRUE(LastCreateHadLowPowerSyncDesc);
+
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, NoneEventModeDoesNotChainSyncModeDesc) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  syclex::properties PropList{
+      syclex::event_mode{syclex::event_mode_enum::none}};
+  auto event = syclex::make_event(Ctx, PropList);
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_FALSE(LastCreateHadLowPowerSyncDesc);
+
+  Queue.wait();
+}
+
+TEST_F(ReusableEventsTest, MakeEventLowPowerWithoutPropertiesList) {
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedUrEnqueueEventsWaitWithBarrierExt_signal);
+  sycl::platform Plt = sycl::platform();
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+
+  auto event = syclex::make_event(
+      Ctx, syclex::event_mode{syclex::event_mode_enum::low_power});
+  syclex::enqueue_signal_event(Queue, event);
+
+  EXPECT_EQ(UrEventCreateExp_counter, 1);
+  EXPECT_TRUE(LastCreateHadLowPowerSyncDesc);
   Queue.wait();
 }
 

@@ -27,6 +27,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/RISCVISAInfo.h"
@@ -244,6 +245,7 @@ void tools::gnutools::StaticLibTool::ConstructJob(
   ArgStringList CmdArgs;
   // Create and insert file members with a deterministic index.
   CmdArgs.push_back("rcsD");
+  Args.AddAllArgValues(CmdArgs, options::OPT_Xstatic_lib_tool);
   CmdArgs.push_back(Output.getFilename());
 
   for (const auto &II : Inputs) {
@@ -267,6 +269,75 @@ void tools::gnutools::StaticLibTool::ConstructJob(
                                          ResponseFileSupport::AtFileCurCP(),
                                          Exec, CmdArgs, Inputs, Output));
 }
+
+// Device-code size above which some relocations are truncated.
+// -flink-huge-device-code works around it.
+static constexpr uint64_t HugeDeviceCodeWarnThreshold = 1ull << 30; // 1GiB
+
+// Sums the size of only those link inputs that carry wrapped device code.
+// Device code extracted from a static archive surfaces as its own tagged
+// input elsewhere in the pipeline, so it's still counted; this just skips
+// host objects and other inputs that aren't wrapped device code themselves.
+static uint64_t getTotalDeviceCodeObjectSize(ArrayRef<InputInfo> Inputs) {
+  uint64_t Total = 0;
+
+  for (const InputInfo &II : Inputs)
+    if (II.isFilename() &&
+        isa_and_nonnull<OffloadWrapperJobAction>(II.getAction())) {
+      uint64_t FileSize = 0;
+      if (!llvm::sys::fs::file_size(II.getFilename(), FileSize))
+        Total += FileSize;
+    }
+
+  return Total;
+}
+
+static std::string formatSize(uint64_t Bytes) {
+  double GB = static_cast<double>(Bytes) / (1024.0 * 1024.0 * 1024.0);
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  OS << llvm::format("%.1f", GB) << " GB (" << Bytes << " bytes)";
+  return Str;
+}
+
+namespace {
+// Checked at Execute() time, not construction time: job construction
+// happens before any job runs, so earlier pipeline stages (e.g.
+// unbundling) haven't written their outputs yet.
+class HugeDeviceCodeCheckCommand : public Command {
+  const Driver &D;
+
+public:
+  HugeDeviceCodeCheckCommand(const Driver &D, const Action &Source,
+                             const Tool &Creator,
+                             ResponseFileSupport ResponseSupport,
+                             const char *Executable,
+                             const llvm::opt::ArgStringList &Arguments,
+                             ArrayRef<InputInfo> Inputs,
+                             ArrayRef<InputInfo> Outputs = {})
+      : Command(Source, Creator, ResponseSupport, Executable, Arguments, Inputs,
+                Outputs),
+        D(D) {}
+
+  int Execute(ArrayRef<std::optional<StringRef>> Redirects, std::string *ErrMsg,
+              bool *ExecutionFailed) const override {
+    uint64_t DeviceCodeSize = getTotalDeviceCodeObjectSize(getInputInfos());
+    if (DeviceCodeSize > HugeDeviceCodeWarnThreshold) {
+      D.Diag(diag::warn_drv_huge_device_code) << formatSize(DeviceCodeSize);
+      // -Werror promoted this to an error: don't run the real link, just
+      // report failure like any other failed build step.
+      if (D.getDiags().getDiagnosticLevel(diag::warn_drv_huge_device_code,
+                                          SourceLocation()) >=
+          DiagnosticsEngine::Error) {
+        if (ExecutionFailed)
+          *ExecutionFailed = false;
+        return 1;
+      }
+    }
+    return Command::Execute(Redirects, ErrMsg, ExecutionFailed);
+  }
+};
+} // namespace
 
 void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                            const InputInfo &Output,
@@ -449,7 +520,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_Z_Xlinker__no_demangle))
     CmdArgs.push_back("--no-demangle");
 
-  bool NeedsSanitizerDeps = addSanitizerRuntimes(ToolChain, Args, CmdArgs);
+  bool NeedsSanitizerDeps = addSanitizerRuntimes(ToolChain, Args, CmdArgs, C);
   bool NeedsXRayDeps = addXRayRuntime(ToolChain, Args, CmdArgs);
   addLinkerCompressDebugSectionsOption(ToolChain, Args, CmdArgs);
   // When offloading, the input file(s) could be from unbundled partially
@@ -462,15 +533,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      // TODO: Incoming file from the unbundling of the AOCX archive is
-      // represented as an object. The file should be considered as a filelist
-      // file to correspond with the '@' addition.
-      bool IsAOCXFile = false;
-      if (II.isFilename())
-        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
-
-      if (II.getType() == types::TY_Tempfilelist ||
-          (IsAOCXFile && II.getType() == types::TY_Object)) {
+      if (II.getType() == types::TY_Tempfilelist) {
         // Take the unbundled list file and pass it in with '@'.
         const char *ArgFile =
             C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
@@ -594,16 +657,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         // FIXME: Does this really make sense for all GNU toolchains?
         WantPthread = true;
 
+      addLLVMOffloadingRuntime(C, CmdArgs, ToolChain, Args);
       AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
-
-      if (Args.hasArg(options::OPT_fsycl) &&
-          !Args.hasArg(options::OPT_nolibsycl)) {
-        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("-lsycl-preview");
-        else
-          CmdArgs.push_back("-lsycl");
-        CmdArgs.push_back("-lsycl-devicelib-host");
-      }
 
       // LLVM support for atomics on 32-bit SPARC V8+ is incomplete, so
       // forcibly link with libatomic as a workaround.
@@ -625,6 +680,23 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       if (!Args.hasArg(options::OPT_nolibc))
         CmdArgs.push_back("-lc");
+
+      // musl does not provide __stack_chk_fail_local, but GCC emits calls
+      // to it in PIC/PIE code on some targets (32-bit x86, PowerPC). musl
+      // distributions ship the symbol in libssp_nonshared.a and make GCC
+      // link it when stack protection is on; match that if the library
+      // exists.
+      if (ToolChain.getTriple().isMusl()) {
+        bool WantsSSP = ToolChain.GetDefaultStackProtectorLevel(
+                            /*KernelOrKext=*/false) != LangOptions::SSPOff;
+        if (Arg *A = Args.getLastArg(options::OPT_fno_stack_protector,
+                                     options::OPT_fstack_protector,
+                                     options::OPT_fstack_protector_all,
+                                     options::OPT_fstack_protector_strong))
+          WantsSSP = !A->getOption().matches(options::OPT_fno_stack_protector);
+        if (WantsSSP && ToolChain.GetFilePathIfExists("libssp_nonshared.a"))
+          CmdArgs.push_back("-lssp_nonshared");
+      }
 
       // Add IAMCU specific libs, if needed.
       if (IsIAMCU)
@@ -676,9 +748,18 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addAllArgs(CmdArgs, {options::OPT_T});
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
-  C.addCommand(std::make_unique<Command>(JA, *this,
-                                         ResponseFileSupport::AtFileCurCP(),
-                                         Exec, CmdArgs, Inputs, Output));
+
+  // Deferred to Command::Execute(); see HugeDeviceCodeCheckCommand above.
+  if (Args.hasArg(options::OPT_fsycl, options::OPT_offload_targets_EQ) &&
+      !Args.hasFlag(options::OPT_flink_huge_device_code,
+                    options::OPT_fno_link_huge_device_code, false))
+    C.addCommand(std::make_unique<HugeDeviceCodeCheckCommand>(
+        D, JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs,
+        Output));
+  else
+    C.addCommand(std::make_unique<Command>(JA, *this,
+                                           ResponseFileSupport::AtFileCurCP(),
+                                           Exec, CmdArgs, Inputs, Output));
 }
 
 void tools::gnutools::Assembler::ConstructJob(Compilation &C,
@@ -3160,7 +3241,7 @@ Generic_GCC::getDefaultUnwindTableLevel(const ArgList &Args) const {
   switch (getArch()) {
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
-  case llvm::Triple::amdgcn:
+  case llvm::Triple::amdgpu:
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:

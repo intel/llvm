@@ -13,17 +13,19 @@
 
 #include <unified-runtime/ur_api.h>
 
-#include "../device.hpp"
-#include "../helpers/memory_helpers.hpp"
-#include "../image_common.hpp"
+#include "../common/device.hpp"
+#include "../common/helpers/memory_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include <umf/ipc.h>
 
+namespace ur::level_zero::v2 {
+
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
-struct ur_mem_buffer_t : ur_object {
+struct ur_mem_buffer_t : v2::ur_object_t {
 
   enum class device_access_mode_t { read_write, read_only, write_only };
 
@@ -95,6 +97,14 @@ struct host_allocation_desc_t {
   size_t size;
   size_t offset;
   ur_map_flags_t flags;
+};
+
+using event_unique_ptr_t =
+    std::unique_ptr<ur_event_handle_t_, void (*)(ur_event_handle_t)>;
+
+struct staging_allocation_t {
+  usm_unique_ptr_t allocation;
+  event_unique_ptr_t event;
 };
 
 // Manages memory buffer for integrated GPU.
@@ -170,11 +180,17 @@ private:
   usm_unique_ptr_t mapToPtr;
 
   std::vector<host_allocation_desc_t> hostAllocations;
+  std::vector<staging_allocation_t> stagingAllocations;
 
   void *getActiveDeviceAlloc(size_t offset = 0);
   void *allocateOnDevice(ur_device_handle_t hDevice, size_t size);
   ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
                               size_t size);
+
+  void *asyncMigrateDeviceAllocThroughHost(ur_device_handle_t hDevice,
+                                           size_t offset,
+                                           ze_command_list_handle_t cmdList,
+                                           wait_list_view &waitListView);
 };
 
 struct ur_shared_buffer_handle_t : ur_mem_buffer_t {
@@ -216,7 +232,7 @@ private:
   size_t offset;
 };
 
-struct ur_mem_image_t : ur_object {
+struct ur_mem_image_t : v2::ur_object_t {
   ur_mem_image_t(ur_context_handle_t hContext, ur_mem_flags_t flags,
                  const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, void *pHost);
@@ -248,7 +264,7 @@ private:
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };
 
-struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
+struct ur_mem_handle_t_ : v2::ur_object_t {
   template <typename T, typename... Args>
   static ur_mem_handle_t_ *create(Args &&...args) {
     return new ur_mem_handle_t_(std::in_place_type<T>,
@@ -288,7 +304,7 @@ struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
 private:
   template <typename T, typename... Args>
   ur_mem_handle_t_(std::in_place_type_t<T>, Args &&...args)
-      : ur::handle_base<ur::level_zero::ddi_getter>(),
+      : v2::ur_object_t(),
         mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
 
   std::variant<ur_usm_handle_t, ur_integrated_buffer_handle_t,
@@ -296,3 +312,5 @@ private:
                ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
 };
+
+} // namespace ur::level_zero::v2

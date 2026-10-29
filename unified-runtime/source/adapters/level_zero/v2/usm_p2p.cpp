@@ -7,11 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../device.hpp"
+#include "../common/device.hpp"
+#include "../common/platform.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
 
-namespace ur::level_zero {
+namespace ur::level_zero::v2 {
 
 // Validates that two devices are compatible for P2P operations: both must have
 // an assigned Id, must belong to the same platform (i.e. share the same device
@@ -37,30 +38,44 @@ static ur_result_t validateP2PDevicePair(ur_device_handle_t commandDevice,
 }
 
 // commandDevice wants to access peerDevice's memory.  The peer table is stored
-// on peerDevice: peerDevice->peers[commandDevice->Id] tracks whether
+// on commandDevice: commandDevice->peers[peerDevice->Id] tracks whether
 // commandDevice is allowed to access peerDevice's allocations.
 static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
                                                ur_device_handle_t peerDevice,
                                                bool isAdding) {
-  UR_CALL(validateP2PDevicePair(peerDevice, commandDevice));
+  UR_CALL(validateP2PDevicePair(commandDevice, peerDevice));
 
   UR_LOG(INFO, "user tries to {} peer access to memory of {} from {}",
          (isAdding ? "enable" : "disable"), *peerDevice, *commandDevice);
+
+  if (!restrictUsmResidencyToP2P()) {
+    // The restrictive P2P/residency feature is disabled (the default), so
+    // P2P access is always considered enabled for connectable peers and USM
+    // allocations are always resident on all of them. Ignore the requested
+    // state change and report success, matching the behavior of the Level
+    // Zero V1 adapter.
+    UR_LOG(INFO,
+           "ignored {} peer access to memory of {} from {}, because P2P is "
+           "always enabled unless SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P is "
+           "set",
+           (isAdding ? "enabling" : "disabling"), *peerDevice, *commandDevice);
+    return UR_RESULT_SUCCESS;
+  }
 
   {
     const auto expectedPeerStatus =
         isAdding ? ur_device_handle_t_::PeerStatus::DISABLED
                  : ur_device_handle_t_::PeerStatus::ENABLED;
-    std::scoped_lock<ur_shared_mutex> Lock(peerDevice->Mutex);
+    std::scoped_lock<ur_shared_mutex> Lock(commandDevice->Mutex);
     const auto existingPeerStatus =
-        peerDevice->peers[commandDevice->Id.value()];
+        commandDevice->peers[peerDevice->Id.value()];
     if (existingPeerStatus != expectedPeerStatus) {
       UR_LOG(ERR,
              "existing peer status:{} does not match expected peer status:{}",
              existingPeerStatus, expectedPeerStatus);
       return UR_RESULT_ERROR_INVALID_OPERATION;
     }
-    peerDevice->peers[commandDevice->Id.value()] =
+    commandDevice->peers[peerDevice->Id.value()] =
         (isAdding ? ur_device_handle_t_::PeerStatus::ENABLED
                   : ur_device_handle_t_::PeerStatus::DISABLED);
   }
@@ -69,44 +84,57 @@ static ur_result_t urUsmP2PChangePeerAccessExp(ur_device_handle_t commandDevice,
   // Copy the context list under the mutex and iterate outside the critical
   // section to avoid holding ContextsMutex during potentially heavy
   // changeResidentDevice calls and to reduce deadlock risk.
-  std::list<ur_context_handle_t> Contexts;
+  std::list<::ur_context_handle_t> Contexts;
   {
     std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
     Contexts = Platform->Contexts;
   }
   UR_LOG(INFO, "changing peers in {} contexts", Contexts.size());
   for (auto Context : Contexts) {
-    Context->changeResidentDevice(peerDevice, commandDevice, isAdding);
+    // changeResidentDevice(peerDevice, commandDevice, isAdding) is correct
+    // and intentionally left with this argument order: it targets the pool
+    // owned by peerDevice and makes that pool's allocations resident on
+    // commandDevice, which is the correct physical effect (commandDevice
+    // needs peerDevice's allocations to be resident on commandDevice for it
+    // to access them).
+    v2_cast(Context)->changeResidentDevice(peerDevice, commandDevice, isAdding);
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
-                                        ur_device_handle_t peerDevice) {
+ur_result_t urUsmP2PEnablePeerAccessExp(::ur_device_handle_t commandDeviceOpque,
+                                        ::ur_device_handle_t peerDeviceOpque) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
   return urUsmP2PChangePeerAccessExp(commandDevice, peerDevice, true);
 }
 
-ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice) {
+ur_result_t
+urUsmP2PDisablePeerAccessExp(::ur_device_handle_t commandDeviceOpque,
+                             ::ur_device_handle_t peerDeviceOpque) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
   return urUsmP2PChangePeerAccessExp(commandDevice, peerDevice, false);
 }
 
-ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice,
-                                         ur_exp_peer_info_t propName,
-                                         size_t propSize, void *pPropValue,
-                                         size_t *pPropSizeRet) {
+ur_result_t
+urUsmP2PPeerAccessGetInfoExp(::ur_device_handle_t commandDeviceOpque,
+                             ::ur_device_handle_t peerDeviceOpque,
+                             ur_exp_peer_info_t propName, size_t propSize,
+                             void *pPropValue, size_t *pPropSizeRet) {
+  auto commandDevice = common_cast(commandDeviceOpque);
+  auto peerDevice = common_cast(peerDeviceOpque);
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  UR_CALL(validateP2PDevicePair(peerDevice, commandDevice));
+  UR_CALL(validateP2PDevicePair(commandDevice, peerDevice));
 
   int propertyValue = 0;
   switch (propName) {
   case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT: {
-    std::scoped_lock<ur_shared_mutex> Lock(peerDevice->Mutex);
-    propertyValue = peerDevice->peers[commandDevice->Id.value()] !=
+    std::scoped_lock<ur_shared_mutex> Lock(commandDevice->Mutex);
+    propertyValue = commandDevice->peers[peerDevice->Id.value()] !=
                     ur_device_handle_t_::PeerStatus::NO_CONNECTION;
     break;
   }
@@ -125,4 +153,4 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
 
   return ReturnValue(propertyValue);
 }
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

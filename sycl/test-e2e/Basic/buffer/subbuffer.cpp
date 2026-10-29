@@ -41,7 +41,7 @@ void checkHostAccessor(sycl::queue &q) {
     }
 
     q.submit([&](sycl::handler &cgh) {
-      auto acc = subbuf.get_access<sycl::access::mode::write>(cgh);
+      auto acc = subbuf.get_access<sycl::access_mode::write>(cgh);
       cgh.parallel_for<class foobar_2>(sycl::range<1>(10),
                                        [=](sycl::id<1> i) { acc[i] *= -10; });
     });
@@ -85,7 +85,7 @@ void check1DSubBuffer(sycl::queue &q) {
     q.submit([&](sycl::handler &cgh) {
       // accessor starts at the third element of the subbuffer
       // and can read for 7 more (ie to the end of the subbuffer)
-      auto acc = subbuf.get_access<sycl::access::mode::read_write>(
+      auto acc = subbuf.get_access<sycl::access_mode::read_write>(
           cgh, sycl::range<1>(subbuffer_access_range),
           sycl::id<1>(offset_inside_subbuf));
       // subrange is made negative. ( 32 33 34 -35 -36 -37 -38 -39 -40 -41)
@@ -95,8 +95,8 @@ void check1DSubBuffer(sycl::queue &q) {
 
     // copy results of last operation back to buf2/vec2
     q.submit([&](sycl::handler &cgh) {
-      auto acc_sub = subbuf.get_access<sycl::access::mode::read>(cgh);
-      auto acc_buf = buf2.get_access<sycl::access::mode::write>(cgh);
+      auto acc_sub = subbuf.get_access<sycl::access_mode::read>(cgh);
+      auto acc_buf = buf2.get_access<sycl::access_mode::write>(cgh);
       cgh.parallel_for<class foobar_0>(
           subbuf.get_range(), [=](sycl::id<1> i) { acc_buf[i] = acc_sub[i]; });
     });
@@ -106,7 +106,7 @@ void check1DSubBuffer(sycl::queue &q) {
     // (..29 30 31 | 320 330 340 -350 -360 -370 -380 -390 -400 -410 | 42 43 44
     // ...)
     q.submit([&](sycl::handler &cgh) {
-      auto acc_sub = subbuf.get_access<sycl::access::mode::read_write>(
+      auto acc_sub = subbuf.get_access<sycl::access_mode::read_write>(
           cgh, sycl::range<1>(subbuf_size));
       cgh.parallel_for<class foobar_1>(
           sycl::range<1>(subbuf_size),
@@ -248,7 +248,6 @@ void checkExceptions() {
 }
 
 void copyBlock() {
-  using typename sycl::access::mode;
   using buffer = sycl::buffer<int, 1>;
 
   auto CopyF = [](buffer &Buffer, buffer &Block, size_t Idx, size_t BlockSize) {
@@ -312,13 +311,13 @@ void checkMultipleContexts() {
     sycl::buffer<int, 1> subbuf2(buf, sycl::id<1>(N / 2),
                                  sycl::range<1>(N / 2));
     queue1.submit([&](sycl::handler &cgh) {
-      auto bufacc = subbuf1.get_access<sycl::access::mode::read_write>(cgh);
+      auto bufacc = subbuf1.get_access<sycl::access_mode::read_write>(cgh);
       cgh.parallel_for<class sub_buffer_1>(
           sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 1; });
     });
 
     queue2.submit([&](sycl::handler &cgh) {
-      auto bufacc = subbuf2.get_access<sycl::access::mode::read_write>(cgh);
+      auto bufacc = subbuf2.get_access<sycl::access_mode::read_write>(cgh);
       cgh.parallel_for<class sub_buffer_2>(
           sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = 2; });
     });
@@ -331,7 +330,7 @@ void checkMultipleContexts() {
     sycl::buffer<int, 1> subbuf1(buf, sycl::id<1>(N / 2),
                                  sycl::range<1>(N / 2));
     queue1.submit([&](sycl::handler &cgh) {
-      auto bufacc = subbuf1.get_access<sycl::access::mode::read_write>(cgh);
+      auto bufacc = subbuf1.get_access<sycl::access_mode::read_write>(cgh);
       cgh.parallel_for<class sub_buffer_3>(
           sycl::range<1>(N / 2), [=](sycl::id<1> idx) { bufacc[idx[0]] = -1; });
     });

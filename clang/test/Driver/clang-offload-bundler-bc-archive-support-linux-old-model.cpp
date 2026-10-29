@@ -107,7 +107,11 @@
 // RUN: sh -c 'cmp %t_unbundled_A.o `cat %t_listA.txt`'
 // RUN: sh -c 'cmp %t2.bc           `cat %t_listB.txt`'
 
-#include <sycl/sycl.hpp>
+#ifdef __SYCL_DEVICE_ONLY__
+#define SYCL_EXTERNAL __attribute__((sycl_device))
+#else
+#define SYCL_EXTERNAL
+#endif
 
 SYCL_EXTERNAL int foo(int x) {
 

@@ -47,8 +47,9 @@ option(UR_BUILD_ADAPTER_NATIVE_CPU "Build the Native-CPU adapter" OFF)
 option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
 option(UR_BUILD_ADAPTER_L0_V2 "Build the (experimental) Level-Zero v2 adapter" OFF)
 option(UR_BUILD_ADAPTER_OFFLOAD "Build the experimental Offload adapter" OFF)
-option(UR_STATIC_ADAPTER_L0 "Build the Level-Zero adapter as static and embed in the loader" OFF)
+option(UR_STATIC_ADAPTER_L0 "Build the Level-Zero adapter as static and embed in the loader" ON)
 option(UR_STATIC_ADAPTER_OPENCL "Build the OpenCL adapter as static library with dynamic OpenCL loading" ON)
+option(UR_STATIC_ADAPTER_L0_V2 "Build the Level-Zero v2 adapter as static and embed in the loader" ON)
 option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
@@ -97,6 +98,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # There's little reason not to generate the compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# LLVM sets this for in-tree builds; standalone builds need it as well.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 
 include(Assertions)
 
@@ -194,7 +198,7 @@ if(UR_ENABLE_TRACING)
         set(UR_XPTIFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xptifw")
         cmake_path(NORMAL_PATH UR_XPTIFW_SOURCE_DIR
             OUTPUT_VARIABLE UR_XPTIFW_SOURCE_DIR)
-        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+        if(IS_DIRECTORY "${UR_XPTIFW_SOURCE_DIR}")
             FetchContent_Declare(xptifw SOURCE_DIR "${UR_XPTIFW_SOURCE_DIR}")
         else()
             FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
@@ -227,7 +231,10 @@ if(UR_ENABLE_TRACING)
         endif()
     endif()
 
-    if (MSVC)
+    if (DEFINED UR_XPTI_TARGET)
+        # Use previously defined version.
+        set(TARGET_XPTI ${UR_XPTI_TARGET})
+    elseif (MSVC)
         set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)

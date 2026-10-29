@@ -80,13 +80,13 @@
 
 /// Ahead of Time compilation for gen, cpu - tool invocation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN -implicit-check-not="libsycl.so"
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU  -implicit-check-not="libsycl.so"
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN -implicit-check-not="libsycl.so"
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code --no-offloadlib -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU -implicit-check-not="libsycl.so"
 // CHK-TOOLS-GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHK-TOOLS-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // CHK-TOOLS-AOT: "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
@@ -104,7 +104,7 @@
 // CHK-TOOLS-GEN: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_gen{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
 // CHK-TOOLS-CPU: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=[[HOST_TARGET:.+]]" "-target=spir64_x86_64{{.*}}" "-kind=sycl" "-batch" "[[OUTPUT4]]"
 // CHK-TOOLS-AOT: clang{{.*}} "--target=[[HOST_TARGET]]" "-c" "-o" "[[OUTPUT6:.+\.o]]" "[[OUTPUT5]]"
-// CHK-TOOLS-AOT: ld{{.*}} "[[OUTPUT7]]" "[[OUTPUT6]]" {{.*}} "-lsycl"
+// CHK-TOOLS-AOT: ld{{.*}} "[[OUTPUT7]]" "[[OUTPUT6]]"
 
 // Check to be sure that for windows, the 'exe' tools are called
 // RUN: %clang_cl -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -### -- %s 2>&1 \

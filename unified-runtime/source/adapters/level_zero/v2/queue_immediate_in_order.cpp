@@ -13,26 +13,28 @@
 #include "memory.hpp"
 #include "ur.hpp"
 
+#include "../common/helpers/kernel_helpers.hpp"
+#include "../common/image_common.hpp"
 #include "../common/latency_tracker.hpp"
-#include "../helpers/kernel_helpers.hpp"
-#include "../image_common.hpp"
 
 #include "../program.hpp"
-#include "../ur_interface_loader.hpp"
+#include "ur_interface_loader.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
-    event_flags_t eventFlags, ur_queue_flags_t flags)
+    std::optional<int32_t> priorityLevel, event_flags_t eventFlags,
+    ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
       commandListManager(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
-              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)),
+              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
+              priorityLevel)),
       flags(flags),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)) {}
@@ -173,4 +175,4 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
 
   return cmdListMan->appendEventsWait(waitListView, event);
 }
-} // namespace v2
+} // namespace ur::level_zero::v2

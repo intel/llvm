@@ -18,7 +18,7 @@
 
 #include "common.hpp"
 
-namespace v2 {
+namespace ur::level_zero::v2 {
 namespace raii {
 using command_list_unique_handle =
     std::unique_ptr<::_ze_command_list_handle_t,
@@ -26,15 +26,12 @@ using command_list_unique_handle =
 } // namespace raii
 
 struct supported_extensions_descriptor_t {
-  supported_extensions_descriptor_t(bool ZeCopyOffloadExtensionSupported,
-                                    bool ZeMutableCmdListExtentionSupported,
+  supported_extensions_descriptor_t(bool ZeMutableCmdListExtentionSupported,
                                     bool ZeCopyOffloadQueueFlagSupported,
                                     bool ZeCopyOffloadListFlagSupported)
-      : ZeCopyOffloadExtensionSupported(ZeCopyOffloadExtensionSupported),
-        ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported),
+      : ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported),
         ZeCopyOffloadQueueFlagSupported(ZeCopyOffloadQueueFlagSupported),
         ZeCopyOffloadListFlagSupported(ZeCopyOffloadListFlagSupported) {}
-  bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
   bool ZeCopyOffloadQueueFlagSupported;
   bool ZeCopyOffloadListFlagSupported;
@@ -62,6 +59,7 @@ struct immediate_command_list_descriptor_t {
   ze_command_queue_mode_t Mode;
   ze_command_queue_priority_t Priority;
   std::optional<uint32_t> Index;
+  std::optional<int32_t> PriorityLevel;
   bool operator==(const immediate_command_list_descriptor_t &rhs) const;
 };
 
@@ -90,7 +88,8 @@ struct command_list_cache_t {
   getImmediateCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc,
                           ze_command_queue_mode_t Mode,
                           ze_command_queue_priority_t Priority,
-                          std::optional<uint32_t> Index = std::nullopt);
+                          std::optional<uint32_t> Index = std::nullopt,
+                          std::optional<int32_t> PriorityLevel = std::nullopt);
   raii::command_list_unique_handle
   getRegularCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc);
 
@@ -100,7 +99,6 @@ struct command_list_cache_t {
 
 private:
   ze_context_handle_t ZeContext;
-  bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
   bool ZeCopyOffloadQueueFlagSupported;
   bool ZeCopyOffloadListFlagSupported;
@@ -117,4 +115,4 @@ private:
   raii::ze_command_list_handle_t
   createCommandList(const command_list_descriptor_t &desc);
 };
-} // namespace v2
+} // namespace ur::level_zero::v2

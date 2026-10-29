@@ -22,6 +22,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/ur_utils.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
@@ -209,6 +210,10 @@ static std::string commandToName(Command::CommandType Type) {
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
                                                     queue_impl *CommandQueue,
                                                     bool IsHostTaskCommand) {
+  const bool CanRemoveRedundantEvent =
+      CommandQueue && CommandQueue->isInOrder() && !IsHostTaskCommand &&
+      !CommandQueue->getContextImpl().isNativeRecordingActive();
+
   std::vector<ur_event_handle_t> RetUrEvents;
   for (event_impl &Event : Events) {
     auto Handle = Event.getHandle();
@@ -219,8 +224,12 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+    // When native recording is in-progress, then we must skip this optimization
+    // to let the driver runtime handle event dependencies crossing the graph
+    // capture boundary.
+    if (CanRemoveRedundantEvent &&
+        Event.getWorkerQueue().get() == CommandQueue &&
+        !Event.isPotentiallyNativeRecorded())
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -231,12 +240,6 @@ std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
 
 std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
   return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
-}
-
-bool Command::isHostTask() const {
-  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
-         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
-          CGType::CodeplayHostTask);
 }
 
 namespace {
@@ -341,7 +344,6 @@ public:
     }
 
     try {
-      auto &Queue = HostTask.MQueue;
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
@@ -349,6 +351,7 @@ public:
         interop_handle IH{MReqToMem, HostTask.MQueue};
         // TODO: should all the backends that support this entry point use this
         // for host task?
+        auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
         Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
@@ -373,48 +376,7 @@ public:
                                    IH);
         }
       } else {
-        if (HostTask.MHostTask->isCreatedFromEnqueueFunction()) {
-          bool NativeHostTaskSupport = false;
-          Queue->getAdapter().call<UrApiKind::urDeviceGetInfo>(
-              detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-              UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP,
-              sizeof(NativeHostTaskSupport), &NativeHostTaskSupport, nullptr);
-          if (NativeHostTaskSupport) {
-            auto NativeHostTaskData =
-                std::make_unique<detail::EnqueueHostTaskData>(
-                    HostTask.MHostTask->MHostTask);
-            ur_event_handle_t HostTaskEvent{};
-            Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
-                Queue->getHandleRef(), detail::NativeHostTask<true>,
-                NativeHostTaskData.get(), nullptr, 0, nullptr, &HostTaskEvent);
-            // Ownership is transferred to NativeHostTask callback on success.
-            (void)NativeHostTaskData.release();
-
-            // Wait for the host task to complete asynchronously. Since
-            // urEnqueueHostTaskExp executes the callback asynchronously when
-            // UR host task support is available, we must wait for the returned
-            // event before notifying completion. This ensures proper dependency
-            // ordering and allows profiling/async-exception handlers to see the
-            // actual task completion rather than the enqueue time.
-            if (HostTaskEvent) {
-              try {
-                Queue->getAdapter().call<UrApiKind::urEventWait>(
-                    1, &HostTaskEvent);
-              } catch (...) {
-                auto CurrentException = std::current_exception();
-                Queue->getAdapter().call<UrApiKind::urEventRelease>(
-                    HostTaskEvent);
-                throw;
-              }
-              Queue->getAdapter().call<UrApiKind::urEventRelease>(
-                  HostTaskEvent);
-            }
-          } else {
-            HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
-          }
-        } else {
-          HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
-        }
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
       }
     } catch (...) {
       auto CurrentException = std::current_exception();
@@ -532,10 +494,39 @@ Command::Command(
   if (Queue)
     MEvent->setSubmittedQueue(Queue);
   MEvent->setCommand(this);
-  if (MQueue)
-    MEvent->setContextImpl(MQueue->getContextImpl());
+  if (MQueue) {
+    context_impl &Context = MQueue->getContextImpl();
+    MEvent->setContextImpl(Context);
+    MEvent->setPotentiallyNativeRecorded(Context.isNativeRecordingActive());
+  }
   MEvent->setStateIncomplete();
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled())
+    return;
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = getActiveXPTIStreamID();
+#endif
+}
+
+Command::Command(
+    CommandType Type, queue_impl *Queue, EventImplPtr Event,
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
+    : MQueue(Queue ? Queue->shared_from_this() : nullptr),
+      MEvent(std::move(Event)),
+      MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MCommandBuffer(CommandBuffer), MSyncPointDeps(SyncPoints) {
+  MWorkerQueue = MQueue;
+  MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+  MEvent->setCommand(this);
+  if (MQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MQueue->getContextImpl().isNativeRecordingActive());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
@@ -843,7 +834,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+bool Command::enqueue(EnqueueResultT &EnqueueResult,
                       std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
@@ -859,29 +850,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
-  // If the command is blocked from enqueueing
+  // A blocked command is never waited on here: the caller holds the graph read
+  // lock. GraphProcessor::enqueueCommand defers blocking callers until the
+  // command is unblocked.
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
-    // Exit if enqueue type is not blocking
-    if (!Blocking) {
-      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
-      return false;
-    }
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Scoped trace event notifier that emits a barrier begin and barrier end
-    // event, which models the barrier while enqueuing along with the blocked
-    // reason, as determined by the scheduler
-    std::string Info = "enqueue.barrier[";
-    Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-#endif
-
-    // Wait if blocking
-    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-      ;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-#endif
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
+    return false;
   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
@@ -904,12 +878,27 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
-  ur_result_t Res = enqueueImp();
 
-  if (UR_RESULT_SUCCESS != Res)
+  // Wake any thread parked in event_impl::waitInternal's deferred cv.wait.
+  // Otherwise if enqueueImp fails the deferred waiter could sleep forever.
+  auto WakeWaitersOnFailure = [this] {
+    if (!MEvent->isDiscarded() &&
+        (MEvent->isHost() || MEvent->getHandle() == nullptr))
+      MEvent->setComplete();
+  };
+  ur_result_t Res;
+  try {
+    Res = enqueueImp();
+  } catch (...) {
+    WakeWaitersOnFailure();
+    throw;
+  }
+
+  if (UR_RESULT_SUCCESS != Res) {
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
-  else {
+    WakeWaitersOnFailure();
+  } else {
     MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
@@ -1512,6 +1501,11 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1689,6 +1683,11 @@ MemCpyCommandHost::MemCpyCommandHost(const Requirement &SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
+  // When MQueue is non-null the base Command constructor already set this from
+  // MQueue's context.
+  if (!MQueue && MWorkerQueue)
+    MEvent->setPotentiallyNativeRecorded(
+        MWorkerQueue->getContextImpl().isNativeRecordingActive());
 
   emitInstrumentationDataProxy();
 }
@@ -1734,11 +1733,14 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
   ur_event_handle_t UREvent = nullptr;
-  // Omit copying if mode is discard one.
+  // Omit copying if mode is discard one and the accessor covers the full
+  // memory object; a ranged discard accessor must still preserve elements
+  // outside its range (SYCL 2020 §4.7.6.4).
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
-      MDstReq.MAccessMode == access::mode::discard_write) {
+  if ((MDstReq.MAccessMode == access::mode::discard_read_write ||
+       MDstReq.MAccessMode == access::mode::discard_write) &&
+      MDstReq.isFullMemoryAccess()) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
     return UR_RESULT_SUCCESS;
@@ -1939,6 +1941,8 @@ static std::string_view cgTypeToString(detail::CGType Type) {
     return "semaphore wait";
   case detail::CGType::SemaphoreSignal:
     return "semaphore signal";
+  case detail::CGType::NativeHostTask:
+    return "native host task";
   default:
     return "unknown";
     break;
@@ -1949,23 +1953,48 @@ ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
-    : Command(CommandType::RUN_CG, Queue, CommandBuffer, Dependencies),
+    : Command(CommandType::RUN_CG, Queue, makeEvent(*CommandGroup, Queue),
+              CommandBuffer, Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
-    queue_impl *SubmitQueue =
-        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue.get();
+  emitInstrumentationDataProxy();
+}
+
+EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
+  EventImplPtr ResEvent;
+
+  if (CG.getType() == CGType::NativeHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_device_event(*HT.MQueue);
+    ResEvent->setWorkerQueue(HT.MQueue);
+    ResEvent->setSubmittedQueue(HT.MQueue.get());
+    ResEvent->setContextImpl(HT.MQueue->getContextImpl());
+  } else if (CG.getType() == CGType::CodeplayHostTask) {
+    const auto &HT = static_cast<const CGHostTask &>(CG);
+    ResEvent = event_impl::create_incomplete_host_event();
+    queue_impl *SubmitQueue = HT.MQueue.get();
     assert(SubmitQueue &&
            "Host task command group must have a valid submit queue");
-
-    MEvent->setSubmittedQueue(SubmitQueue);
+    ResEvent->setSubmittedQueue(SubmitQueue);
     // Initialize host profiling info if the queue has profiling enabled.
     if (SubmitQueue->MIsProfilingEnabled)
-      MEvent->initHostProfilingInfo();
-  }
-  if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
-    MEvent->markAsProfilingTagEvent();
+      ResEvent->initHostProfilingInfo();
+  } else {
+    ResEvent = Queue ? event_impl::create_device_event(*Queue)
+                     : event_impl::create_incomplete_host_event();
+    if (Queue) {
+      ResEvent->setWorkerQueue(Queue->shared_from_this());
+      ResEvent->setSubmittedQueue(Queue);
+      ResEvent->setContextImpl(Queue->getContextImpl());
 
-  emitInstrumentationDataProxy();
+      if (CG.getType() == CGType::ProfilingTag) {
+        ResEvent->markAsProfilingTagEvent();
+      }
+    }
+  }
+
+  ResEvent->setStateIncomplete();
+
+  return ResEvent;
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -2264,8 +2293,14 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
-  // check the prerequisites:
-  assert(NDR.LocalSize[0] == 0);
+  if (NDR.LocalSize[0] != 0)
+    return; // User set LocalSize but GlobalSize is zero (e.g. nd_range with
+            // zero global, non-zero local). Per SYCL 2020 the kernel is not
+            // executed; leave the range as-is.
+  // Zero global and zero local: either parallel_for_work_group (NumWorkGroups
+  // is set) or plain parallel_for with an empty range. Fill in WGSize so that
+  // downstream layers (in particular DeviceASAN's preLaunchKernel) always see
+  // a non-zero local work size even when the launch is a no-op.
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
@@ -2528,8 +2563,16 @@ static ur_result_t SetKernelParamsAndLaunch(
   if (IsCooperative) {
     property_list.flags |= UR_KERNEL_LAUNCH_FLAG_COOPERATIVE;
   }
-  // If there is no implicit arg, let the driver handle it via a property
-  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value()) {
+  // If there is no implicit arg, let the driver handle it via a property.
+  // Only do so when the kernel actually consumes dynamic work group (scratch)
+  // memory. A launch may request a work_group_scratch_size for a kernel that
+  // never calls get_work_group_scratch_memory() (e.g. a scratch size attached
+  // to a shared launch_config reused across kernels); such a kernel has no
+  // implicit local arg and no way to use the memory, so requesting it is a
+  // no-op. Sending the launch property in that case would be rejected by
+  // backends (e.g. Level Zero) that do not support the driver-property path.
+  if (WorkGroupMemorySize && !ImplicitLocalArg.has_value() &&
+      DeviceKernelInfo.getWorkGroupDynamicLocalMem()) {
     workgroup_property.stype =
         UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY;
     workgroup_property.pNext = nullptr;
@@ -2762,10 +2805,15 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
-  // If there is no implicit arg, let the driver handle it via a property
-  // which is not yet supported!
+  // If there is no implicit arg, the driver-property path would be needed,
+  // which is not yet supported here. Only diagnose when the kernel actually
+  // consumes dynamic work group (scratch) memory; a launch that merely
+  // requests a scratch size for a kernel that never uses it (e.g. a scratch
+  // size attached to a shared launch_config reused across kernels) is a no-op
+  // and must not be rejected.
   if (CommandGroup.MKernelWorkGroupMemorySize &&
-      !ImplicitLocalArg.has_value()) {
+      !ImplicitLocalArg.has_value() &&
+      CommandGroup.MDeviceKernelInfo.getWorkGroupDynamicLocalMem()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "Setting work group scratch memory size is not yet supported "
@@ -2821,8 +2869,7 @@ void enqueueImpKernel(
   FastKernelCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
-    assert(MSyclKernel->get_info<info::kernel::context>() ==
-           Queue.get_context());
+    assert(&MSyclKernel->getContextImpl() == &ContextImpl);
     Kernel = MSyclKernel->getHandleRef();
     Program = MSyclKernel->getProgramRef();
 
@@ -2878,12 +2925,20 @@ void enqueueImpKernel(
       NDRDesc, static_cast<uint64_t>(std::numeric_limits<int>::max()));
   if (isRangeGreaterThanIntMax) {
     uint32_t IdQueryRangeProp = 0;
-
     // Get device image of kernel and retrieve the id queries range property.
-    if (MSyclKernel != nullptr && !MSyclKernel->isInteropOrSourceBased()) {
-      DeviceImageImpl = &MSyclKernel->getDeviceImage();
-      IdQueryRangeProp =
-          DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+    if (MSyclKernel != nullptr) {
+      // Interop kernels and kernels built from a non-SYCL source language
+      // (OpenCL C, SPIR-V) carry no SYCL metadata, so there is no id queries
+      // range property to read; their id queries are size_t by definition.
+      // Kernels built from SYCL source do have a device image with the
+      // property, so they must still be checked.
+      if (!MSyclKernel->hasSYCLMetadata()) {
+        IdQueryRangeProp = 2; // size_t range
+      } else {
+        DeviceImageImpl = &MSyclKernel->getDeviceImage();
+        IdQueryRangeProp =
+            DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
+      }
     } else if (DeviceImageImpl != nullptr) {
       IdQueryRangeProp =
           DeviceImageImpl->get_bin_image_ref()->getIdQueriesRangeProperties();
@@ -3494,6 +3549,37 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     return UR_RESULT_SUCCESS;
   }
+  case CGType::NativeHostTask: {
+    CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
+
+    for (ArgDesc &Arg : HostTask->MArgs) {
+      switch (Arg.MType) {
+      case kernel_param_kind_t::kind_accessor: {
+        Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
+        break;
+      }
+      default:
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Unsupported arg type " +
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
+      }
+    }
+
+    auto &Queue = HostTask->MQueue;
+    auto NativeHostTaskData = std::make_unique<detail::EnqueueHostTaskData>(
+        HostTask->MHostTask->MHostTask);
+    Queue->getAdapter().call<UrApiKind::urEnqueueHostTaskExp>(
+        Queue->getHandleRef(), detail::NativeHostTask<true>,
+        NativeHostTaskData.get(), nullptr, RawEvents.size(), RawEvents.data(),
+        Event);
+    (void)NativeHostTaskData.release();
+    SetEventHandleOrDiscard();
+    return UR_RESULT_SUCCESS;
+  }
   case CGType::EnqueueNativeCommand: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
@@ -3611,13 +3697,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
+
     std::vector<ur_event_handle_t> UrEvents =
-        getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
+        HasEventMode
+            ? Command::getUrEvents(MPreparedDepsEvents,
+                                   /*CommandQueue=*/nullptr, isHostTask())
+            : RawEvents;
+
     if (UrEvents.empty()) {
-      // If Events is empty, then the barrier has no effect.
+      // Nothing to synchronize with: no dependency contributed a native event,
+      // so the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3631,16 +3722,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     adapter_impl &Adapter = MQueue->getAdapter();
-    // User can specify explicit dependencies via depends_on call that we should
-    // honor here. It is very important for cross queue dependencies. Adding
-    // them to the barrier wait list since barrier w/ wait list waits only for
-    // the events provided in wait list and we can just extend the list.
-    UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
-
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),
-                &UrEvents[0], Event);
+                UrEvents.data(), Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3651,17 +3736,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Profiling tag requires a valid queue");
     adapter_impl &Adapter = MQueue->getAdapter();
 
-    bool IsInOrderQueue = MQueue->isInOrder();
-    ur_event_handle_t *TimestampDeps = nullptr;
-    size_t NumTimestampDeps = 0;
-
-    // TO DO - once the following WA removed: to change call to call_nocheck and
-    // return operation result to Command::enqueue (see other CG types). Set
-    // UREvent to EventImpl only for successful case.
+    const bool IsInOrderQueue = MQueue->isInOrder();
 
     // If the queue is not in-order, the implementation will need to first
     // insert a marker event that the timestamp waits for.
     ur_event_handle_t PreTimestampMarkerEvent{};
+    std::optional<OwnedUrEvent> OwnedPreTimestampMarkerEvent;
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
     if (!IsInOrderQueue) {
       // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
       //        Use that instead once it has been fixed.
@@ -3670,29 +3752,57 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      OwnedPreTimestampMarkerEvent.emplace(PreTimestampMarkerEvent, Adapter,
+                                           /*TakeOwnership=*/true);
       TimestampDeps = &PreTimestampMarkerEvent;
       NumTimestampDeps = 1;
     }
 
-    Adapter.call<UrApiKind::urEnqueueTimestampRecordingExp>(
-        MQueue->getHandleRef(),
-        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+    // Try to record a device timestamp natively. Not every backend can do so:
+    // the OpenCL backend can only record a reliable timestamp on a
+    // profiling-enabled queue (see intel/llvm#22229). When the recording is
+    // unsupported we fall back to a plain barrier, whose event still carries
+    // (best-effort) profiling information and provides the same ordering.
+    ur_result_t TimestampResult =
+        Adapter.call_nocheck<UrApiKind::urEnqueueTimestampRecordingExp>(
+            MQueue->getHandleRef(),
+            /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
 
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!IsInOrderQueue) {
-      // We also need to release the timestamp event from the marker.
-      Adapter.call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PostTimestampBarrierEvent{};
-      Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
-          MQueue->getHandleRef(),
-          /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
-      Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    if (TimestampResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      if (!IsInOrderQueue) {
+        // The pre-timestamp barrier already provides the required ordering and
+        // profiling information, so reuse its event instead of submitting a
+        // second barrier.
+        if (Event)
+          *Event = OwnedPreTimestampMarkerEvent->TransferOwnership();
+      } else {
+        // An in-order queue has no pre-timestamp barrier to reuse.
+        if (auto Result =
+                Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+                    MQueue->getHandleRef(),
+                    /*num_events_in_wait_list=*/0,
+                    /*event_wait_list=*/nullptr, Event);
+            Result != UR_RESULT_SUCCESS)
+          return Result;
+      }
+    } else {
+      if (TimestampResult != UR_RESULT_SUCCESS)
+        return TimestampResult;
+
+      // If the queue is not in-order, we need to insert a barrier. This barrier
+      // does not need output events as it will implicitly enforce the following
+      // enqueue is blocked until it finishes.
+      if (!IsInOrderQueue) {
+        // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we
+        //        do not pass an output event to the UR call. Once that is
+        //        fixed, this immediately-deleted event can be removed.
+        ur_event_handle_t PostTimestampBarrierEvent{};
+        Adapter.call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+            MQueue->getHandleRef(),
+            /*num_events_in_wait_list=*/0,
+            /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+        Adapter.call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+      }
     }
 
     SetEventHandleOrDiscard();

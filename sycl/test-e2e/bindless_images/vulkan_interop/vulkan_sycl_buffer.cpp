@@ -3,17 +3,12 @@
 
 // clang-format off
 
-// On Linux L0, there are problem with semaphores and latest drivers.
-// GSD-12371 GSD-12339
-
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out
-// RUN-IF: (windows && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores
+// RUN-IF: ext_oneapi_external_semaphore_import, %{run} %t.out --semaphores
 
-// DMABUF  technically is linux only, but running on Windows won't hurt us...
-// except for semaphores which are having trouble on Linux. (see above)
 // RUN-IF: level_zero, %{run} %t.out --dmabuf
-// XXX-IF: (level_zero && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores --dmabuf
+// RUN-IF: (level_zero && ext_oneapi_external_semaphore_import), %{run} %t.out --semaphores --dmabuf
 
 
 /*
@@ -51,7 +46,7 @@
 // clang-format on
 #include <iostream>
 
-#include "vulkan_setup.hpp"
+#include "sycl_vulkan_setup.hpp"
 #include <numeric>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
@@ -239,7 +234,7 @@ int main(int argc, char **argv) {
             << " | Type: " << (useDmaBuf ? "DMA_BUF" : "OPAQUE") << std::endl;
 
   // VULKAN SETUP
-  VulkanContext vkCtx = createVulkanContext();
+  VulkanContext vkCtx = createSyclVulkanContext();
   VkDeviceSize bufferSize = numElements * sizeof(uint32_t);
 
   // Create Input and Output Buffers
@@ -276,9 +271,8 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

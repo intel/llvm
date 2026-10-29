@@ -23,13 +23,13 @@ int main() {
 
   // Submit multiple operations
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::write>(cgh);
     cgh.parallel_for<class InOrderOp1>(sycl::range<1>(N),
                                        [=](sycl::id<1> idx) { acc[idx] = 1; });
   });
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
     cgh.parallel_for<class InOrderOp2>(
         sycl::range<1>(N), [=](sycl::id<1> idx) { acc[idx] = acc[idx] + 2; });
   });

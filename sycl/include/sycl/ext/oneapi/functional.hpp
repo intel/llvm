@@ -80,7 +80,7 @@ struct GroupOpTag<T, std::enable_if_t<detail::is_genbool_v<T>>> {
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <__spv::GroupOperation O, typename Group, typename T>               \
-  static T calc(Group g, GroupTag, T x, BinaryOperation) {                     \
+  T calc(Group g, GroupTag, T x, BinaryOperation) {                            \
     return sycl::detail::spirv::Group##SPIRVOperation<O>(g, x);                \
   }
 
@@ -123,8 +123,7 @@ __SYCL_CALC_OVERLOAD(GroupOpFP, LogicalOr, sycl::logical_or<T>)
 
 template <__spv::GroupOperation O, typename Group, typename T,
           template <typename> class BinaryOperation>
-static T calc(Group g, typename GroupOpTag<T>::type, T x,
-              BinaryOperation<void>) {
+T calc(Group g, typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
   return calc<O>(g, typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
 }
 

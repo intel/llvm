@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "../physical_mem.hpp"
+#include "../common/physical_mem.hpp"
 
 // Opaque handle data exchanged between processes for physical memory IPC.
 // Contains the PID and file descriptor exported by zePhysicalMemGetProperties,

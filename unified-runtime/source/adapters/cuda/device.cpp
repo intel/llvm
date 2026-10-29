@@ -584,8 +584,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    // The mandated minimum capability:
-    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    ur_queue_flags_t Capability =
+        UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+        UR_QUEUE_FLAG_PROFILING_ENABLE | UR_QUEUE_FLAG_DISCARD_EVENTS |
+        UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW |
+        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE |
+        UR_QUEUE_FLAG_USE_DEFAULT_STREAM |
+        UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -836,6 +841,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
+  }
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    return ReturnValue(
+        static_cast<ur_bool_t>(getStreamPriorityRange().has_value()));
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    auto Range = getStreamPriorityRange();
+    if (!Range)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP
+                           ? Range->second
+                           : Range->first);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     // On CUDA bindless images are supported.
@@ -1103,6 +1120,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_IP_VERSION:
+  case UR_DEVICE_INFO_IGCA_TARGET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
+  case UR_DEVICE_INFO_FP16_ATOMIC:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     unsigned long long ClocksEventReasons;
@@ -1226,13 +1246,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_LUID: {
-    // LUID is only available on Windows.
-    // Intel extension for device LUID. This returns the LUID as
-    // std::array<std::byte, 8>. For details about this extension,
+  case UR_DEVICE_INFO_LUID:
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // LUID and Device node mask are only available on Windows.
+    // Intel extension for device LUID and node mask. This returns the LUID as
+    // std::array<std::byte, 8> the node mask as uint32_t.
+    // For details about this extension,
     // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
     std::array<char, 8> LUID{};
-    cuDeviceGetLuid(LUID.data(), nullptr, hDevice->get());
+    uint32_t nodeMask = 0;
+    auto LuidResult = cuDeviceGetLuid(LUID.data(), &nodeMask, hDevice->get());
+    if (LuidResult == CUDA_ERROR_NOT_SUPPORTED) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    UR_CHECK_ERROR(LuidResult);
 
     bool isAllZeros = true;
     for (char num : LUID) {
@@ -1241,29 +1269,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       }
     }
 
-    if (isAllZeros) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (nodeMask == 0 || isAllZeros) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
 
-    std::array<unsigned char, 8> Name{};
-    std::copy(LUID.begin(), LUID.end(), Name.begin());
-    return ReturnValue(Name.data(), 8);
-  }
-  case UR_DEVICE_INFO_NODE_MASK: {
-    // Device node mask is only available on Windows.
-    // Intel extension for device node mask. This returns the node mask as
-    // uint32_t. For details about this extension,
-    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
-    uint32_t nodeMask = 0;
-    cuDeviceGetLuid(nullptr, &nodeMask, hDevice->get());
-
-    // If nodeMask has not changed, return unsupported.
-    if (nodeMask == 0) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (propName == UR_DEVICE_INFO_LUID) {
+      std::array<unsigned char, 8> Name{};
+      std::copy(LUID.begin(), LUID.end(), Name.begin());
+      return ReturnValue(Name.data(), 8);
+    } else {
+      return ReturnValue(nodeMask);
     }
-
-    return ReturnValue(nodeMask);
   }
+
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:

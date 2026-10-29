@@ -40,7 +40,7 @@ int main() {
   // Check user defined sycl::item wrapper
   sycl::buffer<int> data_buf(data, sz);
   q.submit([&](sycl::handler &h) {
-    auto buf_acc = data_buf.get_access<sycl::access::mode::read_write>(h);
+    auto buf_acc = data_buf.get_access<sycl::access_mode::read_write>(h);
     h.parallel_for(sycl::range<1>{sz},
                    [=](item_wrapper<1> item) { buf_acc[item.get()] += 1; });
   });
@@ -60,7 +60,7 @@ int main() {
 
   // Check user defined sycl::nd_item wrapper
   q.submit([&](sycl::handler &h) {
-    auto buf_acc = data_buf.get_access<sycl::access::mode::read_write>(h);
+    auto buf_acc = data_buf.get_access<sycl::access_mode::read_write>(h);
     h.parallel_for(sycl::nd_range<1>{sz, 2},
                    [=](nd_item_wrapper<1> item) { buf_acc[item.get()] += 1; });
   });

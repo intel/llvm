@@ -22,7 +22,7 @@
 namespace llvm {
 
 class SYCLConditionalCallOnDevicePass
-    : public PassInfoMixin<SYCLConditionalCallOnDevicePass> {
+    : public OptionalPassInfoMixin<SYCLConditionalCallOnDevicePass> {
 public:
   SYCLConditionalCallOnDevicePass(std::string SYCLUniquePrefix = "")
       : UniquePrefix(SYCLUniquePrefix) {}

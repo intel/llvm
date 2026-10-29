@@ -1,6 +1,6 @@
 // REQUIRES: opencl-aot, ocloc, target-spir
 
-// RUN: %if any-device-is-gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t1.out %}
+// RUN: %if any-device-is-gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=%{gpu_aot_target} %s -o %t1.out %}
 // RUN: %if gpu %{ %{run} %t1.out %}
 
 // RUN: %if any-device-is-cpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t2.out %}
@@ -95,10 +95,10 @@ int main() {
           }
         }
 
-        auto acc0 = b0.template get_access<sycl::access::mode::write>(cgh);
-        auto acc1 = b1.template get_access<sycl::access::mode::write>(cgh);
-        auto acc2 = b2.template get_access<sycl::access::mode::write>(cgh);
-        auto accc = bc.template get_access<sycl::access::mode::write>(cgh);
+        auto acc0 = b0.template get_access<sycl::access_mode::write>(cgh);
+        auto acc1 = b1.template get_access<sycl::access_mode::write>(cgh);
+        auto acc2 = b2.template get_access<sycl::access_mode::write>(cgh);
+        auto accc = bc.template get_access<sycl::access_mode::write>(cgh);
 
         cgh.single_task<TestAlignment>([=](sycl::kernel_handler kh) {
           acc0[0] = kh.get_specialization_constant<char_spec0>();

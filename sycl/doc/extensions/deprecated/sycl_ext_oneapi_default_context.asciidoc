@@ -16,6 +16,9 @@ we expect that the interfaces defined in this specification will be removed in
 an upcoming {dpcpp} release.  *Shipping software products should stop using
 APIs defined in this specification and use an alternative instead.*
 
+// __INTEL_PREVIEW_BREAKING_CHANGES: Move this specification to the "removed"
+// folder when the feature is removed at the next breaking changes window.
+
 == Overview
 
 This extension adds the notion of a default SYCL context per SYCL platform. The default context for each platform contains all devices in the platform.
@@ -41,4 +44,3 @@ This extension also modifies the behavior of `queue` constructors. Queues will n
 == Feature Test Macro
 
 This extension defines the macro `SYCL_EXT_ONEAPI_DEFAULT_CONTEXT` to `1` to indicate that it is enabled.
-

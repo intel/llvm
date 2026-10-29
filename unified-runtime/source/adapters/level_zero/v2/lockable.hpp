@@ -10,6 +10,8 @@
 #pragma once
 #include <mutex>
 
+namespace ur::level_zero::v2 {
+
 template <typename T> struct locked {
 public:
   locked(T *object, std::unique_lock<ur_mutex> &&lock)
@@ -56,3 +58,5 @@ private:
   T object_;
   ur_mutex mut_;
 };
+
+} // namespace ur::level_zero::v2

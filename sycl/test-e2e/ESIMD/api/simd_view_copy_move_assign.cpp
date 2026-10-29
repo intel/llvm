@@ -38,8 +38,8 @@ bool test(queue q, std::string str, F funcUnderTest) {
     buffer<T, 1> BufB(B, range<1>(Size));
 
     q.submit([&](handler &cgh) {
-       auto PA = BufA.template get_access<access::mode::read_write>(cgh);
-       auto PB = BufB.template get_access<access::mode::read_write>(cgh);
+       auto PA = BufA.template get_access<access_mode::read_write>(cgh);
+       auto PB = BufB.template get_access<access_mode::read_write>(cgh);
        cgh.parallel_for(range<1>{Size / VL}, [=](id<1> i) SYCL_ESIMD_KERNEL {
          using namespace sycl::ext::intel::esimd;
          unsigned int offset = i * VL * sizeof(T);

@@ -96,7 +96,7 @@ int main() {
   {
     sycl::buffer<int, 1> Buf(Arr, 1);
     QueueInterop.submit([&](sycl::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access_mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel>([=]() { Acc[0] *= 3; });
     });
   }

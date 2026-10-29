@@ -44,7 +44,7 @@ template <int N> bool test(sycl::queue &Queue) {
   buffer<uint32_t, 1> InputAcc_buffer(Input.data(), Input.size());
 
   Queue.submit([&](sycl::handler &cgh) {
-    auto InputAcc = InputAcc_buffer.get_access<access::mode::read>(cgh);
+    auto InputAcc = InputAcc_buffer.get_access<access_mode::read>(cgh);
     auto Kernel = ([=]() SYCL_ESIMD_KERNEL {
       simd_mask<N> Mask;
       for (int i = 0; i < N; i++)

@@ -68,6 +68,22 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+OffloadJobsOpt tools::parseOffloadJobs(const ArgList &Args) {
+  Arg *A = Args.getLastArg(options::OPT_offload_jobs_EQ);
+  if (!A)
+    return {};
+
+  StringRef Val = A->getValue();
+  if (Val.equals_insensitive("jobserver"))
+    return {OffloadJobsOpt::Kind::Jobserver, A, Val};
+
+  int NumThreads;
+  if (Val.getAsInteger(10, NumThreads) || NumThreads <= 0)
+    return {OffloadJobsOpt::Kind::Invalid, A, Val};
+
+  return {OffloadJobsOpt::Kind::Fixed, A, Val, unsigned(NumThreads)};
+}
+
 static bool useFramePointerForTargetByDefault(const llvm::opt::ArgList &Args,
                                               const llvm::Triple &Triple) {
   if (Args.hasArg(options::OPT_pg) && !Args.hasArg(options::OPT_mfentry))
@@ -95,7 +111,7 @@ static bool useFramePointerForTargetByDefault(const llvm::opt::ArgList &Args,
   case llvm::Triple::sparc:
   case llvm::Triple::sparcel:
   case llvm::Triple::sparcv9:
-  case llvm::Triple::amdgcn:
+  case llvm::Triple::amdgpu:
   case llvm::Triple::r600:
   case llvm::Triple::csky:
   case llvm::Triple::loongarch32:
@@ -360,16 +376,14 @@ static void renderRemarksHotnessOptions(const ArgList &Args,
 }
 
 static bool shouldIgnoreUnsupportedTargetFeature(const Arg &TargetFeatureArg,
-                                                 llvm::Triple T,
-                                                 StringRef Processor) {
+                                                 const llvm::Triple &T) {
   // Warn no-cumode for AMDGCN processors not supporing WGP mode.
-  if (!T.isAMDGPU())
+  if (!T.isAMDGCN())
     return false;
-  auto GPUKind = T.isAMDGCN() ? llvm::AMDGPU::parseArchAMDGCN(Processor)
-                              : llvm::AMDGPU::parseArchR600(Processor);
-  auto GPUFeatures = T.isAMDGCN() ? llvm::AMDGPU::getArchAttrAMDGCN(GPUKind)
-                                  : llvm::AMDGPU::getArchAttrR600(GPUKind);
-  if (GPUFeatures & llvm::AMDGPU::FEATURE_WGP)
+
+  llvm::AMDGPU::GPUKind GK =
+      llvm::AMDGPU::getGPUKindFromSubArch(T.getSubArch());
+  if (llvm::AMDGPU::getFeatureBitset(GK).test(llvm::AMDGPU::FEAT_SUPPORTS_WGP))
     return false;
   return TargetFeatureArg.getOption().matches(options::OPT_mno_cumode);
 }
@@ -394,12 +408,11 @@ void tools::handleTargetFeaturesGroup(const Driver &D,
     assert(Name.starts_with("m") && "Invalid feature name.");
     Name = Name.substr(1);
 
-    auto Proc = getCPUName(D, Args, Triple);
-    if (shouldIgnoreUnsupportedTargetFeature(*A, Triple, Proc)) {
+    if (shouldIgnoreUnsupportedTargetFeature(*A, Triple)) {
       if (Warned.count(Name) == 0) {
         D.getDiags().Report(
             clang::diag::warn_drv_unsupported_option_for_processor)
-            << A->getAsString(Args) << Proc;
+            << A->getAsString(Args) << Triple.getArchName();
         Warned.insert(Name);
       }
       continue;
@@ -570,9 +583,10 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
         CmdArgs.push_back(Args.MakeArgString("-lm"));
       if (Triple.isOSLinux())
         CmdArgs.push_back(Args.MakeArgString("--pop-state"));
-      addArchSpecificRPath(TC, Args, CmdArgs);
     }
   }
+
+  addArchSpecificRPath(TC, Args, CmdArgs);
 }
 
 const char *tools::getLDMOption(const llvm::Triple &T, const ArgList &Args) {
@@ -676,6 +690,38 @@ void tools::addLinkerCompressDebugSectionsOption(
   }
 }
 
+void tools::renderDebugInfoCompressionArgs(const ArgList &Args,
+                                           ArgStringList &CmdArgs,
+                                           const Driver &D,
+                                           const ToolChain &TC) {
+  const Arg *A = Args.getLastArg(options::OPT_gz_EQ);
+  if (!A)
+    return;
+  if (checkDebugInfoOption(A, Args, D, TC)) {
+    StringRef Value = A->getValue();
+    if (Value == "none") {
+      CmdArgs.push_back("--compress-debug-sections=none");
+    } else if (Value == "zlib") {
+      if (llvm::compression::zlib::isAvailable()) {
+        CmdArgs.push_back(
+            Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
+      } else {
+        D.Diag(diag::warn_debug_compression_unavailable) << "zlib";
+      }
+    } else if (Value == "zstd") {
+      if (llvm::compression::zstd::isAvailable()) {
+        CmdArgs.push_back(
+            Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
+      } else {
+        D.Diag(diag::warn_debug_compression_unavailable) << "zstd";
+      }
+    } else {
+      D.Diag(diag::err_drv_unsupported_option_argument)
+          << A->getSpelling() << Value;
+    }
+  }
+}
+
 void tools::AddTargetFeature(const ArgList &Args,
                              std::vector<StringRef> &Features,
                              OptSpecifier OnOpt, OptSpecifier OffOpt,
@@ -689,19 +735,21 @@ void tools::AddTargetFeature(const ArgList &Args,
 }
 
 /// Get the (LLVM) name of the AMDGPU gpu we are targeting.
-static std::string getAMDGPUTargetGPU(const llvm::Triple &T,
-                                      const ArgList &Args) {
+static StringRef getAMDGPUTargetGPU(const llvm::Triple &T,
+                                    const ArgList &Args) {
+  // When the triple already encodes a specific subarch (e.g.
+  // amdgpu9.0a-amd-amdhsa), the processor is implied by the triple and there is
+  // no need to additionally pass -target-cpu. A major-family subarch (e.g.
+  // amdgpu9) is not specific enough, so fall through to -mcpu in that case.
+  if (T.isAMDGCN()) {
+    llvm::Triple::SubArchType SubArch = T.getSubArch();
+    if (SubArch != llvm::Triple::NoSubArch &&
+        SubArch != llvm::AMDGPU::getMajorSubArch(SubArch))
+      return "";
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
-    auto GPUName = getProcessorFromTargetID(T, A->getValue());
-    return llvm::StringSwitch<std::string>(GPUName)
-        .Cases({"rv630", "rv635"}, "r600")
-        .Cases({"rv610", "rv620", "rs780"}, "rs880")
-        .Case("rv740", "rv770")
-        .Case("palm", "cedar")
-        .Cases({"sumo", "sumo2"}, "sumo")
-        .Case("hemlock", "cypress")
-        .Case("aruba", "cayman")
-        .Default(GPUName.str());
+    return getProcessorFromTargetID(T, A->getValue());
   }
   return "";
 }
@@ -825,9 +873,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::systemz:
     return systemz::getSystemZTargetCPU(Args, T);
 
+  case llvm::Triple::amdgpu:
   case llvm::Triple::r600:
-  case llvm::Triple::amdgcn:
-    return getAMDGPUTargetGPU(T, Args);
+    return getAMDGPUTargetGPU(T, Args).str();
 
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
@@ -907,9 +955,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::sparcv9:
     sparc::getSparcTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::amdgpu:
   case llvm::Triple::r600:
-  case llvm::Triple::amdgcn:
-    amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features);
+    amdgpu::getAMDGPUTargetFeatures(D, Triple, Args, Features, ForAS);
     break;
   case llvm::Triple::nvptx:
   case llvm::Triple::nvptx64:
@@ -1215,17 +1263,6 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                                         options::OPT_gno_strict_dwarf, true))
       CmdArgs.push_back(
           Args.MakeArgString(Twine(PluginOptPrefix) + "-strict-dwarf=true"));
-
-    for (const Arg *A : Args.filtered_reverse(options::OPT_mabi_EQ)) {
-      StringRef V = A->getValue();
-      if (V == "vec-default")
-        break;
-      if (V == "vec-extabi") {
-        CmdArgs.push_back(
-            Args.MakeArgString(Twine(PluginOptPrefix) + "-vec-extabi"));
-        break;
-      }
-    }
   }
 
   bool UseSeparateSections =
@@ -1440,7 +1477,9 @@ void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
                     options::OPT_fno_rtlib_add_rpath, false))
     return;
 
-  if (TC.getTriple().isOSAIX()) // TODO: AIX doesn't support -rpath option.
+  // Using -rpath is a host ELF/Mach-O linker option.
+  const llvm::Triple &Triple = TC.getTriple();
+  if ((!Triple.isOSBinFormatELF() && !Triple.isOSBinFormatMachO()))
     return;
 
   SmallVector<std::string> CandidateRPaths(TC.getArchSpecificLibPaths());
@@ -1462,18 +1501,30 @@ void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
   }
 }
 
+bool tools::addLLVMOffloadingRuntime(const Compilation &C,
+                                     ArgStringList &CmdArgs,
+                                     const ToolChain &TC, const ArgList &Args) {
+
+  if (!Args.hasFlag(options::OPT_foffload_via_llvm,
+                    options::OPT_fno_offload_via_llvm, false))
+    return false;
+
+  if (const Arg *A = Args.getLastArg(options::OPT_fgpu_default_stream_EQ);
+      A && StringRef(A->getValue()) == "per-thread")
+    CmdArgs.push_back(Args.MakeArgString(
+        TC.GetFilePath("LLVMOffloadKernelPerThreadDefaultStream.o")));
+
+  CmdArgs.push_back("-lLLVMOffloadKernel");
+  return true;
+}
+
 bool tools::addOpenMPRuntime(const Compilation &C, ArgStringList &CmdArgs,
                              const ToolChain &TC, const ArgList &Args,
                              bool ForceStaticHostRuntime, bool IsOffloadingHost,
                              bool GompNeedsRT) {
   if (!Args.hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
-                    options::OPT_fno_openmp, false)) {
-    // We need libomptarget (liboffload) if it's the choosen offloading runtime.
-    if (Args.hasFlag(options::OPT_foffload_via_llvm,
-                     options::OPT_fno_offload_via_llvm, false))
-      CmdArgs.push_back("-lomptarget");
+                    options::OPT_fno_openmp, false))
     return false;
-  }
 
   Driver::OpenMPRuntimeKind RTKind = TC.getDriver().getOpenMPRuntime(Args);
 
@@ -1504,8 +1555,6 @@ bool tools::addOpenMPRuntime(const Compilation &C, ArgStringList &CmdArgs,
 
   if (IsOffloadingHost)
     CmdArgs.push_back("-lomptarget");
-
-  addArchSpecificRPath(TC, Args, CmdArgs);
 
   addOpenMPRuntimeLibraryPath(TC, Args, CmdArgs);
 
@@ -1539,11 +1588,8 @@ static void addSanitizerRuntime(const ToolChain &TC, const ArgList &Args,
   if (IsWhole) CmdArgs.push_back("--whole-archive");
   CmdArgs.push_back(TC.getCompilerRTArgString(
       Args, Sanitizer, IsShared ? ToolChain::FT_Shared : ToolChain::FT_Static));
-  if (IsWhole) CmdArgs.push_back("--no-whole-archive");
-
-  if (IsShared) {
-    addArchSpecificRPath(TC, Args, CmdArgs);
-  }
+  if (IsWhole)
+    CmdArgs.push_back("--no-whole-archive");
 }
 
 // Tries to use a file with the list of dynamic symbols that need to be exported
@@ -1620,8 +1666,36 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
     CmdArgs.push_back("-lresolv");
 }
 
+// Host interceptor library for offload UBSan.
+static bool hostNeedsUbsanOffloadRt(Compilation &C, const ToolChain &HostTC) {
+  if (HostTC.getTriple().isGPU())
+    return false;
+
+  static constexpr Action::OffloadKind Kinds[] = {
+      Action::OFK_Cuda, Action::OFK_OpenMP, Action::OFK_HIP, Action::OFK_SYCL};
+  for (Action::OffloadKind Kind : Kinds) {
+    for (const auto &Entry : llvm::make_range(C.getOffloadToolChains(Kind))) {
+      const ToolChain *DevTC = Entry.second;
+      // FIXME: CUDA/HIPSPV copy the host mask and ignore device sanitizers.
+      const llvm::Triple &TT = DevTC->getTriple();
+      if (!TT.isAMDGCN())
+        continue;
+
+      for (BoundArch BA :
+           C.getDriver().getOffloadArchs(C, C.getArgs(), Kind, *DevTC)) {
+        const ArgList &DevArgs = C.getArgsForToolChain(DevTC, BA, Kind);
+        SanitizerArgs DevSan = DevTC->getSanitizerArgs(DevArgs, BA, Kind);
+        if (DevSan.needsUbsanRt() && !DevSan.requiresMinimalRuntime())
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 static void
-collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
+collectSanitizerRuntimes(Compilation &C, const ToolChain &TC,
+                         const ArgList &Args,
                          SmallVectorImpl<StringRef> &SharedRuntimes,
                          SmallVectorImpl<StringRef> &StaticRuntimes,
                          SmallVectorImpl<StringRef> &NonWholeStaticRuntimes,
@@ -1629,6 +1703,8 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
                          SmallVectorImpl<StringRef> &RequiredSymbols) {
   assert(!TC.getTriple().isOSDarwin() && "it's not used by Darwin");
   const SanitizerArgs &SanArgs = TC.getSanitizerArgs(Args);
+  const bool NeedsOffloadRt = hostNeedsUbsanOffloadRt(C, TC);
+  const bool NeedsUbsanRt = SanArgs.needsUbsanRt() || NeedsOffloadRt;
   // Collect shared runtimes.
   if (SanArgs.needsSharedRt()) {
     if (SanArgs.needsAsanRt()) {
@@ -1643,7 +1719,7 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     }
     if (SanArgs.needsNsanRt())
       SharedRuntimes.push_back("nsan");
-    if (SanArgs.needsUbsanRt()) {
+    if (NeedsUbsanRt) {
       if (SanArgs.requiresMinimalRuntime())
         SharedRuntimes.push_back("ubsan_minimal");
       else
@@ -1676,9 +1752,20 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   if (SanArgs.needsAsanRt())
     HelperStaticRuntimes.push_back("asan_static");
 
+  // Offloading images can live in DSOs, the host interceptors must follow. The
+  // shared UBSan runtime already contains them.
+  if (NeedsOffloadRt && !SanArgs.needsSharedRt()) {
+    NonWholeStaticRuntimes.push_back("ubsan_offload");
+    RequiredSymbols.push_back("__ubsan_offload_init");
+  }
+  if (NeedsOffloadRt && !Args.hasArg(options::OPT_shared))
+    HelperStaticRuntimes.push_back("ubsan_offload-preinit");
+
   // Collect static runtimes.
   if (Args.hasArg(options::OPT_shared)) {
     // Don't link static runtimes into DSOs.
+    if (NeedsOffloadRt && !SanArgs.needsSharedRt() && !SanArgs.needsUbsanRt())
+      StaticRuntimes.push_back("ubsan_standalone");
     return;
   }
 
@@ -1716,6 +1803,8 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     StaticRuntimes.push_back("dfsan");
   if (SanArgs.needsLsanRt())
     StaticRuntimes.push_back("lsan");
+  if (SanArgs.needsCopyProfRt())
+    StaticRuntimes.push_back("copyprof");
   if (SanArgs.needsMsanRt()) {
     StaticRuntimes.push_back("msan");
     if (SanArgs.linkCXXRuntimes())
@@ -1730,7 +1819,7 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   }
   if (!SanArgs.needsSharedRt() && SanArgs.needsTysanRt())
     StaticRuntimes.push_back("tysan");
-  if (!SanArgs.needsSharedRt() && SanArgs.needsUbsanRt()) {
+  if (!SanArgs.needsSharedRt() && NeedsUbsanRt) {
     if (SanArgs.requiresMinimalRuntime()) {
       StaticRuntimes.push_back("ubsan_minimal");
     } else {
@@ -1762,18 +1851,18 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
       StaticRuntimes.push_back("scudo_standalone_cxx");
   }
   if (SanArgs.needsUbsanLoopDetectRt())
-    NonWholeStaticRuntimes.push_back("ubsan_loop_detect");
+    StaticRuntimes.push_back("ubsan_loop_detect");
 }
 
 // Should be called before we add system libraries (C++ ABI, libstdc++/libc++,
 // C runtime, etc). Returns true if sanitizer system deps need to be linked in.
 bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
-                                 ArgStringList &CmdArgs) {
+                                 ArgStringList &CmdArgs, Compilation &C) {
   const SanitizerArgs &SanArgs = TC.getSanitizerArgs(Args);
   SmallVector<StringRef, 4> SharedRuntimes, StaticRuntimes,
       NonWholeStaticRuntimes, HelperStaticRuntimes, RequiredSymbols;
   if (SanArgs.linkRuntimes()) {
-    collectSanitizerRuntimes(TC, Args, SharedRuntimes, StaticRuntimes,
+    collectSanitizerRuntimes(C, TC, Args, SharedRuntimes, StaticRuntimes,
                              NonWholeStaticRuntimes, HelperStaticRuntimes,
                              RequiredSymbols);
   }
@@ -3069,6 +3158,23 @@ void tools::addMachineOutlinerArgs(const Driver &D,
     addArg(Twine("-codegen-data-use-path=") + CodeGenDataUseArg->getValue());
 }
 
+void tools::addSplitMachineFunctionsArgs(const Driver &D,
+                                         const llvm::opt::ArgList &Args,
+                                         llvm::opt::ArgStringList &CmdArgs,
+                                         const llvm::Triple &Triple) {
+  if (Arg *A = Args.getLastArg(options::OPT_fsplit_machine_functions,
+                               options::OPT_fno_split_machine_functions)) {
+    if (!A->getOption().matches(options::OPT_fno_split_machine_functions)) {
+      // This codegen pass is only available on x86 and AArch64 ELF targets.
+      if ((Triple.isX86() || Triple.isAArch64()) && Triple.isOSBinFormatELF())
+        A->render(Args, CmdArgs);
+      else
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << A->getAsString(Args) << Triple.getTriple();
+    }
+  }
+}
+
 void tools::addOpenMPDeviceRTL(const Driver &D,
                                const llvm::opt::ArgList &DriverArgs,
                                llvm::opt::ArgStringList &CC1Args,
@@ -3142,7 +3248,7 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
   }
 }
 
-void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
+bool tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
                                  const llvm::opt::ArgList &DriverArgs,
                                  llvm::opt::ArgStringList &CC1Args) {
 
@@ -3153,12 +3259,12 @@ void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
     LibclcNamespec = A->getValue();
   } else {
     if (!TT.isAMDGPU() || TT.getEnvironment() != llvm::Triple::LLVM)
-      return;
+      return false;
 
     // TODO: Should this accept following -stdlib to override?
     if (DriverArgs.hasArg(options::OPT_no_offloadlib,
                           options::OPT_nodefaultlibs, options::OPT_nostdlib))
-      return;
+      return false;
   }
 
   bool FilenameSearch = LibclcNamespec.consume_front(":");
@@ -3167,42 +3273,77 @@ void tools::addOpenCLBuiltinsLib(const Driver &D, const llvm::Triple &TT,
     if (D.getVFS().exists(LibclcFile)) {
       CC1Args.push_back("-mlink-builtin-bitcode");
       CC1Args.push_back(DriverArgs.MakeArgString(LibclcFile));
-      return;
+      return true;
     }
     D.Diag(diag::err_drv_libclc_not_found) << LibclcFile;
-    return;
+    return false;
   }
 
   // The OpenCL libraries are stored in <ResourceDir>/lib/<triple>.
-  SmallString<128> BasePath(D.ResourceDir);
-  llvm::sys::path::append(BasePath, "lib");
-  llvm::sys::path::append(BasePath, D.getTargetTriple());
+  SmallString<128> ResourceLibPath(D.ResourceDir);
+  llvm::sys::path::append(ResourceLibPath, "lib");
 
-  // First check for a CPU-specific library in <ResourceDir>/lib/<triple>/<CPU>.
-  // TODO: Factor this into common logic that checks for valid subtargets.
-  if (const Arg *CPUArg = DriverArgs.getLastArg(options::OPT_mcpu_EQ)) {
-    StringRef CPU = CPUArg->getValue();
+  StringRef CPU;
+  if (const Arg *CPUArg = DriverArgs.getLastArg(options::OPT_mcpu_EQ))
+    CPU = CPUArg->getValue();
+
+  // Helper to check for libclc.bc in a specific triple directory.
+  auto TryTriplePath = [&](StringRef TripleStr) -> bool {
+    SmallString<128> BasePath(ResourceLibPath);
+    llvm::sys::path::append(BasePath, TripleStr);
+
+    // First check for a CPU-specific library in
+    // <ResourceDir>/lib/<triple>/<CPU>.
+    // TODO: Factor this into common logic that checks for valid subtargets.
     if (!CPU.empty()) {
       SmallString<128> CPUPath(BasePath);
       llvm::sys::path::append(CPUPath, CPU, "libclc.bc");
       if (D.getVFS().exists(CPUPath)) {
         CC1Args.push_back("-mlink-builtin-bitcode");
         CC1Args.push_back(DriverArgs.MakeArgString(CPUPath));
-        return;
+        return true;
       }
     }
-  }
 
-  // Fall back to the generic library for the triple.
-  SmallString<128> GenericPath(BasePath);
-  llvm::sys::path::append(GenericPath, "libclc.bc");
-  if (D.getVFS().exists(GenericPath)) {
-    CC1Args.push_back("-mlink-builtin-bitcode");
-    CC1Args.push_back(DriverArgs.MakeArgString(GenericPath));
-    return;
+    // Fall back to the generic library for the triple.
+    SmallString<128> GenericPath(BasePath);
+    llvm::sys::path::append(GenericPath, "libclc.bc");
+    if (D.getVFS().exists(GenericPath)) {
+      CC1Args.push_back("-mlink-builtin-bitcode");
+      CC1Args.push_back(DriverArgs.MakeArgString(GenericPath));
+      return true;
+    }
+    return false;
+  };
+
+  // First, try the exact target triple.
+  if (TryTriplePath(TT.str()))
+    return true;
+
+  llvm::Triple::SubArchType SubArch = TT.getSubArch();
+  if (TT.isAMDGCN() && SubArch != llvm::Triple::NoSubArch) {
+    // For AMDGPU with a subarch, try major version and generic fallbacks.
+    // 1. Specific subarch (e.g., amdgpu9.0a-amd-amdhsa)
+    // 2. Major subarch (e.g., amdgpu9-amd-amdhsa)
+    // 3. Generic triple (e.g., amdgpu-amd-amdhsa)
+    llvm::Triple::SubArchType MajorSubArch =
+        llvm::AMDGPU::getMajorSubArch(SubArch);
+    if (MajorSubArch != SubArch) {
+      llvm::Triple MajorTT(TT);
+      MajorTT.setArch(TT.getArch(), MajorSubArch);
+      if (TryTriplePath(MajorTT.str()))
+        return true;
+    }
+
+    // Try generic amdgpu triple without any subarch.
+    llvm::Triple NoSubArchTT(TT);
+    NoSubArchTT.setArch(TT.getArch(), llvm::Triple::NoSubArch);
+    if (TryTriplePath(NoSubArchTT.str()))
+      return true;
   }
 
   D.Diag(diag::err_drv_libclc_not_found) << "libclc.bc";
+  return false;
 }
 
 void tools::addOutlineAtomicsArgs(const Driver &D, const ToolChain &TC,
@@ -3344,8 +3485,16 @@ void tools::handleColorDiagnosticsArgs(const Driver &D, const ArgList &Args,
           << Value << A->getOption().getName();
   }
 
-  if (D.getDiags().getDiagnosticOptions().ShowColors)
+  switch (D.getDiags().getDiagnosticOptions().getShowColors()) {
+  case ShowColorsKind::On:
     CmdArgs.push_back("-fcolor-diagnostics");
+    break;
+  case ShowColorsKind::Off:
+    CmdArgs.push_back("-fno-color-diagnostics");
+    break;
+  case ShowColorsKind::Auto:
+    break;
+  }
 }
 
 void tools::escapeSpacesAndBackslashes(const char *Arg,
@@ -3538,9 +3687,10 @@ void tools::handleVectorizeSLPArgs(const ArgList &Args,
 
 void tools::handleInterchangeLoopsArgs(const ArgList &Args,
                                        ArgStringList &CmdArgs) {
-  if (Args.hasFlag(options::OPT_floop_interchange,
-                   options::OPT_fno_loop_interchange, false))
-    CmdArgs.push_back("-floop-interchange");
+  // Forward the user's explicit choice; the frontend applies the -O3
+  // default when neither flag is present.
+  Args.AddLastArg(CmdArgs, options::OPT_floop_interchange,
+                  options::OPT_fno_loop_interchange);
 }
 
 std::string tools::complexRangeKindToStr(LangOptions::ComplexRangeKind Range) {

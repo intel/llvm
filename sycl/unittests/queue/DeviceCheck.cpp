@@ -88,7 +88,7 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
   sycl::platform Plt = sycl::platform();
 
   UrPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
-  context DefaultCtx = Plt.ext_oneapi_get_default_context();
+  context DefaultCtx = Plt.khr_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",

@@ -10,7 +10,7 @@
 
 #include <unordered_set>
 
-#include "../helpers/mutable_helpers.hpp"
+#include "../common/helpers/mutable_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
@@ -20,9 +20,9 @@
 #include "queue_api.hpp"
 #include <ze_api.h>
 
-struct kernel_command_handle;
+namespace ur::level_zero::v2 {
 
-struct ur_exp_command_buffer_handle_t_ : public ur_object {
+struct ur_exp_command_buffer_handle_t_ : public v2::ur_object_t {
   ur_exp_command_buffer_handle_t_(
       ur_context_handle_t context, ur_device_handle_t device,
       v2::raii::command_list_unique_handle &&commandList,
@@ -80,7 +80,8 @@ private:
   const ur_context_handle_t context;
   const ur_device_handle_t device;
 
-  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+  std::vector<
+      std::unique_ptr<ur::level_zero::ur_exp_command_buffer_command_handle_t_>>
       commandHandles;
 
   // Indicates if command-buffer was finalized.
@@ -90,3 +91,5 @@ private:
 
   v2::raii::cache_borrowed_event_pool eventPool;
 };
+
+} // namespace ur::level_zero::v2

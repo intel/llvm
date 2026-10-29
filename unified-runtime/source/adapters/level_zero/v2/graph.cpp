@@ -7,14 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <level_zero/ze_api.h>
-
-#include "../ur_interface_loader.hpp"
+#include "graph.hpp"
 #include "common.hpp"
 #include "context.hpp"
-#include "graph.hpp"
+#include "ur_interface_loader.hpp"
 
 #include <memory>
+
+namespace ur::level_zero::v2 {
 
 ur_exp_graph_handle_t_::ur_exp_graph_handle_t_(ur_context_handle_t hContext)
     : hContext(hContext) {
@@ -75,23 +75,24 @@ void ZE_CALLBACK_CONV destructionCallbackWrapper(void *pUserData) {
 
 } // namespace
 
-namespace ur::level_zero {
-
-ur_result_t urGraphCreateExp(ur_context_handle_t hContext,
-                             ur_exp_graph_handle_t *phGraph) try {
+ur_result_t urGraphCreateExp(::ur_context_handle_t hContextOpque,
+                             ::ur_exp_graph_handle_t *phGraphOpque) try {
+  auto hContext = v2_cast(hContextOpque);
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  *phGraph = new ur_exp_graph_handle_t_(hContext);
+  auto hGraph = new ur_exp_graph_handle_t_(hContext);
+  *phGraphOpque = v2_cast(hGraph);
   std::scoped_lock<ur_shared_mutex> lock(hContext->GraphMapMutex);
-  hContext->registerGraph((*phGraph)->getZeHandle(), *phGraph);
+  hContext->registerGraph(hGraph->getZeHandle(), hGraph);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph) try {
+ur_result_t urGraphDestroyExp(::ur_exp_graph_handle_t hGraphOpque) try {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -108,21 +109,24 @@ ur_result_t urGraphDestroyExp(ur_exp_graph_handle_t hGraph) try {
 }
 
 ur_result_t urGraphInstantiateGraphExp(
-    ur_exp_graph_handle_t hGraph,
-    ur_exp_executable_graph_handle_t *phExecutableGraph) try {
+    ::ur_exp_graph_handle_t hGraphOpque,
+    ::ur_exp_executable_graph_handle_t *phExecutableGraphOpque) try {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  *phExecutableGraph = new ur_exp_executable_graph_handle_t_(hContext, hGraph);
+  *phExecutableGraphOpque =
+      v2_cast(new ur_exp_executable_graph_handle_t_(hContext, hGraph));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urGraphExecutableGraphDestroyExp(
-    ur_exp_executable_graph_handle_t hExecutableGraph) try {
+    ::ur_exp_executable_graph_handle_t hExecutableGraphOpque) try {
+  auto hExecutableGraph = v2_cast(hExecutableGraphOpque);
   ur_context_handle_t hContext = hExecutableGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -134,7 +138,9 @@ ur_result_t urGraphExecutableGraphDestroyExp(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
+ur_result_t urGraphIsEmptyExp(::ur_exp_graph_handle_t hGraphOpque,
+                              bool *pIsEmpty) {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -151,7 +157,9 @@ ur_result_t urGraphIsEmptyExp(ur_exp_graph_handle_t hGraph, bool *pIsEmpty) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t hGraph, uint64_t *pGraphId) {
+ur_result_t urGraphGetIdExp(::ur_exp_graph_handle_t hGraphOpque,
+                            uint64_t *pGraphId) {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   auto ZeGetId = hContext->getPlatform()->ZeGraphExt.zeGraphGetIdExt;
   if (!checkGraphExtensionSupport(hContext) || !ZeGetId) {
@@ -164,8 +172,9 @@ ur_result_t urGraphGetIdExp(ur_exp_graph_handle_t hGraph, uint64_t *pGraphId) {
 }
 
 ur_result_t urGraphSetDestructionCallbackExp(
-    ur_exp_graph_handle_t hGraph,
+    ::ur_exp_graph_handle_t hGraphOpque,
     ur_exp_graph_destruction_callback_t pfnCallback, void *pUserData) {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   auto ZeSetCallback =
       hContext->getPlatform()->ZeGraphExt.zeGraphSetDestructionCallbackExp;
@@ -189,8 +198,9 @@ ur_result_t urGraphSetDestructionCallbackExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
+ur_result_t urGraphDumpContentsExp(::ur_exp_graph_handle_t hGraphOpque,
                                    const char *filePath) {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -202,8 +212,9 @@ ur_result_t urGraphDumpContentsExp(ur_exp_graph_handle_t hGraph,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
+ur_result_t urGraphGetNativeHandleExp(::ur_exp_graph_handle_t hGraphOpque,
                                       ur_native_handle_t *phNativeGraph) try {
+  auto hGraph = v2_cast(hGraphOpque);
   ur_context_handle_t hContext = hGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -216,8 +227,9 @@ ur_result_t urGraphGetNativeHandleExp(ur_exp_graph_handle_t hGraph,
 }
 
 ur_result_t urGraphExecutableGraphGetNativeHandleExp(
-    ur_exp_executable_graph_handle_t hExecutableGraph,
+    ::ur_exp_executable_graph_handle_t hExecutableGraphOpque,
     ur_native_handle_t *phNativeExecutableGraph) try {
+  auto hExecutableGraph = v2_cast(hExecutableGraphOpque);
   ur_context_handle_t hContext = hExecutableGraph->getContext();
   if (!checkGraphExtensionSupport(hContext)) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -230,4 +242,4 @@ ur_result_t urGraphExecutableGraphGetNativeHandleExp(
   return exceptionToResult(std::current_exception());
 }
 
-} // namespace ur::level_zero
+} // namespace ur::level_zero::v2

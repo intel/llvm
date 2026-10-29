@@ -68,12 +68,13 @@ enum InternalOp {
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpTypeTaskSequenceINTEL = 6199,
-  IOpClampConvertFToFINTEL = 6216,
+  IOpClampConvertFToFINTEL = 6216, // old op, for backward compatibility
   IOpStochasticRoundFToFINTEL = 6217,
-  IOpClampStochasticRoundFToFINTEL = 6218,
+  IOpClampStochasticRoundFToFINTEL = 6218, // old op, for backward compatibility
   IOpClampStochasticRoundFToSINTEL = 6219,
   IOpCooperativeMatrixLoadOffsetINTEL = 6239,
   IOpCooperativeMatrixStoreOffsetINTEL = 6240,
+  IOpSubgroupScaledMatrixMultiplyAccumulateINTEL = 6264,
   IOpClampConvertFToSINTEL = 6424,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
@@ -96,7 +97,6 @@ enum InternalDecoration {
 };
 
 enum InternalCapability {
-  ICapOptNoneINTEL = 6094,
   ICapTokenTypeINTEL = 6112,
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapGlobalVariableDecorationsINTEL = 6146,
@@ -106,7 +106,8 @@ enum InternalCapability {
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityFloat4E2M1INTEL = 6212,
   ICapabilityFloat4E2M1CooperativeMatrixINTEL = 6213,
-  ICapabilityFloatConversionsINTEL = 6215,
+  ICapabilityFloatConversionsFtoFINTEL = 6215,
+  ICapabilityFloatConversionsFtoSINTEL = 6216,
   ICapabilityBFloat16ArithmeticINTEL = 6226,
   ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityAtomicBFloat16AddINTEL = 6255,
@@ -114,6 +115,7 @@ enum InternalCapability {
   ICapabilityAtomicInt16CompareExchangeINTEL = 6260,
   ICapabilityInt16AtomicsINTEL = 6261,
   ICapabilityAtomicBFloat16LoadStoreINTEL = 6262,
+  ICapabilitySubgroupScaledMatrixMultiplyAccumulateINTEL = 6263,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
@@ -123,8 +125,6 @@ enum InternalCapability {
   ICapabilitySubgroupRequirementsINTEL = 6445,
   ICapabilityBindlessImagesINTEL = 6528
 };
-
-enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeNamedSubgroupSizeINTEL = 6446,
@@ -160,6 +160,9 @@ enum InternalMatrixMultiplyAccumulateOperandsMask {
   // FP4 matrix operands
   IMatrixMultiplyAccumulateOperandsMatrixAPackedFloat4E2M1INTELMask = 0x40000,
   IMatrixMultiplyAccumulateOperandsMatrixBPackedFloat4E2M1INTELMask = 0x80000,
+  // Scale factors for SPV_INTEL_subgroup_scaled_matrix_multiply_accumulate.
+  IMatrixMultiplyAccumulateOperandsScaleAFloat8E8M0INTELMask = 0x100000,
+  IMatrixMultiplyAccumulateOperandsScaleBFloat8E8M0INTELMask = 0x200000,
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
@@ -216,12 +219,16 @@ _SPIRV_OP(Op, FSigmoidINTEL)
 _SPIRV_OP(Capability, Float4E2M1INTEL)
 _SPIRV_OP(Capability, Float4E2M1CooperativeMatrixINTEL)
 
-_SPIRV_OP(Capability, FloatConversionsINTEL)
+_SPIRV_OP(Capability, FloatConversionsFtoFINTEL)
 _SPIRV_OP(Op, ClampConvertFToFINTEL)
-_SPIRV_OP(Op, ClampConvertFToSINTEL)
 _SPIRV_OP(Op, StochasticRoundFToFINTEL)
 _SPIRV_OP(Op, ClampStochasticRoundFToFINTEL)
+_SPIRV_OP(Capability, FloatConversionsFtoSINTEL)
+_SPIRV_OP(Op, ClampConvertFToSINTEL)
 _SPIRV_OP(Op, ClampStochasticRoundFToSINTEL)
+
+_SPIRV_OP(Capability, SubgroupScaledMatrixMultiplyAccumulateINTEL)
+_SPIRV_OP(Op, SubgroupScaledMatrixMultiplyAccumulateINTEL)
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
@@ -279,17 +286,12 @@ constexpr Decoration DecorationImplementInCSRINTEL =
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
 
-constexpr Capability CapabilityOptNoneINTEL =
-    static_cast<Capability>(ICapOptNoneINTEL);
 constexpr Capability CapabilityTokenTypeINTEL =
     static_cast<Capability>(ICapTokenTypeINTEL);
 constexpr Capability CapabilityGlobalVariableDecorationsINTEL =
     static_cast<Capability>(ICapGlobalVariableDecorationsINTEL);
 constexpr Capability CapabilityBFloat16ArithmeticINTEL =
     static_cast<Capability>(ICapabilityBFloat16ArithmeticINTEL);
-
-constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
-    static_cast<FunctionControlMask>(IFunctionControlOptNoneINTELMask);
 
 constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
     static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);

@@ -1,15 +1,9 @@
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: aspect-ext_oneapi_external_semaphore_import
 // REQUIRES: windows
-
-// UNSUPPORTED: gpu-intel-gen12
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22148
-
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22155
-
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22298
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
