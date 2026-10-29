@@ -89,13 +89,16 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(urKernelReclamationTest, ReleaseCompletedKernelsWithoutQueueFinish) {
   size_t global_size = 1;
   size_t global_offset = 0;
+  // Allocate the gate before submitting work so allocation cannot wait for
+  // work that is itself waiting for the host to signal the gate.
   auto zeGate = createZeEvent(context, device);
   uur::raii::Event gate;
   ASSERT_SUCCESS(urEventCreateWithNativeHandle(
       reinterpret_cast<ur_native_handle_t>(zeGate.get()), context, nullptr,
       gate.ptr()));
-  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, gate.ptr(), nullptr));
 
+  // Do not block this workload on a host-signaled event: submitting many
+  // launches can exhaust driver resources and wait for GPU progress.
   std::vector<uur::raii::Kernel> kernels(256);
   for (auto &submittedKernel : kernels) {
     ASSERT_SUCCESS(
@@ -105,29 +108,13 @@ TEST_P(urKernelReclamationTest, ReleaseCompletedKernelsWithoutQueueFinish) {
         GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   }
 
-  uint32_t references = 0;
-  ASSERT_SUCCESS(urKernelGetInfo(kernels.front(),
-                                 UR_KERNEL_INFO_REFERENCE_COUNT,
-                                 sizeof(references), &references, nullptr));
-  EXPECT_GT(references, 1u);
-
-  // Reusing a kernel after a checkpoint needs a separate retained reference.
-  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
-      queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
-      GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
   uur::raii::Event completed;
   ASSERT_SUCCESS(
       urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, completed.ptr()));
-  ASSERT_EQ(zeEventHostSignal(zeGate.get()), ZE_RESULT_SUCCESS);
   ASSERT_SUCCESS(urEventWait(1, completed.ptr()));
 
-  auto zeNextGate = createZeEvent(context, device);
-  uur::raii::Event nextGate;
-  ASSERT_SUCCESS(urEventCreateWithNativeHandle(
-      reinterpret_cast<ur_native_handle_t>(zeNextGate.get()), context, nullptr,
-      nextGate.ptr()));
-  ASSERT_SUCCESS(
-      urEnqueueEventsWaitWithBarrier(queue, 1, nextGate.ptr(), nullptr));
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, gate.ptr(), nullptr));
+  // Completed references may be retired, but this blocked reuse must stay alive.
   ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
       queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
       GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
@@ -140,6 +127,7 @@ TEST_P(urKernelReclamationTest, ReleaseCompletedKernelsWithoutQueueFinish) {
         GetArgs(), nullptr, 0, nullptr, nullptr));
   }
 
+  uint32_t references = 0;
   EXPECT_SUCCESS(urKernelGetInfo(kernels.front(),
                                  UR_KERNEL_INFO_REFERENCE_COUNT,
                                  sizeof(references), &references, nullptr));
@@ -147,7 +135,7 @@ TEST_P(urKernelReclamationTest, ReleaseCompletedKernelsWithoutQueueFinish) {
   EXPECT_SUCCESS(urKernelGetInfo(kernels[1], UR_KERNEL_INFO_REFERENCE_COUNT,
                                  sizeof(references), &references, nullptr));
   EXPECT_EQ(references, 1u);
-  ASSERT_EQ(zeEventHostSignal(zeNextGate.get()), ZE_RESULT_SUCCESS);
+  ASSERT_EQ(zeEventHostSignal(zeGate.get()), ZE_RESULT_SUCCESS);
   uur::raii::Event drained;
   ASSERT_SUCCESS(
       urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, drained.ptr()));
