@@ -482,7 +482,7 @@ same way an ordinary call to the kernel would resolve it:
 SYCL_EXT_ONEAPI_KERNEL_FUNCTION(kernel-name, args...)
 ```
 
-_Effect_: expands to the arguments of an enclosing free function kernel launch
+Expands to the arguments of an enclosing free function kernel launch
 (`single_task` or `nd_launch`).  The macro resolves `kernel-name` against the
 types of `args` using ordinary C++ overload resolution and template argument
 deduction — exactly as the expression `kernel-name(args...)` would — and forms
