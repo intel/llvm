@@ -4801,9 +4801,6 @@ public:
                                                  llvm::Value *Discriminator);
   CGPointerAuthInfo EmitPointerAuthInfo(const PointerAuthSchema &Schema,
                                         llvm::Value *StorageAddress,
-                                        llvm::ConstantInt *Discriminator);
-  CGPointerAuthInfo EmitPointerAuthInfo(const PointerAuthSchema &Schema,
-                                        llvm::Value *StorageAddress,
                                         GlobalDecl SchemaDecl,
                                         QualType SchemaType);
 
