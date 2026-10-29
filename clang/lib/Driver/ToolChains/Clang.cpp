@@ -12713,6 +12713,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       C.getDriver().Diag(diag::err_drv_invalid_int_value)
           << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
     }
+    // --offload-jobs overrides -fsycl-max-parallel-link-jobs. Let the user
+    // know, rather than reporting the latter as an unused argument.
+    if (HasSYCL)
+      if (const Arg *A =
+              Args.getLastArg(options::OPT_fsycl_max_parallel_jobs_EQ))
+        C.getDriver().Diag(diag::warn_drv_overriding_option)
+            << A->getAsString(Args) << OffloadJobs.A->getAsString(Args);
   } else if (HasSYCL) {
     // For SYCL, -fsycl-max-parallel-link-jobs controls the number of device
     // compilation jobs (e.g. AOT compilation of split modules) that can run
