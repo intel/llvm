@@ -4,6 +4,12 @@ Covers new and updated specifications in `sycl/doc/extensions`, written and
 reviewed the way DPC++ specification reviewers expect. Passes 1-8 apply to both
 writing and reviewing.
 
+Sections: Writing or updating · Reviewing · Core SYCL specification ·
+Rendering · Pass 1 Structure · Pass 2 Mechanical defects · Pass 3 Naming ·
+Pass 4 Synopsis · Pass 5 Normative wording · Pass 6 Core spec and other
+extensions · Pass 7 API design (Rules, Properties, Queries and aspects,
+Questions to ask) · Pass 8 Examples · Reporting · Templates (reference).
+
 ## Writing or updating a specification
 
 1. Start from `sycl/doc/extensions/template.asciidoc` and use its formatting. Do
@@ -13,7 +19,9 @@ writing and reviewing.
 2. Consult the core SYCL specification as described below.
 3. Consider whether the extension could be promoted to a Khronos extension.
    Compare with the `sycl_khr_*` extensions in SYCL-Docs `adoc/extensions/` and
-   their headers in `sycl/include/sycl/khr/`.
+   their headers in `sycl/include/sycl/khr/`. If it could, follow the KHR
+   naming and properties conventions (Pass 3, Pass 7 "Properties"), so a later
+   promotion doesn't force renames.
 4. Read the implementation. For an update, the extension's header under
    `sycl/include/sycl/ext/<vendor>/[experimental/]` is the current API
    surface: the synopsis must match it, and anything not implemented goes in
@@ -30,9 +38,11 @@ writing and reviewing.
 
 ## Reviewing a specification
 
-1. Get the diff and the *whole* file — most defects are in the interaction
-   between the change and the rest of the document (a renamed identifier left
-   stale elsewhere, a table row that no longer matches the synopsis).
+1. Get the diff and the *whole* file (`gh pr diff <N>`; the whole file from the
+   PR branch, e.g. `gh pr checkout <N>` or `git show <sha>:<path>`) — most
+   defects are in the interaction between the change and the rest of the
+   document (a renamed identifier left stale elsewhere, a table row that no
+   longer matches the synopsis).
 2. Read the rendered document, not only the source (see "Rendering").
 3. Compare against `sycl/doc/extensions/template.asciidoc`. Some of the old
    extensions are *not* a style reference.
@@ -41,7 +51,19 @@ writing and reviewing.
 5. Write comments as concrete replacement wording (an Asciidoc ```suggestion```
    block or a block quote of the proposed paragraph), not just as a complaint —
    that is how these reviews are conducted and it is what makes them converge.
-   See also "Reporting" at the end.
+   See also "Reporting".
+
+Example (Pass 5, a checked condition written as a precondition):
+
+> _Preconditions:_ `ptr` points to USM device memory. Otherwise throws an
+> `exception` with `errc::invalid`.
+
+The condition is checked, so it is a `_Throws:_` clause:
+
+```suggestion
+_Throws:_ A synchronous `exception` with the `errc::invalid` error code if
+`ptr` does not point to USM device memory.
+```
 
 ## Core SYCL specification
 
@@ -50,8 +72,10 @@ extension's Dependencies section:
 https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html. Its
 sources are in https://github.com/KhronosGroup/SYCL-Docs (`adoc/chapters/`), and
 the Khronos `sycl_khr_*` extensions are in `adoc/extensions/`. The spec is too
-large to read whole — shallow-clone SYCL-Docs outside this repo, grep for the
-sections, classes and terms the extension touches, and read only those.
+large to read whole — shallow-clone SYCL-Docs outside this repo
+(`git clone --depth 1 https://github.com/KhronosGroup/SYCL-Docs /tmp/SYCL-Docs`),
+grep for the sections, classes and terms the extension touches
+(`grep -rn '<term>' /tmp/SYCL-Docs/adoc/chapters`), and read only those.
 
 ## Rendering
 
@@ -61,129 +85,12 @@ plain text) are invisible in the source and in the diff. Render locally with
 installed; otherwise GitHub renders `.asciidoc` files in the PR file view and on
 any pushed branch.
 
-## Templates
-
-KHR property entry (`sycl_khr_properties`, the model for new extensions; the
-namespace for vendor extensions is still open, see "Properties"):
-
-```
-.`khr::property::in_order`
-[source,c++]
-----
-namespace sycl::khr::property {
-
-struct in_order {
-  constexpr in_order(bool v = true) : value{v} {}
-  bool value;
-};
-
-namespace key {
-struct in_order;
-}
-
-} // namespace sycl::khr::property
-----
-
-When a queue is constructed with this property and the `value` is `true`, the
-effect is the same as if the queue was constructed with
-`property::queue::in_order`. If the `value` is `false`, this property has no
-effect on the constructed queue.
-
-The following traits inherit from `std::true_type`:
-
-* `khr::is_property<khr::property::in_order>`
-* `khr::is_property_key<khr::property::key::in_order>`
-* `khr::is_property_for<khr::property::in_order, queue>`
-* `khr::is_property_key_for<khr::property::key::in_order, queue>`
-
-`khr::property::in_order` is trivially copyable.
-```
-
-KHR compile-time property: a variable template of unspecified type holding the
-value in a `static constexpr` member, plus a variable per enumerator.
-
-```c++
-namespace sycl::khr::property {
-
-enum class placement_type : /*unspecified*/ { blocked, striped };
-
-template <placement_type Placement>
-struct __unspecified_type__ {
-  static constexpr placement_type value = Placement;
-};
-
-template <placement_type Placement>
-inline constexpr __unspecified_type__<Placement> data_placement;
-
-inline constexpr __unspecified_type__<placement_type::blocked>
-    data_placement_blocked;
-inline constexpr __unspecified_type__<placement_type::striped>
-    data_placement_striped;
-
-namespace key {
-struct data_placement;
-}
-
-} // namespace sycl::khr::property
-```
-
-oneAPI compile-time property (`sycl_ext_oneapi_properties`, for extensions that
-already use it): the trait struct gets the `_key` suffix, the property variable
-has the same name without it, the enum gets the `_enum` suffix, and there is a
-shortcut variable per enumeration value.
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-
-enum class data_placement_enum : /*unspecified*/ { blocked, striped };
-
-struct data_placement_key {
-  template <data_placement_enum Placement>
-  using value_t = property_value<
-      data_placement_key,
-      std::integral_constant<data_placement_enum, Placement>>;
-};
-
-template <data_placement_enum Placement>
-inline constexpr data_placement_key::value_t<Placement> data_placement;
-
-inline constexpr data_placement_key::value_t<data_placement_enum::blocked>
-    data_placement_blocked;
-inline constexpr data_placement_key::value_t<data_placement_enum::striped>
-    data_placement_striped;
-
-} // namespace sycl::ext::oneapi::experimental
-```
-
-Information descriptor:
-
-```
-.`info::device::device_type`
-[source,c++]
-----
-namespace sycl::info::device {
-struct device_type {
-  using return_type = info::device_type;
-};
-} // namespace sycl::info::device
-----
-
-_Remarks:_ Template parameter to `device::get_info`.
-
-_Returns:_ The device type associated with the device.
-```
-
-Per-API entry: a `'''` horizontal rule, a `[source,c++]` synopsis, then the
-`_Preconditions:_`/`_Constraints:_`/`_Effects:_`/`_Returns:_`/`_Throws:_`
-paragraphs. Prefer this over tables; use a table only for properties,
-descriptors and enumerators.
-
 ## Pass 1 — Structure and boilerplate
 
 - Section order: Notice, Contact, Dependencies, **Status**, [Backend support
   status], Overview, Specification, [Implementation notes], Example(s),
-  [Future direction], [Issues]. Dependencies before Status. "Usage Example",
-  "Future Directions" and "Issues" must be *peers* of "Specification", not
+  [Future direction], [Issues]. Dependencies before Status. "Example(s)",
+  "Future direction" and "Issues" must be *peers* of "Specification", not
   subsections. "Feature test macro" is the first subsection of Specification.
 - `Contact` follows the template (GitHub issues).
 - Status text matches the template for the actual state, including the bold
@@ -196,7 +103,7 @@ descriptors and enumerators.
   links resolve to the same revision of the repo, absolute ones always point at
   the tip.
 - Copyright = year of first publication, **not** bumped by this PR. No revision
-  history table, no contributors list.
+  history table, no contributors list (git history records both).
 - Feature-test macro name is exactly the extension name in upper case, and is
   not reused for anything else. For an unversioned experimental extension the
   value table says "The APIs of this experimental extension are not versioned,
@@ -227,8 +134,7 @@ descriptors and enumerators.
   specification." line under each new section (the wording from
   `sycl/doc/extensions/README-process.md`; say "version", not "revision", which
   is reserved for the core SYCL specification)?
-- Lines wrapped at 80 columns; links relative (not absolute); every link still
-  resolves after any file move.
+- Lines wrapped at 80 columns; every link still resolves after any file move.
 
 ## Pass 2 — Mechanical defects (fast, always productive)
 
@@ -239,7 +145,8 @@ descriptors and enumerators.
   has none) instead of a literal `C++`, which can render as `C`; `+...+`
   escaping for `+__FILE__+`, `+__shared__+`, `+T...+`, `+<=+`, `+this->x()+`.
 - Asciidoctor link syntax (`https://example.com[text]`), not Markdown. No
-  `stem:`/`latexmath:`; write `O(N*log_2(N))` as plain text.
+  `stem:`/`latexmath:` (GitHub's Asciidoc renderer does not render them);
+  write `O(N*log_2(N))` as plain text.
 - Doubled words, typos, stale identifiers after a rename, leftovers from the
   template or from a copy-pasted extension, `Built On: {docdate}`, "this doc is
   better viewed with asciidoctor", pasted web-page cruft.
@@ -264,7 +171,8 @@ descriptors and enumerators.
   (`sycl::ext::oneapi::experimental::cuda`).
 - Members added to **core** classes carry the `ext_<vendor>_` prefix; members of
   the extension's own classes do not. New core enumerators carry the prefix.
-  `experimental` appears only in namespaces.
+  `experimental` appears only in namespaces (so moving to `supported/` changes
+  the namespace, not every identifier).
 - Information descriptors are in the extension namespace
   (`ext::oneapi::experimental::info::device::foo`), *not*
   `info::device::ext_oneapi_foo` (deprecated), and the namespace order is
@@ -325,7 +233,7 @@ descriptors and enumerators.
     definition, so "violation results in undefined behavior" and "optionally
     diagnosed" must be deleted.
   * A diagnosed condition is a `_Throws:_`, not a precondition.
-  * A template-argument requirement is a `_Constraint:_`, written positively.
+  * A template-argument requirement is a `_Constraints:_`, written positively.
   * `_Returns:_ Nothing` on a `void` function, and clauses that state nothing
     observable, should be deleted.
 - "must" for requirements, "may" for implementation freedom; weak words removed.
@@ -531,7 +439,6 @@ never paste the list:
 - Can we word this so we can extend it later without breaking code?
 - What happens on a device/backend where this is meaningless — silently ignored,
   or an optional kernel feature that throws on submit?
-- Is this an assertion or a hint?
 - Could misuse be a compile error instead of silent misbehavior? (Distinct type
   instead of a mode on an existing class; `_Constraints:_` instead of
   `_Preconditions:_` where a trait makes it possible.)
@@ -543,17 +450,15 @@ never paste the list:
   wrong?
 - Is `sycl::foo(Group g, ...)` the right shape? That signature implies a
   cooperative operation.
-- For a new group type: does it implement the full group concept, and does it
-  need a new `memory_scope` enumerator?
 - Should this be a member function or a free function? Does the standard library
   have a precedent (`std::real`) we should follow?
-- Are the property patterns right (see "Templates" and "Properties")?
 - Compile-time or runtime property — and is a "runtime kernel property" really a
   launch property?
 
 ## Pass 8 — Examples
 
-- No `using namespace`; namespace aliases (`syclex`, `intelex`) defined at the
+- No `using namespace` (so the reader sees which identifiers come from the
+  extension); namespace aliases (`syclex`, `intelex`) defined at the
   top and every identifier fully qualified.
 - Would it plausibly compile? `#include <sycl/sycl.hpp>`, code inside
   `int main()`, every identifier defined, no ill-formed C++ (bare `return;` in
@@ -571,6 +476,21 @@ never paste the list:
 
 ## Reporting
 
+When the review is delivered in the conversation rather than as PR comments,
+use this structure, so the author can act on each item without re-reading the
+spec:
+
+```
+### Must fix before merge
+- `<file>:<line>` (Pass N) — <the problem, one sentence>.
+  Proposed: <replacement text or `suggestion` block>
+### Should fix / design questions
+### Nits
+### Proposed "Issues" entries
+```
+
+For PR comments:
+
 - One thread per issue, anchored on the offending line, with proposed
   replacement text.
 - Separate "must fix before merge" from bikeshedding, and say which is which.
@@ -581,3 +501,120 @@ never paste the list:
   question isn't reopened later.
 - Close each thread with an explicit resolution ("resolving because we chose
   another design"), and reference the commit that addressed it.
+
+## Templates
+
+KHR property entry (`sycl_khr_properties`, the model for new extensions; the
+namespace for vendor extensions is still open, see "Properties"):
+
+```
+.`khr::property::in_order`
+[source,c++]
+----
+namespace sycl::khr::property {
+
+struct in_order {
+  constexpr in_order(bool v = true) : value{v} {}
+  bool value;
+};
+
+namespace key {
+struct in_order;
+}
+
+} // namespace sycl::khr::property
+----
+
+When a queue is constructed with this property and the `value` is `true`, the
+effect is the same as if the queue was constructed with
+`property::queue::in_order`. If the `value` is `false`, this property has no
+effect on the constructed queue.
+
+The following traits inherit from `std::true_type`:
+
+* `khr::is_property<khr::property::in_order>`
+* `khr::is_property_key<khr::property::key::in_order>`
+* `khr::is_property_for<khr::property::in_order, queue>`
+* `khr::is_property_key_for<khr::property::key::in_order, queue>`
+
+`khr::property::in_order` is trivially copyable.
+```
+
+KHR compile-time property: a variable template of unspecified type holding the
+value in a `static constexpr` member, plus a variable per enumerator.
+
+```c++
+namespace sycl::khr::property {
+
+enum class placement_type : /*unspecified*/ { blocked, striped };
+
+template <placement_type Placement>
+struct __unspecified_type__ {
+  static constexpr placement_type value = Placement;
+};
+
+template <placement_type Placement>
+inline constexpr __unspecified_type__<Placement> data_placement;
+
+inline constexpr __unspecified_type__<placement_type::blocked>
+    data_placement_blocked;
+inline constexpr __unspecified_type__<placement_type::striped>
+    data_placement_striped;
+
+namespace key {
+struct data_placement;
+}
+
+} // namespace sycl::khr::property
+```
+
+oneAPI compile-time property (`sycl_ext_oneapi_properties`, for extensions that
+already use it): the trait struct gets the `_key` suffix, the property variable
+has the same name without it, the enum gets the `_enum` suffix, and there is a
+shortcut variable per enumeration value.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+enum class data_placement_enum : /*unspecified*/ { blocked, striped };
+
+struct data_placement_key {
+  template <data_placement_enum Placement>
+  using value_t = property_value<
+      data_placement_key,
+      std::integral_constant<data_placement_enum, Placement>>;
+};
+
+template <data_placement_enum Placement>
+inline constexpr data_placement_key::value_t<Placement> data_placement;
+
+inline constexpr data_placement_key::value_t<data_placement_enum::blocked>
+    data_placement_blocked;
+inline constexpr data_placement_key::value_t<data_placement_enum::striped>
+    data_placement_striped;
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+Information descriptor:
+
+```
+.`info::device::device_type`
+[source,c++]
+----
+namespace sycl::info::device {
+struct device_type {
+  using return_type = info::device_type;
+};
+} // namespace sycl::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The device type associated with the device.
+```
+
+Per-API entry: a `'''` horizontal rule, a `[source,c++]` synopsis, then the
+`_Preconditions:_`/`_Constraints:_`/`_Effects:_`/`_Returns:_`/`_Throws:_`
+paragraphs. Prefer this over tables; use a table only for properties,
+descriptors and enumerators.
