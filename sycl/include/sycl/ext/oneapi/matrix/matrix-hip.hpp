@@ -177,7 +177,7 @@ void load_accumulator_layoutT(
         for (int j = 0; j < 4; ++j) {
           for (int i = 0; i < 4; ++i) {
             const int s_idx =
-                thread_x + i * stride + thread_y * 4 * stride + j * 8 * N;
+                thread_x + i * stride + thread_y * 4 * stride + j * 8 * stride;
             res.wi_marray[i + 4 * j] = src[s_idx];
           }
         }
