@@ -7757,6 +7757,13 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       SPIRVType *SPRetTy = nullptr;
       Type *RetTy = CI->getType();
       auto *F = CI->getCalledFunction();
+      if (OC == OpSelect)
+        BM->getErrorLog().checkError(
+            RetTy->isVectorTy() ||
+                !CI->getArgOperand(0)->getType()->isVectorTy(),
+            SPIRVEC_InvalidInstruction, CI,
+            "OpSelect with a vector condition requires a vector "
+            "result\n");
       if (!RetTy->isVoidTy()) {
         SPRetTy = transScavengedType(CI);
       } else if (Args.size() > 0 && F->arg_begin()->hasStructRetAttr()) {
