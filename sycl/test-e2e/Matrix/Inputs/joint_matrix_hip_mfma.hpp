@@ -44,7 +44,7 @@ void hip_matrix_mfma() {
     if (OutLayout == layout::row_major)
       E[i] = C[i];
     else
-      E[(i % N) * M + int(i / M)] = C[i];
+      E[(i % N) * M + int(i / N)] = C[i];
   }
 
   try {
