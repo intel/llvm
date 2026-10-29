@@ -89,7 +89,16 @@ static Constant *getConstantOfType(const unsigned char **ValPtr, Type *Ty) {
 }
 
 void SYCLSpecConstMaterializer::allocateSpecConstant(StringRef KernelName) {
-  for (auto I : llvm::enumerate(TypesAndOffsets)) {
+  // Number the blobs by offset (ties keep insertion order) so that the global
+  // names are deterministic and do not depend on Type* addresses.
+  SmallVector<TypeAtOffset> SortedTypesAndOffsets(TypesAndOffsets.begin(),
+                                                  TypesAndOffsets.end());
+  llvm::stable_sort(SortedTypesAndOffsets,
+                    [](const TypeAtOffset &LHS, const TypeAtOffset &RHS) {
+                      return LHS.second < RHS.second;
+                    });
+
+  for (auto I : llvm::enumerate(SortedTypesAndOffsets)) {
     auto *const Ty = I.value().first;
     assert(Ty->isSized());
     const auto Offset = I.value().second;
