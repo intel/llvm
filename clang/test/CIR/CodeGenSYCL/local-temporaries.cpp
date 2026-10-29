@@ -9,14 +9,14 @@
 // and cast to the generic address space. There is no classic CodeGenSYCL
 // counterpart for these cases.
 
-void use(int *p);
-void use_const(const int *p);
+[[clang::sycl_external]] void use(int *p);
+[[clang::sycl_external]] void use_const(const int *p);
 
 struct S {
   int a;
   int b;
 };
-void take_ref(const S &s);
+[[clang::sycl_external]] void take_ref(const S &s);
 
 // Temporary materialized for a reference binding.
 [[clang::sycl_external]] void ref_temp() {
@@ -53,7 +53,7 @@ void take_ref(const S &s);
 // CIR-NEXT: cir.store align(4) %[[TMP0]], %[[REF_TMP0_ASCAST]] : !s32i, !cir.ptr<!s32i, target_address_space(4)>
 // CIR-NEXT: cir.store align(8) %[[REF_TMP0_ASCAST]], %[[R_ASCAST]] : !cir.ptr<!s32i, target_address_space(4)>, !cir.ptr<!cir.ptr<!s32i, target_address_space(4)>, target_address_space(4)>
 // CIR-NEXT: %[[TMP1:.*]] = cir.load %[[R_ASCAST]] : !cir.ptr<!cir.ptr<!s32i, target_address_space(4)>, target_address_space(4)>, !cir.ptr<!s32i, target_address_space(4)>
-// CIR-NEXT: cir.call @_Z9use_constPKi(%[[TMP1]]) cc(spir_function) nothrow nounwind {convergent} : (!cir.ptr<!s32i, target_address_space(4)> {llvm.noundef}) -> ()
+// CIR-NEXT: cir.call @_Z9use_constPKi(%[[TMP1]]) cc(spir_function) nothrow nounwind {convergent, uniform_work_group_size} : (!cir.ptr<!s32i, target_address_space(4)> {llvm.noundef}) -> ()
 // CIR-NEXT: cir.return
 
 // CIR-LABEL: cir.func {{.*}}@_Z8agg_tempv(
@@ -65,7 +65,7 @@ void take_ref(const S &s);
 // CIR-NEXT: %[[TMP2:.*]] = cir.get_member %[[REF_TMP0_ASCAST]][1] {name = "b"} : !cir.ptr<!rec_S, target_address_space(4)> -> !cir.ptr<!s32i, target_address_space(4)>
 // CIR-NEXT: %[[TMP3:.*]] = cir.const #cir.int<2> : !s32i
 // CIR-NEXT: cir.store align(4) %[[TMP3]], %[[TMP2]] : !s32i, !cir.ptr<!s32i, target_address_space(4)>
-// CIR-NEXT: cir.call @_Z8take_refRK1S(%[[REF_TMP0_ASCAST]]) cc(spir_function) nothrow nounwind {convergent} : (!cir.ptr<!rec_S, target_address_space(4)> {llvm.align = 4 : i64, llvm.dereferenceable = 8 : i64, llvm.noundef}) -> ()
+// CIR-NEXT: cir.call @_Z8take_refRK1S(%[[REF_TMP0_ASCAST]]) cc(spir_function) nothrow nounwind {convergent, uniform_work_group_size} : (!cir.ptr<!rec_S, target_address_space(4)> {llvm.align = 4 : i64, llvm.dereferenceable = 8 : i64, llvm.noundef}) -> ()
 // CIR-NEXT: cir.return
 
 // CIR-LABEL: cir.func {{.*}}@_Z10array_tempv(
@@ -79,7 +79,7 @@ void take_ref(const S &s);
 // CIR-NEXT: %[[TMP4:.*]] = cir.const #cir.int<4> : !s32i
 // CIR-NEXT: cir.store align(4) %[[TMP4]], %[[TMP3]] : !s32i, !cir.ptr<!s32i, target_address_space(4)>
 // CIR-NEXT: %[[TMP5:.*]] = cir.cast array_to_ptrdecay %[[REF_TMP0_ASCAST]] : !cir.ptr<!cir.array<!s32i x 2>, target_address_space(4)> -> !cir.ptr<!s32i, target_address_space(4)>
-// CIR-NEXT: cir.call @_Z3usePi(%[[TMP5]]) cc(spir_function) nothrow nounwind {convergent} : (!cir.ptr<!s32i, target_address_space(4)> {llvm.noundef}) -> ()
+// CIR-NEXT: cir.call @_Z3usePi(%[[TMP5]]) cc(spir_function) nothrow nounwind {convergent, uniform_work_group_size} : (!cir.ptr<!s32i, target_address_space(4)> {llvm.noundef}) -> ()
 // CIR-NEXT: cir.return
 
 // CIR-LABEL: cir.func {{.*}}@_Z10lambda_refv(
@@ -91,7 +91,7 @@ void take_ref(const S &s);
 // CIR-NEXT: cir.store align(4) %[[TMP0]], %[[X_ASCAST]] : !s32i, !cir.ptr<!s32i, target_address_space(4)>
 // CIR-NEXT: %[[TMP1:.*]] = cir.get_member %[[L_ASCAST]][0] {name = "x"} : !cir.ptr<!rec_anon2E0, target_address_space(4)> -> !cir.ptr<!cir.ptr<!s32i, target_address_space(4)>, target_address_space(4)>
 // CIR-NEXT: cir.store align(8) %[[X_ASCAST]], %[[TMP1]] : !cir.ptr<!s32i, target_address_space(4)>, !cir.ptr<!cir.ptr<!s32i, target_address_space(4)>, target_address_space(4)>
-// CIR-NEXT: cir.call @_ZZ10lambda_refvENKUlvE_clEv(%[[L_ASCAST]]) cc(spir_function) nothrow nounwind {convergent} : (!cir.ptr<!rec_anon2E0, target_address_space(4)> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef}) -> ()
+// CIR-NEXT: cir.call @_ZZ10lambda_refvENKUlvE_clEv(%[[L_ASCAST]]) cc(spir_function) nothrow nounwind {convergent, uniform_work_group_size} : (!cir.ptr<!rec_anon2E0, target_address_space(4)> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef}) -> ()
 // CIR-NEXT: cir.return
 
 // CIR-LABEL: cir.func {{.*}}@_Z4nrvov(
@@ -100,7 +100,7 @@ void take_ref(const S &s);
 // CIR-NEXT: %[[TMP0:.*]] = cir.const #cir.zero : !rec_S
 // CIR-NEXT: cir.store align(4) %[[TMP0]], %[[__RETVAL_ASCAST]] : !rec_S, !cir.ptr<!rec_S, target_address_space(4)>
 // CIR-NEXT: %[[TMP1:.*]] = cir.get_member %[[__RETVAL_ASCAST]][0] {name = "a"} : !cir.ptr<!rec_S, target_address_space(4)> -> !cir.ptr<!s32i, target_address_space(4)>
-// CIR-NEXT: cir.call @_Z3usePi(%[[TMP1]]) cc(spir_function) nothrow nounwind {convergent} : (!cir.ptr<!s32i, target_address_space(4)> {llvm.noundef}) -> ()
+// CIR-NEXT: cir.call @_Z3usePi(%[[TMP1]]) cc(spir_function) nothrow nounwind {convergent, uniform_work_group_size} : (!cir.ptr<!s32i, target_address_space(4)> {llvm.noundef}) -> ()
 // CIR-NEXT: %[[TMP2:.*]] = cir.load %[[__RETVAL]] : !cir.ptr<!rec_S>, !rec_S
 // CIR-NEXT: cir.return %[[TMP2]] : !rec_S
 
@@ -174,7 +174,7 @@ void take_ref(const S &s);
 // OGCG-NEXT: %[[REF_TMP_ASCAST:.*]] = addrspacecast ptr %[[REF_TMP]] to ptr addrspace(4)
 // OGCG-NEXT: store i32 42, ptr addrspace(4) %[[REF_TMP_ASCAST]], align 4
 // OGCG-NEXT: store ptr addrspace(4) %[[REF_TMP_ASCAST]], ptr addrspace(4) %[[R_ASCAST]], align 8
-// OGCG-NEXT: %[[TMP0:.*]] = load ptr addrspace(4), ptr addrspace(4) %[[R_ASCAST]], align 8, !align !1
+// OGCG-NEXT: %[[TMP0:.*]] = load ptr addrspace(4), ptr addrspace(4) %[[R_ASCAST]], align 8, !align !{{[0-9]+}}
 // OGCG-NEXT: call spir_func void @_Z9use_constPKi(ptr addrspace(4) noundef %[[TMP0]])
 // OGCG-NEXT: ret void
 
@@ -216,7 +216,7 @@ void take_ref(const S &s);
 // OGCG-NEXT: store ptr addrspace(4) %[[THIS]], ptr addrspace(4) %[[THIS_ADDR_ASCAST]], align 8
 // OGCG-NEXT: %[[THIS1:.*]] = load ptr addrspace(4), ptr addrspace(4) %[[THIS_ADDR_ASCAST]], align 8
 // OGCG-NEXT: %[[TMP0:.*]] = getelementptr inbounds nuw %[[CLASS_ANON:.*]], ptr addrspace(4) %[[THIS1]], i32 0, i32 0
-// OGCG-NEXT: %[[TMP1:.*]] = load ptr addrspace(4), ptr addrspace(4) %[[TMP0]], align 8, !align !1
+// OGCG-NEXT: %[[TMP1:.*]] = load ptr addrspace(4), ptr addrspace(4) %[[TMP0]], align 8, !align !{{[0-9]+}}
 // OGCG-NEXT: call spir_func void @_Z3usePi(ptr addrspace(4) noundef %[[TMP1]])
 // OGCG-NEXT: ret void
 

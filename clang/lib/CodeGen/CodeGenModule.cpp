@@ -649,9 +649,11 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   ConstGlobalsPtrTy = llvm::PointerType::get(
       LLVMContext, C.getTargetAddressSpace(GetGlobalConstantAddressSpace()));
 
-  if (getTriple().isSPIR()) {
+  if (getTriple().isSPIR() && LangOpts.SYCLIsDevice) {
     // Currently code uses GlobalsInt8PtrTy for virtual table elements but for
-    // SPIR-V targets default address space pointers are needed.
+    // SYCL device code on SPIR targets default address space pointers are
+    // needed. Other languages keep the default globals address space, which
+    // RTTI descriptors referenced from the virtual table are emitted in.
     GlobalsInt8PtrTy = DefaultInt8PtrTy;
     // Pointer to runtime globals such as virtual tables.
     RuntimeGlobalsInt8PtrTy = llvm::PointerType::get(

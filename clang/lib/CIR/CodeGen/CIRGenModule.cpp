@@ -38,6 +38,7 @@
 #include "clang/CIR/MissingFeatures.h"
 #include "clang/CodeGenUtils/ModuleUtils.h"
 #include "clang/CodeGenUtils/RecordLayoutUtils.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -2021,6 +2022,20 @@ CIRGenModule::getCIRLinkageForDeclarator(const DeclaratorDecl *dd,
   // so we can use available_externally linkage.
   if (linkage == GVA_AvailableExternally)
     return cir::GlobalLinkageKind::AvailableExternallyLinkage;
+
+  // SYCL: Device code is not generally limited to one translation unit, but
+  // anything accessed from another translation unit is required to be annotated
+  // with the SYCL_EXTERNAL macro. For any function or variable that does not
+  // have this, linkonce_odr suffices. If -fno-sycl-rdc is passed, we know there
+  // is only one translation unit and can so mark them internal. Mirrors
+  // classic CodeGen's getLLVMLinkageForDeclarator.
+  if (getLangOpts().SYCLIsDevice && !dd->hasAttr<SYCLKernelAttr>() &&
+      !dd->hasAttr<SYCLDeviceAttr>() && !dd->hasAttr<SYCLExternalAttr>() &&
+      !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          dd->getType()))
+    return getLangOpts().GPURelocatableDeviceCode
+               ? cir::GlobalLinkageKind::LinkOnceODRLinkage
+               : cir::GlobalLinkageKind::InternalLinkage;
 
   // Note that Apple's kernel linker doesn't support symbol
   // coalescing, so we need to avoid linkonce and weak linkages there.
