@@ -8,7 +8,9 @@ build is not modified.
 ## Prerequisites
 
 - A host Clang installation that includes the profile runtime.
-- CMake and Ninja (or another CMake generator).
+- CMake and a single-configuration generator such as Ninja. Multi-configuration
+  generators are rejected because their configuration-specific tool paths are
+  not supported by this workflow.
 - Enough disk space for three complete DPC++ build directories.
 
 ## Build
@@ -30,11 +32,13 @@ this is the required training workload and provides representative C, C++,
 optimization, and host code-generation coverage. Before that build, the default
 training workload also runs `check-clang`, `check-llvm`, and `check-sycl` for
 broader compiler and SYCL coverage. Instrumentation diagnostics can make these
-FileCheck-based tests fail, so their exit status is reported but does not stop
-the required training build. The instrumented compiler reserves additional
-value-profile counters to avoid known profiler warnings that would otherwise
-pollute test output. To replace these supplemental targets, repeat
-`--training-target`:
+FileCheck-based tests fail, so each target runs independently and its exit
+status is reported without stopping the remaining workloads or the required
+training build. The instrumented compiler reserves additional value-profile
+counters to avoid known profiler warnings that would otherwise pollute test
+output. The workflow ignores an inherited `LLVM_PROFILE_FILE` so profile data
+cannot escape its isolated output directory. To replace the supplemental
+targets, repeat `--training-target`:
 
 ```bash
 python3 buildbot/pgo.py \

@@ -15,30 +15,49 @@ SPEC.loader.exec_module(PGO)
 
 class PgoCommandTest(unittest.TestCase):
     def test_instrumented_configuration_uses_isolated_profile_directory(self):
+        options = PGO._instrumented_options([], Path("out/instrumented/profiles"), [])
         command = PGO._configure_command(
             Path("configure.py"),
             Path("src"),
             Path("out/instrumented"),
             "Ninja",
-            [
-                "LLVM_BUILD_INSTRUMENTED=IR",
-                "LLVM_PROFILE_DATA_DIR=out/instrumented/profiles",
-                f"CMAKE_C_FLAGS={PGO.INSTRUMENTED_PROFILE_FLAGS}",
-                f"CMAKE_CXX_FLAGS={PGO.INSTRUMENTED_PROFILE_FLAGS}",
-            ],
+            options,
             ["--no-assertions"],
         )
 
         self.assertIn("--cmake-opt=-DLLVM_BUILD_INSTRUMENTED=IR", command)
         self.assertIn(
-            "--cmake-opt=-DLLVM_PROFILE_DATA_DIR=out/instrumented/profiles",
+            "--cmake-opt=-DLLVM_PROFILE_DATA_DIR="
+            f"{Path('out/instrumented/profiles')}",
             command,
         )
         self.assertIn(
             "--cmake-opt=-DCMAKE_CXX_FLAGS=" f"{PGO.INSTRUMENTED_PROFILE_FLAGS}",
             command,
         )
+        self.assertIn("--cmake-opt=-DLLVM_VP_COUNTERS_PER_SITE=6", command)
         self.assertEqual(command[-1], "--no-assertions")
+
+    def test_dylib_instrumentation_uses_one_cmake_counter_setting(self):
+        options = PGO._instrumented_options([], Path("profiles"), ["--llvm-link-dylib"])
+
+        self.assertIn("LLVM_VP_COUNTERS_PER_SITE=6", options)
+        self.assertFalse(any(option.startswith("CMAKE_C_FLAGS=") for option in options))
+        self.assertFalse(
+            any(option.startswith("CMAKE_CXX_FLAGS=") for option in options)
+        )
+
+    def test_explicit_dylib_cmake_override_controls_counter_flags(self):
+        options = PGO._instrumented_options(
+            [],
+            Path("profiles"),
+            ["--cmake-opt=-DLLVM_LINK_LLVM_DYLIB:BOOL=ON"],
+        )
+
+        self.assertIn("LLVM_VP_COUNTERS_PER_SITE=6", options)
+        self.assertFalse(
+            any(PGO.INSTRUMENTED_PROFILE_FLAGS in option for option in options)
+        )
 
     def test_optimized_configuration_consumes_merged_profile(self):
         command = PGO._configure_command(
@@ -111,6 +130,13 @@ class PgoCommandTest(unittest.TestCase):
 
             self.assertIn("check-sycl", PGO.DEFAULT_TRAINING_TARGETS)
             self.assertFalse((source_dir / "out").exists())
+
+    def test_multi_configuration_generator_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "Multi-configuration"):
+            PGO._validate_generator("Ninja Multi-Config")
+
+        with self.assertRaisesRegex(RuntimeError, "Multi-configuration"):
+            PGO._validate_generator("Visual Studio 17 2022")
 
     def test_dry_run_configures_training_build_with_instrumented_compilers(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -197,13 +223,52 @@ class PgoCommandTest(unittest.TestCase):
 
     def test_training_target_failures_are_nonfatal(self):
         runner = mock.Mock()
-        runner.run.side_effect = subprocess.CalledProcessError(1, ["cmake"])
+        runner.run.side_effect = [
+            subprocess.CalledProcessError(1, ["cmake"]),
+            None,
+        ]
 
         with mock.patch("builtins.print") as print_mock:
-            PGO._run_training_targets(runner, Path("instrumented"), ["check-clang"], 2)
+            PGO._run_training_targets(
+                runner,
+                Path("instrumented"),
+                ["check-clang", "check-llvm"],
+                2,
+            )
 
         print_mock.assert_called_once()
-        self.assertIn("continuing", print_mock.call_args.args[0])
+        self.assertIn("check-clang", print_mock.call_args.args[0])
+        self.assertEqual(runner.run.call_count, 2)
+        self.assertIn("check-clang", runner.run.call_args_list[0].args[0])
+        self.assertIn("check-llvm", runner.run.call_args_list[1].args[0])
+
+    def test_profile_discovery_treats_directory_metacharacters_literally(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            profile_dir = Path(temporary_directory) / "profiles[1]"
+            profile_dir.mkdir()
+            profile = profile_dir / "default.profraw"
+            profile.touch()
+            profdata = Path(temporary_directory) / "llvm-profdata"
+            profdata.touch()
+            runner = mock.Mock(dry_run=False)
+
+            PGO._merge_profiles(
+                runner,
+                profdata,
+                profile_dir,
+                Path(temporary_directory) / "merged.profdata",
+            )
+
+            self.assertIn(str(profile), runner.run.call_args.args[0])
+
+    def test_runner_removes_ambient_profile_path(self):
+        with mock.patch.dict(
+            os.environ, {"LLVM_PROFILE_FILE": "outside.profraw"}
+        ), mock.patch.object(subprocess, "run") as run_mock:
+            PGO.CommandRunner().run(["command"])
+
+        environment = run_mock.call_args.kwargs["env"]
+        self.assertNotIn("LLVM_PROFILE_FILE", environment)
 
     def test_existing_instrumented_build_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -9,7 +9,6 @@ profile.
 """
 
 import argparse
-import glob
 import os
 from pathlib import Path
 import shlex
@@ -19,6 +18,7 @@ import sys
 
 DEFAULT_TRAINING_TARGETS = ("check-clang", "check-llvm", "check-sycl")
 INSTRUMENTED_PROFILE_FLAGS = "-Xclang -mllvm -Xclang -vp-counters-per-site=6"
+MULTI_CONFIG_GENERATORS = ("Ninja Multi-Config", "Xcode")
 
 
 def _format_command(command):
@@ -28,12 +28,17 @@ def _format_command(command):
 class CommandRunner:
     def __init__(self, dry_run=False):
         self.dry_run = dry_run
+        self.environment = os.environ.copy()
+        # The profile runtime gives this variable precedence over the output
+        # path compiled into instrumented tools. Do not let an ambient value
+        # redirect this workflow's profiles outside its isolated directory.
+        self.environment.pop("LLVM_PROFILE_FILE", None)
 
     def run(self, command, cwd=None):
         location = Path(cwd or Path.cwd())
         print(f"[{location}] {_format_command(command)}")
         if not self.dry_run:
-            subprocess.run(command, cwd=location, check=True)
+            subprocess.run(command, cwd=location, check=True, env=self.environment)
 
 
 def _configure_command(
@@ -66,6 +71,57 @@ def _build_command(build_dir, targets, parallelism):
     command.append("--target")
     command.extend(targets)
     return command
+
+
+def _validate_generator(generator):
+    if generator in MULTI_CONFIG_GENERATORS or generator.startswith("Visual Studio "):
+        raise RuntimeError(
+            f"Multi-configuration generator {generator!r} is not supported. "
+            "Use a single-configuration generator such as Ninja."
+        )
+
+
+def _cmake_definition(configure_args, name):
+    prefix = "--cmake-opt=-D"
+    value = None
+    for argument in configure_args:
+        if not argument.startswith(prefix):
+            continue
+        key, separator, candidate = argument[len(prefix) :].partition("=")
+        if separator and key.split(":", 1)[0].upper() == name.upper():
+            value = candidate
+    return value
+
+
+def _cmake_value_is_true(value):
+    normalized = value.strip().upper()
+    false_values = {"", "0", "FALSE", "OFF", "NO", "N", "IGNORE", "NOTFOUND"}
+    return normalized not in false_values and not normalized.endswith("-NOTFOUND")
+
+
+def _uses_llvm_dylib(configure_args):
+    enabled = "--llvm-link-dylib" in configure_args
+    override = _cmake_definition(configure_args, "LLVM_LINK_LLVM_DYLIB")
+    return _cmake_value_is_true(override) if override is not None else enabled
+
+
+def _instrumented_options(common_options, profile_dir, configure_args):
+    options = common_options + [
+        "LLVM_BUILD_INSTRUMENTED=IR",
+        f"LLVM_PROFILE_DATA_DIR={profile_dir}",
+        "LLVM_VP_COUNTERS_PER_SITE=6",
+    ]
+    if not _uses_llvm_dylib(configure_args):
+        # HandleLLVMOptions adds this flag itself for dylib builds, using the
+        # LLVM_VP_COUNTERS_PER_SITE value above. Static builds need the flag
+        # supplied explicitly, but adding it to both paths would duplicate it.
+        options.extend(
+            (
+                f"CMAKE_C_FLAGS={INSTRUMENTED_PROFILE_FLAGS}",
+                f"CMAKE_CXX_FLAGS={INSTRUMENTED_PROFILE_FLAGS}",
+            )
+        )
+    return options
 
 
 def _find_profdata_tool(host_clang, requested_tool, dry_run):
@@ -125,24 +181,26 @@ def _clear_raw_profiles(profile_dir):
 
 
 def _run_training_targets(runner, build_dir, targets, parallelism):
-    try:
-        runner.run(_build_command(build_dir, targets, parallelism))
-    except subprocess.CalledProcessError as error:
-        # Instrumentation runtime diagnostics can be observed by FileCheck and
-        # make otherwise useful test workloads fail. Keep the coverage and
-        # rely on the required clean training build as the success gate.
-        print(
-            "warning: training test targets returned "
-            f"{error.returncode}; continuing with the training build",
-            file=sys.stderr,
-        )
+    for target in targets:
+        try:
+            runner.run(_build_command(build_dir, [target], parallelism))
+        except subprocess.CalledProcessError as error:
+            # Instrumentation runtime diagnostics can be observed by FileCheck
+            # and make otherwise useful test workloads fail. Keep the coverage,
+            # continue with the other suites, and rely on the required clean
+            # training build as the success gate.
+            print(
+                f"warning: training target {target} returned "
+                f"{error.returncode}; continuing with remaining workloads",
+                file=sys.stderr,
+            )
 
 
 def _merge_profiles(runner, profdata_tool, profile_dir, output_file):
     if runner.dry_run:
         profiles = [str(profile_dir / "*.profraw")]
     else:
-        profiles = sorted(glob.glob(str(profile_dir / "*.profraw")))
+        profiles = [str(profile) for profile in sorted(profile_dir.glob("*.profraw"))]
         if not profiles:
             raise RuntimeError(
                 f"No raw profiles were produced in {profile_dir}. "
@@ -177,6 +235,7 @@ def run_pgo_build(args):
     configure_script = source_dir / "buildbot" / "configure.py"
     if not configure_script.is_file():
         raise RuntimeError(f"Expected the DPC++ configure script at {configure_script}")
+    _validate_generator(args.cmake_gen)
 
     instrumented_dir = output_dir / "instrumented"
     training_dir = output_dir / "training"
@@ -206,12 +265,9 @@ def run_pgo_build(args):
         f"CMAKE_CXX_COMPILER={host_clangxx}",
     ]
 
-    instrumented_options = common_options + [
-        "LLVM_BUILD_INSTRUMENTED=IR",
-        f"LLVM_PROFILE_DATA_DIR={profile_dir}",
-        f"CMAKE_C_FLAGS={INSTRUMENTED_PROFILE_FLAGS}",
-        f"CMAKE_CXX_FLAGS={INSTRUMENTED_PROFILE_FLAGS}",
-    ]
+    instrumented_options = _instrumented_options(
+        common_options, profile_dir, args.configure_arg
+    )
     runner.run(
         _configure_command(
             configure_script,
