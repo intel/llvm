@@ -504,7 +504,7 @@ The return type of the macro is unspecified.  Applications must use it only in
 the argument position of a free function kernel launch function; the result is
 not otherwise usable.
 
-_Constraints_: The program is ill-formed if `kernel-name`, resolved against the
+The program is ill-formed if `kernel-name`, resolved against the
 types of `args`, does not name a SYCL free function kernel (a function declared
 with the `nd_range_kernel<Dims>` or `single_task_kernel` property).
 
