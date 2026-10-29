@@ -31,7 +31,10 @@ enum class matrix_type {
   uint8,
   uint16,
   uint32,
-  uint64
+  uint64,
+  fp8_e4m3,
+  fp8_e5m2,
+  fp4_e2m1
 };
 
 struct combination {
@@ -108,6 +111,21 @@ template <> constexpr const char *convertTypeToMatrixTypeString<uint32_t>() {
 }
 template <> constexpr const char *convertTypeToMatrixTypeString<uint64_t>() {
   return "matrix_type::uint64";
+}
+template <>
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>() {
+  return "matrix_type::fp8_e4m3";
+}
+template <>
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>() {
+  return "matrix_type::fp8_e5m2";
+}
+template <>
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::fp4_e2m1_x<1>>() {
+  return "matrix_type::fp4_e2m1";
 }
 } // namespace detail
 } // namespace _V1

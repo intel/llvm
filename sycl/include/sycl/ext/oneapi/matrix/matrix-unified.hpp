@@ -14,7 +14,7 @@
 #if defined(__NVPTX__)
 #include "matrix-tensorcores.hpp"
 #elif defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||     \
-    defined(__gfx942__)
+    defined(__gfx942__) || defined(__gfx950__)
 #include "matrix-hip.hpp"
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -452,13 +452,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
                     "requires that joint_matrix data types Ta and Tb match");
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  if constexpr (std::is_same<Ta, Tb>::value) {
-    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, K, N, LayoutA,
-                                                    LayoutB>(
+  if constexpr (std::is_same<Ta, Tb>::value ||
+                sycl::ext::oneapi::detail::is_hip_mixed_mfma_v<Ta, Tb>) {
+    sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tb, Tc, M, K, N,
+                                                    LayoutA, LayoutB>(
         D.matrix_impl, A.matrix_impl, B.matrix_impl, C.matrix_impl);
   } else {
     assert(false && "Ta != Tb : In the HIP backend joint_matrix_mad "
-                    "requires that joint_matrix data types Ta and Tb match");
+                    "requires that joint_matrix data types Ta and Tb match, "
+                    "except for the FP8/FP4 types");
   }
 #else
   constexpr uint32_t MatrixOperand =

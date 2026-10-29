@@ -37,6 +37,15 @@ class tf32 {
 } // namespace precision
 
 } // namespace matrix
+
+// Small floating-point types from sycl_ext_oneapi_fp8 and
+// sycl_ext_oneapi_fp4 that some targets accept as joint_matrix element types.
+// Only forward declarations are needed here, so the matrix headers do not pull
+// in the full type definitions.
+template <size_t N> class fp8_e4m3_x;
+template <size_t N> class fp8_e5m2_x;
+template <size_t N> class fp4_e2m1_x;
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

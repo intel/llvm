@@ -1,5 +1,5 @@
 // REQUIRES: hip
-// REQUIRES: hip-arch-gfx942 || hip-arch-gfx941 || hip-arch-gfx940
+// REQUIRES: hip-arch-gfx942 || hip-arch-gfx941 || hip-arch-gfx940 || hip-arch-gfx950
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
 
 // CDNA3 supports one-block F32 MFMA shapes: 16x16x4 and 32x32x2.

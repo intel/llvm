@@ -798,6 +798,122 @@ struct matrix_params<
   using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
 };
 
+//////////////////////////////////////////////
+/// AMD Matrix Cores - GFX950 architecture ///
+//////////////////////////////////////////////
+//
+// gfx950 (CDNA4) supports every gfx942 combination, adds double-K fp16, bf16
+// and int8 shapes, and adds OCP FP8 (fp8_e4m3, fp8_e5m2) and FP4 (fp4_e2m1)
+// multiplicands. The FP8/FP4 A and B types may differ.
+
+template <typename T> constexpr bool is_fp8_type_amd_gfx950() {
+  return std::is_same_v<T, fp8_e4m3_x<1>> || std::is_same_v<T, fp8_e5m2_x<1>>;
+}
+
+template <typename T> constexpr bool is_small_float_type_amd_gfx950() {
+  return is_fp8_type_amd_gfx950<T>() || std::is_same_v<T, fp4_e2m1_x<1>>;
+}
+
+template <typename Ta, typename Tb, typename Tc>
+constexpr bool are_types_valid_amd_gfx950() {
+  if constexpr (is_small_float_type_amd_gfx950<Ta>() &&
+                is_small_float_type_amd_gfx950<Tb>())
+    return std::is_same_v<Tc, float>;
+  else
+    return std::is_same_v<Ta, Tb> && are_types_valid_amd_gfx942<Ta, Tc>();
+}
+
+template <typename Ta, typename Tb, typename Tc>
+constexpr bool is_combination_valid_amd_gfx950(size_t sM, size_t sN,
+                                               size_t sK) {
+  if constexpr (is_small_float_type_amd_gfx950<Ta>() &&
+                is_small_float_type_amd_gfx950<Tb>()) {
+    if (!std::is_same_v<Tc, float>)
+      return false;
+    if ((sM == 32 && sN == 32 && sK == 64) ||
+        (sM == 16 && sN == 16 && sK == 128))
+      return true;
+    return is_fp8_type_amd_gfx950<Ta>() && is_fp8_type_amd_gfx950<Tb>() &&
+           ((sM == 32 && sN == 32 && sK == 16) ||
+            (sM == 16 && sN == 16 && sK == 32));
+  } else if constexpr (std::is_same_v<Ta, Tb>) {
+    return is_combination_valid_amd_gfx942<Ta, Tc>(sM, sN, sK) ||
+           ((std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) &&
+            std::is_same_v<Tc, float> &&
+            ((sM == 32 && sN == 32 && sK == 16) ||
+             (sM == 16 && sN == 16 && sK == 32))) ||
+           (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t> &&
+            ((sM == 32 && sN == 32 && sK == 32) ||
+             (sM == 16 && sN == 16 && sK == 64)));
+  } else {
+    return false;
+  }
+}
+
+// Default-values query:
+// Specialization for when only types are given, need to query only sizes
+template <typename Ta, typename Tb, typename Tc, typename Td>
+struct matrix_params<
+    architecture::amd_gpu_gfx950, Ta, Tb, Tc, Td, 0, 0, 0,
+    typename std::enable_if_t<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
+        std::is_same_v<Tc, Td>)>> {
+  static_assert(
+      are_types_valid_amd_gfx950<Ta, Tb, Tc>(),
+      "Invalid types for AMD gfx950, supported types are half, float, "
+      "int8_t, int32_t, double, bfloat16, fp8_e4m3, fp8_e5m2 and fp4_e2m1 ");
+
+  // Default sizes for AMD gfx950 are square 16x16 tiles using the largest K
+  // of the native CDNA4 instruction for each type.
+  static constexpr std::size_t M = 16;
+  static constexpr std::size_t N = 16;
+  static constexpr std::size_t K =
+      is_small_float_type_amd_gfx950<Ta>()                         ? 128
+      : std::is_same_v<Ta, int8_t>                                 ? 64
+      : (std::is_same_v<Ta, half> || std::is_same_v<Ta, bfloat16>) ? 32
+                                                                   : 4;
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Validation query
+// Specialization when both types and sizes are given
+template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
+          size_t sN, size_t sK>
+struct matrix_params<
+    architecture::amd_gpu_gfx950, Ta, Tb, Tc, Td, sM, sN, sK,
+    typename std::enable_if_t<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
+        std::is_same_v<Tc, Td> && sM != 0 && sN != 0 && sK != 0)>> {
+  static_assert(
+      is_combination_valid_amd_gfx950<Ta, Tb, Tc>(sM, sN, sK),
+      "Invalid parameters for AMD gfx950, query valid combinations "
+      "using: "
+      "q.get_device().get_info<sycl::info::device::matrix::combinations>()");
+
+  static constexpr std::size_t M = sM;
+  static constexpr std::size_t N = sN;
+  static constexpr std::size_t K = sK;
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
 /////////////////////////////////////////////////
 /// CUDA Tensor Cores - sm70, sm72 and sm80 ///
 /////////////////////////////////////////////////

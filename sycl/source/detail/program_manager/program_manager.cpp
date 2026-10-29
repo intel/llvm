@@ -3102,6 +3102,12 @@ convertMatrixTypeStringMatrixTypeEnumValue(
     return matrix_ext::matrix_type::uint32;
   else if ("uint64" == MatrixTypeStringView)
     return matrix_ext::matrix_type::uint64;
+  else if ("fp8_e4m3" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::fp8_e4m3;
+  else if ("fp8_e5m2" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::fp8_e5m2;
+  else if ("fp4_e2m1" == MatrixTypeStringView)
+    return matrix_ext::matrix_type::fp4_e2m1;
   return std::nullopt;
 }
 
