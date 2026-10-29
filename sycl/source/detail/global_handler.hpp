@@ -145,7 +145,7 @@ private:
 
   friend void shutdown_early(bool);
   friend void shutdown_late();
-  friend void shutdown_on_process_termination();
+  friend void mark_process_terminating();
   friend class ObjectUsageCounter;
   static SpinLock MSyclGlobalHandlerProtector;
 
