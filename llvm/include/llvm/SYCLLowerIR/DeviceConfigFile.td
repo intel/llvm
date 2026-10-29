@@ -405,6 +405,10 @@ def : HipTargetInfo<"amd_gpu_gfx942", !listconcat(
     HipMinAspects, HipUSMAspects, HipGraphAspects,
     [AspectExt_intel_device_info_uuid]),
     HipSubgroupSizesCDNA>;
+def : HipTargetInfo<"amd_gpu_gfx950", !listconcat(
+    HipMinAspects, HipUSMAspects, HipGraphAspects,
+    [AspectAtomic64, AspectExt_intel_device_info_uuid]),
+    HipSubgroupSizesCDNA>;
 def : HipTargetInfo<"amd_gpu_gfx1030", !listconcat(
     HipMinAspects, HipUSMAspects, HipGraphAspects,
     [AspectAtomic64, AspectExt_intel_device_info_uuid]),

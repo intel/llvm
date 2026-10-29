@@ -1863,6 +1863,7 @@ public:
             {"gfx940", oneapi_exp_arch::amd_gpu_gfx940},
             {"gfx941", oneapi_exp_arch::amd_gpu_gfx941},
             {"gfx942", oneapi_exp_arch::amd_gpu_gfx942},
+            {"gfx950", oneapi_exp_arch::amd_gpu_gfx950},
             {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
             {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
             {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
