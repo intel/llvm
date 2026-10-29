@@ -471,8 +471,9 @@ The launch functions above take the kernel as a `kernel_function<Func>`
 non-type template argument, which names a fully-resolved function.  When the
 free function kernel is a function template or an overload set, the application
 must therefore name a specific specialization or disambiguate the overload
-explicitly (see the example in _Free function kernels which are templates or
-overloaded_).
+explicitly (see
+<<templates-or-overloaded-example, Free function kernels which are templates or
+overloaded>>).
 
 This extension optionally provides a macro that lets the kernel be named by its
 bare identifier, with the specialization resolved from the launch arguments the
@@ -1128,6 +1129,7 @@ int main() {
 }
 ----
 
+[[templates-or-overloaded-example]]
 === Free function kernels which are templates or overloaded
 
 A free function kernel may be defined as a function template.
