@@ -554,6 +554,10 @@ public:
     return std::get<const RTDeviceBinaryImage *>(MBinImage);
   }
 
+  const RTDeviceBinaryImage *get_bin_image() const noexcept {
+    return hasRTDeviceBinaryImage() ? get_bin_image_ref() : nullptr;
+  }
+
   const context &get_context() const noexcept { return MContext; }
 
   std::vector<unsigned char> &get_spec_const_blob_ref() noexcept {
