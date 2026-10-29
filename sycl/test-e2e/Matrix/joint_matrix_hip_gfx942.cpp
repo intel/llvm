@@ -37,6 +37,10 @@ template <size_t KX> void matrix_mfma() {
 }
 
 int main() {
+  // No CDNA MFMA accumulator has M != N. Check the col-major index on
+  // rectangles before launching the square device tiles.
+  check_hip_col_major_rectangles();
+
   matrix_mfma<1>();
   matrix_mfma<2>();
   matrix_mfma<3>();
