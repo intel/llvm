@@ -280,6 +280,8 @@ private:
 
   void enableUSMIndirectAccess() const;
   std::optional<unsigned> getFreeFuncKernelArgSize() const;
+
+  std::string getAttributesFromDeviceRequirements() const;
 };
 
 template <int Dimensions>
@@ -325,6 +327,14 @@ inline typename Param::return_type kernel_impl::get_info() const {
     if (std::optional<unsigned> FFArgSize = getFreeFuncKernelArgSize())
       return *FFArgSize;
     checkIfValidForNumArgsInfoQuery();
+  }
+  if constexpr (std::is_same_v<Param, info::kernel::attributes>) {
+    // Some backends don't report attributes.
+    std::string Attributes =
+        get_kernel_info<Param>(this->getHandleRef(), getAdapter());
+    if (Attributes.empty())
+      Attributes = getAttributesFromDeviceRequirements();
+    return Attributes;
   }
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }

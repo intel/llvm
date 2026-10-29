@@ -7,10 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/device_image_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <detail/ur.hpp>
 
+#include <algorithm>
 #include <memory>
 
 namespace sycl {
@@ -166,6 +169,63 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
 
 std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
   return MKernelBundleImpl->tryGetKernelArgsSize(getName());
+}
+
+std::string kernel_impl::getAttributesFromDeviceRequirements() const {
+  if (!MDeviceImageImpl)
+    return {};
+  const RTDeviceBinaryImage *Img = MDeviceImageImpl->get_bin_image();
+  if (!Img)
+    return {};
+
+  std::vector<uint64_t> WGSize;
+  std::optional<uint32_t> WGNumDims, SubGroupSize;
+  std::vector<aspect> Aspects;
+  for (const auto &Prop : Img->getDeviceRequirements()) {
+    const std::string_view Name{Prop->Name};
+    const DeviceBinaryProperty DBProp(Prop);
+    if (Name == __SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE_UINT64) {
+      ByteArray Vals = DBProp.asByteArray();
+      Vals.dropBytes(8);
+      while (!Vals.empty())
+        WGSize.push_back(Vals.consume<uint64_t>());
+    } else if (Name == __SYCL_DEVICE_REQUIREMENTS_WORK_GROUP_NUM_DIM) {
+      WGNumDims = DBProp.asUint32();
+    } else if (Name == __SYCL_DEVICE_REQUIREMENTS_REQD_SUB_GROUP_SIZE) {
+      SubGroupSize = DBProp.asUint32();
+    } else if (Name == __SYCL_DEVICE_REQUIREMENTS_ASPECTS) {
+      ByteArray Vals = DBProp.asByteArray();
+      Vals.dropBytes(8);
+      while (!Vals.empty())
+        Aspects.push_back(Vals.consume<aspect>());
+    }
+  }
+
+  std::string Result;
+  auto Append = [&Result](const std::string &Attr) {
+    if (!Result.empty())
+      Result += ' ';
+    Result += Attr;
+  };
+
+  if (!WGSize.empty()) {
+    // Stored in reverse (IR) order; convert to SYCL order and pad to three.
+    WGSize.resize(std::min<size_t>(WGNumDims.value_or(WGSize.size()),
+                                   WGSize.size()));
+    std::reverse(WGSize.begin(), WGSize.end());
+    WGSize.resize(3, 1);
+    Append("reqd_work_group_size(" + std::to_string(WGSize[0]) + ", " +
+           std::to_string(WGSize[1]) + ", " + std::to_string(WGSize[2]) + ")");
+  }
+  if (SubGroupSize)
+    Append("reqd_sub_group_size(" + std::to_string(*SubGroupSize) + ")");
+  if (!Aspects.empty()) {
+    std::string Str = "device_has(";
+    for (size_t I = 0; I < Aspects.size(); ++I)
+      Str += (I ? ", aspect::" : "aspect::") + getAspectNameStr(Aspects[I]);
+    Append(Str + ")");
+  }
+  return Result;
 }
 
 void kernel_impl::enableUSMIndirectAccess() const {
