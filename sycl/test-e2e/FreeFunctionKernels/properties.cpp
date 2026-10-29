@@ -1,8 +1,9 @@
 // REQUIRES: aspect-usm_shared_allocations
-// REQUIRES: sg-16 || sg-32
+// REQUIRES: sg-16 || sg-32 || sg-64
 // Build and run once per sub-group size the device reports as supported.
 // RUN: %if sg-16 %{ %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out %}
 // RUN: %if sg-32 %{ %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out %}
+// RUN: %if sg-64 %{ %{build} -DSG_SIZE=64 -o %t64.out && %{run} %t64.out %}
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
