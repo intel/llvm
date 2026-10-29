@@ -55,19 +55,19 @@
 // CHK-SYCL-BAD-OPT-VALUE: error: invalid argument 'bad_value' to [[option]]=
 
 /// Check no error for -fsycl-targets with good triple
-// RUN:   %clang -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spir64 -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spir64 -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv32-unknown-unknown -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv32-unknown-unknown -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv64-unknown-unknown -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv64-unknown-unknown -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv32 -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv32 -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
-// RUN:   %clang -### -fsycl-targets=spirv64 -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir}  %s 2>&1 \
+// RUN:   %clang -### -fsycl-targets=spirv64 -fsycl --offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 

@@ -8453,9 +8453,9 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     // device binaries.
     if (IsSYCLHostOnly && Kind == Action::OFK_SYCL) {
       for (Action *&A : DeviceActions) {
-        // Find the input action (should be first in the chain)
+        // Find the source input, following the first input of each action.
         Action *InputAction = A;
-        while (InputAction->getInputs().size() == 1)
+        while (!InputAction->getInputs().empty())
           InputAction = *InputAction->input_begin();
 
         // Create a syntax-only compile action from the input
