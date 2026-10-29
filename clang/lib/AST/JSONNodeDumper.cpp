@@ -1753,7 +1753,7 @@ void JSONNodeDumper::VisitLabelStmt(const LabelStmt *LS) {
 }
 
 void JSONNodeDumper::VisitLoopControlStmt(const LoopControlStmt *LS) {
-  if (LS->hasLabelTarget())
+  if (LS->isNamed())
     JOS.attribute("targetLabelDeclId",
                   createPointerRepresentation(LS->getLabelDecl()));
 }

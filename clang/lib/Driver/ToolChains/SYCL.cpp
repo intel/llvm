@@ -1590,7 +1590,7 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  // Compilations that stop at or before the compile phase (-E, --precompile,
+  // Compilations that stop at or before the compile phase (e.g. -E,
   // -fsyntax-only) emit no IR, so they need no device libraries.
   if (getDriver().getFinalPhase(DriverArgs) > phases::Compile)
     BCLibs.append(
@@ -2130,9 +2130,9 @@ SYCLToolChain::getDeviceLibs(
       llvm::sys::path::append(BCPath, "libclang_rt.builtins-spirv64.bc");
       if (getVFS().exists(BCPath))
         BCLibs.emplace_back(std::string(BCPath), /*ShouldInternalize=*/true);
-      else
-        getDriver().Diag(diag::err_drv_device_lib_not_found)
-            << /*compiler-rt builtins*/ 1 << BCPath;
+      // The builtins only exist if compiler-rt was built for spirv64, so a
+      // missing library is not an error, as with the OpenMP NVPTX and AMDGPU
+      // builtins.
     }
   }
   return BCLibs;
