@@ -40,6 +40,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -235,4 +237,250 @@ TEST(SYCLBINSelector, ExportOnlyLibraryNotSurfacedForInput) {
   EXPECT_TRUE(Selected.empty())
       << "Export-only native library must not be surfaced for an input "
          "request";
+}
+
+namespace {
+
+// Serialize a single SPIR-V IR module into an input-state SYCLBIN blob.
+std::vector<char> serializeSPIRVSYCLBIN(detail::device_impl &Dev) {
+  unittest::MockDeviceImage Mock{unittest::makeEmptyKernels({"IRModuleKernel"}),
+                                 unittest::MockPropertySet{}};
+  sycl_device_binary_struct Struct = Mock.convertToNativeType();
+  detail::RTDeviceBinaryImage Img{&Struct};
+  detail::SYCLBIN::ImageInput Input;
+  Input.Image = &Img;
+  Input.Devices = {&Dev};
+  return detail::SYCLBIN::serializeImages(
+      {Input}, static_cast<uint8_t>(bundle_state::input));
+}
+
+// Replaces the first occurrence of From in Bytes with an equally sized To. If
+// RequireUnique is set, it must be the only occurrence.
+void patchBytes(std::vector<char> &Bytes, std::string_view From,
+                std::string_view To, bool RequireUnique = true) {
+  ASSERT_EQ(From.size(), To.size());
+  std::string_view View{Bytes.data(), Bytes.size()};
+  size_t Pos = View.find(From);
+  ASSERT_NE(Pos, std::string_view::npos);
+  if (RequireUnique)
+    ASSERT_EQ(View.find(From, Pos + 1), std::string_view::npos);
+  std::copy(To.begin(), To.end(), Bytes.begin() + Pos);
+}
+
+} // namespace
+
+// An IR module is written with the SPIR-V type and loaded back as SPIR-V.
+TEST(SYCLBINIRModuleType, SPIRVRoundTrip) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  std::vector<char> Bytes = serializeSPIRVSYCLBIN(Dev);
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+  std::vector<const detail::RTDeviceBinaryImage *> Selected =
+      Binaries.getBestCompatibleImages(Dev, bundle_state::input);
+
+  ASSERT_EQ(Selected.size(), 1u);
+  EXPECT_EQ(Selected[0]->getFormat(), SYCL_DEVICE_BINARY_TYPE_SPIRV);
+}
+
+// A file whose IR module metadata has no type is treated as SPIR-V.
+TEST(SYCLBINIRModuleType, MissingTypeDefaultsToSPIRV) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  std::vector<char> Bytes = serializeSPIRVSYCLBIN(Dev);
+  ASSERT_NO_FATAL_FAILURE(patchBytes(Bytes, "type=1|0", "tyqe=1|0"));
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+  std::vector<const detail::RTDeviceBinaryImage *> Selected =
+      Binaries.getBestCompatibleImages(Dev, bundle_state::input);
+
+  ASSERT_EQ(Selected.size(), 1u);
+  EXPECT_EQ(Selected[0]->getFormat(), SYCL_DEVICE_BINARY_TYPE_SPIRV);
+}
+
+// PTX and AMDGCN IR modules (and unknown types) are not supported by the
+// runtime and must be skipped instead of being loaded as SPIR-V.
+TEST(SYCLBINIRModuleType, UnsupportedTypeIsSkipped) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  for (const char *Type : {"type=1|1", "type=1|2", "type=1|7"}) {
+    std::vector<char> Bytes = serializeSPIRVSYCLBIN(Dev);
+    ASSERT_NO_FATAL_FAILURE(patchBytes(Bytes, "type=1|0", Type));
+    detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+    EXPECT_TRUE(
+        Binaries.getBestCompatibleImages(Dev, bundle_state::input).empty())
+        << Type;
+  }
+}
+
+// An IR module of an unsupported type is skipped without affecting the other
+// modules of the file: the remaining SPIR-V module and native image are still
+// loaded and selected.
+TEST(SYCLBINIRModuleType, UnsupportedTypeKeepsOtherModules) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  unittest::MockDeviceImage SkippedMock{
+      unittest::makeEmptyKernels({"SkippedKernel"}),
+      unittest::MockPropertySet{}};
+  unittest::MockDeviceImage KeptMock{unittest::makeEmptyKernels({"KeptKernel"}),
+                                     unittest::MockPropertySet{}};
+  sycl_device_binary_struct SkippedStruct = SkippedMock.convertToNativeType();
+  sycl_device_binary_struct KeptStruct = KeptMock.convertToNativeType();
+  detail::RTDeviceBinaryImage SkippedImg{&SkippedStruct};
+  detail::RTDeviceBinaryImage KeptImg{&KeptStruct};
+  NativeImageHolder Native{"NativeKernel", /*ExportedSymbols=*/{},
+                           /*ImportedSymbols=*/{}};
+
+  std::vector<detail::SYCLBIN::ImageInput> Inputs(3);
+  Inputs[0].Image = &SkippedImg;
+  Inputs[1].Image = &KeptImg;
+  Inputs[2].Image = &Native.image();
+  for (detail::SYCLBIN::ImageInput &Input : Inputs)
+    Input.Devices = {&Dev};
+  std::vector<char> Bytes = detail::SYCLBIN::serializeImages(
+      Inputs, static_cast<uint8_t>(bundle_state::object));
+
+  auto CountFormat =
+      [](const std::vector<const detail::RTDeviceBinaryImage *> &Images,
+         detail::ur::DeviceBinaryType Format) {
+        return std::count_if(Images.begin(), Images.end(),
+                             [&](const detail::RTDeviceBinaryImage *Img) {
+                               return Img->getFormat() == Format;
+                             });
+      };
+
+  // Both SPIR-V modules and the native image are selected before patching.
+  {
+    detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+    std::vector<const detail::RTDeviceBinaryImage *> Selected =
+        Binaries.getBestCompatibleImages(Dev, bundle_state::object);
+    ASSERT_EQ(Selected.size(), 3u);
+    EXPECT_EQ(CountFormat(Selected, SYCL_DEVICE_BINARY_TYPE_SPIRV), 2);
+    EXPECT_EQ(CountFormat(Selected, SYCL_DEVICE_BINARY_TYPE_NATIVE), 1);
+  }
+
+  // Mark the first IR module as PTX. Only that module is dropped.
+  ASSERT_NO_FATAL_FAILURE(patchBytes(Bytes, "type=1|0", "type=1|1",
+                                     /*RequireUnique=*/false));
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+  std::vector<const detail::RTDeviceBinaryImage *> Selected =
+      Binaries.getBestCompatibleImages(Dev, bundle_state::object);
+  ASSERT_EQ(Selected.size(), 2u);
+  EXPECT_EQ(CountFormat(Selected, SYCL_DEVICE_BINARY_TYPE_SPIRV), 1);
+  EXPECT_EQ(CountFormat(Selected, SYCL_DEVICE_BINARY_TYPE_NATIVE), 1);
+}
+
+namespace {
+
+std::string makeIRModuleMetadata(detail::SYCLBIN::IRModuleType Type) {
+  detail::PropertySetRegistry Props;
+  Props.add(detail::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
+            static_cast<uint32_t>(Type));
+  Props.add(detail::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "target",
+            std::string_view{"spirv64-unknown-unknown"});
+  std::ostringstream OS;
+  Props.write(OS);
+  return OS.str();
+}
+
+std::string makeNativeMetadata() {
+  detail::PropertySetRegistry Props;
+  Props.add(
+      detail::PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+      "arch", std::string_view{"unused"});
+  Props.add(
+      detail::PropertySetRegistry::SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+      "target", std::string_view{"spir64_gen-unknown-unknown"});
+  std::ostringstream OS;
+  Props.write(OS);
+  return OS.str();
+}
+
+std::string_view getBytes(const detail::RTDeviceBinaryImage *Img) {
+  const sycl_device_binary_struct &Raw = Img->getRawData();
+  return {reinterpret_cast<const char *>(Raw.BinaryStart),
+          static_cast<size_t>(Raw.BinaryEnd - Raw.BinaryStart)};
+}
+
+} // namespace
+
+// IR modules of unsupported types are skipped within an abstract module that
+// also holds supported IR modules and native images, e.g. a SYCLBIN built for
+// several targets or by a newer compiler. The JIT binary count covers only the
+// kept modules, so the kept SPIR-V module is found and the native image is
+// still read from its own slot.
+TEST(SYCLBINIRModuleType, UnsupportedTypesSkippedWithinAbstractModule) {
+  unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  detail::device_impl &Dev = getMockDevice();
+
+  using IRType = detail::SYCLBIN::IRModuleType;
+  const std::string PTXMeta = makeIRModuleMetadata(IRType::PTX);
+  const std::string AMDGCNMeta = makeIRModuleMetadata(IRType::AMDGCN);
+  const std::string SPIRVMeta = makeIRModuleMetadata(IRType::SPIRV);
+  const std::string NativeMeta = makeNativeMetadata();
+
+  std::ostringstream EmptyOS;
+  detail::PropertySetRegistry{}.write(EmptyOS);
+
+  detail::SYCLBIN::SYCLBINDesc Desc;
+  {
+    detail::PropertySetRegistry GlobalProps;
+    GlobalProps.add(detail::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA,
+                    "state", static_cast<uint32_t>(bundle_state::object));
+    std::ostringstream OS;
+    GlobalProps.write(OS);
+    Desc.GlobalMetadata = OS.str();
+  }
+
+  // Module 0: unsupported modules surround the only supported one.
+  {
+    auto &AMD = Desc.AbstractModules.emplace_back();
+    AMD.Metadata = EmptyOS.str();
+    AMD.IRModules.push_back({PTXMeta, "PTXX"});
+    AMD.IRModules.push_back({SPIRVMeta, "SPRV"});
+    AMD.IRModules.push_back({AMDGCNMeta, "AMDG"});
+    AMD.NativeDeviceCodeImages.push_back({NativeMeta, "NAT0"});
+  }
+  // Module 1: no supported IR module is left, only the native image.
+  {
+    auto &AMD = Desc.AbstractModules.emplace_back();
+    AMD.Metadata = EmptyOS.str();
+    AMD.IRModules.push_back({PTXMeta, "PTXX"});
+    AMD.NativeDeviceCodeImages.push_back({NativeMeta, "NAT1"});
+  }
+  std::vector<char> Bytes = detail::SYCLBIN::write(Desc);
+
+  detail::SYCLBINBinaries Binaries{Bytes.data(), Bytes.size()};
+
+  // Input state: only the SPIR-V module is usable.
+  {
+    std::vector<const detail::RTDeviceBinaryImage *> Selected =
+        Binaries.getBestCompatibleImages(Dev, bundle_state::input);
+    ASSERT_EQ(Selected.size(), 1u);
+    EXPECT_EQ(Selected[0]->getFormat(), SYCL_DEVICE_BINARY_TYPE_SPIRV);
+    EXPECT_EQ(getBytes(Selected[0]), "SPRV");
+  }
+
+  // Object state: JIT binaries are preferred, and module 1 falls back to its
+  // native image.
+  {
+    std::vector<const detail::RTDeviceBinaryImage *> Selected =
+        Binaries.getBestCompatibleImages(Dev, bundle_state::object);
+    ASSERT_EQ(Selected.size(), 2u);
+    EXPECT_EQ(Selected[0]->getFormat(), SYCL_DEVICE_BINARY_TYPE_SPIRV);
+    EXPECT_EQ(getBytes(Selected[0]), "SPRV");
+    EXPECT_EQ(Selected[1]->getFormat(), SYCL_DEVICE_BINARY_TYPE_NATIVE);
+    EXPECT_EQ(getBytes(Selected[1]), "NAT1");
+  }
+
+  // Executable state: native images are preferred.
+  {
+    std::vector<const detail::RTDeviceBinaryImage *> Selected =
+        Binaries.getBestCompatibleImages(Dev, bundle_state::executable);
+    ASSERT_EQ(Selected.size(), 2u);
+    EXPECT_EQ(getBytes(Selected[0]), "NAT0");
+    EXPECT_EQ(getBytes(Selected[1]), "NAT1");
+  }
 }
