@@ -47,6 +47,7 @@ std::atomic<bool> ProcessTerminating{false};
 void shutdown_early(bool);
 void shutdown_late();
 #ifdef _WIN32
+void shutdown_on_process_termination();
 BOOL isLinkedStatically();
 #endif
 
@@ -424,6 +425,16 @@ void shutdown_early(bool CanJoinThreads = true) {
   GlobalHandler::RTGlobalObjHandler->releaseDefaultContexts();
 }
 
+#ifdef _WIN32
+// Minimal early shutdown for DLL_PROCESS_DETACH during process termination.
+void shutdown_on_process_termination() {
+  ProcessTerminating.store(true, std::memory_order_release);
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  if (GlobalHandler::RTGlobalObjHandler)
+    GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
+}
+#endif
+
 void shutdown_late() {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   if (!GlobalHandler::RTGlobalObjHandler)
@@ -490,9 +501,11 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     // been deinitialized by their own DLL_PROCESS_DETACH, so backend calls made
     // by shutdown_early can fail. Skip it and let the OS reclaim the resources,
     // but still record the termination so that shutdown_late does not wait for
-    // scheduler access held by the terminated threads.
+    // scheduler access held by the terminated threads, and stop deferring
+    // MemObj releases so that shutdown_late does not wait for records owned by
+    // host tasks that were terminated (see Scheduler::removeMemoryObject).
     if (lpReserved != NULL) {
-      ProcessTerminating.store(true, std::memory_order_release);
+      shutdown_on_process_termination();
       break;
     }
 
