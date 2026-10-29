@@ -9,7 +9,7 @@
 // RUN: rm -rf %t.dir && mkdir -p %t.dir
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/libA_%basename_t.so
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/libB_%basename_t.so
-// RUN: %{build} -DFNAME=%basename_t -ldl -Wl,-rpath,%t.dir -o %t.out
+// RUN: %{run-aux} %{build} -DFNAME=%basename_t -ldl -Wl,-rpath,%t.dir -o %t.out
 // RUN: %{run} %t.out
 
 #include <cassert>
