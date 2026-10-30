@@ -22,6 +22,9 @@ enum GPUKind : uint8_t;
 namespace AMDGPU {
 enum GPUKind : uint8_t;
 }
+namespace IntelGPU {
+enum GPUKind : uint8_t;
+}
 } // namespace llvm
 
 namespace clang {
@@ -38,12 +41,13 @@ public:
     NVPTX,       // Kind is an llvm::NVPTX::GPUKind.
     AMDGPU,      // Kind is an llvm::AMDGPU::GPUKind.
     AMDGCNSPIRV, // The 'amdgcnspirv' pseudo target.
-    IntelCPU,    // Kind is an IntelArch.
-    IntelGPU,    // Kind is an IntelArch.
+    IntelCPU,    // Kind is an IntelArch, or unused for getIntelCPU().
+    IntelGPU,    // Kind is an llvm::IntelGPU::GPUKind or an IntelArch.
     Generic,     // The 'generic' processor model.
   };
 
-  // Intel architectures, which have no TargetParser list yet.
+  // Intel architectures named by their SYCL spellings (e.g. "pvc", "bmg_g21",
+  // "skylake-avx512"), which the TargetParser Intel GPU list does not cover.
   enum class IntelArch : uint32_t {
     // Intel CPUs
     SKYLAKEAVX512,
@@ -108,6 +112,10 @@ public:
     LNL_M,
   };
 
+  // IntelArch kinds are stored offset by this base so they never collide with
+  // an llvm::IntelGPU::GPUKind (a uint8_t) or the kind-less getIntelCPU().
+  static constexpr uint32_t IntelArchKindBase = 0x100;
+
 private:
   // Interpreted according to V; unused for the tagless TargetArch values.
   uint32_t Kind = 0;
@@ -124,8 +132,17 @@ public:
   static OffloadArch getAMDGPU(llvm::AMDGPU::GPUKind K) {
     return {TargetArch::AMDGPU, static_cast<uint32_t>(K)};
   }
+  /// An Intel GPU, named by its entry in the TargetParser device list.
+  static OffloadArch getIntelGPU(llvm::IntelGPU::GPUKind K) {
+    return {TargetArch::IntelGPU, static_cast<uint32_t>(K)};
+  }
+  /// Intel CPU offload, which has a single target, so no kind is needed.
+  static constexpr OffloadArch getIntelCPU() {
+    return {TargetArch::IntelCPU, 0};
+  }
+  /// An Intel CPU or GPU named by one of the IntelArch spellings.
   static constexpr OffloadArch getIntel(TargetArch V, IntelArch A) {
-    return {V, static_cast<uint32_t>(A)};
+    return {V, IntelArchKindBase + static_cast<uint32_t>(A)};
   }
   static constexpr OffloadArch getUnused() { return {TargetArch::Unused, 0}; }
   static constexpr OffloadArch getUnknown() { return {TargetArch::Unknown, 0}; }
@@ -157,8 +174,19 @@ public:
   llvm::AMDGPU::GPUKind amdgpuKind() const {
     return static_cast<llvm::AMDGPU::GPUKind>(Kind);
   }
-  // Only valid when isIntelCPU() / isIntelGPU().
-  IntelArch intelKind() const { return static_cast<IntelArch>(Kind); }
+  /// Which Intel GPU this is; only meaningful when isIntelGPU() and
+  /// !isIntelArchKind().
+  llvm::IntelGPU::GPUKind intelGPUKind() const {
+    return static_cast<llvm::IntelGPU::GPUKind>(Kind);
+  }
+  // True when this Intel arch was named by one of the IntelArch spellings.
+  bool isIntelArchKind() const {
+    return isIntel() && Kind >= IntelArchKindBase;
+  }
+  // Only valid when isIntelArchKind().
+  IntelArch intelKind() const {
+    return static_cast<IntelArch>(Kind - IntelArchKindBase);
+  }
 
   bool operator==(const OffloadArch &Other) const {
     return V == Other.V && Kind == Other.Kind;

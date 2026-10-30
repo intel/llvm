@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/TargetParser/AMDGPUTargetParser.h"
+#include "llvm/TargetParser/IntelGPUTargetParser.h"
 #include "llvm/TargetParser/NVPTXTargetParser.h"
 #include "llvm/TargetParser/Triple.h"
 
@@ -130,9 +131,15 @@ const char *OffloadArchToString(OffloadArch A) {
     return "amdgcnspirv";
   case OffloadArch::TargetArch::IntelCPU:
   case OffloadArch::TargetArch::IntelGPU: {
-    const IntelArchNameMap *Entry =
-        lookupIntelArch(A.targetArch(), A.intelKind());
-    return Entry ? Entry->Name : "unknown";
+    // Named by one of the SYCL IntelArch spellings.
+    if (A.isIntelArchKind()) {
+      const IntelArchNameMap *Entry =
+          lookupIntelArch(A.targetArch(), A.intelKind());
+      return Entry ? Entry->Name : "unknown";
+    }
+    if (A.isIntelCPU())
+      return "graniterapids";
+    return llvm::IntelGPU::getArchName(A.intelGPUKind()).data();
   }
   case OffloadArch::TargetArch::Generic:
     return "generic";
@@ -168,6 +175,10 @@ OffloadArch StringToOffloadArch(llvm::StringRef S) {
     return OffloadArch::getAMDGCNSPIRV();
   if (S == "generic")
     return OffloadArch::getGeneric();
+  // Intel CPU offload has a single processor and no TargetParser list.
+  if (S == "graniterapids")
+    return OffloadArch::getIntelCPU();
+  // SYCL spellings of Intel CPUs and GPUs (e.g. "pvc", "bmg_g21").
   if (const IntelArchNameMap *Entry = lookupIntelArch(S))
     return OffloadArch::getIntel(Entry->V, Entry->Arch);
 
@@ -176,6 +187,8 @@ OffloadArch StringToOffloadArch(llvm::StringRef S) {
     return OffloadArch::getNVPTX(NV);
   if (llvm::AMDGPU::GPUKind AK = llvm::AMDGPU::parseArchAMDGCN(S))
     return OffloadArch::getAMDGPU(AK);
+  if (llvm::IntelGPU::GPUKind IK = llvm::IntelGPU::parseArch(S))
+    return OffloadArch::getIntelGPU(IK);
   return OffloadArch::getUnknown();
 }
 
