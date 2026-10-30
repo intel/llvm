@@ -15,7 +15,8 @@
 // for such a kernel must be a no-op rather than an error: the kernel has no
 // implicit local memory argument to bind the size to, so backends that do not
 // support the driver-side work group memory property (e.g. Level Zero) would
-// otherwise reject the launch. See intel/llvm#22706.
+// otherwise reject the launch. See intel/llvm#22706. The scratch size must also
+// be honored when the kernel is selected by SYCL_EXT_ONEAPI_KERNEL_FUNCTION.
 
 #include <cassert>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
@@ -87,6 +88,24 @@ int main() {
   syclexp::nd_launch(Q, Config, syclexp::kernel_function<squareWithScratch>,
                      Src, Dst);
   Q.wait();
+  for (int I = 0; I < SIZE; ++I)
+    assert(Dst[I] == Src[I] * Src[I]);
+
+  for (int I = 0; I < SIZE; ++I)
+    Dst[I] = 0;
+  syclexp::nd_launch(
+      Q, Config, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(squareWithScratch, Src, Dst));
+  Q.wait();
+  for (int I = 0; I < SIZE; ++I)
+    assert(Dst[I] == Src[I] * Src[I]);
+
+  for (int I = 0; I < SIZE; ++I)
+    Dst[I] = 0;
+  Q.submit([&](sycl::handler &CGH) {
+     syclexp::nd_launch(
+         CGH, Config,
+         SYCL_EXT_ONEAPI_KERNEL_FUNCTION(squareWithScratch, Src, Dst));
+   }).wait();
   for (int I = 0; I < SIZE; ++I)
     assert(Dst[I] == Src[I] * Src[I]);
 
