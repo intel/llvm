@@ -20,7 +20,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
@@ -227,8 +226,7 @@ static cl::opt<bool> ClInstrumentWrites(
 
 static cl::opt<bool>
     ClUseStackSafety("asan-use-stack-safety", cl::Hidden, cl::init(true),
-                     cl::Hidden, cl::desc("Use Stack Safety analysis results"),
-                     cl::Optional);
+                     cl::Hidden, cl::desc("Use Stack Safety analysis results"));
 
 static cl::opt<bool> ClInstrumentAtomics(
     "asan-instrument-atomics",
@@ -479,13 +477,11 @@ static cl::opt<bool> ClSpirCheckShadowBounds(
     "asan-spir-shadow-bounds",
     cl::desc("Enable checking shadow bounds on SPIR-V target"), cl::Hidden,
     cl::init(false));
-static SmallSet<unsigned, 8> SrcAddrSpaces;
+
 static cl::list<unsigned> ClAddrSpaces(
     "asan-instrument-address-spaces",
     cl::desc("Only instrument variables in the specified address spaces."),
-    cl::Hidden, cl::CommaSeparated, cl::callback([](const unsigned &AddrSpace) {
-      SrcAddrSpaces.insert(AddrSpace);
-    }));
+    cl::Hidden, cl::CommaSeparated);
 
 // Debug flags.
 
@@ -1776,16 +1772,22 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
     return !ClSpirOffloadLocals;
 
-  // When shadow bounds check is enabled, we need to instrument all global
-  // variables that user code can access
-  if (ClSpirCheckShadowBounds)
-    return false;
+  // Globals can be accessed through callee arguments, where the original
+  // global is no longer visible to the access instrumentation.
+  if (G->getAddressSpace() != kSpirOffloadGlobalAS || !G->hasInitializer() ||
+      !G->getValueType()->isSized() || getTargetExtType(G->getValueType()) ||
+      GlobalWasGeneratedByCompiler(G) ||
+      G->getName().starts_with("__spirv_BuiltIn") ||
+      G->getName().starts_with("__usid_str") ||
+      G->getName().starts_with("__profd") ||
+      G->getName().starts_with("__profc"))
+    return true;
 
-  // Non image scope device globals are implemented by device USM, and the
-  // out-of-bounds check for them will be done by sanitizer USM part. So we
-  // exclude them here.
-  Attribute Attr = G->getAttribute("sycl-device-image-scope");
-  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+  if (G->hasSanitizerMetadata() && G->getSanitizerMetadata().NoAddress)
+    return true;
+
+  // Available-externally globals do not provide storage to add redzones to.
+  return G->hasAvailableExternallyLinkage();
 }
 
 static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
@@ -1867,8 +1869,8 @@ static bool isSupportedAddrspace(const Triple &TargetTriple, Value *Addr) {
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   unsigned int AddrSpace = PtrTy->getPointerAddressSpace();
 
-  if (!SrcAddrSpaces.empty())
-    return SrcAddrSpaces.count(AddrSpace);
+  if (!ClAddrSpaces.empty())
+    return is_contained(ClAddrSpaces, AddrSpace);
 
   if (TargetTriple.isAMDGPU())
     return !isUnsupportedAMDGPUAddrspace(Addr);
@@ -2307,11 +2309,23 @@ bool AddressSanitizer::GlobalIsLinkerInitialized(GlobalVariable *G) {
   return true;
 }
 
+static bool isPointerPairOperand(Value *V, Type *IntptrTy) {
+  Type *Ty = V->getType();
+  if (Ty->isPtrOrPtrVectorTy())
+    return true;
+  return Ty->isIntOrIntVectorTy() &&
+         Ty->getScalarSizeInBits() == IntptrTy->getScalarSizeInBits();
+}
+
 bool AddressSanitizer::instrumentPointerComparisonOrSubtraction(
     Instruction *I, RuntimeCallInserter &RTCI) {
+  Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
+  if (!isPointerPairOperand(Param[0], IntptrTy) ||
+      !isPointerPairOperand(Param[1], IntptrTy))
+    return false;
+
   IRBuilder<> IRB(I);
   FunctionCallee F = isa<ICmpInst>(I) ? AsanPtrCmpFunction : AsanPtrSubFunction;
-  Value *Param[2] = {I->getOperand(0), I->getOperand(1)};
 
   if (const auto *Ty = Param[0]->getType(); Ty->isVectorTy()) {
     const auto *VTy = dyn_cast<FixedVectorType>(Ty);
@@ -3128,9 +3142,27 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
     const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
     const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
     Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
-    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
-    Constant *NewInitializer = ConstantStruct::get(
-        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+    Type *NewTy;
+    Constant *NewInitializer;
+    auto *Data = dyn_cast<ConstantDataArray>(G.getInitializer());
+    auto *ArrayTy = dyn_cast<ArrayType>(Ty);
+    if (G.isConstant() && ArrayTy &&
+        ArrayTy->getElementType()->isIntegerTy(8) &&
+        (Data || G.getInitializer()->isNullValue())) {
+      // GPU printf lowering recognizes byte-array initializers as strings.
+      // Preserve that representation while reserving space for the redzone.
+      std::string Bytes =
+          Data ? Data->getAsString().str() : std::string(SizeInBytes, '\0');
+      Bytes.resize(SizeInBytes + RightRedzoneSize, '\0');
+      NewInitializer =
+          ConstantDataArray::getString(*C, Bytes, /*AddNull=*/false);
+      NewTy = NewInitializer->getType();
+    } else {
+      NewTy = StructType::get(Ty, RightRedZoneTy);
+      NewInitializer =
+          ConstantStruct::get(cast<StructType>(NewTy), G.getInitializer(),
+                              Constant::getNullValue(RightRedZoneTy));
+    }
 
     // Create a new global variable with enough space for a redzone.
     GlobalVariable *NewGlobal = new GlobalVariable(
@@ -3138,7 +3170,8 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
         G.getThreadLocalMode(), G.getAddressSpace());
     NewGlobal->copyAttributesFrom(&G);
     NewGlobal->setComdat(G.getComdat());
-    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->setAlignment(std::max(G.getAlign().valueOrOne(),
+                                     Align(getMinRedzoneSizeForGlobal())));
     NewGlobal->copyMetadata(&G, 0);
 
     Value *Indices2[2];

@@ -501,6 +501,7 @@ ur_result_t urQueueCreate(
   }
 
   int ForceComputeIndex = -1; // Use default/round-robin.
+  std::optional<int32_t> Priority;
   if (Props) {
     if (Props->pNext) {
       const ur_base_properties_t *extendedDesc =
@@ -510,6 +511,12 @@ ur_result_t urQueueCreate(
             reinterpret_cast<const ur_queue_index_properties_t *>(extendedDesc);
         ForceComputeIndex = IndexProperties->computeIndex;
       }
+    }
+    if (const auto *PriorityProperties =
+            find_stype_node<ur_exp_queue_priority_properties_t>(Props)) {
+      if (Flags & (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH))
+        return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+      Priority = PriorityProperties->priority;
     }
   }
 
@@ -548,7 +555,7 @@ ur_result_t urQueueCreate(
   try {
     *Queue = new ur::level_zero::v1::ur_queue_handle_t_(
         ZeComputeCommandQueues, ZeCopyCommandQueues, Context, Device, true,
-        Flags, ForceComputeIndex);
+        Flags, ForceComputeIndex, Priority);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1177,9 +1184,16 @@ ur::level_zero::v1::ur_queue_handle_t_::ur_queue_handle_t_(
     std::vector<ze_command_queue_handle_t> &ComputeQueues,
     std::vector<ze_command_queue_handle_t> &CopyQueues,
     ur_context_handle_t Context, ur_device_handle_t Device,
-    bool OwnZeCommandQueue, ur_queue_flags_t Properties, int ForceComputeIndex)
+    bool OwnZeCommandQueue, ur_queue_flags_t Properties, int ForceComputeIndex,
+    std::optional<int32_t> Priority)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(Properties) {
+  if (Priority)
+    PriorityClass = std::clamp(*Priority, int32_t{-1}, int32_t{1});
+  else if (Properties & UR_QUEUE_FLAG_PRIORITY_LOW)
+    PriorityClass = 1;
+  else if (Properties & UR_QUEUE_FLAG_PRIORITY_HIGH)
+    PriorityClass = -1;
   // Set the type of commandlists the queue will use when user-selected
   // submission mode. Otherwise use env var setting and if unset, use default.
   if (isBatchedSubmission())
@@ -1728,11 +1742,11 @@ bool ur::level_zero::v1::ur_queue_handle_t_::isDiscardEvents() const {
 }
 
 bool ur::level_zero::v1::ur_queue_handle_t_::isPriorityLow() const {
-  return ((this->Properties & UR_QUEUE_FLAG_PRIORITY_LOW) != 0);
+  return PriorityClass > 0;
 }
 
 bool ur::level_zero::v1::ur_queue_handle_t_::isPriorityHigh() const {
-  return ((this->Properties & UR_QUEUE_FLAG_PRIORITY_HIGH) != 0);
+  return PriorityClass < 0;
 }
 
 bool ur::level_zero::v1::ur_queue_handle_t_::isBatchedSubmission() const {

@@ -36,7 +36,8 @@ int main() {
         return std::strcmp(Extension.name, ZE_FLOAT_ATOMICS_EXT_NAME) == 0;
       });
 
-  // The adapter additionally requires a non-zero fp16Flags.
+  // The adapter additionally requires all six global/local load-store, add
+  // and min-max fp16Flags.
   ze_float_atomic_ext_properties_t FloatProps = {};
   FloatProps.stype = ZE_STRUCTURE_TYPE_FLOAT_ATOMIC_EXT_PROPERTIES;
   if (HasExt) {
@@ -47,7 +48,14 @@ int main() {
     result = zeDeviceGetModuleProperties(ZeDev, &ModuleProps);
     assert(result == ZE_RESULT_SUCCESS && "zeDeviceGetModuleProperties failed");
   }
-  bool Result = HasExt && FloatProps.fp16Flags != 0;
+  constexpr ze_device_fp_atomic_ext_flags_t Required =
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_LOAD_STORE |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_ADD |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_MIN_MAX |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_LOAD_STORE |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_ADD |
+      ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_MIN_MAX;
+  bool Result = HasExt && (FloatProps.fp16Flags & Required) == Required;
   assert(Dev.has(aspect::ext_oneapi_atomic16) == Result &&
          "The Result value differs from the implemented atomic16 check on "
          "the L0 backend.");

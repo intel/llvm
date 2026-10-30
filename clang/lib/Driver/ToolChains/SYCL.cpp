@@ -198,6 +198,19 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(Path.str());
 }
 
+std::optional<SmallString<128>>
+SYCLInstallationDetector::findSYCLDeviceLib(StringRef LibName) const {
+  SmallVector<SmallString<128>, 4> DeviceLibPaths;
+  getSYCLDeviceLibPath(DeviceLibPaths);
+  for (const auto &LibPath : DeviceLibPaths) {
+    SmallString<128> FullLibName(LibPath);
+    llvm::sys::path::append(FullLibName, LibName);
+    if (D.getVFS().exists(FullLibName))
+      return FullLibName;
+  }
+  return std::nullopt;
+}
+
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
@@ -553,10 +566,13 @@ static void addSYCLDeviceSanitizerLibs(
     if (SYCLTargetStr.starts_with("spir64_x86_64"))
       return AOT_CPU;
 
-    if (SYCLTargetStr == "intel_gpu_pvc")
+    // Resolve intel_gpu_* so that every alias of a device (e.g.
+    // intel_gpu_12_60_7 for pvc) selects the same library.
+    StringRef GenDevice = SYCL::gen::resolveGenDevice(SYCLTargetStr);
+    if (GenDevice == "pvc")
       return AOT_PVC;
 
-    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+    if (GenDevice == "dg2" || GenDevice.starts_with("acm_g"))
       return AOT_DG2;
 
     if (SYCLTargetStr.starts_with("spir64_gen")) {
@@ -1871,7 +1887,7 @@ llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
               .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
               .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"}, "mtl_s")
               .Cases({"mtl_h", "12_71_4"}, "mtl_p")
-              .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
+              .Cases({"arl_h", "12_74_4"}, "arl_h")
               .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
@@ -2072,9 +2088,6 @@ SYCLToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
-  SmallVector<SmallString<128>, 4> LibraryPaths;
-  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
-
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
@@ -2082,21 +2095,12 @@ SYCLToolChain::getDeviceLibs(
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
   for (const auto &DeviceLib : DeviceLibs) {
-    bool DeviceLibFound = false;
-    for (const auto &LibraryPath : LibraryPaths) {
-      SmallString<128> FullLibName(LibraryPath);
-      llvm::sys::path::append(FullLibName, DeviceLib.Path);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        BitCodeLibraryInfo BitCodeLibrary(
-            {FullLibName, DeviceLib.ShouldInternalize});
-        BCLibs.emplace_back(BitCodeLibrary);
-        DeviceLibFound = true;
-        break;
-      }
-    }
     // The device libraries are all known internal libraries.  If any are not
     // found, emit an error.
-    if (!DeviceLibFound)
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(DeviceLib.Path))
+      BCLibs.emplace_back(
+          BitCodeLibraryInfo({*FullLibName, DeviceLib.ShouldInternalize}));
+    else
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
   return BCLibs;

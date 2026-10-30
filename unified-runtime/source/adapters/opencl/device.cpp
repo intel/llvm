@@ -594,6 +594,29 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    // cl_ext_float_atomics alone is not enough: e.g. Gen12 reports it with only
+    // fp16 load/store/min/max, so require every fp16 atomic capability in
+    // both address spaces.
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(
+        Device->checkDeviceExtensions({"cl_ext_float_atomics"}, Supported));
+    if (!Supported)
+      return ReturnValue(false);
+
+    cl_device_fp_atomic_capabilities_ext Caps = 0;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        Device->CLDevice, CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT,
+        sizeof(Caps), &Caps, nullptr));
+    constexpr cl_device_fp_atomic_capabilities_ext Required =
+        CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT |
+        CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT |
+        CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT |
+        CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT |
+        CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT |
+        CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT;
+    return ReturnValue((Caps & Required) == Required);
+  }
   case UR_DEVICE_INFO_NUM_COMPUTE_UNITS: {
 
     bool ExtensionSupported = false;
@@ -626,6 +649,20 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(false);
+  }
+  // The low, medium and high queue priorities of cl_khr_priority_hints are the
+  // priority levels 1, 0 and -1, see urQueueCreate.
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(Device->supportsQueuePriorities(Supported));
+    if (propName == UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP)
+      return ReturnValue(static_cast<ur_bool_t>(Supported));
+    if (!Supported)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(int32_t{
+        propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP ? -1 : 1});
   }
   case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP: {
     return ReturnValue(false);
@@ -666,8 +703,14 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(
         clGetDeviceInfo(Device->CLDevice, CL_DEVICE_QUEUE_ON_HOST_PROPERTIES,
                         sizeof(cl_bitfield), &CLValue, nullptr));
+    ur_queue_flags_t Flags = static_cast<uint32_t>(CLValue);
 
-    return ReturnValue(static_cast<uint32_t>(CLValue));
+    bool PrioritySupported = false;
+    UR_RETURN_ON_FAILURE(Device->supportsQueuePriorities(PrioritySupported));
+    if (PrioritySupported)
+      Flags |= UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH;
+
+    return ReturnValue(Flags);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
     cl_bitfield CLValue = 0;

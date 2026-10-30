@@ -14,6 +14,8 @@
 #include <ur/ur.hpp>
 
 #include <algorithm>
+#include <optional>
+#include <utility>
 
 /// UR device mapping to a hipDevice_t.
 /// Includes an observer pointer to the platform,
@@ -172,6 +174,11 @@ public:
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
+
+// Returns the {lowest, highest} stream priorities of the device, or
+// std::nullopt if it only supports the default priority.
+std::optional<std::pair<int32_t, int32_t>>
+getStreamPriorityRange(ur_device_handle_t Device);
 
 namespace {
 /// Scoped Device is used across all UR HIP plugin implementation to activate

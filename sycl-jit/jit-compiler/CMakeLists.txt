@@ -51,9 +51,16 @@ set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-inst
 set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
 
 function(sycl_jit_add_install_command component binary_dir)
-  list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --install ${binary_dir} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
-  )
+  set(stamp_dir "${ARGV2}")
+  if(stamp_dir AND CMAKE_GENERATOR MATCHES "Make")
+    # file name must match with the name used in llvm_ExternalProject_BuildCmd.
+    set(install_cmd ${CMAKE_COMMAND} "-DLOCK_FILE_PATH=${stamp_dir}/cmake.lock"
+                    "-DCOMMAND=${CMAKE_COMMAND}@--install@${binary_dir}@--prefix@${SYCL_JIT_RESOURCE_INSTALL_DIR}@--component@${component}"
+                    "-P" "${LLVM_CMAKE_DIR}/FileLock.cmake")
+  else()
+    set(install_cmd ${CMAKE_COMMAND} --install ${binary_dir} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}")
+  endif()
+  list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS COMMAND ${install_cmd})
   set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS "${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}" PARENT_SCOPE)
 endfunction()
 
@@ -62,7 +69,8 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
     set(tgt "${CMAKE_MATCH_1}")
     set(component "${CMAKE_MATCH_2}")
     list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-${tgt})
-    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
+    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc"
+                                 "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-stamps")
   elseif("${component}" STREQUAL "builtins-spirv64-unknown-unknown")
     list(APPEND SYCL_JIT_RESOURCE_DEPS builtins-spirv64-unknown-unknown)
     sycl_jit_add_install_command("clang_rt.builtins-spirv64" "${CMAKE_BINARY_DIR}/runtimes/builtins-spirv64-unknown-unknown-bins/")
@@ -249,12 +257,19 @@ target_link_libraries(sycl-jit
 #  - LLVMSPIRVLib is not part of libLLVM.so, so the SPIRVLib component listed
 #    above resolves to the dylib (which lacks its symbols); link it explicitly.
 #  - rtc/ESIMD.cpp includes a vc-intrinsics header (GenXSPIRVWriterAdaptor.h),
-#    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly.
+#    so add the LLVMGenXIntrinsics INTERFACE include directories explicitly,
+#    together with VC_INTR_LLVM_VERSION_MAJOR.
 # The first mirrors llvm-spirv; the second mirrors sycl-post-link.
 if (LLVM_LINK_LLVM_DYLIB)
   target_link_libraries(sycl-jit PRIVATE LLVMSPIRVLib)
   target_include_directories(sycl-jit PRIVATE
     $<TARGET_PROPERTY:LLVMGenXIntrinsics,INTERFACE_INCLUDE_DIRECTORIES>)
+# vc-intrinsics' add_compile_definitions(VC_INTR_LLVM_VERSION_MAJOR=...) in
+# its top-level CMakeLists.txt is directory-scoped and does not propagate to
+# sycl-jit.
+# FIXME: Remove this once https://github.com/intel/vc-intrinsics is fixed.  
+  target_compile_definitions(sycl-jit PRIVATE
+    VC_INTR_LLVM_VERSION_MAJOR=${LLVM_VERSION_MAJOR})
 endif()
 
 add_dependencies(sycl-jit sycl-headers)

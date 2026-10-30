@@ -1446,7 +1446,6 @@ namespace {
 void RenderARMABI(const Driver &D, const llvm::Triple &Triple,
                   const ArgList &Args, ArgStringList &CmdArgs) {
   // Select the ABI to use.
-  // FIXME: Support -meabi.
   // FIXME: Parts of this are duplicated in the backend, unify this somehow.
   const char *ABIName = nullptr;
   if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ))
@@ -4733,6 +4732,9 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
   Args.addOptInFlag(CmdArgs, options::OPT_fdiagnostics_show_hotness,
                     options::OPT_fno_diagnostics_show_hotness);
 
+  Args.addOptOutFlag(CmdArgs, options::OPT_flifetime_safety_c,
+                     options::OPT_fno_lifetime_safety_c);
+
   if (const Arg *A =
           Args.getLastArg(options::OPT_fdiagnostics_hotness_threshold_EQ)) {
     std::string Opt =
@@ -5879,7 +5881,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (IsWindowsMSVC) {
         CmdArgs.push_back("-fms-extensions");
         CmdArgs.push_back("-fms-compatibility");
-        CmdArgs.push_back("-fdelayed-template-parsing");
         VersionTuple MSVT =
             C.getDefaultToolChain().computeMSVCVersion(&D, Args);
         if (!MSVT.empty())
@@ -6414,6 +6415,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     MemProfUseArg->render(Args, CmdArgs);
   }
 
+  auto *CopyProfArg =
+      Args.getLastArg(options::OPT_fcopyprof, options::OPT_fno_copyprof);
+  if (CopyProfArg &&
+      !CopyProfArg->getOption().matches(options::OPT_fno_copyprof)) {
+    CopyProfArg->render(Args, CmdArgs);
+    Args.AddLastArg(CmdArgs, options::OPT_fcopyprof_static_size_threshold_EQ);
+  }
+
   // Embed-bitcode option.
   // Only white-listed flags below are allowed to be embedded.
   if (C.getDriver().embedBitcodeInObject() && !IsUsingLTO &&
@@ -6733,9 +6742,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       RelocationModel == llvm::Reloc::ROPI_RWPI)
     CmdArgs.push_back("-frwpi");
 
+  // -meabi=gnu/5 are encoded in the cc1 -triple environment; forward only other
+  // values (e.g. 4, which has no triple representation, and invalid values).
   if (Arg *A = Args.getLastArg(options::OPT_meabi)) {
-    CmdArgs.push_back("-meabi");
-    CmdArgs.push_back(A->getValue());
+    StringRef Value = A->getValue();
+    if (Value != "gnu" && Value != "5") {
+      CmdArgs.push_back("-meabi");
+      CmdArgs.push_back(A->getValue());
+    }
   }
 
   // -fsemantic-interposition is forwarded to CC1: set the
@@ -8038,11 +8052,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.addOptOutFlag(CmdArgs, options::OPT_fopenmp_extensions,
                        options::OPT_fno_openmp_extensions);
   }
-  // Forward '-foffload-via-llvm' to code generation to target the LLVM/Offload
-  // runtime.
+  // Forward the offload runtime change to code generation, liboffload implies
+  // new driver. Otherwise, check if we should forward the new driver to change
+  // offloading code generation.
   if (Args.hasFlag(options::OPT_foffload_via_llvm,
-                   options::OPT_fno_offload_via_llvm, false))
-    CmdArgs.push_back("-foffload-via-llvm");
+                   options::OPT_fno_offload_via_llvm, false)) {
+    CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
+  } else if (Args.hasFlag(options::OPT_offload_new_driver,
+                          options::OPT_no_offload_new_driver,
+                          (C.getActiveOffloadKinds() != Action::OFK_None &&
+                           C.getActiveOffloadKinds() != Action::OFK_SYCL))) {
+    CmdArgs.push_back("--offload-new-driver");
+  }
 
   const XRayArgs &XRay = TC.getXRayArgs(Args);
   XRay.addArgs(TC, Args, CmdArgs, InputType);
@@ -8687,6 +8708,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // with MSVC CLI) if using C++20. So we match the behavior with MSVC here to
   // not enable -fdelayed-template-parsing by default after C++20.
   //
+  // For SYCL device compilations, IsWindowsMSVC is derived from the aux
+  // triple, so the device compilation gets the same default as the host.
+  //
   // FIXME: Given -fdelayed-template-parsing is a source of bugs, we should be
   // able to disable this by default at some point.
   if (Args.hasFlag(options::OPT_fdelayed_template_parsing,
@@ -8734,7 +8758,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Handle exception personalities
   Arg *A = Args.getLastArg(
       options::OPT_fsjlj_exceptions, options::OPT_fseh_exceptions,
-      options::OPT_fdwarf_exceptions, options::OPT_fwasm_exceptions);
+      options::OPT_fdwarf_exceptions, options::OPT_fwasm_exceptions,
+      options::OPT_femscripten_exceptions);
   if (A) {
     const Option &Opt = A->getOption();
     if (Opt.matches(options::OPT_fsjlj_exceptions))
@@ -8745,6 +8770,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-exception-model=dwarf");
     if (Opt.matches(options::OPT_fwasm_exceptions))
       CmdArgs.push_back("-exception-model=wasm");
+    if (Opt.matches(options::OPT_femscripten_exceptions))
+      CmdArgs.push_back("-exception-model=emscripten");
   } else {
     switch (TC.GetExceptionModel(Args)) {
     default:
@@ -9388,6 +9415,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_fno_keep_static_consts);
   Args.addOptInFlag(CmdArgs, options::OPT_fkeep_persistent_storage_variables,
                     options::OPT_fno_keep_persistent_storage_variables);
+  Args.addOptInFlag(CmdArgs, options::OPT_fkeep_inline_functions,
+                    options::OPT_fno_keep_inline_functions);
   Args.addOptInFlag(CmdArgs, options::OPT_fcomplete_member_pointers,
                     options::OPT_fno_complete_member_pointers);
   if (Arg *A = Args.getLastArg(options::OPT_cxx_static_destructors_EQ))
@@ -11274,7 +11303,7 @@ static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
                                             ArgStringList &TranslatorArgs) {
   TranslatorArgs.push_back("-spirv-max-version=1.5");
   bool CreatingSyclSPIRVFatObj =
-      C.getDriver().getFinalPhase(C.getArgs(), {}) != phases::Link &&
+      C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
       TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
           .equals_insensitive("spirv") &&
       !C.getDriver().offloadDeviceOnly();
@@ -11310,31 +11339,21 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
       ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr"
-      ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
-      ",+SPV_INTEL_device_side_avc_motion_estimation"
-      ",+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls"
-      ",+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes"
+      ",+SPV_INTEL_subgroups"
+      ",+SPV_INTEL_unstructured_loop_controls"
       ",+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes"
-      ",+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly"
+      ",+SPV_INTEL_inline_assembly"
       ",+SPV_INTEL_arbitrary_precision_integers"
       ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
-      ",+SPV_INTEL_arbitrary_precision_fixed_point"
-      ",+SPV_INTEL_arbitrary_precision_floating_point"
       ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
       ",+SPV_INTEL_long_composites"
       ",+SPV_INTEL_arithmetic_fence"
       ",+SPV_INTEL_global_variable_decorations"
       ",+SPV_INTEL_cache_controls"
-      ",+SPV_INTEL_fpga_buffer_location"
-      ",+SPV_INTEL_fpga_argument_interfaces"
-      ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-      ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
-      ",+SPV_INTEL_task_sequence"
       ",+SPV_INTEL_bfloat16_conversion"
       ",+SPV_INTEL_joint_matrix"
-      ",+SPV_INTEL_hw_thread_queries"
       ",+SPV_KHR_uniform_group_instructions"
       ",+SPV_INTEL_masked_gather_scatter"
       ",+SPV_INTEL_tensor_float32_conversion"
@@ -11566,18 +11585,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
     SYCLInstallationDetector SYCLInstall(TC.getDriver(), TC.getTriple(),
                                          TCArgs);
-    SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
-    SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
-    SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
-    for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
-      SmallString<128> FullLibName(DeviceLibLoc);
-      llvm::sys::path::append(FullLibName, NativeBfloat16Name);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
-        SYCLDeviceLibDir += DeviceLibLoc.str();
-        addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
-        break;
-      }
+    if (auto FullLibName =
+            SYCLInstall.findSYCLDeviceLib("libsycl-native-bfloat16.bc")) {
+      SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+      SYCLDeviceLibDir += llvm::sys::path::parent_path(*FullLibName);
+      addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
     }
   }
 }
@@ -12056,7 +12068,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       return false;
     // Don't forward sanitizer arguments if the toolchain doesn't support it.
     // Without this check using it on the host would result in linker errors.
-    if (requiresUBSanRT(ID) && !ToolChainHasRT(TC, "ubsan_minimal"))
+    if (requiresUBSanRT(ID) && !ToolChainHasRT(TC, "ubsan_minimal") &&
+        !ToolChainHasRT(TC, "ubsan_standalone"))
       return false;
     // Don't forward -mllvm to toolchains that don't support LLVM.
     return TC.HasNativeLLVMSupport() || ID != OPT_mllvm;
@@ -12266,67 +12279,47 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                       /*default=*/true))
       CmdArgs.push_back("--no-sycl-rdc");
 
-    // -sycl-device-library-location=<dir> provides the location in which the
-    // SYCL device libraries can be found.
-    SmallString<128> DeviceLibDir(D.Dir);
-    llvm::sys::path::append(DeviceLibDir, "..", "lib");
-    // Check the library location candidates for the the libsycl-crt library
-    // and use that location.  Base the location on relative to driver if this
-    // is not resolved.
-    SmallVector<SmallString<128>, 4> LibLocCandidates;
     SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
                                               Args);
-    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt.bc");
-    for (const auto &LibLoc : LibLocCandidates) {
-      SmallString<128> FullLibName(LibLoc);
-      llvm::sys::path::append(FullLibName, LibName);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        DeviceLibDir = LibLoc;
-        break;
-      }
-    }
 
     // Device libraries for SYCL offloading are specified using
     // --bitcode-library=<triple>=<path to bc file> for each library.
-    // The full path must be provided (not relative to
-    // -sycl-device-library-location).
     //
     // Note: SPIR/SPIRV device libraries are linked at compile time using
     // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
-    // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
+    // targets (NVPTX, AMD, NativeCPU) pass device libraries to
+    // clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
+    bool HasNativeCPU = false;
 
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
+      HasNativeCPU |= TargetTriple.isNativeCPU();
       // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain).
+      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain)
+      // or NativeCPU.
       if (!TargetTriple.isSPIROrSPIRV()) {
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
         const toolchains::SYCLToolChain &SYCLTC =
             toolchains::getSYCLToolChain(D, *TC, *HostTC, Args, ScratchTC);
-        SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
-      }
-      for (const auto &AddLib : SYCLDeviceLibs) {
-        if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
-          SmallString<256> LibPath(DeviceLibDir);
-          llvm::sys::path::append(LibPath, AddLib.Path);
-          BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
-          continue;
-        }
+        // getDeviceLibs resolves the full path of each library and diagnoses
+        // any that are not found.
+        for (const auto &AddLib :
+             SYCLTC.getDeviceLibs(Args, /*BA=*/{}, Action::OFK_SYCL))
+          if (llvm::sys::path::extension(AddLib.Path) == ".bc")
+            BCLibList.push_back(
+                (Twine(TargetTriple.str()) + "=" + AddLib.Path).str());
       }
 
-      if (TC->getTriple().isNVPTX())
+      if (TargetTriple.isNVPTX())
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
-                TC->getTriple(), Args, *TC->getAuxTriple()))
+                TargetTriple, Args, *TC->getAuxTriple()))
           BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
+              (Twine(TargetTriple.str()) + "=" + LibSpirvFile).str());
     }
 
     if (BCLibList.size())
@@ -12334,6 +12327,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
+    // -sycl-device-library-location=<dir> provides the location of the
+    // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
+    SmallString<128> DeviceLibDir(D.Dir);
+    llvm::sys::path::append(DeviceLibDir, "..", "lib");
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(
+            HasNativeCPU ? "libsycl-nativecpu_utils.bc"
+                         : "libsycl-native-bfloat16.bc"))
+      DeviceLibDir = llvm::sys::path::parent_path(*FullLibName);
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
@@ -12645,6 +12646,28 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (!OffloadJobs.A->isClaimed()) {
       C.getDriver().Diag(diag::err_drv_invalid_int_value)
           << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
+    }
+    // --offload-jobs overrides -fsycl-max-parallel-link-jobs. Let the user
+    // know, rather than reporting the latter as an unused argument.
+    if (HasSYCL)
+      if (const Arg *A =
+              Args.getLastArg(options::OPT_fsycl_max_parallel_jobs_EQ))
+        C.getDriver().Diag(diag::warn_drv_overriding_option)
+            << A->getAsString(Args) << OffloadJobs.A->getAsString(Args);
+  } else if (HasSYCL) {
+    // For SYCL, -fsycl-max-parallel-link-jobs controls the number of device
+    // compilation jobs (e.g. AOT compilation of split modules) that can run
+    // in parallel. --offload-jobs takes precedence if both are given.
+    if (const Arg *A =
+            Args.getLastArg(options::OPT_fsycl_max_parallel_jobs_EQ)) {
+      unsigned NumThreads;
+      if (StringRef(A->getValue()).getAsInteger(10, NumThreads) ||
+          NumThreads == 0)
+        C.getDriver().Diag(diag::err_drv_invalid_int_value)
+            << A->getAsString(Args) << A->getValue();
+      else
+        CmdArgs.push_back(
+            Args.MakeArgString("--wrapper-jobs=" + Twine(NumThreads)));
     }
   }
 

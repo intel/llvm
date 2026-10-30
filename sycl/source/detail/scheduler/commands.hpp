@@ -154,12 +154,11 @@ public:
 
   /// Checks if the command is enqueued, and calls enqueueImp.
   ///
-  /// \param EnqueueResult is set to the specific status if enqueue failed.
-  /// \param Blocking if this argument is true, function will wait for the
-  ///        command to be unblocked before calling enqueueImp.
+  /// \param EnqueueResult is set to the specific status if enqueue failed or
+  ///        the command is blocked.
   /// \param ToCleanUp container for commands that can be cleaned up.
   /// \return true if the command is enqueued.
-  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+  virtual bool enqueue(EnqueueResultT &EnqueueResult,
                        std::vector<Command *> &ToCleanUp);
 
   bool isFinished();

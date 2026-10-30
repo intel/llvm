@@ -17,7 +17,7 @@
 // XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: GSD-10112
 
-// XFAIL: windows && intel_gpu_lnl_m && O0
+// XFAIL: windows && arch-intel_gpu_lnl_m && O0
 // XFAIL-TRACKER: CMPLRLLVM-72111
 
 // UNSUPPORTED: linux && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21 || arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h)
