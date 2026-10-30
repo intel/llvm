@@ -7,8 +7,9 @@ writing and reviewing.
 Sections: Writing or updating · Reviewing · Core SYCL specification ·
 Rendering · Pass 1 Structure · Pass 2 Mechanical defects · Pass 3 Naming ·
 Pass 4 Synopsis · Pass 5 Normative wording · Pass 6 Core spec and other
-extensions · Pass 7 API design (Rules, Properties, Queries and aspects,
-Questions to ask) · Pass 8 Examples · Reporting · Templates (reference).
+extensions · Pass 7 API design (Rules, Queries and aspects, Questions to ask;
+properties: `extension-specification-properties.md`) · Pass 8 Examples ·
+Reporting.
 
 ## Writing or updating a specification
 
@@ -82,15 +83,18 @@ any pushed branch.
 
 ## Pass 1 — Structure and boilerplate
 
+Contact, Status, Dependencies, Backend support status and the feature-test
+macro text and table come from `template.asciidoc`; versions, directory moves,
+deprecation and "not yet implemented" NOTEs from `README-process.md`. Check
+against both, and for these traps:
+
 - Section order: Notice, Contact, Dependencies, **Status**, [Backend support
   status], Overview, Specification, [Implementation notes], Example(s),
-  [Future direction], [Issues]. Dependencies before Status. "Example(s)",
-  "Future direction" and "Issues" must be *peers* of "Specification", not
-  subsections. "Feature test macro" is the first subsection of Specification.
-- `Contact` follows the template (GitHub issues).
-- Status text matches the template for the actual state, including the bold
-  "*Shipping software products should not rely on APIs defined in this
-  specification.*". No extra "IMPORTANT: this is a draft" line.
+  [Future direction], [Issues]. "Example(s)", "Future direction" and "Issues"
+  are *peers* of "Specification", not subsections. "Feature test macro" is the
+  first subsection of Specification.
+- Status is the template's paragraph for the actual state, with no extra
+  "IMPORTANT: this is a draft" line.
 - "This extension is written against the SYCL 2020 revision N specification" —
   is N current? Are the referenced section numbers still right?
 - Dependencies list other extensions by extension name, with relative links
@@ -100,35 +104,24 @@ any pushed branch.
 - Copyright = year of first publication, **not** bumped by this PR. No revision
   history table, no contributors list (git history records both).
 - Feature-test macro name is exactly the extension name in upper case, and is
-  not reused for anything else. For an unversioned experimental extension the
-  value table says "The APIs of this experimental extension are not versioned,
-  so the feature-test macro always has this value."
+  not reused for anything else.
 - Extension name == title line == file name, all lower case, numbers included
   (`memcpy2d`). Backend-specific extension names include the backend.
 - Location matches the state: `proposed/` if unimplemented, `experimental/`
   (and `...::experimental` namespaces) if implemented but unstable, `supported/`
   if stable. A "supported" extension may not depend on an experimental one, and
-  may not break source compatibility. Moves between directories, version bumps
-  and deprecation signposts follow `sycl/doc/extensions/README-process.md`.
-- "Backend support status" section: present only if there is a real limitation,
-  placed right after Status, and preferably expressed as a device aspect with
-  `errc::kernel_not_supported` rather than as undefined behavior. With no aspect
-  to express it, state plainly that use on other backends is undefined behavior
-  with no diagnostic. Delete the section if it would only say "not yet
-  implemented".
-- Implementation gaps are a different thing from backend limitations.
-  `sycl/doc/extensions/README-process.md` *requires*, also for experimental
-  extensions, a non-normative `[_Note:_ ... _{endnote}_]` for every API, device
-  or backend not yet implemented — in Status when a whole backend is missing,
-  next to the API otherwise. Do not ask for such a note to be removed; do ask
-  for one when the implementation PR leaves something out. Normative behavior
-  on devices where the feature is meaningless is specified in the API text,
-  never in such a note (see "Properties").
-- New APIs added by a new version: is there a new row in the feature-test macro
-  table, and a "This API is available starting in version N of this
-  specification." line under each new section (the wording from
-  `sycl/doc/extensions/README-process.md`; say "version", not "revision", which
-  is reserved for the core SYCL specification)?
+  may not break source compatibility.
+- "Backend support status" only for a real limitation, preferably as a device
+  aspect (the template's first paragraph). Delete the section if it would only
+  say "not yet implemented".
+- Implementation gaps are not backend limitations: `README-process.md`
+  requires a non-normative `[_Note:_ ... _{endnote}_]` for every API, device or
+  backend not yet implemented, also in experimental extensions. Do not ask for
+  such a note to be removed; do ask for one when the implementation PR leaves
+  something out.
+- A new version needs a new feature-test macro row and the `README-process.md`
+  sentence under each new API (say "version", not "revision", which is
+  reserved for the core SYCL specification).
 - Lines wrapped at 80 columns; every link still resolves after any file move.
 
 ## Pass 2 — Mechanical defects (fast, always productive)
@@ -221,9 +214,11 @@ any pushed branch.
 
 ## Pass 5 — Normative wording
 
-- Clause order per API: `_Preconditions:_`, `_Constraints:_`, `_Effects:_`,
-  `_Returns:_`, `_Throws:_` (+ `_Remarks:_`, `_Mandates:_`, `_Complexity:_`),
-  the same order everywhere. Is each clause the right *kind*?
+- Each API: a `'''` rule, a `[source,c++]` synopsis, then the clauses
+  `_Preconditions:_`, `_Constraints:_`, `_Effects:_`, `_Returns:_`, `_Throws:_`
+  (+ `_Remarks:_`, `_Mandates:_`, `_Complexity:_`), in the same order
+  everywhere. Prefer this over tables, which are only for properties,
+  descriptors and enumerators. Is each clause the right *kind*?
   * A precondition is an unchecked requirement — violating it is UB by
     definition, so "violation results in undefined behavior" and "optionally
     diagnosed" must be deleted.
@@ -232,11 +227,9 @@ any pushed branch.
   * `_Returns:_ Nothing` on a `void` function, and clauses that state nothing
     observable, should be deleted.
 - "must" for requirements, "may" for implementation freedom; weak words removed.
-- Ambiguity and verbosity: flag any sentence that can be understood in more
-  than one way (e.g. an unclear "it", or a condition whose scope is unclear) and
-  propose a rewrite that can only be understood one way; flag prose that
-  restates the synopsis or the core spec, repeats itself, or is longer than
-  needed, and propose the shorter text.
+- Ambiguity and verbosity: rewrite any sentence that can be read two ways (an
+  unclear "it", a condition of unclear scope) so it reads one way; shorten
+  prose that restates the synopsis or the core spec, or repeats itself.
 - **Hint vs assertion**: does the description promise only performance, or does
   it require the application to guarantee something? If the latter, it is an
   assertion — the wording must say "This property is an assertion by the
@@ -345,61 +338,8 @@ any pushed branch.
 
 ### Properties
 
-- Two models. New extensions use `sycl_khr_properties` (`sycl::khr::properties`;
-  draft spec https://github.com/KhronosGroup/SYCL-Docs/pull/980, implemented in
-  `sycl/include/sycl/khr/properties.hpp`). Keep `sycl_ext_oneapi_properties`
-  only when updating an extension that already uses it. Never mix the models in
-  one extension; neither container accepts the other's properties.
-- KHR model:
-  * List `sycl_khr_properties` in Dependencies. It is a draft and DPC++ builds
-    it only with `__DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS`, so the extension
-    cannot be `supported` until the KHR is.
-  * Property `foo` has its key in a nested namespace with the same name,
-    `property::key::foo` (no `_key` suffix). The namespace for vendor-extension
-    properties is not defined yet: don't invent one; raise it in the PR and
-    record it in "Issues".
-  * Runtime values: a struct with a `constexpr` constructor and public members.
-    Compile-time values: a variable template of unspecified type with
-    `static constexpr` members (`using value_t` for a type value). Both: a class
-    template. A single value is named `value` (`value_t` for a type).
-  * Boolean flags carry a boolean value (`enable_x(bool v = true)`,
-    `enable_x<bool>`) rather than relying on presence, so the list has the same
-    type either way. A small enum gets a variable per enumerator plus the
-    variable template.
-  * Each entry gives the synopsis including `namespace key { struct foo; }`, the
-    effect for each value, the four traits that inherit from `std::true_type`
-    (`is_property`, `is_property_key`, `is_property_for<foo, C>`,
-    `is_property_key_for<key::foo, C>`), and whether it is trivially copyable.
-    `C` is the class constructed with the property; for any other use define a
-    tag type that is declared but never defined
-    (`khr::property::tag::reduction`).
-  * An API that accepts properties takes `PropertyOrList props` (a template
-    parameter) with "_Constraints:_ `khr::is_property_for_v<PropertyOrList, C>`
-    is `true`, or `khr::is_property_list_for_v<PropertyOrList, C>` is `true`". A
-    single property is treated as `khr::properties{props}`.
-- oneAPI model: follow the pattern in "Templates". Properties go directly in
-  `...::experimental` (not under `property::`). Vendor-specific properties live
-  in the vendor namespace, but specializations of the property type traits must
-  be in `sycl::ext::oneapi::experimental`. Restrict `is_property_key_of` to the
-  intended classes. Document which properties each API accepts and constrain the
-  property list: "_Constraints:_ `PropertyListT` is one of the properties listed
-  below ...; or `is_property_list_v<PropertyListT>` is true and contains no
-  properties other than those listed below ...".
-- Both models:
-  * Give an enum only the values supported today ("other values may be added in
-    the future"). Prefer an integer parameter over an enum when future hardware
-    may add values. No default value on a property that only exists to request
-    non-default behavior; a separate `_automatic` property rather than a
-    sentinel. Give a boolean property constructor a sensible default
-    (`enable_ipc(bool enable = true)`).
-  * A sub-parameter meaningful only inside one property is not a property of
-    its own: make it another value of that property (KHR) or a small wrapper
-    class with a `static constexpr value` (oneAPI).
-  * State normatively whether a property is a kernel (compile-time) or launch
-    property, and where it may not be used. Behavior on devices where it is
-    meaningless goes in normative text, not a NOTE in the Status section.
-  * Never define a property in terms of a specific backend extension; word it
-    in terms of device capabilities.
+If the extension defines properties or has APIs that accept them, read
+`extension-specification-properties.md`.
 
 ### Queries and aspects
 
@@ -417,6 +357,24 @@ any pushed branch.
   which extension version introduced each entry.
 - Every optional device feature needs an `aspect`.
 
+Information descriptor entry:
+
+```
+.`info::device::device_type`
+[source,c++]
+----
+namespace sycl::info::device {
+struct device_type {
+  using return_type = info::device_type;
+};
+} // namespace sycl::info::device
+----
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The device type associated with the device.
+```
+
 ### Questions to ask
 
 These questions recur across these reviews. When writing, make sure the spec
@@ -430,7 +388,6 @@ never paste the list:
 - Is this implementation-defined, unspecified, or undefined behavior? Which did
   you mean?
 - Do we have a use case? (Adding API later is easy; removing it isn't.)
-- How will a user discover what is supported — is there an aspect or a query?
 - Can we word this so we can extend it later without breaking code?
 - What happens on a device/backend where this is meaningless — silently ignored,
   or an optional kernel feature that throws on submit?
@@ -447,8 +404,6 @@ never paste the list:
   cooperative operation.
 - Should this be a member function or a free function? Does the standard library
   have a precedent (`std::real`) we should follow?
-- Compile-time or runtime property — and is a "runtime kernel property" really a
-  launch property?
 
 ## Pass 8 — Examples
 
@@ -486,8 +441,7 @@ spec:
 
 For PR comments:
 
-- One thread per issue, anchored on the offending line, with proposed
-  replacement text.
+- One thread per issue, anchored on the offending line.
 - Separate "must fix before merge" from bikeshedding, and say which is which.
 - If a discussion is going long, propose recording it as an entry in the "Issues"
   section (marked `[UNRESOLVED]`) and merging, rather than blocking — but only if
@@ -496,120 +450,3 @@ For PR comments:
   question isn't reopened later.
 - Close each thread with an explicit resolution ("resolving because we chose
   another design"), and reference the commit that addressed it.
-
-## Templates
-
-KHR property entry (`sycl_khr_properties`, the model for new extensions; the
-namespace for vendor extensions is still open, see "Properties"):
-
-```
-.`khr::property::in_order`
-[source,c++]
-----
-namespace sycl::khr::property {
-
-struct in_order {
-  constexpr in_order(bool v = true) : value{v} {}
-  bool value;
-};
-
-namespace key {
-struct in_order;
-}
-
-} // namespace sycl::khr::property
-----
-
-When a queue is constructed with this property and the `value` is `true`, the
-effect is the same as if the queue was constructed with
-`property::queue::in_order`. If the `value` is `false`, this property has no
-effect on the constructed queue.
-
-The following traits inherit from `std::true_type`:
-
-* `khr::is_property<khr::property::in_order>`
-* `khr::is_property_key<khr::property::key::in_order>`
-* `khr::is_property_for<khr::property::in_order, queue>`
-* `khr::is_property_key_for<khr::property::key::in_order, queue>`
-
-`khr::property::in_order` is trivially copyable.
-```
-
-KHR compile-time property: a variable template of unspecified type holding the
-value in a `static constexpr` member, plus a variable per enumerator.
-
-```c++
-namespace sycl::khr::property {
-
-enum class placement_type : /*unspecified*/ { blocked, striped };
-
-template <placement_type Placement>
-struct __unspecified_type__ {
-  static constexpr placement_type value = Placement;
-};
-
-template <placement_type Placement>
-inline constexpr __unspecified_type__<Placement> data_placement;
-
-inline constexpr __unspecified_type__<placement_type::blocked>
-    data_placement_blocked;
-inline constexpr __unspecified_type__<placement_type::striped>
-    data_placement_striped;
-
-namespace key {
-struct data_placement;
-}
-
-} // namespace sycl::khr::property
-```
-
-oneAPI compile-time property (`sycl_ext_oneapi_properties`, for extensions that
-already use it): the trait struct gets the `_key` suffix, the property variable
-has the same name without it, the enum gets the `_enum` suffix, and there is a
-shortcut variable per enumeration value.
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-
-enum class data_placement_enum : /*unspecified*/ { blocked, striped };
-
-struct data_placement_key {
-  template <data_placement_enum Placement>
-  using value_t = property_value<
-      data_placement_key,
-      std::integral_constant<data_placement_enum, Placement>>;
-};
-
-template <data_placement_enum Placement>
-inline constexpr data_placement_key::value_t<Placement> data_placement;
-
-inline constexpr data_placement_key::value_t<data_placement_enum::blocked>
-    data_placement_blocked;
-inline constexpr data_placement_key::value_t<data_placement_enum::striped>
-    data_placement_striped;
-
-} // namespace sycl::ext::oneapi::experimental
-```
-
-Information descriptor:
-
-```
-.`info::device::device_type`
-[source,c++]
-----
-namespace sycl::info::device {
-struct device_type {
-  using return_type = info::device_type;
-};
-} // namespace sycl::info::device
-----
-
-_Remarks:_ Template parameter to `device::get_info`.
-
-_Returns:_ The device type associated with the device.
-```
-
-Per-API entry: a `'''` horizontal rule, a `[source,c++]` synopsis, then the
-`_Preconditions:_`/`_Constraints:_`/`_Effects:_`/`_Returns:_`/`_Throws:_`
-paragraphs. Prefer this over tables; use a table only for properties,
-descriptors and enumerators.
