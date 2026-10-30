@@ -123,6 +123,32 @@ jobs:
       toolchain_artifact: sycl_linux_libcxx
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
+  build_linux_debug_all_backends:
+    needs: get_date
+    if: github.repository == 'intel/llvm'
+    strategy:
+      fail-fast: false
+      matrix:
+        static: ['ON', 'OFF']
+
+    uses: ./.github/workflows/sycl-linux-build.yml
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: debug-backends-static-${{ matrix.static }}
+      build_target: all
+      build_configure_extra_args: >-
+        -t Debug
+        --cuda
+        --native_cpu
+        --offload
+        --level_zero_adapter_version ALL
+        -DUR_STATIC_LOADER=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_OPENCL=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0_V2=${{ matrix.static }}
+        -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      upload_artifact: false
+
   ubuntu2204_test_nvidia_gen12:
     needs: [ubuntu2204_build]
     name: E2E NVIDIA and GEN12 OCL with ${{ matrix.enable_new_offload_model == 'True' && 'New Offload Model' || 'Old Offload Model' }}
@@ -319,6 +345,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     with:
       retention-days: 90
+      toolchain_artifact: sycl_windows_default
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
@@ -358,6 +385,32 @@ jobs:
       target_devices: level_zero:gpu
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
+
+  build_win_debug_all_backends:
+    needs: get_date
+    if: github.repository == 'intel/llvm'
+    strategy:
+      fail-fast: false
+      matrix:
+        static: ['ON', 'OFF']
+
+    uses: ./.github/workflows/sycl-windows-build.yml
+    with:
+      build_cache_suffix: debug-backends-static-${{ matrix.static }}
+      build_target: all
+      build_configure_extra_args: >-
+        -t Debug
+        --cuda
+        --native_cpu
+        --offload
+        --level_zero_adapter_version ALL
+        -DUR_STATIC_LOADER=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_OPENCL=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0=${{ matrix.static }}
+        -DUR_STATIC_ADAPTER_L0_V2=${{ matrix.static }}
+        -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=OFF
+        -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      upload_artifact: false
 
   cuda-aws-start:
     needs: [ubuntu2204_build]
@@ -550,12 +603,15 @@ jobs:
         inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
       id: tag
+      env:
+        EVENT_NAME_IS_SCHEDULE: ${{ github.event_name == 'schedule' }}
+        DATE: ${{ needs.get_date.outputs.date }}
       run: |
-        if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
-          echo "TAG=${{ needs.get_date.outputs.date }}" >> "$GITHUB_OUTPUT"
+        if [ "$EVENT_NAME_IS_SCHEDULE" == "true" ]; then
+          echo "TAG=$DATE" >> "$GITHUB_OUTPUT"
         else
           # TODO: Use date of the commit?
-          echo "TAG=${{ needs.get_date.outputs.date }}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "TAG=$DATE-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
       uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0

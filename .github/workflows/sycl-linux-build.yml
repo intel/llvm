@@ -45,6 +45,10 @@ on:
         required: false
 
       # Artifacts:
+      upload_artifact:
+        type: boolean
+        required: false
+        default: true
 
       retention-days:
         description: 'Artifacts retention period'
@@ -53,7 +57,7 @@ on:
 
       toolchain_artifact:
         type: string
-        required: true
+        required: false
       toolchain_artifact_filename:
         type: string
         default: llvm_sycl.tar.zst
@@ -131,6 +135,12 @@ on:
         options:
           - 3
 
+      upload_artifact:
+        description: 'Upload the toolchain artifact'
+        type: boolean
+        required: false
+        default: true
+
       toolchain_artifact:
         type: choice
         options:
@@ -156,11 +166,18 @@ jobs:
       # sycl-linux-precommit.yml. Keep in sync when adding or removing one.
       GPU_AOT_TARGET: intel_gpu_tgllp,intel_gpu_acm_g10,intel_gpu_pvc,intel_gpu_bmg_g21,intel_gpu_mtl_u
     steps:
+    - name: Check toolchain_artifact value
+      if: ${{ inputs.upload_artifact && inputs.toolchain_artifact == '' }}
+      run: |
+        echo ERROR: toolchain_artifact is required when upload_artifact is true
+        exit 1
     - name: Deduce artifact archive params
       # To reduce number of inputs parameters that is limited for manual triggers.
       id: artifact_info
+      env:
+        ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
       run: |
-        NAME="${{inputs.toolchain_artifact_filename}}"
+        NAME="$ARTIFACT_FILENAME"
         if [ -z "$NAME" ]; then
           NAME=llvm_sycl.tar.zst
         fi
@@ -199,6 +216,9 @@ jobs:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
+      # Inline interpolation of ${{ inputs.build_configure_extra_args }}
+      # lets Bash parse quoting in this argument string, keeping values
+      # containing spaces together.
       run: |
         mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
@@ -214,8 +234,10 @@ jobs:
           -DSYCL_UR_FORCE_FETCH_LEVEL_ZERO=ON
     - name: Compile
       id: build
+      env:
+        BUILD_TARGET: ${{ inputs.build_target || 'sycl-toolchain' }}
       # Emulate default value for manual dispatch as we've run out of available arguments.
-      run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
+      run: cmake --build $GITHUB_WORKSPACE/build --target "$BUILD_TARGET"
     - run: $GITHUB_WORKSPACE/build/bin/clang++ --version
     - name: check-llvm
       if: ${{ !cancelled() && contains(inputs.changes, 'llvm') }}
@@ -281,10 +303,13 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
-      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
+      env:
+        ARCHIVE_NAME: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        COMPRESS_COMMAND: ${{ steps.artifact_info.outputs.COMPRESS }}
+      run: tar -I "$COMPRESS_COMMAND" -cf "$ARCHIVE_NAME" -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.release_toolchain_artifact }}
@@ -304,10 +329,13 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-libraries
 
     - name: Pack toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
-      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
+      env:
+        ARCHIVE_NAME: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        COMPRESS_COMMAND: ${{ steps.artifact_info.outputs.COMPRESS }}
+      run: tar -I "$COMPRESS_COMMAND" -cf "$ARCHIVE_NAME" -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
-      if: ${{ !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ !cancelled() && steps.build.conclusion == 'success' && inputs.upload_artifact }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: ${{ inputs.toolchain_artifact }}
