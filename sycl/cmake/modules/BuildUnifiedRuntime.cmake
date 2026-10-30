@@ -243,13 +243,37 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   set(URD_BINARY_DIR ${CMAKE_BINARY_DIR}/unified-runtimed)
   set(URD_INSTALL_DIR ${URD_BINARY_DIR}/install)
 
+  # Files installed by the subbuild. These are declared as byproducts so that
+  # the copy commands below can depend on them.
+  set(URD_BYPRODUCTS)
+  foreach(library ur_loaderd umfd)
+    list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/${library}.lib)
+  endforeach()
+  list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/ur_loaderd.dll)
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    list(APPEND URD_BYPRODUCTS
+      ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
+      ${URD_INSTALL_DIR}/lib/ur_adapter_${adapter}d.lib)
+  endforeach()
+  if(UMF_BUILD_SHARED_LIBRARY)
+    list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/umfd.dll)
+  endif()
+
   # This creates a subbuild which can be used in dependencies with the
   # unified-runtimed target. It invokes the install-unified-runtime-libraries
   # target to install the UR runtime libraries.
+  #
+  # BUILD_ALWAYS makes the subbuild run on every build, so that it checks
+  # whether its own sources are out of date. Without it, the build step only
+  # re-runs when its stamp file is outdated, and changes to UR would not cause
+  # the debug libraries to be rebuilt. llvm_ExternalProject_Add does the same
+  # for the in-tree LLVM runtimes.
   ExternalProject_Add(unified-runtimed
     SOURCE_DIR ${UNIFIED_RUNTIME_SOURCE_DIR}
     BINARY_DIR ${URD_BINARY_DIR}
     INSTALL_DIR ${URD_INSTALL_DIR}
+    BUILD_ALWAYS ON
+    INSTALL_BYPRODUCTS ${URD_BYPRODUCTS}
     INSTALL_COMMAND ${CMAKE_COMMAND}
       --build <BINARY_DIR> --config Debug
       --target install-unified-runtime-libraries
@@ -300,6 +324,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_INSTALL_DIR}/bin/${library}.dll
           ${LLVM_BINARY_DIR}/bin/${library}.dll
+        DEPENDS ${URD_INSTALL_DIR}/bin/${library}.dll
       )
     endif()
 
@@ -312,6 +337,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       COMMAND ${CMAKE_COMMAND} -E copy
         ${URD_INSTALL_DIR}/lib/${library}.lib
         ${LLVM_BINARY_DIR}/lib/${library}.lib
+      DEPENDS ${URD_INSTALL_DIR}/lib/${library}.lib
     )
   endmacro()
 
