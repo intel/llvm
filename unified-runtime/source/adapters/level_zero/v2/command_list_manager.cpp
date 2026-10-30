@@ -114,8 +114,8 @@ void wait_list_view::addEvent(ur_event_handle_t phEvent) {
 
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    v2::raii::command_list_unique_handle &&commandList)
-    : hContext(hContext), hDevice(hDevice),
+    v2::raii::command_list_unique_handle &&commandList, bool isImmediate)
+    : hContext(hContext), hDevice(hDevice), isImmediate(isImmediate),
       zeCommandList(std::move(commandList)) {}
 
 v2::raii::command_list_unique_handle &&
@@ -239,6 +239,16 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ur_event_handle_t phEvent, bool cooperative, bool callWithArgs,
     void *pNext) {
 
+  bool captureActive = false;
+  if (isImmediate) {
+    auto result = queryGraphCaptureActive(&captureActive);
+    if (result != UR_RESULT_SUCCESS &&
+        result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      return result;
+    if (!captureActive)
+      UR_CALL(releaseCompletedKernels());
+  }
+
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
   UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice.get(),
@@ -276,11 +286,11 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
                 zeSignalEvent, waitListView.num, waitListView.handles));
   }
 
-  recordSubmittedKernel(hKernel);
+  auto result = recordSubmittedKernel(hKernel, captureActive);
 
   postSubmit(hZeKernel, pGlobalWorkOffset);
 
-  return UR_RESULT_SUCCESS;
+  return result;
 }
 
 static ur_result_t kernelLaunchChecks(ur_kernel_handle_t hKernel,
@@ -1072,12 +1082,66 @@ ur_result_t ur_command_list_manager::appendNativeCommandExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-void ur_command_list_manager::recordSubmittedKernel(
-    ur_kernel_handle_t hKernel) {
-  auto [_, inserted] = submittedKernels.insert(hKernel);
+ur_result_t ur_command_list_manager::releaseCompletedKernels() {
+  while (!kernelBatches.empty()) {
+    auto &batch = kernelBatches.front();
+    auto status =
+        ZE_CALL_NOCHECK(zeEventQueryStatus, (batch.event->getZeEvent()));
+    if (status == ZE_RESULT_NOT_READY)
+      break;
+    if (status != ZE_RESULT_SUCCESS)
+      return ze2urResult(status);
+
+    while (!batch.kernels.empty()) {
+      auto kernel = *batch.kernels.begin();
+      batch.kernels.erase(batch.kernels.begin());
+      UR_CALL(kernel->release());
+    }
+    UR_CALL(batch.event->release());
+    kernelBatches.pop_front();
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_command_list_manager::recordSubmittedKernel(ur_kernel_handle_t hKernel,
+                                               bool captureActive) {
+  // Regular lists can be replayed, and captured kernels belong to a graph,
+  // not to the immediately executing command stream.
+  const bool canRetire = isImmediate && !captureActive;
+  auto &kernels = canRetire ? pendingKernels : submittedKernels;
+  auto [_, inserted] = kernels.insert(hKernel);
   if (inserted) {
     hKernel->RefCount.retain();
   }
+
+  // Amortize checkpoint events while bounding retained, completed kernels.
+  constexpr size_t kernelsPerBatch = 16;
+  if (canRetire && kernels.size() >= kernelsPerBatch) {
+    if (!kernelEventPool) {
+      kernelEventPool = hContext->getEventPoolCache(PoolCacheType::Immediate)
+                            .borrow(hDevice->Id.value(), EVENT_FLAGS_COUNTER);
+    }
+
+    auto event = kernelEventPool->allocate();
+    auto result =
+        ZE_CALL_NOCHECK(zeCommandListAppendBarrier,
+                        (getZeCommandList(), event->getZeEvent(), 0, nullptr));
+    if (result != ZE_RESULT_SUCCESS) {
+      // The kernel is already submitted; checkpoint failure must not make
+      // callers retry the launch. Keep its references for a later checkpoint.
+      UR_LOG(ERR, "Failed to append kernel completion checkpoint: {}",
+             static_cast<uint32_t>(result));
+      auto releaseResult = event->release();
+      if (releaseResult != UR_RESULT_SUCCESS)
+        UR_LOG(ERR, "Failed to release kernel checkpoint event: {}",
+               releaseResult);
+      return UR_RESULT_SUCCESS;
+    }
+    kernelBatches.push_back({event, {}});
+    kernelBatches.back().kernels.swap(pendingKernels);
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 ze_command_list_handle_t ur_command_list_manager::getZeCommandList() {
@@ -1120,6 +1184,12 @@ ur_result_t ur_command_list_manager::appendEventsWaitWithBarrier(
 }
 
 ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
+  UR_CALL(releaseCompletedKernels());
+  for (auto &hKernel : pendingKernels) {
+    UR_CALL(hKernel->release());
+  }
+  pendingKernels.clear();
+
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
     UR_CALL(hKernel->release());
