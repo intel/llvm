@@ -13,6 +13,13 @@
 #include "Shared/Debug.h"
 #include "llvm/Support/DynamicLibrary.h"
 
+#ifdef OFFLOAD_MSAN_ZE
+// Declared here: msan_ze.hpp needs the full Level Zero headers.
+namespace llvm::offload::sanitizer::msan {
+bool loadZeShim();
+} // namespace llvm::offload::sanitizer::msan
+#endif
+
 using namespace llvm::offload::debug;
 
 DLWRAP_INITIALIZE()
@@ -142,6 +149,12 @@ static bool loadLevelZero() {
   std::string L0Library{LEVEL_ZERO_LIBRARY};
   std::string ErrMsg;
 
+#ifdef OFFLOAD_MSAN_ZE
+  // The shim must be loaded first so "libze_loader.so" binds to it.
+  if (const char *Env = std::getenv("LIBOMPTARGET_LEVEL_ZERO_MSAN");
+      Env && std::string_view(Env) == "1")
+    llvm::offload::sanitizer::msan::loadZeShim();
+#endif
   ODBG(OLDT_Init) << "Trying to load " << L0Library;
   auto DynlibHandle = std::make_unique<llvm::sys::DynamicLibrary>(
       llvm::sys::DynamicLibrary::getPermanentLibrary(L0Library.c_str(),
