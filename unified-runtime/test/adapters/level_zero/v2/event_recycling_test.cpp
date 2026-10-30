@@ -91,7 +91,7 @@ TEST_P(EventRecyclingTest, ForceEventCreation) {
   ASSERT_SUCCESS(urEventRelease(next));
 }
 
-TEST_P(EventRecyclingTest, PendingEventIsNotRecycled) {
+TEST_P(EventRecyclingTest, ForceEventCreationSkipsPendingEvent) {
   auto zeBlocker = createZeEvent(context, device);
   ASSERT_NE(zeBlocker, nullptr);
 
@@ -112,20 +112,22 @@ TEST_P(EventRecyclingTest, PendingEventIsNotRecycled) {
   ASSERT_EQ(getStatus(pending), UR_EVENT_STATUS_SUBMITTED);
   ASSERT_SUCCESS(urEventRelease(pending));
 
-  ur_event_handle_t whilePending = nullptr;
-  ASSERT_NO_FATAL_FAILURE(createEvent(0, &whilePending));
-  EXPECT_NE(whilePending, pending);
+  // The forced event is not bound to the released event's pending work.
+  ur_event_handle_t forced = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      createEvent(UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION, &forced));
+  EXPECT_NE(forced, pending);
+  EXPECT_EQ(getStatus(forced), UR_EVENT_STATUS_COMPLETE);
 
   ASSERT_EQ(zeEventHostSignal(zeBlocker.get()), ZE_RESULT_SUCCESS);
   ASSERT_SUCCESS(urQueueFinish(queue));
 
-  // Once complete, the released event can be recycled.
-  ur_event_handle_t afterCompletion = nullptr;
-  ASSERT_NO_FATAL_FAILURE(createEvent(0, &afterCompletion));
-  EXPECT_EQ(afterCompletion, pending);
+  ur_event_handle_t recycled = nullptr;
+  ASSERT_NO_FATAL_FAILURE(createEvent(0, &recycled));
+  EXPECT_EQ(recycled, pending);
 
-  ASSERT_SUCCESS(urEventRelease(afterCompletion));
-  ASSERT_SUCCESS(urEventRelease(whilePending));
+  ASSERT_SUCCESS(urEventRelease(recycled));
+  ASSERT_SUCCESS(urEventRelease(forced));
   ASSERT_SUCCESS(urEventRelease(hBlocker));
 }
 
