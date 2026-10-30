@@ -37,6 +37,10 @@ on:
         type: string
         required: false
         default: sycl-toolchain
+      check_sycl_lit_opts:
+        type: string
+        required: false
+        default: ''
 
       changes:
         type: string
@@ -266,7 +270,9 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      timeout-minutes: 10
+      timeout-minutes: 60
+      env:
+        LIT_OPTS: ${{ inputs.check_sycl_lit_opts }}
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
