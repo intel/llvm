@@ -48,5 +48,7 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == (i >= UpdateSize ? i : i * 2));
   }
+
+  free(PtrA, Queue);
   return 0;
 }

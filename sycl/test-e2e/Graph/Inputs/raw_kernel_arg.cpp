@@ -45,5 +45,6 @@ int main() {
     assert(HostData[i] == (i + Scalar));
   }
 
+  free(Ptr, Queue);
   return 0;
 }
