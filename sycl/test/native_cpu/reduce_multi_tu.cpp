@@ -42,11 +42,11 @@ SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k,
 SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k,
                             sycl::group<2> &grp, const int i);
 void test(queue q, float *r, float *x,
-          int n) { // r is 16 floats, x is 256 floats. n is 256
+          int n) { // r is 16 floats, x is 512 floats. n is 512
 
   sycl::range<2> globalSize(NZ, NX); // 2,32
-  sycl::range<2> localSize(1, NX);   // 1,8       so 16 iterations
-  sycl::nd_range<2> range{globalSize, localSize};
+  sycl::range<2> localSize(1, NX);   // 1,32
+  sycl::nd_range<2> range{globalSize, localSize}; // 2 work groups
 
   q.submit([&](sycl::handler &h) {
     h.parallel_for<>(range, [=](sycl::nd_item<2> ndi) {
@@ -73,11 +73,13 @@ int main() {
   std::cout << "Device: " << dev.get_info<info::device::name>() << std::endl;
 
   auto ctx = q.get_context();
-  int n = NX * NZ * NV; // 16 * 8 * 2 => 256
-  auto *x = (float *)sycl::malloc_shared(n * sizeof(float), dev,
-                                         ctx); // 256 * sizeof(float)
-  auto *r = (float *)sycl::malloc_shared(
-      NZ * NV * sizeof(float), dev, ctx); // 2 * 8 => 16   ( * sizeof(float) )
+  int n = NX * NZ * NV; // 32 * 2 * 8 => 512
+  auto *x =
+      (float *)sycl::aligned_alloc_shared(alignof(vecn), n * sizeof(float), dev,
+                                          ctx); // 512 * sizeof(float)
+  auto *r = (float *)sycl::aligned_alloc_shared(
+      alignof(vecn), NZ * NV * sizeof(float), dev,
+      ctx); // 2 * 8 => 16   ( * sizeof(float) )
 
   for (int i = 0; i < n; i++) {
     x[i] = i;
