@@ -25,9 +25,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
-      "github_tag": "v2023.1.0",
-      "version": "2023.1.0",
-      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.1.0/oneapi-tbb-2023.1.0-lin.tgz",
+      "github_tag": "v2023.2.0",
+      "version": "2023.2.0",
+      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.2.0/oneapi-tbb-2023.2.0-lin.tgz",
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
@@ -44,9 +44,9 @@
       "root": ""
     },
     "tbb": {
-      "github_tag": "v2023.1.0",
-      "version": "2023.1.0",
-      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.1.0/oneapi-tbb-2023.1.0-win.zip",
+      "github_tag": "v2023.2.0",
+      "version": "2023.2.0",
+      "url": "https://github.com/uxlfoundation/oneTBB/releases/download/v2023.2.0/oneapi-tbb-2023.2.0-win.zip",
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
