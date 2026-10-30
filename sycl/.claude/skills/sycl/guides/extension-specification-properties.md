@@ -3,13 +3,31 @@
 Read together with `extension-specification.md` when a specification defines
 properties or has APIs that accept them.
 
+## Choosing a model
+
+Three property models exist:
+
+- SYCL 2020 (core): a class per property in a `property::<class>` namespace,
+  passed in a `property_list` to a constructor or a USM allocation function
+  and queried with `has_property`/`get_property` (`property::queue::in_order`;
+  in extensions `ext::oneapi::property::queue::priority_high`).
+- `sycl_ext_oneapi_properties`: `_key` structs, `property_value` and the
+  `properties` container (`ext::intel::experimental::fp_control_key`).
+- `sycl_khr_properties`: `khr::properties` with `property::key::` (draft spec
+  https://github.com/KhronosGroup/SYCL-Docs/pull/980, implemented in
+  `sycl/include/sycl/khr/properties.hpp`).
+
+Which one to use:
+
+- A new extension, or an update that adds properties to an extension that
+  defines none: `sycl_khr_properties`.
+- An update to an extension that already defines or accepts properties: keep
+  the model it uses (SYCL 2020 or `sycl_ext_oneapi_properties`).
+- Never mix the models in one extension; no container accepts another model's
+  properties.
+
 ## Models and rules
 
-- Two models. New extensions use `sycl_khr_properties` (`sycl::khr::properties`;
-  draft spec https://github.com/KhronosGroup/SYCL-Docs/pull/980, implemented in
-  `sycl/include/sycl/khr/properties.hpp`). Keep `sycl_ext_oneapi_properties`
-  only when updating an extension that already uses it. Never mix the models in
-  one extension; neither container accepts the other's properties.
 - KHR model:
   * List `sycl_khr_properties` in Dependencies. It is a draft and DPC++ builds
     it only with `__DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS`, so the extension
@@ -41,15 +59,29 @@ properties or has APIs that accept them.
     single property is treated as `khr::properties{props}`.
 - oneAPI model: follow the oneAPI template below. Properties of this model go
   directly in `...::experimental`; `property::<class>::` nesting (Pass 3's
-  `property::queue::discard_events`) is for SYCL 2020-style properties passed
-  in a `property_list`. Vendor-specific properties live
-  in the vendor namespace, but specializations of the property type traits must
-  be in `sycl::ext::oneapi::experimental`. Restrict `is_property_key_of` to the
-  intended classes. Document which properties each API accepts and constrain the
-  property list: "_Constraints:_ `PropertyListT` is one of the properties listed
-  below ...; or `is_property_list_v<PropertyListT>` is true and contains no
-  properties other than those listed below ...".
-- Both models:
+  `property::queue::discard_events`) is for the SYCL 2020 model.
+  Vendor-specific properties live in the vendor namespace, but specializations
+  of the property type traits must be in `sycl::ext::oneapi::experimental`.
+  Restrict `is_property_key_of` to the intended classes. Document which
+  properties each API accepts and constrain the property list: "_Constraints:_
+  `PropertyListT` is one of the properties listed below ...; or
+  `is_property_list_v<PropertyListT>` is true and contains no properties other
+  than those listed below ...".
+- SYCL 2020 model: follow the SYCL 2020 template below.
+  * A property is a class in
+    `sycl::ext::<vendor>::[experimental::]property::<class>`, where `<class>`
+    is the SYCL class that accepts it (`queue`, `buffer`, `usm` for the USM
+    allocation functions) or the extension's own class (`property::graph`).
+  * A property without data has only a defaulted default constructor. A
+    property with data takes it in a constructor and returns it from a
+    `const` member function named after the value, like the core
+    `use_mutex::get_mutex_ptr() const`.
+  * Name the classes and functions whose `property_list` accepts the property.
+    The core spec requires `is_property` and `is_property_of` specializations
+    for every implementation property, so the specification need not list
+    them.
+  * Values are runtime values only; the model has no compile-time properties.
+- All models:
   * Give an enum only the values supported today ("other values may be added in
     the future"). Prefer an integer parameter over an enum when future hardware
     may add values. No default value on a property that only exists to request
@@ -57,12 +89,13 @@ properties or has APIs that accept them.
     sentinel. Give a boolean property constructor a sensible default
     (`enable_ipc(bool enable = true)`).
   * A sub-parameter meaningful only inside one property is not a property of
-    its own: make it another value of that property (KHR) or a small wrapper
-    class with a `static constexpr value` (oneAPI).
+    its own: make it another value of that property (KHR), a small wrapper
+    class with a `static constexpr value` (oneAPI), or another constructor
+    parameter (SYCL 2020).
   * State normatively whether a property is a kernel (compile-time) or launch
     property (a "runtime kernel property" is a launch property), and where it
-    may not be used. Behavior on devices where it is
-    meaningless goes in normative text, not a NOTE in the Status section.
+    may not be used. Behavior on devices where it is meaningless goes in
+    normative text, not a NOTE in the Status section.
   * Never define a property in terms of a specific backend extension; word it
     in terms of device capabilities.
 
@@ -167,4 +200,44 @@ inline constexpr data_placement_key::value_t<data_placement_enum::striped>
 
 } // namespace sycl::ext::oneapi::experimental
 ----
+```
+
+SYCL 2020 property entry (for extensions that already use the model), in the
+Pass 5 per-API format:
+
+```
+.`ext::oneapi::experimental::property::queue::foo`
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::queue {
+
+class foo {
+ public:
+  foo(int value);
+  int get_value() const;
+};
+
+} // namespace sycl::ext::oneapi::experimental::property::queue
+----
+
+The `queue` constructors accept this property in their `property_list`
+parameter. <effect of the property on the queue>.
+
+'''
+
+[source,c++]
+----
+foo(int value);
+----
+
+_Effects:_ Constructs a `foo` property holding `value`.
+
+'''
+
+[source,c++]
+----
+int get_value() const;
+----
+
+_Returns:_ The value this property was constructed with.
 ```
