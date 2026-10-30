@@ -111,23 +111,17 @@ ur_result_t urDeviceGet(
   std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
   bool DeviceDefaultGPU = false;
 
-  bool isCombinedMode =
-      std::any_of(Platform->URDevicesCache.begin(),
-                  Platform->URDevicesCache.end(), [](const auto &D) {
-                    if (D->isSubDevice())
-                      return false;
-                    ze_device_handle_t RootDev = nullptr;
-                    // Query Root Device for root-devices.
-                    // We cannot use ZE2UR_CALL because under some circumstances
-                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
-                    // and ZE2UR_CALL will abort because it's not
-                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
-                    // check manually that the result is either
-                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
-                                                (D->ZeDevice, &RootDev));
-                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
-                  });
+  bool isCombinedMode = false;
+  for (const auto &D : Platform->URDevicesCache) {
+    if (D->isSubDevice())
+      continue;
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Platform->getRootDevice(D->ZeDevice, &RootDev));
+    if (RootDev != nullptr) {
+      isCombinedMode = true;
+      break;
+    }
+  }
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -1213,15 +1207,10 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
-    ur_device_handle_t UrRootDev = nullptr;
-    ze_device_handle_t DevHandle = Device->ZeDevice;
-    ze_device_handle_t RootDev;
-    // Query Root Device.
-    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (DevHandle, &RootDev));
-    UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
-    if (errc != ZE_RESULT_SUCCESS &&
-        errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-      return ze2urResult(errc);
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Device->Platform->getRootDevice(Device->ZeDevice, &RootDev));
+    ur_device_handle_t UrRootDev =
+        RootDev ? Device->Platform->getDeviceFromNativeHandle(RootDev) : nullptr;
     return ReturnValue(UrRootDev);
   }
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
