@@ -10,6 +10,7 @@
 #include "graph.hpp"
 #include "common.hpp"
 #include "context.hpp"
+#include "event.hpp"
 #include "ur_interface_loader.hpp"
 
 #include <memory>
@@ -34,6 +35,15 @@ ur_exp_graph_handle_t_::~ur_exp_graph_handle_t_() {
       UR_LOG_SAFE(WARN, "Failed to destroy graph handle: {}", ZeResult);
     }
   }
+  for (auto hEvent : capturedEvents) {
+    hEvent->release();
+  }
+}
+
+void ur_exp_graph_handle_t_::retainCapturedEvent(ur_event_handle_t hEvent) {
+  hEvent->retain();
+  std::scoped_lock<ur_mutex> lock(capturedEventsMutex);
+  capturedEvents.push_back(hEvent);
 }
 
 ur_exp_executable_graph_handle_t_::ur_exp_executable_graph_handle_t_(

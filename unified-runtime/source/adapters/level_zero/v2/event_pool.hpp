@@ -40,8 +40,9 @@ public:
 
   ~event_pool() = default;
 
-  // Allocate an event from the pool. Thread safe.
-  ur_event_handle_t allocate();
+  // Allocate an event from the pool. If forceCreate is set, a new event is
+  // created even if a reusable one is available. Thread safe.
+  ur_event_handle_t allocate(bool forceCreate = false);
 
   // Allocate a detached event that owns its underlying ze_event_handle_t and is
   // never returned to the pool for recycling, it is destroyed when released.
@@ -51,6 +52,9 @@ public:
   // Free an event back to the pool. Thread safe.
   void free(ur_event_handle_t event);
 
+  // Destroy a pooled event instead of freeing it back to the pool. Thread safe.
+  void erase(ur_event_handle_t event);
+
   event_provider *getProvider() const;
   event_flags_t getFlags() const;
 
@@ -58,7 +62,8 @@ private:
   ur_context_handle_t hContext;
   std::unique_ptr<event_provider> provider;
 
-  std::deque<ur_event_handle_t_> events;
+  std::unordered_map<ur_event_handle_t, std::unique_ptr<ur_event_handle_t_>>
+      events;
   std::vector<ur_event_handle_t> freelist;
 
   ur_mutex mutex;
