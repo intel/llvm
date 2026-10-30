@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "joint_matrix_hip_layout.hpp"
+
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
@@ -44,7 +46,7 @@ void hip_matrix_copy() {
     if (OutLayout == layout::row_major)
       E[i] = C[i];
     else
-      E[(i % N) * M + int(i / M)] = C[i];
+      E[hip_col_major_index(i, M, N)] = C[i];
   }
 
   try {
@@ -69,7 +71,7 @@ void hip_matrix_copy() {
                     sub_c_copy;
                 joint_matrix<sub_group, InType, use::b, K, N, layout::row_major>
                     sub_b, sub_b_copy;
-                joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
+                joint_matrix<sub_group, InType, use::a, M, K, layout::row_major>
                     sub_a, sub_a_copy;
 
                 joint_matrix_load(

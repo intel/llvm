@@ -315,6 +315,9 @@ static constexpr ext::oneapi::experimental::architecture
 #ifndef __SYCL_TARGET_AMD_GPU_GFX942__
 #define __SYCL_TARGET_AMD_GPU_GFX942__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX950__
+#define __SYCL_TARGET_AMD_GPU_GFX950__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1010__
 #define __SYCL_TARGET_AMD_GPU_GFX1010__ 0
 #endif
@@ -451,6 +454,7 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX940__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX941__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX942__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX950__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1010__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1011__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1012__ == 1) ||
@@ -693,6 +697,9 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX942__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx942;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX950__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx950;
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX1010__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx1010;
