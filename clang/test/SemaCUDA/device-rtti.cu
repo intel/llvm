@@ -355,12 +355,20 @@ __device__ void dep_nested_default_arg() {
 struct LambdaBody {
   const std::type_info *t = [] { return &typeid(int); }(); // #lambda_body
 };
-// dev-error@#lambda_body {{cannot use 'typeid' in __host__ __device__ function as RTTI is not available in device code}}
+
+// FIXME: intel/llvm currently lacks the deferred-diagnostic deduplication of
+// upstream #185926. Until it is relanded, a diagnostic reachable from several
+// callers is emitted once per caller chain ('host-error 2' and 'host-note 7'
+// for device_function below) and call stack notes read 'called by' instead
+// of 'which is called by'. Restore the upstream expectations when the
+// deduplication is relanded.
+
+// dev-error@#lambda_body 2 {{cannot use 'typeid' in __host__ __device__ function as RTTI is not available in device code}}
 // dev-note@#lambda_body {{called by 'LambdaBody'}}
 // dev-note@#lambda_body {{called by 'lambda_body'}}
 __device__ void lambda_body() {
   LambdaBody l;
-  // dev-note@-1 {{which is called by 'lambda_body'}}
+  // dev-note@-1 {{called by 'lambda_body'}}
   (void)l;
 }
 
