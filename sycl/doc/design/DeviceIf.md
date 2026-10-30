@@ -107,6 +107,7 @@ recognizes:
 * `amd_gpu_gfx940`
 * `amd_gpu_gfx941`
 * `amd_gpu_gfx942`
+* `amd_gpu_gfx950`
 * `amd_gpu_gfx1010`
 * `amd_gpu_gfx1011`
 * `amd_gpu_gfx1012`
@@ -209,6 +210,7 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX940__`
 * `__SYCL_TARGET_AMD_GPU_GFX941__`
 * `__SYCL_TARGET_AMD_GPU_GFX942__`
+* `__SYCL_TARGET_AMD_GPU_GFX950__`
 * `__SYCL_TARGET_AMD_GPU_GFX1010__`
 * `__SYCL_TARGET_AMD_GPU_GFX1011__`
 * `__SYCL_TARGET_AMD_GPU_GFX1012__`

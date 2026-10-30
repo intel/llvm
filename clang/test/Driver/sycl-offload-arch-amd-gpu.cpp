@@ -54,7 +54,7 @@
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx942 -DMAC_STR=GFX942 -DTRIPLE_STR=amdgpu9.42
 
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx950 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx950 -DMAC_STR=GFX950
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx950 -DMAC_STR=GFX950 -DTRIPLE_STR=amdgpu9.50
 
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1010 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx1010 -DMAC_STR=GFX1010 -DTRIPLE_STR=amdgpu10.10
