@@ -17,23 +17,18 @@ Questions to ask) · Pass 8 Examples · Reporting · Templates (reference).
    lifecycle in `sycl/doc/extensions/README-process.md` (where the file goes,
    how a new version is added, how a spec is split into versions).
 2. Consult the core SYCL specification as described below.
-3. Consider whether the extension could be promoted to a Khronos extension.
-   Compare with the `sycl_khr_*` extensions in SYCL-Docs `adoc/extensions/` and
-   their headers in `sycl/include/sycl/khr/`. If it could, follow the KHR
-   naming and properties conventions (Pass 3, Pass 7 "Properties"), so a later
-   promotion doesn't force renames.
-4. Read the implementation. For an update, the extension's header under
+3. Read the implementation. For an update, the extension's header under
    `sycl/include/sycl/ext/<vendor>/[experimental/]` is the current API
    surface: the synopsis must match it, and anything not implemented goes in
    "Future direction" or a NOTE (Pass 1). For a new extension, check the
    neighbouring headers and specs for API to reuse and for names, argument
    order and `const` conventions to stay consistent with (Pass 3, Pass 7).
-5. Follow Passes 1-8 while drafting. The passes are phrased for a reviewer;
+4. Follow Passes 1-8 while drafting. The passes are phrased for a reviewer;
    when drafting, read every "flag/propose/push back on X" as "do not write X"
    and every "is Y present?" as "make Y present". Include at least one usage
    example. Capture open questions in an "Issues" section and deferred ideas in
    "Future direction".
-6. Before posting the PR, self-review against Passes 1-8 and check the
+5. Before posting the PR, self-review against Passes 1-8 and check the
    rendered document (see "Rendering").
 
 ## Reviewing a specification
