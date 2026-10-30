@@ -14,7 +14,9 @@
 // single_task). Previously the property was dropped because these functions
 // submit a wrapper kernel that forwards to the free function kernel, and the
 // property was not propagated to the wrapper. See the issue reported for the
-// 2026.1 free function launch method.
+// 2026.1 free function launch method. It also checks that the property is
+// honored for a kernel specialization that SYCL_EXT_ONEAPI_KERNEL_FUNCTION
+// selects by deducing a template argument from the launch arguments.
 
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
@@ -39,6 +41,28 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SIMD>)) void probe(
       static_cast<int>(item.get_sub_group().get_local_linear_range());
 }
 
+template <int SIMD>
+int check(const char *How, const int *Ptr, size_t N, size_t Expected) {
+  for (size_t i = 0; i < N; ++i) {
+    if (Ptr[i] != static_cast<int>(Expected)) {
+      std::cout << "SIMD=" << SIMD << " (" << How << "): item " << i
+                << " observed sub-group size " << Ptr[i] << ", expected "
+                << Expected << std::endl;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+template <int SIMD, typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclexp::sub_group_size<SIMD>)) void probe_deduced(T *ptr) {
+  auto item = syclext::this_work_item::get_nd_item<1>();
+  ptr[item.get_global_linear_id()] =
+      static_cast<T>(item.get_sub_group().get_local_linear_range());
+}
+
 template <int SIMD> int test(sycl::queue &q) {
   constexpr size_t N = 64;
 
@@ -52,16 +76,18 @@ template <int SIMD> int test(sycl::queue &q) {
   syclexp::nd_launch(q, sycl::nd_range<1>{sycl::range<1>{N}, sycl::range<1>{N}},
                      syclexp::kernel_function<probe<SIMD>>, Ptr);
   q.wait();
+  int Ret = check<SIMD>("kernel_function", Ptr, N, Expected);
 
-  int Ret = 0;
-  for (size_t i = 0; i < N; ++i) {
-    if (Ptr[i] != static_cast<int>(Expected)) {
-      std::cout << "SIMD=" << SIMD << ": item " << i << " observed sub-group "
-                << "size " << Ptr[i] << ", expected " << Expected << std::endl;
-      Ret = 1;
-      break;
-    }
-  }
+  // T = int is deduced from Ptr; SIMD cannot be deduced and is given.
+  q.fill(Ptr, 0, N).wait();
+  const size_t ExpectedDeduced =
+      syclexp::get_kernel_info<probe_deduced<SIMD, int>, sg_size_desc>(q);
+  syclexp::nd_launch(q, sycl::nd_range<1>{sycl::range<1>{N}, sycl::range<1>{N}},
+                     SYCL_EXT_ONEAPI_KERNEL_FUNCTION(probe_deduced<SIMD>, Ptr));
+  q.wait();
+  Ret |=
+      check<SIMD>("SYCL_EXT_ONEAPI_KERNEL_FUNCTION", Ptr, N, ExpectedDeduced);
+
   sycl::free(Ptr, q);
   return Ret;
 }

@@ -285,6 +285,16 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
+  // Kernels that a call to __builtin_sycl_resolve_kernel_function selected on
+  // the host side only through the forward declaration in the integration
+  // header.
+  struct KernelResolvedBeforeDeclaration {
+    SourceLocation Loc;
+    const FunctionDecl *Kernel;
+  };
+  llvm::SmallVector<KernelResolvedBeforeDeclaration, 1>
+      KernelsResolvedBeforeDeclaration;
+
   // A map that keeps track of all structs encountered with
   // special types inside. Relevant for free function kernels only.
   llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
@@ -390,6 +400,18 @@ public:
   void processFreeFunctionDeclaration(const FunctionDecl *FD);
   void ProcessFreeFunction(FunctionDecl *FD);
   void finalizeFreeFunctionKernels();
+
+  /// Check a call to __builtin_sycl_resolve_kernel_function, whose argument is
+  /// a call to a SYCL free function kernel, and build a pointer to the selected
+  /// kernel.
+  ExprResult BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall);
+  /// The first declaration of \p FD in the translation unit other than the
+  /// one in the integration header, or null if there is none.
+  const Decl *getFirstDeclOutsideIntegrationHeader(const FunctionDecl *FD);
+  /// Diagnose the kernels that a call to __builtin_sycl_resolve_kernel_function
+  /// selected only through the integration header. Called at the end of the
+  /// translation unit.
+  void diagnoseKernelsResolvedBeforeDeclaration();
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);

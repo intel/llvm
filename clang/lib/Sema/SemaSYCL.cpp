@@ -28,6 +28,8 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -5976,6 +5978,113 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
   // to handle the case where a definition is defined later.
   if (isFreeFunction(FD))
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
+}
+
+// The first declaration of FD (or, for a specialization, of its primary
+// template) in the translation unit, ignoring the forward declaration in the
+// integration header.
+const Decl *
+SemaSYCL::getFirstDeclOutsideIntegrationHeader(const FunctionDecl *FD) {
+  const SourceManager &SM = SemaRef.getSourceManager();
+  StringRef IntHeader =
+      SemaRef.getPreprocessor().getPreprocessorOpts().IncludeHeader;
+  OptionalFileEntryRef IntHeaderFE;
+  if (!IntHeader.empty())
+    IntHeaderFE = SM.getFileManager().getOptionalFileRef(IntHeader);
+
+  const Decl *First = nullptr;
+  auto Visit = [&](const Decl *D) {
+    SourceLocation DeclLoc = SM.getExpansionLoc(D->getLocation());
+    if (IntHeaderFE &&
+        SM.getFileEntryRefForID(SM.getFileID(DeclLoc)) == IntHeaderFE)
+      return;
+    if (!First || SM.isBeforeInTranslationUnit(
+                      DeclLoc, SM.getExpansionLoc(First->getLocation())))
+      First = D;
+  };
+  if (const FunctionTemplateDecl *FTD = FD->getPrimaryTemplate())
+    llvm::for_each(FTD->redecls(), Visit);
+  else
+    llvm::for_each(FD->redecls(), Visit);
+  return First;
+}
+
+void SemaSYCL::diagnoseKernelsResolvedBeforeDeclaration() {
+  for (const KernelResolvedBeforeDeclaration &K :
+       KernelsResolvedBeforeDeclaration) {
+    Diag(K.Loc, diag::err_sycl_resolve_kernel_function_declared_after)
+        << K.Kernel << K.Kernel->getType();
+    if (const Decl *D = getFirstDeclOutsideIntegrationHeader(K.Kernel))
+      Diag(D->getLocation(), diag::note_not_found_by_two_phase_lookup)
+          << K.Kernel << /*no namespace hint*/ 0;
+  }
+  KernelsResolvedBeforeDeclaration.clear();
+}
+
+// The operand of __builtin_sycl_resolve_kernel_function is an ordinary call,
+// already resolved; the builtin evaluates to a pointer to its callee.
+ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
+  if (TheCall->getNumArgs() != 1) {
+    Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
+    return ExprError();
+  }
+
+  Expr *KernelCall = TheCall->getArg(0);
+
+  // Resolved again when the call is instantiated.
+  if (KernelCall->isTypeDependent() || KernelCall->isValueDependent())
+    return TheCall;
+
+  // The failed call has already been diagnosed.
+  if (KernelCall->containsErrors())
+    return ExprError();
+
+  // Free function kernels are non-member functions called directly.
+  auto *CE = dyn_cast<CallExpr>(KernelCall->IgnoreParens());
+  FunctionDecl *ResolvedFn =
+      CE && !isa<CXXMemberCallExpr, CXXOperatorCallExpr>(CE)
+          ? CE->getDirectCallee()
+          : nullptr;
+  if (!ResolvedFn || isa<CXXMethodDecl>(ResolvedFn)) {
+    Diag(KernelCall->getBeginLoc(),
+         diag::err_sycl_resolve_kernel_function_not_a_call);
+    return ExprError();
+  }
+
+  // Selecting a deleted function was already diagnosed at the call.
+  if (ResolvedFn->isDeleted())
+    return ExprError();
+
+  // Checked only on the device side: on the host side the integration header
+  // forward declares the kernel without its properties.
+  SourceLocation Loc = CE->getCallee()->getBeginLoc();
+  if (getLangOpts().SYCLIsDevice && !isFreeFunction(ResolvedFn)) {
+    Diag(Loc, diag::err_sycl_resolve_kernel_function_not_free_function);
+    Diag(ResolvedFn->getLocation(), diag::note_declared_at);
+    return ExprError();
+  }
+
+  // The integration header forward declares every free function kernel ahead
+  // of the application's code, so on the host side the call may have selected
+  // a kernel that the device side, which has no integration header, cannot see
+  // at this point. The two sides would then launch different kernels. This is
+  // diagnosed at the end of the translation unit, once the application's own
+  // declaration of the kernel has been seen and can be pointed to.
+  if (getLangOpts().SYCLIsHost) {
+    const SourceManager &SM = SemaRef.getSourceManager();
+    const Decl *D = getFirstDeclOutsideIntegrationHeader(ResolvedFn);
+    if (!D || !SM.isBeforeInTranslationUnit(
+                  SM.getExpansionLoc(D->getLocation()), Loc))
+      KernelsResolvedBeforeDeclaration.push_back({Loc, ResolvedFn});
+  }
+
+  QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());
+  ExprResult FnRef = SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(),
+                                              VK_LValue, Loc);
+  if (FnRef.isInvalid())
+    return ExprError();
+  return SemaRef.ImpCastExprToType(FnRef.get(), FnPtrTy,
+                                   CK_FunctionToPointerDecay);
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {

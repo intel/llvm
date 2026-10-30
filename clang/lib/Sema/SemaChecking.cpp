@@ -4331,6 +4331,9 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     break;
   }
+
+  case Builtin::BI__builtin_sycl_resolve_kernel_function:
+    return SYCL().BuildSYCLResolveKernelFunctionCall(TheCall);
   }
 
   if (getLangOpts().HLSL && HLSL().CheckBuiltinFunctionCall(BuiltinID, TheCall))
