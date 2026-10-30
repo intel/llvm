@@ -8012,6 +8012,12 @@ static StringRef getCanonicalArchString(Compilation &C,
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "spir64_x86_64" << ArchStr;
     return StringRef();
+  } else if (Triple.isSPIRV() && ArchStr.starts_with("igca")) {
+    if (!StringToOffloadArch(ArchStr).isIntelIGCA()) {
+      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+          << "IGCA" << ArchStr;
+      return StringRef();
+    }
   }
   if (Arch.isNVPTX())
     return Args.MakeArgStringRef(OffloadArchToString(Arch));
