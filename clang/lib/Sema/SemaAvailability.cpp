@@ -670,20 +670,8 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
       InstantiationLoc != Loc &&
       !S.getSourceManager().isInSystemHeader(InstantiationLoc) &&
       !S.getLangOpts().SYCLIsDevice && !S.getLangOpts().SYCLIsHost;
-  struct AllowWarningInSystemHeaders {
-    AllowWarningInSystemHeaders(DiagnosticsEngine &E,
-                                bool AllowWarningInSystemHeaders)
-        : Engine(E), Prev(E.getForceSystemWarnings()) {
-      if (AllowWarningInSystemHeaders)
-        Engine.setForceSystemWarnings(true);
-    }
-    ~AllowWarningInSystemHeaders() { Engine.setForceSystemWarnings(Prev); }
-
-  private:
-    DiagnosticsEngine &Engine;
-    bool Prev;
-  } SystemWarningOverrideRAII(S.getDiagnostics(),
-                              ShouldAllowWarningInSystemHeader);
+  ForceSystemWarningsRAII SystemWarningOverrideRAII(
+      S.getDiagnostics(), ShouldAllowWarningInSystemHeader);
 
   if (!Message.empty()) {
     S.Diag(Loc, diag_message) << ReferringDecl << Message << FixIts;
