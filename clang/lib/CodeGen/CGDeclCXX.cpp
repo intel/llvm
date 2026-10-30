@@ -73,6 +73,20 @@ static void EmitDeclInit(CodeGenFunction &CGF, const VarDecl &D,
 /// static storage duration.
 static void EmitDeclDestroy(CodeGenFunction &CGF, const VarDecl &D,
                             ConstantAddress Addr) {
+  // SYCL work-group scope variables (e.g. the kernel object of a
+  // parallel_for_work_group kernel) are local variables promoted to
+  // work-group local memory. There is no program exit on the device to run
+  // their destructor at, and SYCL 2020 requires the destructors of device
+  // copyable types to have no effect on the device, so don't register one.
+  if (CGF.getLangOpts().SYCLIsDevice) {
+    const SYCLScopeAttr *Scope = D.getAttr<SYCLScopeAttr>();
+    if (!Scope)
+      if (const auto *RD = D.getType()->getAsCXXRecordDecl())
+        Scope = RD->getAttr<SYCLScopeAttr>();
+    if (Scope && Scope->isWorkGroup())
+      return;
+  }
+
   // Honor __attribute__((no_destroy)) and bail instead of attempting
   // to emit a reference to a possibly nonexistent destructor, which
   // in turn can cause a crash. This will result in a global constructor

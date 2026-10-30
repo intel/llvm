@@ -528,14 +528,26 @@ private:
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
 
-    if (!std::is_same<OpenCLMemT, T>::value && std::is_pointer<T>::value) {
+    if constexpr (!std::is_same<OpenCLMemT, T>::value &&
+                  std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
-    } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
-                   remove_cv_ref_t<T>>::value) {
+    } else if constexpr (ext::oneapi::experimental::detail::
+                             is_struct_with_special_type<
+                                 remove_cv_ref_t<T>>::value) {
       addArg(detail::kernel_param_kind_t::kind_struct_with_special_type,
              StoredArg, sizeof(T), ArgIndex);
     } else {
+#ifndef __SYCL_DEVICE_ONLY__
+      // Extra paranoid check to validated that we don't pass
+      // non-device-copyable types to the kernel with a standard layout.
+      // The device never executes this code and does not have access to
+      // is_struct_with_special_type so there is no point in trying to
+      // check it on the device.
+      static_assert(
+          detail::check_if_device_copyable_v<remove_cv_ref_t<T>> ||
+          detail::deprecated_sycl121_device_copyable_v<remove_cv_ref_t<T>>);
+#endif
       addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
              ArgIndex);
     }
@@ -1177,7 +1189,16 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<OpenCLMemT, T>::value      // Interop
         || is_same_type<stream, T>::value          // Stream
-        || detail::check_if_device_copyable_v<remove_cv_ref_t<T>>;
+#ifdef __SYCL_DEVICE_ONLY__
+        // On the device we don't have the more precise
+        // is_struct_with_special_type
+        || detail::is_legal_kernel_parameter_v<remove_cv_ref_t<T>>;
+#else
+        || (ext::oneapi::experimental::detail::is_struct_with_special_type<
+               remove_cv_ref_t<T>>::value) ||
+        detail::check_if_device_copyable_v<remove_cv_ref_t<T>> ||
+        detail::deprecated_sycl121_device_copyable_v<remove_cv_ref_t<T>>;
+#endif
   };
 
   /// Sets argument for OpenCL interoperability kernels.
