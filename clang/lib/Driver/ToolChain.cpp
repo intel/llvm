@@ -1209,6 +1209,14 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
   if (auto Path = getPathForTriple(T))
     return *Path;
 
+  if (T.isSPIROrSPIRV() && T.isArch64Bit()) {
+    llvm::Triple Canon(T);
+    Canon.setArchName("spirv64");
+    Canon = llvm::Triple(Canon.normalize());
+    if (auto Path = getPathForTriple(Canon))
+      return *Path;
+  }
+
   if (T.isAMDGCN()) {
     // Clear the subarch as a fallback.
     // TODO: Remove this when libc and compiler-rt builds are migrated.

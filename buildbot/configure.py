@@ -211,7 +211,7 @@ def do_configure(args, passthrough_args):
     ]
 
     if sys.platform != "darwin":
-        llvm_spirv64_runtimes = "compiler-rt"
+        llvm_spirv64_runtimes = "compiler-rt;libc"
         llvm_spirv64_sanitizers = ""
         runtime_targets += ";spirv64-unknown-unknown"
         cmake_cmd.extend(

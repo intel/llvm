@@ -922,6 +922,21 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
+      if (InputFilename.compare("libc.bc") == 0) {
+        std::optional<std::string> StdlibPath =
+            this->getToolChain().getStdlibPath();
+        if (StdlibPath) {
+          llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
+          bool IsSamePath = false;
+          auto EC =
+              llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
+          if (EC)
+            return false;
+          else
+            return IsSamePath;
+        } else
+          return false;
+      }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
@@ -2088,6 +2103,9 @@ SYCLToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
+  bool NoOffloadLib = !DriverArgs.hasFlag(options::OPT_offloadlib,
+                                          options::OPT_no_offloadlib, true);
+
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
@@ -2103,6 +2121,23 @@ SYCLToolChain::getDeviceLibs(
     else
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
+
+  // Link deivce libc for spirv64 target.
+  if (getTriple().isSPIROrSPIRV() && getTriple().isArch64Bit() &&
+      !NoOffloadLib) {
+    bool LinkDeviceLibc = false;
+    if (std::optional<std::string> StdlibPath = getStdlibPath()) {
+      SmallString<128> FullLibcName(*StdlibPath);
+      llvm::sys::path::append(FullLibcName, "libc.bc");
+      if (getDriver().getVFS().exists(FullLibcName)) {
+        LinkDeviceLibc = true;
+        BCLibs.emplace_back(BitCodeLibraryInfo({FullLibcName, true}));
+      }
+    }
+    if (!LinkDeviceLibc)
+      getDriver().Diag(diag::err_drv_no_sycl_device_lib) << "libc.bc";
+  }
+
   return BCLibs;
 }
 

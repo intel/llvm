@@ -18,6 +18,7 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
@@ -44,6 +45,7 @@
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
+// SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libc.bc"
 // SYCL_LLVM_LINK_DEVICE_LIB-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
@@ -73,6 +75,7 @@
 // SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
 // SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-asan.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}libclang_rt.builtins.bc"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
@@ -95,6 +98,7 @@
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-asan-pvc.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
@@ -105,6 +109,7 @@
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-asan-cpu.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
@@ -124,6 +129,7 @@
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-asan-dg2.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 
@@ -145,6 +151,7 @@
 // SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
 // SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-msan.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}libclang_rt.builtins.bc"
 // SYCL_DEVICE_MSAN_MACRO: "-cc1"
 // SYCL_DEVICE_MSAN_MACRO-SAME: "USE_SYCL_DEVICE_MSAN"
@@ -165,6 +172,7 @@
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // SYCL_DEVICE_LIB_MSAN_PVC: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-msan-pvc.bc"
+// SYCL_DEVICE_LIB_MSAN_PVC-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_MSAN_PVC-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 
@@ -174,6 +182,7 @@
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
 // SYCL_DEVICE_LIB_MSAN_CPU: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-msan-cpu.bc"
+// SYCL_DEVICE_LIB_MSAN_CPU-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_MSAN_CPU-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 /// ###########################################################################
@@ -194,6 +203,7 @@
 // SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
 // SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc"
 // SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-tsan.bc"
+// SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}libclang_rt.builtins.bc"
 // SYCL_DEVICE_TSAN_MACRO: "-cc1"
 // SYCL_DEVICE_TSAN_MACRO-SAME: "USE_SYCL_DEVICE_TSAN"
@@ -214,6 +224,7 @@
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // SYCL_DEVICE_LIB_TSAN_PVC: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-tsan-pvc.bc"
+// SYCL_DEVICE_LIB_TSAN_PVC-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_TSAN_PVC-SAME: "{{.*}}libclang_rt.builtins.bc"
 
 
@@ -223,4 +234,5 @@
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_CPU
 // SYCL_DEVICE_LIB_TSAN_CPU: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-tsan-cpu.bc"
+// SYCL_DEVICE_LIB_TSAN_CPU-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_TSAN_CPU-SAME: "{{.*}}libclang_rt.builtins.bc"
