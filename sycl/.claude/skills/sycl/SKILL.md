@@ -5,7 +5,7 @@ description: "Repo-specific guidance for the sycl/ tree of this repo: the SYCL r
 
 # Working in `sycl/`
 
-Refer necessary guides for the task; Also apply the Common rules below.
+Read the guide for the task; also apply the Common rules below.
 
 | Task | Guide |
 |---|---|
@@ -14,7 +14,7 @@ Refer necessary guides for the task; Also apply the Common rules below.
 
 ## Common rules for changes in `sycl/`
 
-- Run clang-format on your changes before commiting.
+- Run clang-format on your changes before committing.
 - Comment only what the code does not make obvious; never restate the code.
 - Never write absolute paths or Intel-internal links into the repo. A JIRA id may appear as
   plain text (no link) only when the user explicitly asks for it.

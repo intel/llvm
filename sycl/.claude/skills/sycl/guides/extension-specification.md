@@ -13,8 +13,11 @@ Reporting.
 
 ## Writing or updating a specification
 
-1. Start from `sycl/doc/extensions/template.asciidoc` and use its formatting. Do
-   not copy an old extension; you would inherit its outdated format. Follow the
+1. Start from `sycl/doc/extensions/template.asciidoc` for the skeleton and
+   boilerplate. The template has no per-API entry; take the Pass 5 format
+   (`'''` rule, synopsis, clauses) from
+   `experimental/sycl_ext_oneapi_reusable_events.asciidoc`. Do not copy any
+   other old extension; you would inherit its outdated format. Follow the
    lifecycle in `sycl/doc/extensions/README-process.md` (where the file goes,
    how a new version is added, how a spec is split into versions).
 2. Consult the core SYCL specification as described below.
@@ -89,7 +92,7 @@ deprecation and "not yet implemented" NOTEs from `README-process.md`. Check
 against both, and for these traps:
 
 - Section order: Notice, Contact, Dependencies, **Status**, [Backend support
-  status], Overview, Specification, [Implementation notes], Example(s),
+  status], Overview, Specification, Example(s), [Implementation notes],
   [Future direction], [Issues]. "Example(s)", "Future direction" and "Issues"
   are *peers* of "Specification", not subsections. "Feature test macro" is the
   first subsection of Specification.
@@ -116,7 +119,9 @@ against both, and for these traps:
   say "not yet implemented".
 - Implementation gaps are not backend limitations: `README-process.md`
   requires a non-normative `[_Note:_ ... _{endnote}_]` for every API, device or
-  backend not yet implemented, also in experimental extensions. Do not ask for
+  backend not yet implemented, also in experimental extensions. Put it in the
+  Status section when the whole extension is unimplemented on a backend,
+  otherwise next to the API concerned. Do not ask for
   such a note to be removed; do ask for one when the implementation PR leaves
   something out.
 - A new version needs a new feature-test macro row and the `README-process.md`
@@ -331,8 +336,9 @@ against both, and for these traps:
   `get_local_linear_id`/`get_local_linear_range`, `leader()`, `fence_scope`,
   the `is_group`/`is_user_constructed_group` traits), usually plus a new
   `memory_scope` enumerator; `sycl_ext_oneapi_non_uniform_groups` is the model.
-  State whether the functions are group functions (core §4.17.3) and therefore
-  require convergent control flow and uniform arguments.
+  State whether the functions are group functions (the core spec's "Group
+  functions" section, §4.17.3 in revision 11) and therefore require convergent
+  control flow and uniform arguments.
 - Type traits: "an implementation may add specializations for
   implementation-defined types; users must not add their own".
 
@@ -357,22 +363,23 @@ If the extension defines properties or has APIs that accept them, read
   which extension version introduced each entry.
 - Every optional device feature needs an `aspect`.
 
-Information descriptor entry:
+Information descriptor entry (as in
+`sycl_ext_oneapi_device_architecture.asciidoc`):
 
 ```
-.`info::device::device_type`
+.`ext::oneapi::experimental::info::device::foo`
 [source,c++]
 ----
-namespace sycl::info::device {
-struct device_type {
-  using return_type = info::device_type;
+namespace sycl::ext::oneapi::experimental::info::device {
+struct foo {
+  using return_type = size_t;
 };
-} // namespace sycl::info::device
+} // namespace sycl::ext::oneapi::experimental::info::device
 ----
 
 _Remarks:_ Template parameter to `device::get_info`.
 
-_Returns:_ The device type associated with the device.
+_Returns:_ The number of foo units on the device.
 ```
 
 ### Questions to ask

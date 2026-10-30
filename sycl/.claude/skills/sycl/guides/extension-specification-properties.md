@@ -16,12 +16,16 @@ properties or has APIs that accept them.
     cannot be `supported` until the KHR is.
   * Property `foo` has its key in a nested namespace with the same name,
     `property::key::foo` (no `_key` suffix). The namespace for vendor-extension
-    properties is not defined yet: don't invent one; raise it in the PR and
-    record it in "Issues".
+    properties is not defined yet. Until it is, declare them in the
+    extension's namespace, mirroring `khr::property` and `khr::property::key`;
+    mark the location as provisional with a `[_Note:_ ... _{endnote}_]`, raise
+    it in the PR and record it in "Issues".
   * Runtime values: a struct with a `constexpr` constructor and public members.
     Compile-time values: a variable template of unspecified type with
-    `static constexpr` members (`using value_t` for a type value). Both: a class
-    template. A single value is named `value` (`value_t` for a type).
+    `static constexpr` members (`using value_t` for a type value). A property
+    with both kinds of value (hybrid): a class template whose template
+    parameters carry the compile-time values and whose public members carry the
+    runtime ones. A single value is named `value` (`value_t` for a type).
   * Boolean flags carry a boolean value (`enable_x(bool v = true)`,
     `enable_x<bool>`) rather than relying on presence, so the list has the same
     type either way. A small enum gets a variable per enumerator plus the
@@ -35,8 +39,10 @@ properties or has APIs that accept them.
     parameter) with "_Constraints:_ `khr::is_property_for_v<PropertyOrList, C>`
     is `true`, or `khr::is_property_list_for_v<PropertyOrList, C>` is `true`". A
     single property is treated as `khr::properties{props}`.
-- oneAPI model: follow the oneAPI template below. Properties go directly in
-  `...::experimental` (not under `property::`). Vendor-specific properties live
+- oneAPI model: follow the oneAPI template below. Properties of this model go
+  directly in `...::experimental`; `property::<class>::` nesting (Pass 3's
+  `property::queue::discard_events`) is for SYCL 2020-style properties passed
+  in a `property_list`. Vendor-specific properties live
   in the vendor namespace, but specializations of the property type traits must
   be in `sycl::ext::oneapi::experimental`. Restrict `is_property_key_of` to the
   intended classes. Document which properties each API accepts and constrain the
@@ -54,17 +60,17 @@ properties or has APIs that accept them.
     its own: make it another value of that property (KHR) or a small wrapper
     class with a `static constexpr value` (oneAPI).
   * State normatively whether a property is a kernel (compile-time) or launch
-    property, and where it may not be used. Behavior on devices where it is
+    property (a "runtime kernel property" is a launch property), and where it
+    may not be used. Behavior on devices where it is
     meaningless goes in normative text, not a NOTE in the Status section.
   * Never define a property in terms of a specific backend extension; word it
     in terms of device capabilities.
-  * Compile-time or runtime property — and is a "runtime kernel property"
-    really a launch property?
 
 ## Templates
 
-KHR property entry (`sycl_khr_properties`, the model for new extensions; the
-namespace for vendor extensions is still open, see "Models and rules"):
+KHR property entry (`sycl_khr_properties`, the model for new extensions). It
+shows a core property; a vendor extension substitutes its own namespace for
+`sycl::khr::property` (see "Models and rules"):
 
 ```
 .`khr::property::in_order`
@@ -101,6 +107,8 @@ The following traits inherit from `std::true_type`:
 
 KHR compile-time property: a variable template of unspecified type holding the
 value in a `static constexpr` member, plus a variable per enumerator.
+`data_placement_t` is exposition only; the specification must say the
+extension does not define it (Pass 4).
 
 ```
 [source,c++]
@@ -110,16 +118,16 @@ namespace sycl::khr::property {
 enum class placement_type : /*unspecified*/ { blocked, striped };
 
 template <placement_type Placement>
-struct __unspecified_type__ {
+struct data_placement_t { // exposition only
   static constexpr placement_type value = Placement;
 };
 
 template <placement_type Placement>
-inline constexpr __unspecified_type__<Placement> data_placement;
+inline constexpr data_placement_t<Placement> data_placement;
 
-inline constexpr __unspecified_type__<placement_type::blocked>
+inline constexpr data_placement_t<placement_type::blocked>
     data_placement_blocked;
-inline constexpr __unspecified_type__<placement_type::striped>
+inline constexpr data_placement_t<placement_type::striped>
     data_placement_striped;
 
 namespace key {
