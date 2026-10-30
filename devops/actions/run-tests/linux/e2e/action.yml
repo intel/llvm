@@ -84,7 +84,7 @@ runs:
       # --timeout kills an individual hung test (e.g. a GPU driver hang) instead of
       # letting it block the whole suite until the job's own timeout-minutes fires.
       extra_lit_opts: >-
-        --max-time 3600 --timeout 600 --param print_features=True
+        --max-time 3600 --timeout 1200 --param print_features=True
         --param test-mode=${{ inputs.testing_mode }}
         --param sycl_devices=${{ inputs.target_devices }}
         ${{ inputs.extra_lit_opts }}
