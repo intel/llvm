@@ -1,37 +1,52 @@
-// UNSUPPORTED: target-nvidia || target-amd
-// UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
-// compilation of the kernel, but for CUDA the failure is not thrown, but comes
-// from ptxas that crashes clang. The JIT part is not relevant, because the
-// flow is such that the AOT compilation still happens, it’s just that if we
-// request JIT, it will do the thing again at the run time.
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
-//
-// TODO: rewrite this into a unit-test
-
-// RUN: %{build} -DGPU -o %t_gpu.out
-// RUN: %{build} -o %t.out
-// RUN: %{run} %if gpu %{ %t_gpu.out %} %else %{ %t.out %}
-//
-//==--- build-log.cpp - Test log message from faild build ----------==//
+//==--------- build-log.cpp - Test log message from failed build -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===--------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// This test checks that a kernel containing invalid assembly on GPUs or
+/// calling a nonexistent symbol on CPUs triggers a runtime build exception
+/// containing a build log.
+/// For the NVIDIA version, see: build-log-nvidia.cpp
+///
+//===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+
+// UNSUPPORTED: target-nvidia
+// UNSUPPORTED-INTENDED: See special test file for NVIDIA:
+// build-log-nvidia.cpp
+
+// RUN: %{build} -DGPU -o %t_gpu.out
+// RUN: %{build} -o %t.out
+
+// RUN: %{run} %if gpu %{ %t_gpu.out %} %else %{ %t.out %} > %t.log 2>&1
+// RUN: %{run-aux} FileCheck %s --check-prefix %if gpu %{CHECK-EXPECTED-ERROR-GPU%} %else %{CHECK-EXPECTED-ERROR-CPU%} --input-file %t.log
+
+// CHECK-EXPECTED-ERROR-GPU: error: backend compiler failed build
+// CHECK-EXPECTED-ERROR-CPU: {{Failed to build device program|error: backend compiler failed build}}
+
+#include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+
 SYCL_EXTERNAL
 void symbol_that_does_not_exist();
 
 void test() {
-  sycl::queue Queue;
+#ifdef GPU
+  auto DeviceSelector = sycl::gpu_selector_v;
+#else  // GPU
+  auto DeviceSelector = sycl::cpu_selector_v;
+#endif // GPU
+  sycl::queue Queue(DeviceSelector);
 
-  // Submitting this kernel should result in an exception with error code
-  // `sycl::errc::build` and a message indicating
-  // "PI_ERROR_BUILD_PROGRAM_FAILURE".
+  // Submitting this kernel should result in an runtime
+  // exception with error code `sycl::errc::build`
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef GPU
@@ -42,18 +57,13 @@ void test() {
 #endif // __SYCL_DEVICE_ONLY__
   };
 
-  std::string Msg;
-  int Result;
-
   try {
-    Queue.submit(
-        [&](sycl::handler &CGH) { CGH.single_task<class SingleTask>(Kernel); });
-    assert(false && "There must be compilation error");
+    Queue.single_task(Kernel).wait();
   } catch (const sycl::exception &e) {
-    std::string Msg(e.what());
-    std::cerr << Msg << std::endl;
+    std::cerr << e.what() << std::endl;
     assert(e.code() == sycl::errc::build &&
            "Caught exception was not a compilation error");
+
   } catch (...) {
     assert(false && "Caught exception was not a compilation error");
   }

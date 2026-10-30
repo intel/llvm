@@ -16,14 +16,19 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/CreateInvocationFromArgs.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/Job.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Frontend/Debug/Options.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -953,6 +958,147 @@ TEST(ToolChainTest, NestedConfigFile) {
     ASSERT_FALSE(C->containsError());
     EXPECT_EQ("/platform-user", TheDriver.SysRoot);
   }
+}
+
+// The warning only looks at the size of the InputInfo(s) that actually
+// carry wrapped SYCL device code (tagged via InputInfo::getAction() being an
+// OffloadWrapperJobAction), not at the size of every link input -- host
+// objects and static archives shouldn't trigger it, however large they are.
+//
+// Builds a Driver/Compilation for `-fsycl ... foo.cpp -o foo.out` (plus any
+// ExtraArgs), finds the link job's device-code-object InputInfo, and drops a
+// huge sparse file at its path (without writing out real gigabytes of data)
+// so the link job's size check sees it as oversized. Returns the link
+// Command and, via DeviceCodeObjPath, the path of that huge file (the
+// caller is responsible for removing it).
+static Command *makeLinkCommandWithHugeDeviceCodeInput(
+    Driver &TheDriver, std::unique_ptr<Compilation> &C,
+    ArrayRef<const char *> ExtraArgs, std::string &DeviceCodeObjPath) {
+  std::vector<const char *> Args = {"/usr/bin/clang++", "-fsycl", "-nostdlib"};
+  Args.insert(Args.end(), ExtraArgs.begin(), ExtraArgs.end());
+  Args.insert(Args.end(), {"foo.cpp", "-o", "foo.out"});
+
+  TheDriver.setCheckInputsExist(false);
+  C = std::unique_ptr<Compilation>(TheDriver.BuildCompilation(Args));
+  if (!C)
+    return nullptr;
+
+  Command *LinkCmd = C->getJobs().getJobs().back().get();
+  const InputInfo *DeviceCodeObj = nullptr;
+  for (const InputInfo &II : LinkCmd->getInputInfos())
+    if (II.isFilename() &&
+        isa_and_nonnull<OffloadWrapperJobAction>(II.getAction()))
+      DeviceCodeObj = &II;
+  if (!DeviceCodeObj)
+    return nullptr;
+
+  DeviceCodeObjPath = DeviceCodeObj->getFilename();
+  int FD;
+  if (llvm::sys::fs::openFileForWrite(DeviceCodeObjPath, FD))
+    return nullptr;
+  llvm::sys::fs::resize_file(FD, 1100000000);
+  llvm::sys::Process::SafelyCloseFileDescriptor(FD);
+  return LinkCmd;
+}
+
+TEST(ToolChainTest, HugeSYCLDeviceCodeWarning) {
+  auto *DiagConsumer = new SimpleDiagnosticConsumer;
+  DiagnosticOptions DiagOpts;
+  // -Werror promotes the warning to an error, which makes the link job
+  // short-circuit instead of actually invoking the linker -- that's what we
+  // want, since the point here is just to check the diagnostic, not to run
+  // a real link. BuildCompilation() doesn't apply -W/-Werror flags passed
+  // as compiler args to its DiagnosticsEngine (that's done by the frontend,
+  // not the driver), so this has to go through ProcessWarningOptions()
+  // directly instead.
+  DiagOpts.Warnings.push_back("error=large-device-kernel");
+  auto InMemoryFileSystem =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts, DiagConsumer);
+  ProcessWarningOptions(Diags, DiagOpts, *InMemoryFileSystem);
+  Driver TheDriver("/usr/bin/clang++", "x86_64-unknown-linux-gnu", Diags,
+                   "clang LLVM compiler", InMemoryFileSystem);
+
+  std::unique_ptr<Compilation> C;
+  std::string Path;
+  Command *LinkCmd =
+      makeLinkCommandWithHugeDeviceCodeInput(TheDriver, C, {}, Path);
+  ASSERT_TRUE(LinkCmd) << "expected the link job to have a device-code "
+                          "object input";
+
+  std::string ErrMsg;
+  bool ExecutionFailed = false;
+  int Res = LinkCmd->Execute({}, &ErrMsg, &ExecutionFailed);
+
+  llvm::sys::fs::remove(Path);
+
+  EXPECT_NE(Res, 0);
+  bool SawError = llvm::any_of(DiagConsumer->Errors, [](StringRef Msg) {
+    return Msg.contains("may overflow 32-bit relocations");
+  });
+  EXPECT_TRUE(SawError);
+}
+
+TEST(ToolChainTest, HugeSYCLDeviceCodeWarningSuppressedByFlinkFlag) {
+  auto *DiagConsumer = new SimpleDiagnosticConsumer;
+  DiagnosticOptions DiagOpts;
+  DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts, DiagConsumer);
+  auto InMemoryFileSystem =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  Driver TheDriver("/usr/bin/clang++", "x86_64-unknown-linux-gnu", Diags,
+                   "clang LLVM compiler", InMemoryFileSystem);
+
+  std::unique_ptr<Compilation> C;
+  std::string Path;
+  Command *LinkCmd = makeLinkCommandWithHugeDeviceCodeInput(
+      TheDriver, C, {"-flink-huge-device-code"}, Path);
+  ASSERT_TRUE(LinkCmd) << "expected the link job to have a device-code "
+                          "object input";
+
+  std::string ErrMsg;
+  bool ExecutionFailed = false;
+  LinkCmd->Execute({}, &ErrMsg, &ExecutionFailed);
+
+  llvm::sys::fs::remove(Path);
+
+  auto HasLargeDeviceKernelDiag = [](StringRef Msg) {
+    return Msg.contains("may overflow 32-bit relocations");
+  };
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Msgs, HasLargeDeviceKernelDiag));
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Errors, HasLargeDeviceKernelDiag));
+}
+
+TEST(ToolChainTest, HugeSYCLDeviceCodeWarningSuppressedByWFlag) {
+  auto *DiagConsumer = new SimpleDiagnosticConsumer;
+  DiagnosticOptions DiagOpts;
+  // See the comment in HugeSYCLDeviceCodeWarning for why this goes through
+  // ProcessWarningOptions() rather than being passed as a compiler arg.
+  DiagOpts.Warnings.push_back("no-large-device-kernel");
+  auto InMemoryFileSystem =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+  DiagnosticsEngine Diags(DiagnosticIDs::create(), DiagOpts, DiagConsumer);
+  ProcessWarningOptions(Diags, DiagOpts, *InMemoryFileSystem);
+  Driver TheDriver("/usr/bin/clang++", "x86_64-unknown-linux-gnu", Diags,
+                   "clang LLVM compiler", InMemoryFileSystem);
+
+  std::unique_ptr<Compilation> C;
+  std::string Path;
+  Command *LinkCmd =
+      makeLinkCommandWithHugeDeviceCodeInput(TheDriver, C, {}, Path);
+  ASSERT_TRUE(LinkCmd) << "expected the link job to have a device-code "
+                          "object input";
+
+  std::string ErrMsg;
+  bool ExecutionFailed = false;
+  LinkCmd->Execute({}, &ErrMsg, &ExecutionFailed);
+
+  llvm::sys::fs::remove(Path);
+
+  auto HasLargeDeviceKernelDiag = [](StringRef Msg) {
+    return Msg.contains("may overflow 32-bit relocations");
+  };
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Msgs, HasLargeDeviceKernelDiag));
+  EXPECT_FALSE(llvm::any_of(DiagConsumer->Errors, HasLargeDeviceKernelDiag));
 }
 
 } // end anonymous namespace.

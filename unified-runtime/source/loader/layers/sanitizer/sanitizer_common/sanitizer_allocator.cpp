@@ -33,7 +33,14 @@ void validateSharedUSM([[maybe_unused]] uptr Allocated,
                        [[maybe_unused]] DeviceType DeviceType) {
   switch (DeviceType) {
   case DeviceType::GPU_PVC:
-    assert((Allocated >> 44) == 0x7);
+    // FIXME: ASan supports all lower 47-bit addresses, including Shared USM
+    // placed below 0x700000000000 by Linux. MSan/TSan discard more address
+    // bits, so relaxing their checks could alias shadow memory. They can still
+    // hit this assertion until their shadow mappings support the wider range.
+    if (getContext()->enabledType == SanitizerType::AddressSanitizer)
+      assert((Allocated >> 47) == 0);
+    else
+      assert((Allocated >> 44) == 0x7);
     break;
   default:
     break;

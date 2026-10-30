@@ -200,6 +200,13 @@ jobs:
         build_dir: build
         artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-conformance'
 
+    - name: Test loader
+      uses: ./devops/actions/run-tests/ur
+      with:
+        test_type: 'loader'
+        build_dir: build
+        artifact_name: 'ur-${{matrix.adapter.name}}-${{steps.artifact_suffix.outputs.suffix}}-loader'
+
     - name: Debug CI platform information
       if: ${{ always() }}
       run: ./devops/scripts/get_system_info.sh
