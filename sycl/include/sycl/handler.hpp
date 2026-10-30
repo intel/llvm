@@ -1232,7 +1232,6 @@ public:
           constexpr int AccessTargetMask = 0x7ff;
           const access::target target = static_cast<access::target>(
               type::sizes[NumArgs] & AccessTargetMask);
-
           // access::target::local is deprecated.
           __SYCL_SUPPRESS_DEPRECATED_PUSH
           if (target == target::local) {

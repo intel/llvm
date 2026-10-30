@@ -224,7 +224,6 @@ private:
   // access::target::host_image, image, image_array and mode::discard_write are
   // deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   constexpr static bool IsHostImageAcc =
       (AccessTarget == access::target::host_image);
 
@@ -238,7 +237,6 @@ private:
        AccessMode == access::mode::discard_write);
 
   __SYCL_SUPPRESS_DEPRECATED_POP
-
   constexpr static bool IsImageAccessAnyWrite =
       (IsImageAccessWriteOnly || AccessMode == access::mode::read_write);
 
@@ -442,7 +440,6 @@ public:
 
   // sycl::sampler is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   // Available only when:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
   // || (accessTarget == access::target::host_image && ( accessMode ==
@@ -484,7 +481,6 @@ public:
         AccessorBaseHost::getElemSize());
 #endif
   }
-
   __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Available only when:
@@ -542,7 +538,6 @@ class __image_array_slice__ {
 public:
   // access::target::image_array and sycl::sampler are deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   __image_array_slice__(
       accessor<DataT, Dimensions, AccessMode, access::target::image_array,
                IsPlaceholder, ext::oneapi::accessor_property_list<>>
@@ -562,7 +557,6 @@ public:
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
   }
-
   __SYCL_SUPPRESS_DEPRECATED_POP
 
   template <typename CoordT, int Dims = Dimensions,
@@ -603,22 +597,17 @@ public:
 
 #endif
 
+  // access::target::image_array, access::target::image,
+  // access::target::host_image and sycl::image are deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
 private:
   size_t MIdx;
-
-  // access::target::image_array is deprecated.
-  __SYCL_SUPPRESS_DEPRECATED_PUSH
-
   accessor<DataT, Dimensions, AccessMode, access::target::image_array,
            IsPlaceholder, ext::oneapi::accessor_property_list<>>
       MBaseAcc;
-  __SYCL_SUPPRESS_DEPRECATED_POP
 };
 
 } // namespace detail
-
-// access::target::image and sycl::image are deprecated.
-__SYCL_SUPPRESS_DEPRECATED_PUSH
 /// Image accessors.
 ///
 /// Available only when accessTarget == access::target::image.
@@ -681,10 +670,7 @@ public:
   accessor() = default;
 #endif
 };
-__SYCL_SUPPRESS_DEPRECATED_POP
 
-// access::target::host_image and sycl::image are deprecated.
-__SYCL_SUPPRESS_DEPRECATED_PUSH
 /// Host image accessor.
 ///
 /// Available only when accessTarget == access::target::host_image.
@@ -717,10 +703,7 @@ public:
     (void)propList;
   }
 };
-__SYCL_SUPPRESS_DEPRECATED_POP
 
-// access::target::image, image_array and sycl::image are deprecated.
-__SYCL_SUPPRESS_DEPRECATED_PUSH
 /// Image array accessor.
 ///
 /// Available only when accessTarget == access::target::image_array and

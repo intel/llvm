@@ -564,7 +564,6 @@ struct opencl_image_type<Dimensions, AccessMode, access::target::host_image> {
       opencl_image_type<Dimensions, AccessMode, access::target::host_image> *;
 };
 __SYCL_SUPPRESS_DEPRECATED_POP
-
 template <typename T> struct sampled_opencl_image_type<T *> {
   using type = void *;
 };

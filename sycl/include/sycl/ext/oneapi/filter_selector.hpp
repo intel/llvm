@@ -54,9 +54,7 @@ private:
   std::shared_ptr<detail::filter_selector_impl> impl;
   filter_selector(sycl::detail::string_view filter);
 };
-
 __SYCL_SUPPRESS_DEPRECATED_POP
-
 } // namespace ext::oneapi
 
 #ifdef __SYCL_INTERNAL_API

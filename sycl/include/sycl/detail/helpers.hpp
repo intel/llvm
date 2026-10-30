@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/__spirv/spirv_types.hpp> // for MemorySemanticsMask
-#include <sycl/access/access.hpp>       // for fence_space
+#include <sycl/__spirv/spirv_types.hpp>       // for MemorySemanticsMask
+#include <sycl/access/access.hpp>             // for fence_space
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/memory_enums.hpp>              // for memory_order

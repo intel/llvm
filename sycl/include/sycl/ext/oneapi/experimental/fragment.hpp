@@ -185,9 +185,7 @@ __SYCL_ALWAYS_INLINE inline fragment<sycl::sub_group>
 get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__) || defined(__SPIRV__)
-
   sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
-
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);
   return fragment<sycl::sub_group>(mask, 0, 1);
 #elif defined(__NVPTX__)

@@ -71,12 +71,10 @@ public:
     size_t LinId = 0;
     id<Dimensions> Index = get_global_id();
     range<Dimensions> Extent = get_global_range();
-
     // nd_item::get_offset() is deprecated.
     __SYCL_SUPPRESS_DEPRECATED_PUSH
     id<Dimensions> Offset = get_offset();
     __SYCL_SUPPRESS_DEPRECATED_POP
-
     if (1 == Dimensions) {
       LinId = Index[0] - Offset[0];
     } else if (2 == Dimensions) {
@@ -212,7 +210,6 @@ public:
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-
   // access::fence_space is deprecated.
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")

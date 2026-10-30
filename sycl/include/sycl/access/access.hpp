@@ -106,14 +106,12 @@ template <access_mode mode, target trgt> struct mode_target_tag_t {
 inline constexpr mode_tag_t<access_mode::read> read_only{};
 inline constexpr mode_tag_t<access_mode::read_write> read_write{};
 inline constexpr mode_tag_t<access_mode::write> write_only{};
-
 // access::target::constant_buffer is deprecated.
 __SYCL_SUPPRESS_DEPRECATED_PUSH
 __SYCL2020_DEPRECATED("use 'read_only' instead")
 inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
     read_constant{};
 __SYCL_SUPPRESS_DEPRECATED_POP
-
 inline constexpr mode_target_tag_t<access_mode::read, target::host_task>
     read_only_host_task;
 inline constexpr mode_target_tag_t<access_mode::read_write, target::host_task>

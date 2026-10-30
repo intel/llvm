@@ -103,7 +103,6 @@ using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
                                        sycl::access::target::device>;
 
 __SYCL_SUPPRESS_DEPRECATED_POP
-
 constexpr static access::address_space GlobalOffsetAS =
     TargetToAS<sycl::access::target::device>::AS;
 using GlobalOffsetPtrType =
@@ -668,7 +667,6 @@ inline bool updateOffset(GlobalOffsetAccessorT &GlobalOffset,
 }
 
 __SYCL_SUPPRESS_DEPRECATED_POP
-
 inline void flushBuffer(GlobalOffsetAccessorT &GlobalOffset,
                         GlobalBufAccessorT &GlobalBuf,
                         GlobalBufAccessorT &GlobalFlushBuf, unsigned WIOffset) {

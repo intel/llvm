@@ -88,7 +88,6 @@ public:
   }
 
   __SYCL_SUPPRESS_DEPRECATED_POP
-
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part

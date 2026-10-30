@@ -294,7 +294,6 @@ protected:
   __SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
   __SYCL_SUPPRESS_DEPRECATED_POP
-
   constexpr static bool IsHostTask = AccessTarget == access::target::host_task;
   // SYCL2020 4.7.6.9.4.3
   // IsPlaceHolder template parameter has no bearing on whether the accessor
@@ -1743,7 +1742,6 @@ public:
         getQualifiedPtr() + LinearIndex));
   }
   __SYCL_SUPPRESS_DEPRECATED_POP
-
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 1)>>
   auto operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
@@ -1797,7 +1795,6 @@ public:
 
   // accessor::has_property for runtime properties is only available in host
   // code. This restriction is not listed in the core spec and will be added in
-
   // future versions.
   template <typename Property>
   typename std::enable_if_t<
@@ -2369,8 +2366,6 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS accessor<
           accessor<DataT, Dimensions, AccessMode, access::target::local,
                    IsPlaceholder>> {
 
-  __SYCL_SUPPRESS_DEPRECATED_POP
-
   using local_acc =
       local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>;
 
@@ -2416,7 +2411,7 @@ private:
   accessor(const detail::AccessorImplPtr &Impl) : local_acc{Impl} {}
 #endif
 };
-
+__SYCL_SUPPRESS_DEPRECATED_POP
 template <typename DataT, int Dimensions = 1>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor
     : public local_accessor_base<DataT, Dimensions,
