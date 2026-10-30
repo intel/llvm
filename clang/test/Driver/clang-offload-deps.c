@@ -50,5 +50,25 @@
 // CHECK-EMPTY-SPIR64: target triple = "spir64"
 // CHECK-EMPTY-SPIR64-NOT: @llvm.used
 
+//
+// Check that SYCL device code without a target ID is needed by any target ID
+// of the same triple, and the other way around, as when unbundling.
+//
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,sycl-spir64_gen-unknown-unknown -input=%t.host -input=%t.spir64 -output=%t.gen.fat
+// RUN: clang-offload-deps -targets=sycl-spir64_gen-unknown-unknown-pvc,sycl-spir64-unknown-unknown -outputs=%t.gen.pvc,%t.gen.spir64 %t.gen.fat
+// RUN: llvm-dis -o - %t.gen.pvc | FileCheck %s --check-prefixes=CHECK-SYCL-USED -DSPIRTriple=spir64_gen-unknown-unknown-pvc
+// RUN: llvm-dis -o - %t.gen.spir64 | FileCheck %s --check-prefixes=CHECK-SYCL-UNUSED -DSPIRTriple=spir64-unknown-unknown
+
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,sycl-spir64_gen-unknown-unknown-pvc -input=%t.host -input=%t.spir64 -output=%t.pvc.fat
+// RUN: clang-offload-deps -targets=sycl-spir64_gen-unknown-unknown,sycl-spir64_gen-unknown-unknown-dg2_g10 -outputs=%t.pvc.gen,%t.pvc.dg2 %t.pvc.fat
+// RUN: llvm-dis -o - %t.pvc.gen | FileCheck %s --check-prefixes=CHECK-SYCL-USED -DSPIRTriple=spir64_gen-unknown-unknown
+// RUN: llvm-dis -o - %t.pvc.dg2 | FileCheck %s --check-prefixes=CHECK-SYCL-UNUSED -DSPIRTriple=spir64_gen-unknown-unknown-dg2_g10
+
+// CHECK-SYCL-USED: target triple = "[[SPIRTriple]]"
+// CHECK-SYCL-USED: @llvm.used = appending global [2 x ptr]
+
+// CHECK-SYCL-UNUSED: target triple = "[[SPIRTriple]]"
+// CHECK-SYCL-UNUSED-NOT: @llvm.used
+
 void foo(void) {}
 void bar(void) {}

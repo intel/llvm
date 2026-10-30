@@ -22,13 +22,14 @@
 
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/OffloadBundler.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/TargetParser/Triple.h"
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
@@ -70,6 +71,22 @@ static std::string ToolPath;
 
 static void reportError(Error E) {
   logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
+}
+
+/// Check whether the symbols of the bundle entry \p CodeObject are needed by
+/// \p Target, matching how the bundles are unbundled. SYCL device code without
+/// a target ID (e.g. -fsycl-targets=spir64_gen) is compatible with any target
+/// ID of the same triple, and the other way around.
+static bool isCompatibleTarget(StringRef CodeObject, StringRef Target) {
+  if (CodeObject == Target)
+    return true;
+  static const clang::OffloadBundlerConfig BundlerConfig;
+  clang::OffloadTargetInfo CodeObjectInfo(CodeObject, BundlerConfig);
+  clang::OffloadTargetInfo TargetInfo(Target, BundlerConfig);
+  return CodeObjectInfo.OffloadKind == "sycl" &&
+         TargetInfo.OffloadKind == "sycl" &&
+         CodeObjectInfo.Triple.isCompatibleWith(TargetInfo.Triple) &&
+         (CodeObjectInfo.TargetID.empty() || TargetInfo.TargetID.empty());
 }
 
 int main(int argc, const char **argv) {
@@ -163,12 +180,10 @@ int main(int argc, const char **argv) {
 
       // TODO: Consider storing Targets and Kinds in a single map-like struct,
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
-      for (const std::string &Target : Targets) {
-        std::string Prefix = Target + ".";
-        if (Symbol.starts_with(Prefix))
-          Target2Symbols[Target].insert(
-              Symbol.substr(Prefix.size(), Len - Prefix.size()));
-      }
+      auto [CodeObject, Name] = Symbol.take_front(Len).split('.');
+      for (const std::string &Target : Targets)
+        if (isCompatibleTarget(CodeObject, Target))
+          Target2Symbols[Target].insert(Name);
 
       Symbol = Symbol.drop_front(Len + 1u);
     }
