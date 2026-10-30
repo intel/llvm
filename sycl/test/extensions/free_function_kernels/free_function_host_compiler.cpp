@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s
 // RUN: %clangxx -fsycl -fno-sycl-unnamed-lambda %s
-// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" %s
+// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17 -DEXTERNAL_HOST_COMPILER" -DEXTERNAL_HOST_COMPILER %s
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
@@ -15,6 +15,12 @@
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/kernel_bundle.hpp>
+
+// The macro needs host compiler support, so with a third-party host compiler it
+// must be undefined on both the host and the device side.
+#if defined(EXTERNAL_HOST_COMPILER) == defined(SYCL_EXT_ONEAPI_KERNEL_FUNCTION)
+#error "SYCL_EXT_ONEAPI_KERNEL_FUNCTION availability is wrong"
+#endif
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 

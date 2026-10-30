@@ -6070,6 +6070,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                                  << "-fsycl-unnamed-lambda";
       else // '-fsycl-host-compiler' implies '-fno-sycl-unnamed-lambda'
         CmdArgs.push_back("-fno-sycl-unnamed-lambda");
+      // Features that need host compiler support, such as
+      // SYCL_EXT_ONEAPI_KERNEL_FUNCTION, must be disabled on the device side
+      // as well, so that both sides agree on whether they are available.
+      CmdArgs.push_back("-D__SYCL_EXTERNAL_HOST_COMPILER__");
     } else if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
                              options::OPT_fno_sycl_unnamed_lambda, true))
       CmdArgs.push_back("-fno-sycl-unnamed-lambda");

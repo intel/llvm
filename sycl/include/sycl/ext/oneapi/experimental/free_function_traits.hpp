@@ -81,13 +81,16 @@ template <typename T> struct is_device_copyable;
 //   nd_launch(q, range, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(iota, 3.14f, ptr));
 //
 // It is defined only when the compiler provides
-// __builtin_sycl_resolve_kernel_function.
+// __builtin_sycl_resolve_kernel_function. With a third-party host compiler
+// (-fsycl-host-compiler), the driver defines __SYCL_EXTERNAL_HOST_COMPILER__
+// for the device compilation, so that the macro is undefined on both sides.
 #ifndef __has_builtin
 // Older MSVC (< VS2019 16.1) lacks __has_builtin; treat as "not available".
 #define __has_builtin(x) 0
 #endif
 
-#if __has_builtin(__builtin_sycl_resolve_kernel_function)
+#if __has_builtin(__builtin_sycl_resolve_kernel_function) &&                   \
+    !defined(__SYCL_EXTERNAL_HOST_COMPILER__)
 #define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
   ::sycl::ext::oneapi::experimental::kernel_function<                          \
       __builtin_sycl_resolve_kernel_function(NAME(__VA_ARGS__))>,              \
