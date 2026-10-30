@@ -118,7 +118,7 @@ ur_result_t setHipMemAdvise(const void *DevPtr, const size_t Size,
           std::make_pair(UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY,
                          hipMemAdviseUnsetCoarseGrain),
 #endif
-  };
+      };
   for (const auto &[URAdvice, HIPAdvice] : URToHIPMemAdviseDeviceFlags) {
     if (URAdviceFlags & URAdvice) {
       UR_CHECK_ERROR(hipMemAdvise(DevPtr, Size, HIPAdvice, Device));

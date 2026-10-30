@@ -6,9 +6,9 @@
 // RUN: %{build} -o %t.out %hip_options
 // The opt-in launch is skipped when the opt-in ceiling equals the non-opt-in
 // limit. Otherwise it uses one byte more than that limit.
-// RUN: env SYCL_DEVICE_FILTER=hip %{run} %t.out
+// RUN: %{run} %t.out
 // A cap below the device ceiling lowers the query and rejects a larger launch.
-// RUN: env SYCL_DEVICE_FILTER=hip UR_HIP_MAX_LOCAL_MEM_SIZE=32768 %{run} %t.out
+// RUN: env UR_HIP_MAX_LOCAL_MEM_SIZE=32768 %{run} %t.out
 
 //==------------------------ hip-local-mem-optin.cpp ----------------------===//
 //
@@ -95,6 +95,10 @@ bool expectReject(sycl::queue &Q, size_t Bytes, const char *Expected) {
 
 int main() {
   sycl::queue Q;
+  if (Q.get_backend() != sycl::backend::ext_oneapi_hip) {
+    std::printf("selected device is not on the HIP backend\n");
+    return 1;
+  }
   const std::string Pci =
       Q.get_device().get_info<sycl::ext::intel::info::device::pci_address>();
   int DeviceCount = 0;

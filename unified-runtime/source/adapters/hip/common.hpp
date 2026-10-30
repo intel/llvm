@@ -104,7 +104,7 @@ inline static hipError_t getArrayDesc(hipArray *Array, hipArray_Format &Format,
   Channels = Array->NumChannels;
   return hipSuccess;
 #else
-#error ("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
 }
 
@@ -313,7 +313,7 @@ typedef hipArray_t hipCUarray;
 #elif defined(__HIP_PLATFORM_AMD__)
 typedef hipArray *hipCUarray;
 #else
-#error ("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
 
 // Headers before ROCm 6 do not define hipMemoryType on NVIDIA. Later headers

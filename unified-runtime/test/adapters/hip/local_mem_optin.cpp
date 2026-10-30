@@ -17,7 +17,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(hipLocalMemOptInTest);
 // extern, and its address is a 32-bit shared pointer plus the local offset.
 #if defined(__HIP_PLATFORM_NVIDIA__)
 static const char *OptInPtx = R"ptx(
-.version 8.5
+.version 7.0
 .target sm_70
 .address_size 64
 
