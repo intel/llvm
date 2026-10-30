@@ -184,7 +184,7 @@ jobs:
       env:
         # Enable Level Zero loader debug trace for L0 adapters only
         ZE_ENABLE_LOADER_DEBUG_TRACE: ${{ startsWith(matrix.adapter.name, 'L0') && '1' || '' }}
-      uses: ./devops/actions/run-tests/ur
+      uses: ./devops/actions/run-tests/lit
       with:
         test_type: 'adapter-specific'
         build_dir: build
@@ -194,7 +194,7 @@ jobs:
       env:
         # Enable Level Zero loader debug trace for L0 adapters only
         ZE_ENABLE_LOADER_DEBUG_TRACE: ${{ startsWith(matrix.adapter.name, 'L0') && '1' || '' }}
-      uses: ./devops/actions/run-tests/ur
+      uses: ./devops/actions/run-tests/lit
       with:
         test_type: 'conformance'
         build_dir: build

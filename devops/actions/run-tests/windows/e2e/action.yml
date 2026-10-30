@@ -21,6 +21,10 @@ inputs:
   cxx:
     required: false
     default: "cl"
+  job_name:
+    description: 'Name of the calling job, used to build a unique artifact name'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -44,6 +48,7 @@ runs:
     run: |
       mkdir build-e2e
       tar -xf e2e_bin.tar.gz -C build-e2e
+      devops/scripts/validate-e2e-binaries build-e2e
 
   - name: Deduce E2E CMake options
     id: cmake_opts
@@ -71,32 +76,21 @@ runs:
     shell: bash
     run: ls build-e2e > e2econf_files.txt
 
-  - name: Run End-to-End tests
-    id: run_e2e
-    continue-on-error: true
-    shell: bash
-    env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
-    run: |
-      cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
-  # Two steps below are duplicated between Lin/Win actions, updates must change both
-  - name: E2E logs
-    if: ${{ always() }}
-    shell: bash
-    run: |
-      echo "::group::Show Full E2E Log"
-      cat e2e.log
-      echo "::endgroup::"
-  - name: Report E2E Failures
-    if: steps.run_e2e.outcome != 'success'
-    shell: bash
-    # For some reason Github uses the first line from the `run: |` section for
-    # the folded entry when displaying instead of this step's name.
-    run: |
-        # Report E2E Failures
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
-        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log
-        exit 1
+  # Composed directly here (not via a separate step/output) since these are
+  # with: values, not shell script text, so there's no template-injection risk.
+  - name: Run E2E tests
+    uses: ./devops/actions/run-tests/lit
+    with:
+      test_type: 'e2e'
+      build_dir: 'build-e2e'
+      # --timeout kills an individual hung test (e.g. a GPU driver hang) instead of
+      # letting it block the whole suite until the job's own timeout-minutes fires.
+      extra_lit_opts: >-
+        --max-time ${{ inputs.testing_mode == 'run-only' && 1200 || 3600 }} --timeout 1200
+        --param print_features=True --param test-mode=${{ inputs.testing_mode }}
+        --param sycl_devices=${{ inputs.target_devices }}
+        ${{ inputs.extra_lit_opts }}
+      job_name: ${{ inputs.job_name }}
 
   # Github CI doesn't support containers on Windows, so we cannot guarantee
   # that paths are the same between building and running systems. To avoid
@@ -108,6 +102,11 @@ runs:
     run: |
       for FILE in $(cat e2econf_files.txt); do rm -r build-e2e/$FILE; done
       rm e2econf_files.txt
+
+  - name: Verify E2E binaries were built
+    if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}
+    shell: bash
+    run: devops/scripts/validate-e2e-binaries build-e2e
 
   - name: Pack E2E test binaries
     if: ${{ !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only' }}

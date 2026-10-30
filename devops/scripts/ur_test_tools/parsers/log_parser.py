@@ -67,8 +67,8 @@ class LITLogParser:
 
             if in_error and (
                 TEST_CATEGORY_PATTERN.match(line)
-                or line.strip() == SLOWEST_TESTS_HEADER
-                or line.strip() in TEST_TIMES_HEADERS
+                or line.strip().startswith(SLOWEST_TESTS_HEADER)
+                or any(line.strip().startswith(h) for h in TEST_TIMES_HEADERS)
             ):
                 break
 
@@ -101,11 +101,11 @@ class LITLogParser:
         for line in self.lines:
             stripped = line.strip()
 
-            if stripped == SLOWEST_TESTS_HEADER:
+            if stripped.startswith(SLOWEST_TESTS_HEADER):
                 current_section = "slowest"
                 skip_next_hr = True
                 continue
-            elif stripped in TEST_TIMES_HEADERS:
+            elif any(stripped.startswith(h) for h in TEST_TIMES_HEADERS):
                 current_section = "histogram"
                 skip_next_hr = True
                 continue

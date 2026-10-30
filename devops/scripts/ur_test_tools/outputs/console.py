@@ -27,7 +27,9 @@ def filter_log_for_display(lines: List[str]) -> List[str]:
             skip_until_empty = True
             continue
 
-        if stripped == SLOWEST_TESTS_HEADER or stripped in TEST_TIMES_HEADERS:
+        if stripped.startswith(SLOWEST_TESTS_HEADER) or any(
+            stripped.startswith(h) for h in TEST_TIMES_HEADERS
+        ):
             in_timing = True
             continue
 
