@@ -29,7 +29,6 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     include(ExternalProject)
     set(LLVM_PROJECT_SOURCE_DIR  ${CMAKE_BINARY_DIR}/llvm-src-offload)
     set(LLVM_PROJECT_TAG  bc4c516f6e324d147eaeea1bd7d58eb57d03a671)  # main 2026-09-28
-    set(OPENMP_INSTALL_DIR ${CMAKE_BINARY_DIR}/openmp-install)
     set(UR_OFFLOAD_INSTALL_DIR ${CMAKE_BINARY_DIR}/offload-install)
     set(UR_OFFLOAD_INCLUDE_DIR ${UR_OFFLOAD_INSTALL_DIR}/include)
     set(UR_OFFLOAD_LIBRARY ${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so)
@@ -50,7 +49,7 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     )
 
     execute_process(
-    COMMAND git sparse-checkout set openmp offload cmake llvm/include libc
+    COMMAND git sparse-checkout set runtimes openmp offload cmake llvm/cmake llvm/utils/llvm-lit libc third-party
     WORKING_DIRECTORY "${LLVM_PROJECT_SOURCE_DIR}"
     COMMAND_ERROR_IS_FATAL ANY
     )
@@ -61,40 +60,19 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     COMMAND_ERROR_IS_FATAL ANY
     )
 
-    # Build OpenMP runtime (required dependency for offload's libomptarget) from the cloned source
-    ExternalProject_Add(openmp_ext
-        # DeviceRTL uses -fuse-ld=lld, so add lld to the dependencies.
-        DEPENDS llvm-tblgen LLVMSupport clang lld FileCheck not
-        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/openmp
-        CMAKE_ARGS
-            -DCMAKE_INSTALL_PREFIX=${OPENMP_INSTALL_DIR}
-            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-            -DCMAKE_C_COMPILER=${CMAKE_BINARY_DIR}/bin/clang
-            -DCMAKE_CXX_COMPILER=${CMAKE_BINARY_DIR}/bin/clang++
-            -DLIBOMP_OMPD_GDB_SUPPORT=OFF
-            -DOPENMP_ENABLE_OMPT_TOOLS=OFF
-            -DCMAKE_PREFIX_PATH=${CMAKE_BINARY_DIR}/bin
-        INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
-        UPDATE_COMMAND ""
-        DOWNLOAD_COMMAND ""
-    )
-
     # Build liboffload runtime from the same source tree
     ExternalProject_Add(offload_ext
-        DEPENDS openmp_ext
-        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/offload
+        DEPENDS LLVMSupport clang clang-format lld FileCheck not
+        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/runtimes
         LIST_SEPARATOR |
         CMAKE_ARGS
+            -DLLVM_BINARY_DIR=${CMAKE_BINARY_DIR}
+            -DLLVM_ENABLE_RUNTIMES=openmp|offload|libc
             -DCMAKE_INSTALL_PREFIX=${UR_OFFLOAD_INSTALL_DIR}
             -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DCMAKE_C_COMPILER=${CMAKE_BINARY_DIR}/bin/clang
             -DCMAKE_CXX_COMPILER=${CMAKE_BINARY_DIR}/bin/clang++
-            -DLIBOMPTARGET_LLVM_INCLUDE_DIRS=${LLVM_PROJECT_SOURCE_DIR}/llvm/include|${CMAKE_BINARY_DIR}/include
-            -DLLVM_DIR=${CMAKE_BINARY_DIR}/lib/cmake/llvm
             -DLIBOMPTARGET_PLUGINS_TO_BUILD=cuda|amdgpu
-            -DLIBOMP_INCLUDE_DIR=${OPENMP_INSTALL_DIR}/include
-            -DLLVM_TABLEGEN=${CMAKE_BINARY_DIR}/bin/llvm-tblgen
-            -DCMAKE_PREFIX_PATH=${OPENMP_INSTALL_DIR}|${CMAKE_BINARY_DIR}/bin
         INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
         UPDATE_COMMAND ""
         DOWNLOAD_COMMAND ""
