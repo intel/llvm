@@ -6993,14 +6993,10 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AS;
   }
 
-  if (LangOpts.SYCLIsDevice && D) {
-    auto *Scope = D->getAttr<SYCLScopeAttr>();
-    if (!Scope)
-      if (auto *RD = D->getType()->getAsCXXRecordDecl())
-        Scope = RD->getAttr<SYCLScopeAttr>();
-    if (Scope && Scope->isWorkGroup())
-      return LangAS::sycl_local;
-  }
+  if (LangOpts.SYCLIsDevice && D &&
+      CGSYCLRuntime::getWorkGroupVarKind(*D) !=
+          CGSYCLRuntime::WorkGroupVarKind::None)
+    return LangAS::sycl_local;
 
   if (LangOpts.SYCLIsDevice &&
       (!D || D->getType().getAddressSpace() == LangAS::Default))

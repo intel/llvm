@@ -43,6 +43,23 @@ protected:
 public:
   CGSYCLRuntime(CodeGenModule &CGM) : CGM(CGM) {}
 
+  /// How a variable is placed in work-group local memory.
+  enum class WorkGroupVarKind {
+    /// Not a work-group variable.
+    None,
+    /// Automatic variable in a hierarchical parallelism work-group scope,
+    /// marked by an implicit SYCLScopeAttr on the variable itself.
+    HoistedAutomatic,
+    /// Variable of a type with the SYCLScopeAttr (e.g. work_group_static).
+    /// Behaves as if it had static storage duration, including at block
+    /// scope.
+    StaticLike,
+  };
+
+  /// Returns how \p D is placed in work-group local memory. A SYCLScopeAttr on
+  /// \p D takes precedence over one on its type.
+  static WorkGroupVarKind getWorkGroupVarKind(const VarDecl &D);
+
   bool actOnFunctionStart(const FunctionDecl &FD, llvm::Function &F);
   void emitWorkGroupLocalVarDecl(CodeGenFunction &CGF, const VarDecl &D);
   bool actOnAutoVarEmit(CodeGenFunction &CGF, const VarDecl &D,
