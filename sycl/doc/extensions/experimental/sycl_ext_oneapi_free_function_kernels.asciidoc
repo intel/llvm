@@ -507,7 +507,9 @@ not otherwise usable.
 
 The program is ill-formed if `kernel-name`, resolved against the
 types of `args`, does not name a SYCL free function kernel (a function declared
-with the `nd_range_kernel<Dims>` or `single_task_kernel` property).
+with the `nd_range_kernel<Dims>` or `single_task_kernel` property).  The
+program is also ill-formed if the free function kernel that `kernel-name`
+resolves to is not declared before the use of the macro.
 
 Ordinary C++ template argument deduction applies to `kernel-name`.  A template
 parameter of the kernel that cannot be deduced from `args` — for example a
