@@ -10541,6 +10541,9 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
   }
+  // Host only compilations only add the device symbols to the object.
+  if (C.getDriver().offloadHostOnly())
+    CmdArgs.push_back("-target-symbols-only");
   addOffloadCompressArgs(TCArgs, CmdArgs);
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
