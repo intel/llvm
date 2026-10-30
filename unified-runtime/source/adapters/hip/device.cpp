@@ -1111,8 +1111,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
-    return ReturnValue(0);
+  case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
+    ur_kernel_launch_properties_flags_t LaunchCapabilities = 0;
+    if (getAttribute(hDevice, hipDeviceAttributeCooperativeLaunch)) {
+      LaunchCapabilities |= UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE;
+    }
+    return ReturnValue(LaunchCapabilities);
+  }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
