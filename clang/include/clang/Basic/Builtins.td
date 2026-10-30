@@ -6143,3 +6143,8 @@ def IntelSYCLFPGAMem : Builtin {
   let Attributes = [NoThrow, CustomTypeChecking];
   let Prototype = "void(...)";
 }
+
+//===----------------------------------------------------------------------===//
+// C++26 reflection metafunctions.
+//===----------------------------------------------------------------------===//
+include "clang/Basic/BuiltinsMeta.td"
