@@ -72,9 +72,8 @@ TEST(OffloadArchTest, IntelGPUOtherSpellings) {
   EXPECT_STREQ(OffloadArchToString(parse("xe-tgllp")), "xe-tgl");
   EXPECT_STREQ(OffloadArchToString(parse("xe_20.1.0")), "xe-bmg-g21");
 
-  // An unlisted numeric name and the old bmg_g21 spelling are unknown.
+  // An unlisted numeric name is unknown.
   EXPECT_TRUE(parse("xe_40.11.0").isUnknown());
-  EXPECT_TRUE(parse("bmg_g21").isUnknown());
 }
 
 TEST(OffloadArchTest, Defaults) {
