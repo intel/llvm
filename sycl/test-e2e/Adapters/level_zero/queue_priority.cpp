@@ -1,15 +1,20 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
-// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
+// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=%if level_zero_v2_adapter %{CHECK-V2%} %else %{CHECK-STD%}
+// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=%if level_zero_v2_adapter %{CHECK-V2%} %else %{CHECK-IMM%}
 //
 // Check that queue priority is passed to Level Zero runtime
 // This is the last value in the ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC
 //
 // With immediate command lists the command lists are recycled between queues in
 // a context.
+//
+// SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS is a v1-only selector between
+// regular (CHECK-STD) and immediate (CHECK-IMM) command lists; v2 always uses
+// immediate command lists and does not read this variable, so both RUN lines
+// exercise the same v2 code path (CHECK-V2). The v2 checks cover only the
+// public contract; how priorities map to Level Zero is covered by the adapter
+// tests.
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -45,6 +50,7 @@ int main(int Argc, const char *Argv[]) {
 
   // CHECK-STD: Queue cannot be constructed with different priorities.
   // CHECK-IMM: Queue cannot be constructed with different priorities.
+  // CHECK-V2: Queue cannot be constructed with different priorities.
   try {
     test(C, D,
          {sycl::ext::oneapi::property::queue::priority_low{},
@@ -53,6 +59,7 @@ int main(int Argc, const char *Argv[]) {
     std::cerr << E.what() << std::endl;
   }
 
+  // CHECK-V2: The test passed.
   std::cout << "The test passed." << std::endl;
   return 0;
 }
