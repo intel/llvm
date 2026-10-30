@@ -5418,30 +5418,30 @@ class OffloadingActionBuilder final {
         if (SYCLDeviceActions.empty())
           return ABRT_Success;
 
-        // When performing host only compilations, we need to perform a
-        // device compilation to create the integration header/footer, but
-        // we don't need the full device compilation - just syntax checking
-        // is sufficient to generate the integration files.
+        // Host only compilations need a device compilation to create the
+        // integration header/footer.  When creating an object, the device IR
+        // is also generated to add the device symbols (.tgtsym) to the host
+        // object, allowing the needed device code to be pulled in at link
+        // time.  Otherwise, syntax checking is sufficient.
         if (CompileHostOnly) {
+          bool EmitDeviceSymbols =
+              FinalPhase == phases::Assemble &&
+              !Args.hasArg(options::OPT_fsyntax_only, options::OPT_emit_llvm) &&
+              !Args.hasFlag(options::OPT_flto, options::OPT_flto_EQ,
+                            options::OPT_fno_lto, false);
           for (auto TargetActionInfo :
                llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
             Action *&A = std::get<0>(TargetActionInfo);
             auto &TargetInfo = std::get<1>(TargetActionInfo);
-            // Create a syntax-only compile action to generate the integration
-            // header/footer. This action compiles the source file (not a
-            // preprocessed file) to allow for proper control of diagnostics
-            // from system headers. Output type is TY_Nothing since we only
-            // want the integration header side effect, not a device binary.
-            Action *CompileAction =
-                C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-            // Add to device dependencies so it gets executed, but TY_Nothing
-            // means it won't produce output to bundle.
-            DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
-                   Action::OFK_SYCL);
+            // This action compiles the source file (not a preprocessed file)
+            // to allow for proper control of diagnostics from system headers.
+            A = C.MakeAction<CompileJobAction>(
+                A, EmitDeviceSymbols ? types::TY_LLVM_BC : types::TY_Nothing);
+            DA.add(*A, *TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
           }
-          // Clear device actions so they don't get processed again in
-          // appendTopLevelActions.
-          SYCLDeviceActions.clear();
+          // Without device IR there is nothing to bundle.
+          if (!EmitDeviceSymbols)
+            SYCLDeviceActions.clear();
           // Host compilation will proceed normally and consume the generated
           // integration header/footer files.
           return ABRT_Success;
@@ -7029,11 +7029,13 @@ public:
     // bundling one in the resulting list. Otherwise, just append the device
     // actions. For device only compilation, HostAction is a null pointer,
     // therefore only do this when HostAction is not a null pointer.
-    // For host-only compilation, skip bundling even if device actions exist
-    // (they're only for integration header generation).
+    // For host-only compilation, device actions are only used to add the
+    // device symbols to a host object.
+    if (C.getDriver().offloadHostOnly() &&
+        (!HostAction || HostAction->getType() != types::TY_Object))
+      OffloadAL.clear();
     if (CanUseBundler && ShouldUseBundler && HostAction &&
-        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty() &&
-        !C.getDriver().offloadHostOnly()) {
+        HostAction->getType() != types::TY_Nothing && !OffloadAL.empty()) {
       // Add the host action to the list in order to create the bundling action.
       OffloadAL.push_back(HostAction);
 

@@ -162,6 +162,12 @@ int main(int argc, const char **argv) {
                               "the output file when bundling object files.\n"),
                      cl::init(true), cl::cat(ClangOffloadBundlerCategory));
 
+  cl::opt<bool> TargetSymbolsOnly(
+      "target-symbols-only",
+      cl::desc("When bundling object files, only add the .tgtsym section; "
+               "do not add the target bundles.\n"),
+      cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+
   cl::opt<bool> CheckInputArchive(
       "check-input-archive",
       cl::desc("Check if input heterogeneous archive is "
@@ -205,6 +211,7 @@ int main(int argc, const char **argv) {
   BundlerConfig.CheckInputArchive = CheckInputArchive;
   BundlerConfig.PrintExternalCommands = PrintExternalCommands;
   BundlerConfig.AddTargetSymbols = AddTargetSymbols;
+  BundlerConfig.TargetSymbolsOnly = TargetSymbolsOnly;
   BundlerConfig.HipOpenmpCompatible = HipOpenmpCompatible;
   BundlerConfig.BundleAlignment = BundleAlignment;
   BundlerConfig.FilesType = FilesType;
@@ -334,6 +341,20 @@ int main(int argc, const char **argv) {
       return reportError(createStringError(
           errc::invalid_argument, "-check-input-archive can only be used for "
                                   "unbundling archives (-type=a)"));
+    }
+  }
+
+  if (BundlerConfig.TargetSymbolsOnly) {
+    if (Unbundle || BundlerConfig.FilesType != "o") {
+      return reportError(createStringError(
+          errc::invalid_argument, "-target-symbols-only can only be used for "
+                                  "bundling object files (-type=o)"));
+    }
+    if (!BundlerConfig.AddTargetSymbols) {
+      return reportError(createStringError(
+          errc::invalid_argument,
+          "-target-symbols-only cannot be used with "
+          "-add-target-symbols-to-bundled-object=false"));
     }
   }
 

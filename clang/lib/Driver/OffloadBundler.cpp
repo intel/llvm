@@ -881,7 +881,9 @@ public:
     StringSaver SS{Alloc};
     SmallVector<StringRef, 8u> ObjcopyArgs{"llvm-objcopy"};
 
-    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+    // With TargetSymbolsOnly, target objects only contribute to .tgtsym.
+    for (unsigned I = 0; I < NumberOfInputs && !BundlerConfig.TargetSymbolsOnly;
+         ++I) {
       StringRef InputFile = BundlerConfig.InputFileNames[I];
       if (I == BundlerConfig.HostInputIndex) {
         // Special handling for the host bundle. We do not need to add a

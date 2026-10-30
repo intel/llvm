@@ -28,6 +28,24 @@
 
 // CHECK-NO-TGTSYM-NOT: String dump of section '.tgtsym':
 
+// Check that -target-symbols-only adds .tgtsym without the target bundles.
+// RUN: clang-offload-bundler -target-symbols-only -type=o -targets=host-%itanium_abi_triple,sycl-spir64 -input=%t.o -input=%t.tgt2 -output=%t.symsonly.o
+// RUN: llvm-readobj --string-dump=.tgtsym %t.symsonly.o | FileCheck %s --check-prefix CHECK-SYMS-ONLY
+// RUN: llvm-readobj --sections %t.symsonly.o | FileCheck %s --check-prefix CHECK-SYMS-ONLY-SECTIONS
+
+// CHECK-SYMS-ONLY: String dump of section '.tgtsym':
+// CHECK-SYMS-ONLY-DAG: sycl-spir64.foo
+// CHECK-SYMS-ONLY-DAG: sycl-spir64.bar
+// CHECK-SYMS-ONLY-SECTIONS-NOT: __CLANG_OFFLOAD_BUNDLE__
+
+// RUN: not clang-offload-bundler -target-symbols-only -type=bc -targets=host-%itanium_abi_triple,sycl-spir64 -input=%t.tgt2 -input=%t.tgt2 -output=%t.symsonly.bc 2>&1 \
+// RUN:   | FileCheck %s --check-prefix CHECK-SYMS-ONLY-ERR
+// RUN: not clang-offload-bundler -target-symbols-only --add-target-symbols-to-bundled-object=false -type=o -targets=host-%itanium_abi_triple,sycl-spir64 -input=%t.o -input=%t.tgt2 -output=%t.symsonly.o 2>&1 \
+// RUN:   | FileCheck %s --check-prefix CHECK-SYMS-ONLY-ERR2
+
+// CHECK-SYMS-ONLY-ERR: -target-symbols-only can only be used for bundling object files (-type=o)
+// CHECK-SYMS-ONLY-ERR2: -target-symbols-only cannot be used with -add-target-symbols-to-bundled-object=false
+
 const __attribute__((opencl_constant)) char const_as[] = "abc";
 
 extern void my_printf(__attribute__((opencl_constant)) const char *fmt);
