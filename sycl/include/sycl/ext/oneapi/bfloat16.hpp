@@ -17,9 +17,34 @@
 #include <cstdint>
 #include <iosfwd> // for ostream, istream
 
+#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
+#define __SYCL_CONSTEXPR_BFLOAT16 constexpr
+#else
+#define __SYCL_CONSTEXPR_BFLOAT16
+#endif
+
+// sycl::half is only constexpr under these conditions (see half_type_impl.hpp).
+#if defined(__SYCL_DEVICE_ONLY__) || __cpp_lib_bit_cast ||                     \
+    (defined(__has_builtin) && __has_builtin(__builtin_bit_cast))
+#define __SYCL_CONSTEXPR_BFLOAT16_HALF __SYCL_CONSTEXPR_BFLOAT16
+#else
+#define __SYCL_CONSTEXPR_BFLOAT16_HALF
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
+
+namespace detail {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    (__SYCL_CUDA_ARCH__ >= 800)
+inline uint16_t negate_nvptx(const uint16_t &a) {
+  uint16_t res;
+  asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(a));
+  return res;
+}
+#endif
+} // namespace detail
 
 class bfloat16 {
 public:
@@ -30,50 +55,55 @@ public:
   constexpr bfloat16 &operator=(const bfloat16 &rhs) = default;
 
   // Implicit conversion from float to bfloat16
-  bfloat16(const float &a) { value = from_float(a); }
+  __SYCL_CONSTEXPR_BFLOAT16 bfloat16(const float &a) : value(from_float(a)) {}
 
-  bfloat16 &operator=(const float &rhs) {
+  __SYCL_CONSTEXPR_BFLOAT16 bfloat16 &operator=(const float &rhs) {
     value = from_float(rhs);
     return *this;
   }
 
   // Implicit conversion from sycl::half to bfloat16
-  bfloat16(const sycl::half &a) { value = from_float(a); }
+  __SYCL_CONSTEXPR_BFLOAT16_HALF bfloat16(const sycl::half &a)
+      : value(from_float(a)) {}
 
-  bfloat16 &operator=(const sycl::half &rhs) {
+  __SYCL_CONSTEXPR_BFLOAT16_HALF bfloat16 &operator=(const sycl::half &rhs) {
     value = from_float(rhs);
     return *this;
   }
 
   // Implicit conversion from bfloat16 to float
-  operator float() const { return to_float(value); }
+  __SYCL_CONSTEXPR_BFLOAT16 operator float() const { return to_float(value); }
 
   // Implicit conversion from bfloat16 to sycl::half
-  operator sycl::half() const { return to_float(value); }
+  __SYCL_CONSTEXPR_BFLOAT16_HALF operator sycl::half() const {
+    return to_float(value);
+  }
 
   // Logical operators (!,||,&&) are covered if we can cast to bool
-  explicit operator bool() { return to_float(value) != 0.0f; }
+  __SYCL_CONSTEXPR_BFLOAT16 explicit operator bool() const {
+    return to_float(value) != 0.0f;
+  }
 
   // Unary minus operator overloading
-  friend bfloat16 operator-(const bfloat16 &lhs) {
+  friend __SYCL_CONSTEXPR_BFLOAT16 bfloat16 operator-(const bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-    uint16_t res;
-    asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
-    return bit_cast<bfloat16>(res);
-#else
-    return bfloat16{-to_float(lhs.value)};
+    if (!__builtin_is_constant_evaluated()) {
+      const uint16_t res = detail::negate_nvptx(lhs.value);
+      return bit_cast<bfloat16>(res);
+    }
 #endif
+    return bfloat16{-to_float(lhs.value)};
   }
 
 // Increment and decrement operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 & lhs) {                               \
+  friend __SYCL_CONSTEXPR_BFLOAT16 bfloat16 &operator op(bfloat16 &lhs) {      \
     float f = to_float(lhs.value);                                             \
     lhs.value = from_float(op f);                                              \
     return lhs;                                                                \
   }                                                                            \
-  friend bfloat16 operator op(bfloat16 &lhs, int) {                            \
+  friend __SYCL_CONSTEXPR_BFLOAT16 bfloat16 operator op(bfloat16 &lhs, int) {  \
     bfloat16 old = lhs;                                                        \
     operator op(lhs);                                                          \
     return old;                                                                \
@@ -84,7 +114,8 @@ public:
 
   // Assignment operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 &operator op(bfloat16 & lhs, const bfloat16 & rhs) {         \
+  friend __SYCL_CONSTEXPR_BFLOAT16 bfloat16 &operator op(                      \
+      bfloat16 &lhs, const bfloat16 &rhs) {                                    \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
@@ -97,17 +128,20 @@ public:
 
 // Binary operators overloading
 #define OP(type, op)                                                           \
-  friend type operator op(const bfloat16 &lhs, const bfloat16 &rhs) {          \
+  friend __SYCL_CONSTEXPR_BFLOAT16 type operator op(const bfloat16 &lhs,       \
+                                                    const bfloat16 &rhs) {     \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
-  friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
-      const bfloat16 & lhs, const T & rhs) {                                   \
+  friend __SYCL_CONSTEXPR_BFLOAT16                                             \
+      std::enable_if_t<std::is_convertible_v<T, float>, type>                  \
+      operator op(const bfloat16 &lhs, const T &rhs) {                         \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }                                                                            \
   template <typename T>                                                        \
-  friend std::enable_if_t<std::is_convertible_v<T, float>, type> operator op(  \
-      const T & lhs, const bfloat16 & rhs) {                                   \
+  friend __SYCL_CONSTEXPR_BFLOAT16                                             \
+      std::enable_if_t<std::is_convertible_v<T, float>, type>                  \
+      operator op(const T &lhs, const bfloat16 &rhs) {                         \
     return type{static_cast<float>(lhs) op static_cast<float>(rhs)};           \
   }
   OP(bfloat16, +)
@@ -144,8 +178,8 @@ private:
   constexpr bfloat16(uint16_t Value, private_tag) : value{Value} {}
 
   // Explicit conversion functions
-  static float to_float(const uint16_t &a);
-  static uint16_t from_float(const float &a);
+  __SYCL_CONSTEXPR_BFLOAT16 static float to_float(const uint16_t &a);
+  __SYCL_CONSTEXPR_BFLOAT16 static uint16_t from_float(const float &a);
 
   // Friend traits.
   friend std::numeric_limits<bfloat16>;
@@ -166,48 +200,48 @@ private:
 extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 #endif
-inline float bfloat16::to_float(const uint16_t &a) {
+__SYCL_CONSTEXPR_BFLOAT16 inline float bfloat16::to_float(const uint16_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
-  return __devicelib_ConvertBF16ToFINTEL(a);
-#else
-  union {
-    uint32_t intStorage;
-    float floatValue;
-  };
-  intStorage = a << 16;
-  return floatValue;
+  if (!__builtin_is_constant_evaluated())
+    return __devicelib_ConvertBF16ToFINTEL(a);
 #endif
+  return bit_cast<float>(static_cast<uint32_t>(a) << 16u);
 }
 
 namespace detail {
-inline uint16_t from_float_to_uint16_t(const float &a) {
+__SYCL_CONSTEXPR_BFLOAT16 inline uint16_t
+from_float_to_uint16_t(const float &a) {
   // We don't call sycl::isnan because we don't want a data type to depend on
   // builtins.
   if (a != a)
     return 0xffc1;
 
-  union {
-    uint32_t intStorage;
-    float floatValue;
-  };
-  floatValue = a;
+  uint32_t intStorage = bit_cast<uint32_t>(a);
   // Do RNE and truncate
   uint32_t roundingBias = ((intStorage >> 16) & 0x1) + 0x00007FFF;
   return static_cast<uint16_t>((intStorage + roundingBias) >> 16);
 }
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
+    (__SYCL_CUDA_ARCH__ >= 800)
+inline uint16_t from_float_nvptx(const float &a) {
+  uint16_t res;
+  asm("cvt.rn.bf16.f32 %0, %1;" : "=h"(res) : "f"(a));
+  return res;
+}
+#endif
 } // namespace detail
 
 #if defined(__SYCL_DEVICE_ONLY__)
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
 #endif
-inline uint16_t bfloat16::from_float(const float &a) {
+__SYCL_CONSTEXPR_BFLOAT16 inline uint16_t bfloat16::from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
+  if (__builtin_is_constant_evaluated())
+    return detail::from_float_to_uint16_t(a);
 #if defined(__NVPTX__)
 #if (__SYCL_CUDA_ARCH__ >= 800)
-  uint16_t res;
-  asm("cvt.rn.bf16.f32 %0, %1;" : "=h"(res) : "f"(a));
-  return res;
+  return detail::from_float_nvptx(a);
 #else
   return detail::from_float_to_uint16_t(a);
 #endif
@@ -699,3 +733,6 @@ template <> struct numeric_limits<sycl::ext::oneapi::bfloat16> {
 };
 
 } // namespace std
+
+#undef __SYCL_CONSTEXPR_BFLOAT16_HALF
+#undef __SYCL_CONSTEXPR_BFLOAT16
