@@ -74,25 +74,20 @@ runs:
     run: |
       cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which dpclang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
 
-  # Composed here, not in ur-test, since these depend on caller-only workflow inputs.
-  - name: Compose E2E LIT options
-    id: lit_opts
-    shell: bash
-    env:
-      TESTING_MODE: ${{ inputs.testing_mode }}
-      TARGET_DEVICES: ${{ inputs.target_devices }}
-      USER_LIT_OPTS: ${{ inputs.extra_lit_opts }}
-    run: |
-      # --timeout kills an individual hung test (e.g. a GPU driver hang) instead of
-      # letting it block the whole suite until the job's own timeout-minutes fires.
-      echo "opts=--max-time 3600 --timeout 600 --param print_features=True --param test-mode=${TESTING_MODE} --param sycl_devices=${TARGET_DEVICES} ${USER_LIT_OPTS}" >> "$GITHUB_OUTPUT"
-
+  # Composed directly here (not via a separate step/output) since these are
+  # with: values, not shell script text, so there's no template-injection risk.
   - name: Run E2E tests
     uses: ./devops/actions/run-tests/lit
     with:
       test_type: 'e2e'
       build_dir: 'build-e2e'
-      extra_lit_opts: ${{ steps.lit_opts.outputs.opts }}
+      # --timeout kills an individual hung test (e.g. a GPU driver hang) instead of
+      # letting it block the whole suite until the job's own timeout-minutes fires.
+      extra_lit_opts: >-
+        --max-time 3600 --timeout 600 --param print_features=True
+        --param test-mode=${{ inputs.testing_mode }}
+        --param sycl_devices=${{ inputs.target_devices }}
+        ${{ inputs.extra_lit_opts }}
       job_name: ${{ inputs.job_name }}
 
   - name: Verify E2E binaries were built
