@@ -1112,6 +1112,15 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
     const bool IsOldConvertFToFOp =
         OC == internal::OpClampConvertFToFINTEL ||
         OC == internal::OpClampStochasticRoundFToFINTEL;
+    // These opcodes accept no explicit FPRoundingMode.
+    // Nothing else is restricted here.
+    if (OC == internal::OpClampConvertFToSINTEL ||
+        OC == internal::OpStochasticRoundFToFINTEL ||
+        OC == internal::OpClampStochasticRoundFToFINTEL ||
+        OC == internal::OpClampStochasticRoundFToSINTEL)
+      BM->getErrorLog().checkError(
+          !BC->hasFPRoundingMode(), SPIRVEC_InvalidInstruction,
+          "FPRoundingMode: not supported on this conversion.\n");
     {
       auto SPVOps = BC->getOperands();
       auto *SPVSrcTy = SPVOps[0]->getType();
