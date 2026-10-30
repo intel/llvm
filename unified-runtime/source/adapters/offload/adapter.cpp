@@ -59,6 +59,10 @@ ur_result_t ur_adapter_handle_t_::init() {
       },
       &Adapter->Platforms);
 
+  if (Res == OL_SUCCESS) {
+    UR_LOG(INFO, "OFFLOAD: found {} platforms", Adapter->Platforms.size());
+  }
+
   return offloadResultToUR(Res);
 }
 
