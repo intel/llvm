@@ -230,6 +230,7 @@ void ur_command_list_manager::retainEventIfCapturing(ur_event_handle_t hEvent) {
   ur_exp_graph_handle_t hGraph = nullptr;
   if (getGraph(&hGraph) == UR_RESULT_SUCCESS && hGraph) {
     hGraph->retainCapturedEvent(hEvent);
+    hEvent->destroyOnRelease();
   }
 }
 

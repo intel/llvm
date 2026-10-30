@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <atomic>
 #include <stack>
 
 #include <unified-runtime/ur_api.h>
@@ -98,6 +99,9 @@ public:
   void reset();
   ze_event_handle_t getZeEvent() const;
 
+  // Destroy the native event instead of recycling it once released.
+  void destroyOnRelease();
+
   ur_result_t retain();
 
   // releases event immediately, or adds to a list for deffered deletion
@@ -169,6 +173,8 @@ protected:
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
+
+  std::atomic<bool> destroyOnReleaseRequested{false};
 };
 
 } // namespace ur::level_zero::v2

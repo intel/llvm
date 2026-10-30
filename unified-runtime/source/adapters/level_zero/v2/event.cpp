@@ -161,6 +161,10 @@ ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
   return std::visit([](const auto &handle) { return handle.get(); }, hZeEvent);
 }
 
+void ur_event_handle_t_::destroyOnRelease() {
+  destroyOnReleaseRequested.store(true);
+}
+
 ur_result_t ur_event_handle_t_::retain() {
   RefCount.retain();
   return UR_RESULT_SUCCESS;
@@ -174,13 +178,26 @@ struct event_teardown {
     event_pool->free(event);
   }
 
-  void operator()(const v2::raii::ze_event_handle_t &) { delete event; }
+  void operator()(const v2::raii::ze_event_handle_t &) {
+    if (event_pool) {
+      event_pool->erase(event);
+    } else {
+      delete event;
+    }
+  }
   void operator()(const v2::raii::ipc_event_handle_t &) { delete event; }
 };
 
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.release())
     return UR_RESULT_SUCCESS;
+
+  // Last reference: nothing else can access hZeEvent anymore.
+  if (auto *borrowed = std::get_if<v2::raii::cache_borrowed_event>(&hZeEvent);
+      borrowed && destroyOnReleaseRequested.load()) {
+    hZeEvent = v2::raii::ze_event_handle_t(borrowed->release(),
+                                           /*ownZeHandle=*/true);
+  }
 
   std::visit(event_teardown{event_pool, this}, hZeEvent);
   return UR_RESULT_SUCCESS;

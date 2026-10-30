@@ -12,7 +12,6 @@
 #include "uur/utils.h"
 #include "ze_api.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <set>
@@ -237,15 +236,4 @@ TEST_P(EventRecyclingGraphTest, CapturedEventsAreKeptUntilGraphDestruction) {
 
   ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(exGraph));
   ASSERT_SUCCESS(urGraphDestroyExp(graph));
-
-  // Once the graph is destroyed, the captured event is back in the pool.
-  std::vector<ur_event_handle_t> events(numStealAttempts + 1);
-  for (auto &hEvent : events) {
-    ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, &hEvent));
-  }
-  ASSERT_SUCCESS(urQueueFinish(queue));
-  EXPECT_NE(std::find(events.begin(), events.end(), captured), events.end());
-  for (auto hEvent : events) {
-    ASSERT_SUCCESS(urEventRelease(hEvent));
-  }
 }

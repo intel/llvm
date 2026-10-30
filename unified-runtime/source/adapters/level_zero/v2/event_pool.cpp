@@ -20,8 +20,10 @@ ur_event_handle_t event_pool::allocate(bool forceCreate) {
   std::unique_lock<ur_mutex> lock(mutex);
 
   if (forceCreate || freelist.empty()) {
-    events.emplace_back(hContext, provider->allocate(), this);
-    freelist.push_back(&events.back());
+    auto newEvent = std::make_unique<ur_event_handle_t_>(
+        hContext, provider->allocate(), this);
+    freelist.push_back(newEvent.get());
+    events.emplace(newEvent.get(), std::move(newEvent));
   }
 
   auto event = freelist.back();
@@ -55,6 +57,12 @@ void event_pool::free(ur_event_handle_t event) {
   // The event is still in the pool, so we need to increment the refcount
   assert(event->RefCount.getCount() == 0);
   event->RefCount.retain();
+}
+
+void event_pool::erase(ur_event_handle_t event) {
+  TRACK_SCOPE_LATENCY("event_pool::erase");
+  std::unique_lock<ur_mutex> lock(mutex);
+  events.erase(event);
 }
 
 event_provider *event_pool::getProvider() const { return provider.get(); }
