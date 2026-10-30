@@ -775,7 +775,9 @@ for d in remove_level_zero_suffix(config.sycl_devices):
     if dev not in available_devices[be] and not "arch-" in dev:
         lit_config.error("Unsupported device {}".format(d))
 
-if "cuda:gpu" in config.sycl_devices:
+if "cuda:gpu" in config.sycl_devices or (
+    config.test_mode == "build-only" and "target-nvidia" in config.sycl_build_targets
+):
     if "CUDA_PATH" not in os.environ:
         if platform.system() == "Windows":
             cuda_root = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
@@ -836,7 +838,7 @@ if "cuda:gpu" in config.sycl_devices:
 
     # Detect CUDA version and add version-specific features for conditional test execution
     cuda_version_json = os.path.join(os.environ["CUDA_PATH"], "version.json")
-    if os.path.exists(cuda_version_json):
+    if config.test_mode != "build-only" and os.path.exists(cuda_version_json):
         try:
             with open(cuda_version_json, "r") as f:
                 version_data = json.load(f)
