@@ -101,7 +101,7 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
   // Root-device information was added in Level Zero 1.7. Older drivers and
   // loaders can still enumerate devices without this optional query.
   ur_result_t getRootDevice(ze_device_handle_t Device,
-                           ze_device_handle_t *RootDevice) const;
+                            ze_device_handle_t *RootDevice) const;
 
   size_t getNumDevices();
 

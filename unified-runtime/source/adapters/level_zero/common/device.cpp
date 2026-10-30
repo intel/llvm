@@ -1210,7 +1210,8 @@ ur_result_t urDeviceGetInfo(
     ze_device_handle_t RootDev = nullptr;
     UR_CALL(Device->Platform->getRootDevice(Device->ZeDevice, &RootDev));
     ur_device_handle_t UrRootDev =
-        RootDev ? Device->Platform->getDeviceFromNativeHandle(RootDev) : nullptr;
+        RootDev ? Device->Platform->getDeviceFromNativeHandle(RootDev)
+                : nullptr;
     return ReturnValue(UrRootDev);
   }
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
