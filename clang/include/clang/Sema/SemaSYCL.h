@@ -391,9 +391,10 @@ public:
   void ProcessFreeFunction(FunctionDecl *FD);
   void finalizeFreeFunctionKernels();
 
-  /// Check a call to __builtin_sycl_launch_kernel, whose argument is a call to
-  /// a SYCL free function kernel, and build a pointer to the selected kernel.
-  ExprResult BuildSYCLLaunchKernelCall(CallExpr *TheCall);
+  /// Check a call to __builtin_sycl_resolve_kernel_function, whose argument is
+  /// a call to a SYCL free function kernel, and build a pointer to the selected
+  /// kernel.
+  ExprResult BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall);
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);

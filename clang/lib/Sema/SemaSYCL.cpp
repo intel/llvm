@@ -5943,9 +5943,9 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
-// The operand of __builtin_sycl_launch_kernel is an ordinary call, already
-// resolved; the builtin evaluates to a pointer to its callee.
-ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
+// The operand of __builtin_sycl_resolve_kernel_function is an ordinary call,
+// already resolved; the builtin evaluates to a pointer to its callee.
+ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
   if (TheCall->getNumArgs() != 1) {
     Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
     return ExprError();
@@ -5968,7 +5968,8 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
           ? CE->getDirectCallee()
           : nullptr;
   if (!ResolvedFn || isa<CXXMethodDecl>(ResolvedFn)) {
-    Diag(KernelCall->getBeginLoc(), diag::err_sycl_launch_kernel_not_a_call);
+    Diag(KernelCall->getBeginLoc(),
+         diag::err_sycl_resolve_kernel_function_not_a_call);
     return ExprError();
   }
 
@@ -5980,7 +5981,7 @@ ExprResult SemaSYCL::BuildSYCLLaunchKernelCall(CallExpr *TheCall) {
   // forward declares the kernel without its properties.
   SourceLocation Loc = CE->getCallee()->getBeginLoc();
   if (getLangOpts().SYCLIsDevice && !isFreeFunction(ResolvedFn)) {
-    Diag(Loc, diag::err_sycl_launch_kernel_not_free_function);
+    Diag(Loc, diag::err_sycl_resolve_kernel_function_not_free_function);
     Diag(ResolvedFn->getLocation(), diag::note_declared_at);
     return ExprError();
   }

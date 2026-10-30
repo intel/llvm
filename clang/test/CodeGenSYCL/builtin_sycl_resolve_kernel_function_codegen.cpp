@@ -16,7 +16,8 @@ template <auto *Func, typename... Args>
 void nd_launch(kernel_function_s<Func>, Args &&...) {}
 
 #define SYCL_EXT_ONEAPI_KERNEL_FUNCTION(NAME, ...)                             \
-  kernel_function<__builtin_sycl_launch_kernel(NAME(__VA_ARGS__))>,            \
+  kernel_function<                                                             \
+      __builtin_sycl_resolve_kernel_function(NAME(__VA_ARGS__))>,              \
       ##__VA_ARGS__
 
 template <typename T> ND_KERNEL void axpy(T *y, T a) {}

@@ -513,8 +513,7 @@ Ordinary C++ template argument deduction applies to `kernel-name`.  A template
 parameter of the kernel that cannot be deduced from `args` — for example a
 non-type template parameter that does not appear in any function parameter, or a
 type parameter used only in a non-deduced context — must be specified
-explicitly, just as it would be in a direct call to the kernel (this matches the
-behavior of CUDA's `<<<>>>` launch).  See
+explicitly, just as it would be in a direct call to the kernel.  See
 <<launching-by-name-example, Launching a free function kernel by name>> for a
 complete example.
 

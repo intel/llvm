@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only %s -verify
 
-// Operand checks of __builtin_sycl_launch_kernel: it takes exactly one
-// argument, which must be a call to a function at namespace scope. Free
+// Operand checks of __builtin_sycl_resolve_kernel_function: it takes exactly
+// one argument, which must be a call to a function at namespace scope. Free
 // function kernels cannot be member functions or function objects.
 
 #define ND_KERNEL                                                              \
@@ -18,23 +18,23 @@ struct S {
 
 void test(int *ip, S s) {
   // expected-error@+1 {{builtin takes one argument}}
-  (void)__builtin_sycl_launch_kernel();
+  (void)__builtin_sycl_resolve_kernel_function();
   // The name-plus-arguments spelling is not accepted.
   // expected-error@+1 {{builtin takes one argument}}
-  (void)__builtin_sycl_launch_kernel(k, ip);
+  (void)__builtin_sycl_resolve_kernel_function(k, ip);
 
   // expected-error@+1 {{must be a call to a SYCL free function kernel}}
-  (void)__builtin_sycl_launch_kernel(ip);
+  (void)__builtin_sycl_resolve_kernel_function(ip);
   void (*fptr)(int *) = &k;
   // expected-error@+1 {{must be a call to a SYCL free function kernel}}
-  (void)__builtin_sycl_launch_kernel(fptr(ip));
+  (void)__builtin_sycl_resolve_kernel_function(fptr(ip));
 
   // expected-error@+1 {{must be a call to a SYCL free function kernel}}
-  (void)__builtin_sycl_launch_kernel(s.member(ip));
+  (void)__builtin_sycl_resolve_kernel_function(s.member(ip));
   // expected-error@+1 {{must be a call to a SYCL free function kernel}}
-  (void)__builtin_sycl_launch_kernel(S::static_member(ip));
+  (void)__builtin_sycl_resolve_kernel_function(S::static_member(ip));
   // expected-error@+1 {{must be a call to a SYCL free function kernel}}
-  (void)__builtin_sycl_launch_kernel(s(ip));
+  (void)__builtin_sycl_resolve_kernel_function(s(ip));
   // expected-error@+1 {{must be a call to a SYCL free function kernel}}
-  (void)__builtin_sycl_launch_kernel([](int *) {}(ip));
+  (void)__builtin_sycl_resolve_kernel_function([](int *) {}(ip));
 }

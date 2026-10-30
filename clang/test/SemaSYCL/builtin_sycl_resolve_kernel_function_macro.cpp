@@ -83,7 +83,7 @@ void negative(float *fp, long *lp) {
   // expected-error@+2 {{no matching function for call to 'fill'}}
   // expected-note@#fill {{couldn't infer template argument 'Dim'}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(fill, fp, 1.0f));
-  // expected-error@+1 {{the function resolved by '__builtin_sycl_launch_kernel' is not a SYCL free function kernel}}
+  // expected-error@+1 {{the function resolved by '__builtin_sycl_resolve_kernel_function' is not a SYCL free function kernel}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(mixed, lp));
   // expected-error@+1 {{call to deleted function 'del'}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(del, fp));
