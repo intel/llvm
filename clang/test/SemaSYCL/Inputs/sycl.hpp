@@ -341,6 +341,22 @@ ATTR_SYCL_KERNEL void kernel_parallel_for_work_group(const KernelType &KernelFun
 #endif
 }
 
+template <int Dims> class nd_item {};
+
+template <int Dims> class nd_range {
+public:
+  nd_range(unsigned long long, unsigned long long) {}
+};
+
+template <typename KernelName, typename KernelType, int Dims>
+ATTR_SYCL_KERNEL void kernel_parallel_for_nd_range(const KernelType &kernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
+  kernelFunc(nd_item<Dims>());
+#else
+  (void)kernelFunc;
+#endif
+}
+
 class handler {
 public:
   template <typename KernelName = auto_name, typename KernelType>
@@ -358,6 +374,11 @@ public:
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
     using NameWT = typename get_kernel_wrapper_name_t<NameT>::name;
     kernel_parallel_for<NameT>(kernelObj);
+  }
+  template <typename KernelName = auto_name, typename KernelType, int Dims>
+  void parallel_for(nd_range<Dims>, const KernelType &kernelFunc) {
+    using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
+    kernel_parallel_for_nd_range<NameT, KernelType, Dims>(kernelFunc);
   }
   template <typename KernelName = auto_name, typename KernelType>
   void parallel_for_work_group(const KernelType &kernelFunc, kernel_handler kh) {
