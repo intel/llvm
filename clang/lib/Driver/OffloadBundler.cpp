@@ -2035,35 +2035,44 @@ Error OffloadBundler::UnbundleFiles() {
       // entry (CodeObject) matches exactly, e.g. entry
       // sycl-spir64_gen-unknown-unknown-pvc for target
       // sycl-spir64_gen-unknown-unknown-pvc.
-      auto Output = llvm::find_if(Worklist, [&](const auto &W) {
+      SmallVector<StringRef, 4> Outputs;
+      auto Exact = llvm::find_if(Worklist, [&](const auto &W) {
         OffloadTargetInfo Target(W.first(), BundlerConfig);
         return TargetIDPresenceMatches(CodeObject, Target) &&
                isCodeObjectCompatible(CodeObject, Target);
       });
-      // Otherwise, an ID-less SYCL entry (e.g. sycl-spir64_gen-unknown-unknown)
-      // may be used for a target with a target ID, or the reverse, but only if
-      // the blob has no exact entry for that target.
-      if (Output == Worklist.end())
-        Output = llvm::find_if(Worklist, [&](const auto &W) {
-          OffloadTargetInfo Target(W.first(), BundlerConfig);
-          return !TargetIDPresenceMatches(CodeObject, Target) &&
-                 isCodeObjectCompatible(CodeObject, Target) &&
-                 !HasExactEntry(Target);
-        });
+      if (Exact != Worklist.end())
+        Outputs.push_back(Exact->first());
+      // Then, an ID-less SYCL entry (e.g. sycl-spir64_gen-unknown-unknown) is
+      // used for every target with a target ID, or the reverse, for which the
+      // blob has no exact entry.
+      for (const auto &W : Worklist) {
+        OffloadTargetInfo Target(W.first(), BundlerConfig);
+        if (!TargetIDPresenceMatches(CodeObject, Target) &&
+            isCodeObjectCompatible(CodeObject, Target) &&
+            !HasExactEntry(Target))
+          Outputs.push_back(W.first());
+      }
 
-      if (Output == Worklist.end())
+      if (Outputs.empty())
         continue;
 
-      // Check if the output file can be opened and copy the bundle to it.
-      std::error_code EC;
-      raw_fd_ostream OutputFile((*Output).second, EC, sys::fs::OF_None);
-      if (EC)
-        return createFileError((*Output).second, EC);
-      if (Error Err = FH->ReadBundle(OutputFile, Input))
+      SmallVector<char, 0> Bundle;
+      raw_svector_ostream BundleOS(Bundle);
+      if (Error Err = FH->ReadBundle(BundleOS, Input))
         return Err;
       if (Error Err = FH->ReadBundleEnd(Input))
         return Err;
-      Worklist.erase(Output);
+      for (StringRef Target : Outputs) {
+        StringRef OutputFileName = Worklist.lookup(Target);
+        // Check if the output file can be opened and copy the bundle to it.
+        std::error_code EC;
+        raw_fd_ostream OutputFile(OutputFileName, EC, sys::fs::OF_None);
+        if (EC)
+          return createFileError(OutputFileName, EC);
+        OutputFile << BundleOS.str();
+        Worklist.erase(Target);
+      }
 
       // Record if we found the host bundle.
       auto OffloadInfo = OffloadTargetInfo(CurTriple, BundlerConfig);
