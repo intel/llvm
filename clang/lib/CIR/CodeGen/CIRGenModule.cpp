@@ -2825,7 +2825,10 @@ static std::string getMangledNameImpl(CIRGenModule &cgm, GlobalDecl gd,
                    "getMangledName: multi-version functions");
     }
   }
-  if (cgm.getLangOpts().GPURelocatableDeviceCode) {
+  // Make unique name for device side static file-scope variable for HIP.
+  if (cgm.getASTContext().shouldExternalize(nd) &&
+      cgm.getLangOpts().GPURelocatableDeviceCode &&
+      cgm.getLangOpts().CUDAIsDevice) {
     cgm.errorNYI(nd->getSourceRange(),
                  "getMangledName: GPU relocatable device code");
   }
@@ -2992,10 +2995,9 @@ bool CIRGenModule::mayBeEmittedEagerly(const ValueDecl *global) {
     // Defer until all versions have been semantically checked.
     if (fd->hasAttr<TargetVersionAttr>() && !fd->isMultiVersion())
       return false;
-    if (langOpts.SYCLIsDevice) {
-      errorNYI(fd->getSourceRange(), "mayBeEmittedEagerly: SYCL");
+    // Defer the SYCL kernel entry point itself during device compilation.
+    if (langOpts.SYCLIsDevice && fd->hasAttr<SYCLKernelEntryPointAttr>())
       return false;
-    }
   }
   const auto *vd = dyn_cast<VarDecl>(global);
   if (vd)
@@ -3434,6 +3436,10 @@ void CIRGenModule::setCIRFunctionAttributesForDefinition(
     if (isa<CXXMethodDecl>(decl) && f.getAlignment().value_or(1) < 2)
       f.setAlignment(2);
   }
+
+  // sycl_external functions are device-code-splitting entry points too.
+  if (langOpts.SYCLIsDevice && decl->hasAttr<SYCLExternalAttr>())
+    addSYCLModuleIdAttr(f);
 }
 
 // Maps an AST address space to the OpenCL logical address space kind recorded
