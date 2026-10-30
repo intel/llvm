@@ -69,6 +69,36 @@
 // RUN: clang-offload-bundler -type=ii -input=%t.bundle.mixed.ii -output=%t.res -unbundle \
 // RUN:   -targets=sycl-spir64_gen-unknown-unknown-acm_g10
 // RUN: diff %t.noid %t.res
+// RUN: clang-offload-bundler -type=ii -input=%t.bundle.mixed.ii -output=%t.res1 -output=%t.res2 -output=%t.res3 -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-pvc,sycl-spir64_gen-unknown-unknown-acm_g10,sycl-spir64_gen-unknown-unknown
+// RUN: diff %t.tgt2 %t.res1
+// RUN: diff %t.noid %t.res2
+// RUN: diff %t.noid %t.res3
+
+// The entry without a target ID is used for each of several target IDs, as
+// for -fsycl-targets=intel_gpu_tgllp,intel_gpu_pvc.
+// RUN: clang-offload-bundler -type=ii -input=%t.bundle.noid.ii -output=%t.res1 -output=%t.res2 -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-tgllp,sycl-spir64_gen-unknown-unknown-pvc
+// RUN: diff %t.tgt1 %t.res1
+// RUN: diff %t.tgt1 %t.res2
+// RUN: clang-offload-bundler -type=o -input=%t.o -input=%t.tgt1 -output=%t.bundle.noid.o \
+// RUN:   -targets=host-x86_64-unknown-linux-gnu,sycl-spir64_gen-unknown-unknown
+// RUN: clang-offload-bundler -type=o -input=%t.bundle.noid.o -output=%t.res1 -output=%t.res2 -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-tgllp,sycl-spir64_gen-unknown-unknown-pvc
+// RUN: diff %t.tgt1 %t.res1
+// RUN: diff %t.tgt1 %t.res2
+// RUN: rm -f %t.noid.a
+// RUN: llvm-ar cr %t.noid.a %t.bundle.noid.o
+// RUN: clang-offload-bundler -type=ao -input=%t.noid.a -output=%t.res1 -output=%t.res2 -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-tgllp,sycl-spir64_gen-unknown-unknown-pvc
+// RUN: diff %t.tgt1 %t.res1
+// RUN: diff %t.tgt1 %t.res2
+// RUN: clang-offload-bundler -type=aoo -input=%t.noid.a -output=%t.res1.lst -output=%t.res2.lst -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-tgllp,sycl-spir64_gen-unknown-unknown-pvc
+// RUN: tr -d '\n' < %t.res1.lst > %t.res1.path
+// RUN: diff %t.tgt1 %{readfile:%t.res1.path}
+// RUN: tr -d '\n' < %t.res2.lst > %t.res2.path
+// RUN: diff %t.tgt1 %{readfile:%t.res2.path}
 
 // 4-component triples are unaffected.
 // RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -input=%t.tgt2 -output=%t.bundle.hip.ii \
