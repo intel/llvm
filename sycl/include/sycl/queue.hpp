@@ -205,11 +205,13 @@ struct in_order : detail::runtime_property_key<in_order> {};
 
 struct enable_profiling
     : detail::runtime_property<enable_profiling, key::enable_profiling> {
-  constexpr enable_profiling(bool v = true) : value{v} {}
+  constexpr enable_profiling() : value{true} {}
+  constexpr explicit enable_profiling(bool v) : value{v} {}
   bool value;
 };
 struct in_order : detail::runtime_property<in_order, key::in_order> {
-  constexpr in_order(bool v = true) : value{v} {}
+  constexpr in_order() : value{true} {}
+  constexpr explicit in_order(bool v) : value{v} {}
   bool value;
 };
 } // namespace khr::property

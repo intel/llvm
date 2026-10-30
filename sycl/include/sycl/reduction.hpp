@@ -2828,7 +2828,8 @@ struct initialize_to_identity
 struct initialize_to_identity
     : detail::runtime_property<initialize_to_identity,
                                key::initialize_to_identity> {
-  constexpr initialize_to_identity(bool v = true) : value{v} {}
+  constexpr initialize_to_identity() : value{true} {}
+  constexpr explicit initialize_to_identity(bool v) : value{v} {}
   bool value;
 };
 } // namespace property

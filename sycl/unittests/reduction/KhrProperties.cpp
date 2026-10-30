@@ -31,6 +31,10 @@ static_assert(!is_property_for_v<kp::initialize_to_identity, OtherClass>);
 static_assert(!is_property_for_v<kp::initialize_to_identity, sycl::queue>);
 static_assert(std::is_trivially_copyable_v<kp::initialize_to_identity>);
 static_assert(std::is_trivially_copyable_v<kp::key::initialize_to_identity>);
+// The bool constructor is explicit.
+static_assert(!std::is_convertible_v<bool, kp::initialize_to_identity>);
+static_assert(kp::initialize_to_identity{}.value &&
+              !kp::initialize_to_identity{false}.value);
 
 TEST(KhrReductionProperties, InitializeToIdentityUSM) {
   int ReduVar = 0;
