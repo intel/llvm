@@ -42,6 +42,7 @@
 #include "llvm/ABI/Types.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Assumptions.h"
 #include "llvm/IR/AttributeMask.h"
@@ -6532,6 +6533,34 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
     if (FD && FD->getNameInfo().getName().isIdentifier()) {
       StringRef FuncName = FD->getName();
+      if (getLangOpts().SYCLIsDevice &&
+          FD->getDeclContext()->isTranslationUnit() && IRCallArgs.size() == 1) {
+        llvm::Type *ArgTy = IRCallArgs[0]->getType();
+        if ((ArgTy->isFloatTy() || ArgTy->isDoubleTy()) &&
+            IRFuncTy->getReturnType() == ArgTy) {
+          const unsigned IntrinsicID =
+              llvm::StringSwitch<unsigned>(FuncName)
+                  .Case("__spirv_ocl_sin", llvm::Intrinsic::fpbuiltin_sin)
+                  .Case("__spirv_ocl_cos", llvm::Intrinsic::fpbuiltin_cos)
+                  .Case("__spirv_ocl_tan", llvm::Intrinsic::fpbuiltin_tan)
+                  .Case("__spirv_ocl_exp", llvm::Intrinsic::fpbuiltin_exp)
+                  .Case("__spirv_ocl_log", llvm::Intrinsic::fpbuiltin_log)
+                  .Case("__spirv_ocl_acos", llvm::Intrinsic::fpbuiltin_acos)
+                  .Case("__spirv_ocl_asin", llvm::Intrinsic::fpbuiltin_asin)
+                  .Case("__spirv_ocl_sqrt", llvm::Intrinsic::fpbuiltin_sqrt)
+                  .Default(llvm::Intrinsic::not_intrinsic);
+          if (IntrinsicID != llvm::Intrinsic::not_intrinsic) {
+            const StringRef AccuracyName =
+                FuncName.drop_front(StringRef("__spirv_ocl_").size());
+            if (hasAccuracyRequirement(AccuracyName)) {
+              llvm::Function *Intrinsic =
+                  CGM.getIntrinsic(IntrinsicID, {ArgTy});
+              return RValue::get(CreateBuiltinCallWithAttr(
+                  AccuracyName, Intrinsic, IRCallArgs, IntrinsicID));
+            }
+          }
+        }
+      }
       const bool IsFloat32Type = FD->getReturnType()->isFloat32Type();
       bool hasFPAccuracyFuncMap = hasAccuracyRequirement(FuncName);
       bool hasFPAccuracyVal = !getLangOpts().FPAccuracyVal.empty();
