@@ -1,0 +1,11 @@
+; RUN: spirv-as --target-env opencl2.0 %s -o %t.spv
+; RUN: not llvm-spirv -r --spirv-validate --spirv-error-handling=ignore %t.spv -o %t.bc 2>&1 | FileCheck %s
+; REQUIRES: libspirv_val, spirv-as
+
+; Test the --spirv-validate functionality with an invalid SPIR-V module
+
+; CHECK: Fails to load SPIR-V as LLVM Module: SPIR-V validation failed: No OpEntryPoint instruction was found.
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL

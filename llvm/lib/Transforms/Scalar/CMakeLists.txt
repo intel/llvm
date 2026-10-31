@@ -1,3 +1,8 @@
+set(LLVM_TABLEGEN_PROJECT LLVM_HEADERS)
+set(LLVM_TARGET_DEFINITIONS ScalarOptions.td)
+tablegen(LLVM ScalarOptions.inc -gen-opt-parser-defs)
+add_public_tablegen_target(ScalarOptionsTableGen)
+
 add_llvm_component_library(LLVMScalarOpts
   ADCE.cpp
   AlignmentFromAssumptions.cpp
@@ -72,6 +77,7 @@ add_llvm_component_library(LLVMScalarOpts
   SCCP.cpp
   SROA.cpp
   Scalar.cpp
+  ScalarOptions.cpp
   Scalarizer.cpp
   ScalarizeMaskedMemIntrin.cpp
   SeparateConstOffsetFromGEP.cpp
@@ -89,6 +95,7 @@ add_llvm_component_library(LLVMScalarOpts
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms/Scalar
 
   DEPENDS
+  ScalarOptionsTableGen
   intrinsics_gen
 
   COMPONENT_NAME
@@ -99,6 +106,7 @@ add_llvm_component_library(LLVMScalarOpts
   Analysis
   Core
   InstCombine
+  Option
   ProfileData
   Support
   TransformUtils

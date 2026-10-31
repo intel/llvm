@@ -30,7 +30,8 @@ enum Instruction {
   FunctionAttribute = 1,
   GlobalVariableMetadata = 2,
   GlobalVariableAttribute = 3,
-  Linkage = 4
+  Linkage = 4,
+  InstructionMetadata = 5
 };
 
 enum LinkageType { AvailableExternally = 0 };

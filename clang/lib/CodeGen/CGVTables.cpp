@@ -22,8 +22,6 @@
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Sema/SemaSYCL.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <algorithm>
 #include <cstdio>
@@ -166,9 +164,6 @@ static void resolveTopLevelMetadata(llvm::Function *Fn,
       for (llvm::DbgVariableRecord &DVR :
            llvm::filterDbgVars(I.getDbgRecordRange()))
         PrepareVariableMapping(DVR.getVariable());
-
-      if (auto *DII = dyn_cast<llvm::DbgVariableIntrinsic>(&I))
-        PrepareVariableMapping(DII->getVariable());
     }
   }
 }

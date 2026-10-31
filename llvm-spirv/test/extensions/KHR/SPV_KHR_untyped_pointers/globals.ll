@@ -52,7 +52,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: @d = external addrspace(3) global ptr addrspace(1)
 ; CHECK-LLVM: @e = addrspace(1) global [2 x ptr addrspace(1)] [ptr addrspace(1) @a, ptr addrspace(1) @b]
 ; CHECK-LLVM: @f = addrspace(1) global [2 x [3 x [4 x i32]]]
-; CHECK-LLVM: @g = addrspace(1) global ptr addrspace(1) getelementptr inbounds ([2 x [3 x [4 x i32]]], ptr addrspace(1) @f, i64 0, i64 1, i64 2, i64 3)
+; CHECK-LLVM: @g = addrspace(1) global ptr addrspace(1) getelementptr inbounds (i8, ptr addrspace(1) @f, i32 92)
 
 @a = addrspace(1) global i16 0
 @b = external addrspace(1) global i32

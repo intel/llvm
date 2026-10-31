@@ -25,8 +25,8 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-DAG: TypePointer [[PTR_PTR_TYPE:[0-9]+]] 5 [[I8PTR]]
 ; CHECK-SPIRV-DAG: Variable [[PTR_PTR_TYPE]] [[GLOBAL_PTR]] 5 [[PTRCHAIN]]
 
-; CHECK-LLVM: @global_ptr = addrspace(1) global ptr addrspace(1) getelementptr (i8, ptr addrspace(1) @a_var, i64 2), align 8
-; CHECK-LLVM-NOT: @global_ptr = addrspace(1) global ptr addrspace(1) getelementptr ([2 x i16], ptr addrspace(1) @a_var, i64 2), align 8
+; CHECK-LLVM: @global_ptr = addrspace(1) global ptr addrspace(1) getelementptr (i8, ptr addrspace(1) @a_var, i32 2), align 8
+; CHECK-LLVM-NOT: @global_ptr = addrspace(1) global ptr addrspace(1) getelementptr ([2 x i16], ptr addrspace(1) @a_var, i32 2), align 8
 
 @a_var = dso_local addrspace(1) global [2 x i16] [i16 4, i16 5], align 2
 @global_ptr = dso_local addrspace(1) global ptr addrspace(1) getelementptr (i8, ptr addrspace(1) @a_var, i64 2), align 8

@@ -59,7 +59,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/SourceMgr.h"
@@ -176,6 +175,10 @@ static cl::opt<bool> PreserveOCLKernelArgTypeMetadataThroughString(
 static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
+
+static cl::opt<bool> SPIRVValidate(
+    "spirv-validate", cl::init(false),
+    cl::desc("Validate SPIR-V with SPIRV-Tools before reverse translation"));
 
 static cl::opt<bool> SPIRVEmitFunctionPtrAddrSpace(
     "spirv-emit-function-ptr-addr-space", cl::init(false),
@@ -560,11 +563,13 @@ static int convertSPIRV() {
 static int regularizeLLVM(SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
-  std::unique_ptr<MemoryBuffer> MB =
-      ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFile)));
-  std::unique_ptr<Module> M =
-      ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
-                                           /*ShouldLazyLoadMetadata=*/true));
+  SMDiagnostic GetIRErr;
+  std::unique_ptr<Module> M = getLazyIRFileModule(
+      InputFile, GetIRErr, Context, /*ShouldLazyLoadMetadata=*/true);
+  if (!M) {
+    ExitOnErr(
+        createStringError(inconvertibleErrorCode(), GetIRErr.getMessage()));
+  }
   ExitOnErr(M->materializeAll());
 
   if (OutputFile.empty()) {
@@ -930,6 +935,15 @@ int main(int Ac, char **Av) {
   Opts.setFPContractMode(FPCMode);
 
   Opts.setErrorHandlingKind(ErrorHandling);
+
+  if (SPIRVValidate) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-validate option ignored as it only affects "
+                "translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setSPIRVValidationEnabled(true);
+    }
+  }
 
   if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
     if (!IsReverse) {
