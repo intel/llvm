@@ -1076,6 +1076,7 @@ void RequirementHandler::initAvailableCapabilitiesForVulkan(
 
   // Core in Vulkan 1.1 and earlier.
   addAvailableCaps({Capability::Int64,
+                    Capability::Geometry,
                     Capability::Float16,
                     Capability::Float64,
                     Capability::GroupNonUniform,
@@ -1848,6 +1849,9 @@ void addInstrRequirements(const MachineInstr &MI,
   case SPIRV::OpTypePipe:
   case SPIRV::OpTypeReserveId:
     Reqs.addCapability(SPIRV::Capability::Pipes);
+    break;
+  case SPIRV::OpTypePipeStorage:
+    Reqs.addCapability(SPIRV::Capability::PipeStorage);
     break;
   case SPIRV::OpTypeDeviceEvent:
   case SPIRV::OpTypeQueue:

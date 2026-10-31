@@ -179,6 +179,7 @@ add_clang_library(clangCodeGen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.
+  analysis_gen
   target_parser_gen
 
   LINK_LIBS
