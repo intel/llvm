@@ -3625,7 +3625,10 @@ public:
                                               bool EmitDebugInfo);
 
   void EmitStaticVarDecl(const VarDecl &D,
-                         llvm::GlobalValue::LinkageTypes Linkage);
+                         llvm::GlobalValue::LinkageTypes Linkage,
+                         bool EmitInit = true);
+
+  void EmitWorkGroupScopeVarDecl(const VarDecl &D);
 
   class ParamValue {
     union {
