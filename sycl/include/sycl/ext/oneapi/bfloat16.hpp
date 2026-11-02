@@ -38,6 +38,8 @@ namespace ext::oneapi {
 namespace detail {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
+// asm can't be used in constant evaluation context
+// so we need an out of line function
 inline uint16_t negate_nvptx(const uint16_t &a) {
   uint16_t res;
   asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(a));
@@ -89,6 +91,9 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
     if (!__builtin_is_constant_evaluated()) {
+      // asm can't be used in constant evaluation context
+      // even if this branch is not taken during constant evaluation
+      // so we need an out of line function for negation
       const uint16_t res = detail::negate_nvptx(lhs.value);
       return bit_cast<bfloat16>(res);
     }
