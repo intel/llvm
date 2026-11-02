@@ -23,10 +23,10 @@ namespace {
 
 // Returns the kernel name referenced by
 // Entry, one element of the array held by a sanitizer kernel metadata global
-//  (__{Asan,Msan,Tsan}KernelMetadata_<id>). Entry has the form
-// { i64 ptrtoint (ptr addrspace(2) @<name string> to i64), i64 <size>[, i64 <flags>] }
-// where <name string> is a null-terminated constant string. Returns an empty
-// string if Entry doesn't have this form.
+// (__{Asan,Msan,Tsan}KernelMetadata_<id>). Entry has the form
+// { i64 ptrtoint (ptr addrspace(2) @<name string> to i64), i64 <size>[, i64
+// <flags>] } where <name string> is a null-terminated constant string. Returns
+// an empty string if Entry doesn't have this form.
 StringRef getKernelName(Constant *Entry) {
   auto *NameField =
       dyn_cast_or_null<ConstantExpr>(Entry->getAggregateElement(0u));
