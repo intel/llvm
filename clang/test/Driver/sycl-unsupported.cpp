@@ -97,3 +97,4 @@
 // RUN:  | FileCheck %s -check-prefix SUPPORTED_SAN
 // UNSUPPORTED_SAN: ignoring '[[OPT]]' option as it is not currently supported for target 'spir64{{.*}}'
 // SUPPORTED_SAN-NOT: not currently supported for target
+// SUPPORTED_SAN: -fsanitize=address
