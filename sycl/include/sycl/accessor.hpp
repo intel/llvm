@@ -757,12 +757,7 @@ public:
       : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
              detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~accessor() {
-    // User-declared so the type is not trivially copyable; intentionally empty
-    // as the spec states the destructor of an accessor must not have any effect
-  }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() = default;
 
 #else
   accessor(const detail::AccessorImplPtr &Impl)
@@ -828,13 +823,7 @@ public:
             /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~accessor() {
-    // User-declared so the type is not trivially copyable; intentionally empty
-    // as the spec states the destructor of an accessor must not have any
-    // effect
-  }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() = default;
 
   template <typename, int, access_mode> friend class host_accessor;
 
@@ -904,10 +893,19 @@ public:
 
 public:
   // common reference semantics
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Assignment operators are intentionally defaulted out of line, after the
+  // class, so the type is not trivially copyable.
+  accessor(const accessor &) noexcept = default;
+  accessor &operator=(const accessor &) noexcept;
+  accessor(accessor &&) noexcept = default;
+  accessor &operator=(accessor &&) noexcept;
+#else
   accessor(const accessor &) noexcept = default;
   accessor &operator=(const accessor &) noexcept = default;
   accessor(accessor &&) noexcept = default;
   accessor &operator=(accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // implicit conversion between const / non-const types for read only accessors
   template <typename DataT_,
@@ -1928,6 +1926,25 @@ private:
   }
 };
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// User-provided (defaulted out of line rather than on first declaration) so
+// the type is not trivially copyable; this is intentional.
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
+         PropertyListT> &
+accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
+         PropertyListT>::operator=(const accessor &) noexcept = default;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
+         PropertyListT> &
+accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder,
+         PropertyListT>::operator=(accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>)
     -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
@@ -2270,19 +2287,21 @@ public:
   }
 #endif
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~local_accessor_base() {
-    // User-declared so the type is not trivially copyable; intentionally empty
-    // as the spec states the destructor of an accessor must not have any effect
-  }
-#else
   ~local_accessor_base() = default;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Assignment operators are intentionally defaulted out of line, after the
+  // class, so the type is not trivially copyable.
+  local_accessor_base(const local_accessor_base &) noexcept = default;
+  local_accessor_base &operator=(const local_accessor_base &) noexcept;
+  local_accessor_base(local_accessor_base &&) noexcept = default;
+  local_accessor_base &operator=(local_accessor_base &&) noexcept;
+#else
+  local_accessor_base(const local_accessor_base &) noexcept = default;
+  local_accessor_base &
+  operator=(const local_accessor_base &) noexcept = default;
+  local_accessor_base(local_accessor_base &&) noexcept = default;
+  local_accessor_base &operator=(local_accessor_base &&) noexcept = default;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-  local_accessor_base(const local_accessor_base &) = default;
-  local_accessor_base &operator=(const local_accessor_base &) = default;
-  local_accessor_base(local_accessor_base &&) = default;
-  local_accessor_base &operator=(local_accessor_base &&) = default;
 
   size_t get_size() const { return getSize().size() * sizeof(DataT); }
 
@@ -2357,6 +2376,21 @@ public:
     return !(*this == Rhs);
   }
 };
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// User-provided (defaulted out of line rather than on first declaration) so
+// the type is not trivially copyable; this is intentional.
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder>
+local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder> &
+local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>::operator=(
+    const local_accessor_base &) noexcept = default;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder>
+local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder> &
+local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>::operator=(
+    local_accessor_base &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // TODO: Remove deprecated specialization once no longer needed
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -2632,17 +2666,22 @@ protected:
 
 public:
   host_accessor() : AccessorT() {}
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  ~host_accessor() {
-    // User-declared so the type is not trivially copyable; intentionally empty
-  }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+  ~host_accessor() = default;
 
   // common reference semantics
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Assignment operators are intentionally defaulted out of line, after the
+  // class, so the type is not trivially copyable.
+  host_accessor(const host_accessor &) noexcept = default;
+  host_accessor &operator=(const host_accessor &) noexcept;
+  host_accessor(host_accessor &&) noexcept = default;
+  host_accessor &operator=(host_accessor &&) noexcept;
+#else
   host_accessor(const host_accessor &) noexcept = default;
   host_accessor &operator=(const host_accessor &) noexcept = default;
   host_accessor(host_accessor &&) noexcept = default;
   host_accessor &operator=(host_accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // The list of host_accessor constructors with their arguments
   // -------+---------+-------+----+----------+--------------
@@ -2853,6 +2892,19 @@ public:
   bool ext_oneapi_owner_before(const host_accessor &Other) const noexcept;
 #endif
 };
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// User-provided (defaulted out of line rather than on first declaration) so
+// the type is not trivially copyable; this is intentional.
+template <typename DataT, int Dimensions, access_mode AccessMode>
+host_accessor<DataT, Dimensions, AccessMode> &
+host_accessor<DataT, Dimensions, AccessMode>::operator=(
+    const host_accessor &) noexcept = default;
+template <typename DataT, int Dimensions, access_mode AccessMode>
+host_accessor<DataT, Dimensions, AccessMode> &
+host_accessor<DataT, Dimensions, AccessMode>::operator=(
+    host_accessor &&) noexcept = default;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>)
