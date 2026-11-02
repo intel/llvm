@@ -194,8 +194,21 @@ inline static hipError_t hipGraphLaunch(hipGraphExec_t GraphExec,
 inline static hipError_t hipGraphAddKernelNode(
     hipGraphNode_t *Node, hipGraph_t Graph, const hipGraphNode_t *Dependencies,
     size_t NumDependencies, const hipKernelNodeParams *Params) {
-  return hipCUDAErrorTohipError(cudaGraphAddKernelNode(
-      Node, Graph, Dependencies, NumDependencies, Params));
+  CUDA_KERNEL_NODE_PARAMS CUDAParams = {
+      reinterpret_cast<CUfunction>(Params->func),
+      Params->gridDim.x,
+      Params->gridDim.y,
+      Params->gridDim.z,
+      Params->blockDim.x,
+      Params->blockDim.y,
+      Params->blockDim.z,
+      Params->sharedMemBytes,
+      Params->kernelParams,
+      Params->extra};
+  return hipCUResultTohipError(cuGraphAddKernelNode(
+      reinterpret_cast<CUgraphNode *>(Node), reinterpret_cast<CUgraph>(Graph),
+      reinterpret_cast<const CUgraphNode *>(Dependencies), NumDependencies,
+      &CUDAParams));
 }
 
 inline static hipError_t
@@ -234,8 +247,20 @@ hipGraphAddEmptyNode(hipGraphNode_t *Node, hipGraph_t Graph,
 inline static hipError_t
 hipGraphExecKernelNodeSetParams(hipGraphExec_t GraphExec, hipGraphNode_t Node,
                                 const hipKernelNodeParams *Params) {
-  return hipCUDAErrorTohipError(
-      cudaGraphExecKernelNodeSetParams(GraphExec, Node, Params));
+  CUDA_KERNEL_NODE_PARAMS CUDAParams = {
+      reinterpret_cast<CUfunction>(Params->func),
+      Params->gridDim.x,
+      Params->gridDim.y,
+      Params->gridDim.z,
+      Params->blockDim.x,
+      Params->blockDim.y,
+      Params->blockDim.z,
+      Params->sharedMemBytes,
+      Params->kernelParams,
+      Params->extra};
+  return hipCUResultTohipError(cuGraphExecKernelNodeSetParams(
+      reinterpret_cast<CUgraphExec>(GraphExec),
+      reinterpret_cast<CUgraphNode>(Node), &CUDAParams));
 }
 
 inline static hipError_t
@@ -294,8 +319,13 @@ inline hipError_t hipHostGetDevicePointer(hipDeviceptr_t *DevPtr, void *HostPtr,
 }
 
 inline hipError_t hipMemPtrGetInfo(void *Ptr, size_t *Size) {
-  hipDeviceptr_t Base{};
-  return hipMemGetAddressRange(&Base, Size, asHipDevicePtr(Ptr));
+  size_t RangeSize = 0;
+  hipError_t Err = hipCUResultTohipError(cuPointerGetAttribute(
+      &RangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, asHipDevicePtr(Ptr)));
+  if (Err == hipSuccess && Size) {
+    *Size = RangeSize;
+  }
+  return Err;
 }
 
 #ifndef hipExternalMemoryDedicated

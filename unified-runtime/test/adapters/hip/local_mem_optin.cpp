@@ -6,6 +6,7 @@
 #include "fixtures.h"
 #include "uur/raii.h"
 
+#include <cstdlib>
 #include <cstring>
 
 using hipLocalMemOptInTest = uur::urQueueTest;
@@ -89,6 +90,11 @@ TEST_P(hipLocalMemOptInTest, LaunchAboveDefaultSharedMemory) {
   ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_LOCAL_MEM_SIZE,
                                  sizeof(reported), &reported, nullptr));
   // The adapter reports the opt-in ceiling. An environment cap may lower it.
+  if (reported <= static_cast<uint64_t>(default_limit) &&
+      std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE")) {
+    GTEST_SKIP() << "UR_HIP_MAX_LOCAL_MEM_SIZE keeps the reported limit in "
+                    "the default pool";
+  }
   ASSERT_GT(reported, static_cast<uint64_t>(default_limit));
   const size_t bytes = static_cast<size_t>(default_limit) + 1;
   if (bytes > reported) {
