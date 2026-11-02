@@ -1255,7 +1255,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         if (BB) {
           Src = CastInst::CreatePointerCast(Src, IntTy, "", BB);
         } else {
-          Src = ConstantExpr::getPointerCast(dyn_cast<Constant>(Src), IntTy);
+          Src = ConstantExpr::getPointerCast(cast<Constant>(Src), IntTy);
         }
       } else {
         CO = Instruction::PtrToInt;
@@ -1409,10 +1409,9 @@ Value *SPIRVToLLVM::mapValue(SPIRVValue *BV, Value *V) {
   if (Loc != ValueMap.end()) {
     if (Loc->second == V)
       return V;
-    auto *LD = dyn_cast<LoadInst>(Loc->second);
-    auto *Placeholder = dyn_cast<GlobalVariable>(LD->getPointerOperand());
-    assert(LD && Placeholder &&
-           Placeholder->getName().starts_with(KPlaceholderPrefix) &&
+    auto *LD = cast<LoadInst>(Loc->second);
+    auto *Placeholder = cast<GlobalVariable>(LD->getPointerOperand());
+    assert(Placeholder->getName().starts_with(KPlaceholderPrefix) &&
            "A value is translated twice");
     // Replaces placeholders for PHI nodes
     LD->replaceAllUsesWith(V);
