@@ -140,10 +140,18 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // Resource-dir libspirv libraries are laid out per architecture family,
   // not per subarch. Fall back to the subarch-stripped triple.
-  if (DeviceTriple.isAMDGCN() &&
-      DeviceTriple.getSubArch() != llvm::Triple::NoSubArch) {
+  if (DeviceTriple.isAMDGCN()) {
     llvm::Triple Family(DeviceTriple);
     Family.setArch(llvm::Triple::amdgpu);
+    if (const char *Path = TryTriple(Family))
+      return Path;
+
+    // libclc also uses the legacy architecture name, optionally with an LLVM
+    // environment suffix.
+    Family.setArchName("amdgcn");
+    if (const char *Path = TryTriple(Family))
+      return Path;
+    Family.setEnvironmentName("llvm");
     return TryTriple(Family);
   }
 
