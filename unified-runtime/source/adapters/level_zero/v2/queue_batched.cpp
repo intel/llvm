@@ -1100,7 +1100,9 @@ ur_result_t
 ur_queue_batched_t::queueEndGraphCapteExp(ur_exp_graph_handle_t *phGraph) {
   auto lockedBatch = currentCmdLists.lock();
   ur_result_t result = lockedBatch->getListManager().endGraphCapture(phGraph);
-  if (result == UR_RESULT_SUCCESS) {
+  // Unjoined forks still end the capture, see urQueueEndGraphCaptureExp.
+  if (result == UR_RESULT_SUCCESS ||
+      result == UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS) {
     lockedBatch->setGraphCapture(false);
   }
   return result;
