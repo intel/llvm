@@ -1,4 +1,4 @@
-ARG base_image=nvidia/cuda:12.6.3-devel-ubuntu24.04
+ARG base_image=nvidia/cuda:13.1.0-devel-ubuntu24.04
 FROM $base_image
 
 ENV DEBIAN_FRONTEND=noninteractive

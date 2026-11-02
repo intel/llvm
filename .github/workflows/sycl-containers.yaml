@@ -43,24 +43,26 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Build Ubuntu 22.04 Docker image
+          - name: Build Ubuntu 22.04 (CUDA 12.6) Docker image
+            file: ubuntu2204_build
+            image_name: ubuntu2204_build_cuda12
+            tag: latest
+            build_args: "base_image=nvidia/cuda:12.6.3-devel-ubuntu22.04"
+          - name: Build Ubuntu 22.04 (CUDA 13.1) Docker image
             file: ubuntu2204_build
             tag: latest
-            build_args: ""
-          - name: Build Ubuntu 24.04 Docker image
+          - name: Build Ubuntu 24.04 (CUDA 12.6) Docker image
+            file: ubuntu2404_build
+            image_name: ubuntu2404_build_cuda12
+            tag: latest
+            build_args: "base_image=nvidia/cuda:12.6.3-devel-ubuntu24.04"
+          - name: Build Ubuntu 24.04 (CUDA 13.1) Docker image
             file: ubuntu2404_build
             tag: latest
-            build_args: ""
           # To test toolchain build with gcc 7.5.0
           - name: Build SLE15 SP4 Docker image
             file: sle15sp4_build
             tag: latest
-            build_args: ""
-          - name: Build Ubuntu 24.04 Docker image with CUDA 13.1
-            file: ubuntu2404_build
-            image_name: ubuntu2404_build_cuda13
-            tag: latest
-            build_args: "base_image=nvidia/cuda:13.1.0-devel-ubuntu24.04"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

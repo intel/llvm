@@ -49,6 +49,21 @@ jobs:
       # prefer widespread gzip compression.
       toolchain_artifact_filename: sycl_linux.tar.gz
 
+  ubuntu2204_build_cuda12:
+    needs: get_date
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_configure_extra_args: '--cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build_cuda12:latest
+
+      toolchain_artifact: sycl_linux_default_cuda12
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      toolchain_artifact_filename: sycl_linux.tar.gz
+
   # To validate compatibility with gcc 7.5.0
   sle15sp4_build:
     if: github.repository == 'intel/llvm'
@@ -294,6 +309,23 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+
+  ubuntu2204_cuda12_test:
+    needs: [ubuntu2204_build_cuda12]
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build_cuda12.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: NVIDIA CUDA 12
+      runner: '["Linux", "cuda"]'
+      target_devices: cuda:gpu
+      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build_cuda12.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build_cuda12.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build_cuda12.outputs.toolchain_decompress_command }}
 
   ubuntu2404_oneapi_test:
     needs: [ubuntu2404_oneapi_build]
