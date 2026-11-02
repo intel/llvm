@@ -269,7 +269,7 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   auto NewBinaryOrErr = OffloadBinary::create(*Binary);
   if (!NewBinaryOrErr)
     return NewBinaryOrErr.takeError();
-  return OffloadFile(std::move((*NewBinaryOrErr)[0]), std::move(Binary));
+  return OffloadFile(std::move((*NewBinaryOrErr)[0]));
 }
 
 std::string getExecutableDir(const char *Name) {
@@ -1553,7 +1553,7 @@ static Error unpackSYCLBINFiles(StringRef FileName,
     if (!BinariesOrErr)
       return BinariesOrErr.takeError();
     assert(BinariesOrErr->size() == 1 && "Expected a single offload binary");
-    Binaries.emplace_back(std::move(BinariesOrErr->front()), std::move(Buffer));
+    Binaries.emplace_back(std::move(BinariesOrErr->front()));
     return Error::success();
   };
 

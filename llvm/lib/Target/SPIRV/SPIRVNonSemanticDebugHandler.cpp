@@ -906,9 +906,8 @@ SPIRVNonSemanticDebugHandler::emitDebugTypeFunctionForSubroutineType(
 std::optional<MCRegister> SPIRVNonSemanticDebugHandler::resolveScope(
     const DIScope *Scope, const DICompileUnit *FallbackCU) const {
 
-  // DILexicalBlockFile is a transparent wrapper that carries file/discriminator
-  // info but has no SPIR-V counterpart. Unwrap to the underlying scope.
-  if (const auto *DLBF = dyn_cast_or_null<DILexicalBlockFile>(Scope))
+  // DebugLexicalBlockDiscriminator cannot be used as a scope, so unwrap it.
+  while (const auto *DLBF = dyn_cast_or_null<DILexicalBlockFile>(Scope))
     Scope = DLBF->getScope();
 
   if (isa_and_nonnull<DIType, DILexicalBlock, DINamespace, DISubprogram>(Scope))
@@ -1781,7 +1780,7 @@ static std::optional<Register> getDebugValueReg(const MachineInstr &MI) {
     return std::nullopt;
 
   const MachineInstr *Def = MI.getMF()->getRegInfo().getUniqueVRegDef(ValueReg);
-  if (!Def || Def->isPseudo() || Def->isMetaInstruction() ||
+  if (!Def || (Def->isPseudo() && !Def->isPHI()) || Def->isMetaInstruction() ||
       Def->getNumOperands() == 0 || !Def->getOperand(0).isReg() ||
       !Def->getOperand(0).isDef() || Def->getOperand(0).getReg() != ValueReg)
     return std::nullopt;
@@ -1808,7 +1807,7 @@ static bool isDebugLocTarget(const MachineInstr *MI,
   case SPIRV::OpFunctionParameter:
   case SPIRV::OpFunctionEnd:
   case SPIRV::OpLabel:
-  case SPIRV::OpPhi:
+  case TargetOpcode::PHI:
     return false;
   default:
     return true;

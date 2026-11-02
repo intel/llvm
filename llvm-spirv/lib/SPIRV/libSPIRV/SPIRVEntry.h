@@ -328,7 +328,9 @@ public:
   bool hasLinkageType() const;
   bool isAtomic() const { return isAtomicOpCode(OpCode); }
   bool isBasicBlock() const { return isLabel(); }
-  bool isExtInst() const { return OpCode == OpExtInst; }
+  bool isExtInst() const {
+    return OpCode == OpExtInst || OpCode == OpExtInstWithForwardRefsKHR;
+  }
   bool isExtInst(const SPIRVExtInstSetKind InstSet) const;
   bool isExtInst(const SPIRVExtInstSetKind InstSet,
                  const SPIRVWord ExtOp) const;
