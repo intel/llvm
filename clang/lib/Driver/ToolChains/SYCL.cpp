@@ -140,11 +140,20 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // Resource-dir libspirv libraries are laid out per architecture family,
   // not per subarch. Fall back to the subarch-stripped triple.
-  if (DeviceTriple.isAMDGCN() &&
-      DeviceTriple.getSubArch() != llvm::Triple::NoSubArch) {
-    llvm::Triple Family(DeviceTriple);
-    Family.setArch(llvm::Triple::amdgpu);
-    return TryTriple(Family);
+  if (DeviceTriple.isAMDGCN()) {
+    // Note that buildbot/configure.py uses amdgcn-amd-amdhsa-llvm,
+    // while plain CMake builds can use amdgcn-amd-amdhsa.
+    // Support both architecture spellings and libclc installation layouts
+    for (StringRef Arch : {"amdgpu", "amdgcn"}) {
+      llvm::Triple Family(DeviceTriple);
+      Family.setArchName(Arch);
+      Family.setOSAndEnvironmentName(DeviceTriple.getOSName());
+      if (const char *Path = TryTriple(Family))
+        return Path;
+      Family.setEnvironmentName("llvm");
+      if (const char *Path = TryTriple(Family))
+        return Path;
+    }
   }
 
   return nullptr;
