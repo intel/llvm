@@ -4236,9 +4236,13 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::floor:
   case Intrinsic::fma:
   case Intrinsic::frexp:
+  case Intrinsic::llrint:
+  case Intrinsic::llround:
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
+  case Intrinsic::lrint:
+  case Intrinsic::lround:
   case Intrinsic::maximumnum:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
@@ -4598,12 +4602,24 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
-  case Intrinsic::lround: {
+  case Intrinsic::lround:
+  case Intrinsic::llround:
+  case Intrinsic::lrint:
+  case Intrinsic::llrint: {
+    Type *FTy = II->getArgOperand(0)->getType()->getScalarType();
+    if (!BM->SPIRVCK(
+            (FTy->isHalfTy() || FTy->isFloatTy() || FTy->isDoubleTy()) &&
+                !II->getType()->isIntOrIntVectorTy(1),
+            InvalidFunctionCall, II->getCalledOperand()->getName().str()))
+      return nullptr;
+    // Round in the source type, then convert to the signed integer result.
+    bool IsRint = IID == Intrinsic::lrint || IID == Intrinsic::llrint;
     SPIRVType *SourceTy = transType(II->getArgOperand(0)->getType());
     SPIRVType *DestTy = transType(II->getType());
-    SPIRVValue *Rounded = BM->addExtInst(
-        SourceTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), OpenCLLIB::Round,
-        {transValue(II->getArgOperand(0), BB)}, BB);
+    SPIRVValue *Rounded =
+        BM->addExtInst(SourceTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                       IsRint ? OpenCLLIB::Rint : OpenCLLIB::Round,
+                       {transValue(II->getArgOperand(0), BB)}, BB);
     return BM->addUnaryInst(OpConvertFToS, DestTy, Rounded, BB);
   }
   case Intrinsic::frexp: {
