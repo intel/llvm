@@ -1,0 +1,29 @@
+; Checks the reader rejects OpVectorShuffle when the OpTypeVectorIdEXT result
+; component count differs from the number of selected components.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o %t.bc 2>&1 | FileCheck %s
+
+; CHECK: VectorShuffle: result component count must match the number of components selected
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %f "f"
+               OpDecorate %f LinkageAttributes "f" Export
+      %float = OpTypeFloat 32
+       %uint = OpTypeInt 32 0
+         %u5 = OpConstant %uint 5
+        %v5f = OpTypeVectorIdEXT %float %u5
+       %fnty = OpTypeFunction %v5f %v5f %v5f
+          %f = OpFunction %v5f None %fnty
+          %a = OpFunctionParameter %v5f
+          %b = OpFunctionParameter %v5f
+          %e = OpLabel
+          %r = OpVectorShuffle %v5f %a %b 0 1 2
+               OpReturnValue %r
+               OpFunctionEnd

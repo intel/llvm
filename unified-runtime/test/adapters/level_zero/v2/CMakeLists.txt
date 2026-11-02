@@ -14,7 +14,6 @@ function(link_l0_v2_adapter_sources test)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${test}-test PRIVATE
@@ -55,6 +54,10 @@ target_include_directories(urIPCOpenPhysMemHandleExpInvalidHandleData-test PRIVA
 
 add_l0_v2_devices_test(batched_queue
     batched_queue_test.cpp
+)
+
+add_l0_v2_devices_test(queue_priority
+    queue_priority_test.cpp
 )
 
 if(NOT UR_FOUND_DPCXX)

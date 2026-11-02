@@ -8,10 +8,12 @@
 /// compiler-rt builtins library (libclang_rt.builtins.bc).
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// ###########################################################################
 
 /// test behavior of device library default link
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
 // SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -21,7 +23,7 @@
 /// ###########################################################################
 
 /// test behavior of disabling all device libraries
-// RUN: %clangxx -fsycl --no-offload-new-driver %s --no-offloadlib -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --no-offloadlib -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libsycl-cmath.bc
@@ -31,11 +33,11 @@
 /// ###########################################################################
 
 /// test llvm-link behavior for linking device libraries
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
-// RUN: %clangxx -fsycl --no-offload-new-driver -save-temps %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver -save-temps %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64 %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64 %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
 // SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
 // SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}} "--only-needed"
@@ -55,17 +57,17 @@
 
 /// ###########################################################################
 /// test behavior of libsycl-asan.bc linking when -fsanitize=address is available
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -fsanitize=address -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xsycl-target-frontend -fsanitize=address -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xsycl-target-frontend -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xsycl-target-frontend=spir64 -fsanitize=address -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xsycl-target-frontend=spir64 -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_ASAN_MACRO
 // SYCL_DEVICE_LIB_ASAN: llvm-link{{.*}} "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -79,15 +81,15 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-pvc for PVC target AOT compilation when asan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device 12.60.7" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // SYCL_DEVICE_LIB_ASAN_PVC: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -97,7 +99,7 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-cpu for CPU target AOT compilation when asan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_CPU
 // SYCL_DEVICE_LIB_ASAN_CPU: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -107,16 +109,16 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device dg2" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device dg2" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device dg2" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=address -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // SYCL_DEVICE_LIB_ASAN_DG2: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -127,17 +129,17 @@
 
 /// ###########################################################################
 /// test behavior of libsycl-msan.bc linking when -fsanitize=memory is available
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -fsanitize=memory -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -fsanitize=memory -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xsycl-target-frontend -fsanitize=memory -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xsycl-target-frontend -fsanitize=memory -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xsycl-target-frontend=spir64 -fsanitize=memory -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xsycl-target-frontend=spir64 -fsanitize=memory -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_MSAN_MACRO
 // SYCL_DEVICE_LIB_MSAN: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -151,15 +153,15 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-msan-pvc for PVC target AOT compilation when msan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device 12.60.7" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_PVC
 // SYCL_DEVICE_LIB_MSAN_PVC: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-msan-pvc.bc"
@@ -168,7 +170,7 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-msan-cpu for CPU target AOT compilation when msan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=memory -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_MSAN_CPU
 // SYCL_DEVICE_LIB_MSAN_CPU: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_MSAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-msan-cpu.bc"
@@ -176,17 +178,17 @@
 
 /// ###########################################################################
 /// test behavior of libsycl-tsan.bc linking when -fsanitize=thread is available
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -fsanitize=thread -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -fsanitize=thread -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xsycl-target-frontend -fsanitize=thread -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xsycl-target-frontend -fsanitize=thread -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xsycl-target-frontend=spir64 -fsanitize=thread -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xsycl-target-frontend=spir64 -fsanitize=thread -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN
-// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
+// RUN: %clangxx -fsycl --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_TSAN_MACRO
 // SYCL_DEVICE_LIB_TSAN: llvm-link{{.*}} "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc"
@@ -200,15 +202,15 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-tsan-pvc for PVC target AOT compilation when tsan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device 12.60.7" --no-offload-new-driver %s \
-// RUN: -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
 // SYCL_DEVICE_LIB_TSAN_PVC: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN_PVC-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-tsan-pvc.bc"
@@ -217,7 +219,7 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-tsan-cpu for CPU target AOT compilation when tsan flag is applied.
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s -ccc-install-dir %S/Inputs/SYCL/bin -resource-dir=%{resource_dir} \
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
 // RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_CPU
 // SYCL_DEVICE_LIB_TSAN_CPU: llvm-link{{.*}} "--only-needed" "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_TSAN_CPU-SAME: "{{.*}}dpcpp-{{[0-9]+}}/sycl/libsycl-tsan-cpu.bc"

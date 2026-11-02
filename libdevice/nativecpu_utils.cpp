@@ -40,6 +40,11 @@ using __nativecpu_state = native_cpu::state;
 #define OCL_GLOBAL __attribute__((opencl_global))
 #define OCL_PRIVATE __attribute__((opencl_private))
 
+// The implicitly declared SPIR-V builtins use the SYCL address spaces.
+#define SYCL_LOCAL [[clang::sycl_local]]
+#define SYCL_GLOBAL [[clang::sycl_global]]
+#define SYCL_PRIVATE [[clang::sycl_private]]
+
 DEVICE_EXTERN_C void __mux_work_group_barrier(int32_t id, int32_t scope,
                                               int32_t semantics) noexcept;
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
@@ -58,9 +63,9 @@ __spirv_MemoryBarrier(int32_t Memory, int32_t Semantics) noexcept {
 }
 
 #define DefGenericCastToPtrExplImpl(sfx, asp, cv)                              \
-  DEVICE_EXTERNAL cv asp void *__spirv_GenericCastToPtrExplicit_##sfx(         \
+  DEVICE_EXTERNAL cv void asp *__spirv_GenericCastToPtrExplicit_##sfx(         \
       cv void *p, int) noexcept {                                              \
-    return (cv asp void *)p;                                                   \
+    return (cv void asp *)p;                                                   \
   }                                                                            \
   static_assert(true)
 
@@ -70,9 +75,9 @@ __spirv_MemoryBarrier(int32_t Memory, int32_t Semantics) noexcept {
   DefGenericCastToPtrExplImpl(sfx, asp, volatile);                             \
   DefGenericCastToPtrExplImpl(sfx, asp, const volatile)
 
-DefGenericCastToPtrExpl(ToPrivate, OCL_PRIVATE);
-DefGenericCastToPtrExpl(ToLocal, OCL_LOCAL);
-DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
+DefGenericCastToPtrExpl(ToPrivate, SYCL_PRIVATE);
+DefGenericCastToPtrExpl(ToLocal, SYCL_LOCAL);
+DefGenericCastToPtrExpl(ToGlobal, SYCL_GLOBAL);
 
 #define DefSubgroupBlockINTEL1(Type, PType)                                    \
   template <>                                                                  \

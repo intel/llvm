@@ -76,23 +76,23 @@ static ze_event_counter_based_flags_t createZeFlags(queue_type queueType,
 
 // Deprecated ZEX_counter_based_event extension flags, used only by the
 // fallback path for drivers older than Level Zero spec version 1.15.
-static zex_counter_based_event_exp_flags_t
+static ur_zex_counter_based_event_exp_flags_t
 createZeFlagsLegacy(queue_type queueType, event_flags_t flags) {
-  zex_counter_based_event_exp_flags_t zeFlags =
-      ZEX_COUNTER_BASED_EVENT_FLAG_HOST_VISIBLE;
+  ur_zex_counter_based_event_exp_flags_t zeFlags =
+      UR_ZEX_COUNTER_BASED_EVENT_FLAG_HOST_VISIBLE;
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
-    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
+    zeFlags |= UR_ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
   }
 
   if (flags & EVENT_FLAGS_IPC) {
-    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IPC;
+    zeFlags |= UR_ZEX_COUNTER_BASED_EVENT_FLAG_IPC;
   }
 
   if (queueType == QUEUE_IMMEDIATE) {
-    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_IMMEDIATE;
+    zeFlags |= UR_ZEX_COUNTER_BASED_EVENT_FLAG_IMMEDIATE;
   }
   // Always set non immediate flag for compatibility with graph record & replay
-  zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_NON_IMMEDIATE;
+  zeFlags |= UR_ZEX_COUNTER_BASED_EVENT_FLAG_NON_IMMEDIATE;
 
   return zeFlags;
 }
@@ -126,8 +126,8 @@ raii::ze_event_handle_t provider_counter::createZeEvent() {
 }
 
 raii::ze_event_handle_t provider_counter::createZeEventLegacy() {
-  zex_counter_based_event_desc_t desc = {};
-  desc.stype = ZEX_STRUCTURE_COUNTER_BASED_EVENT_DESC;
+  ur_zex_counter_based_event_desc_t desc = {};
+  desc.stype = UR_ZEX_STRUCTURE_COUNTER_BASED_EVENT_DESC;
   desc.flags = createZeFlagsLegacy(queueType, flags);
   desc.signalScope = ZE_EVENT_SCOPE_FLAG_HOST;
 

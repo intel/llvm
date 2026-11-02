@@ -7,7 +7,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
-// RUN: touch %t.devicelib.bc
+// RUN: llvm-as /dev/null -o %t.devicelib.bc
 
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
@@ -15,21 +15,21 @@
 // RUN:   -sycl-post-link-options=-properties --linker-path=/usr/bin/ld \
 // RUN:   %t.o -o %t.out 2>&1 | FileCheck %s
 
-// With --emit-fatbin-only (-fno-sycl-rdc compile step) the same wrapper module
-// is written to the output as bitcode for the host compilation to link in.
+// With --emit-fatbin-only, the output is an offload container holding the
+// finalized SPIR-V with its runtime metadata. The host compilation wraps it
+// into the same descriptor-based registration.
 // RUN: clang-linker-wrapper --emit-fatbin-only --no-sycl-rdc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu \
 // RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
 // RUN:   -sycl-post-link-options=-split=auto -sycl-post-link-options=-symbols \
 // RUN:   -sycl-post-link-options=-properties --linker-path=/usr/bin/ld \
 // RUN:   %t.o -o %t.syclfb
-// RUN: llvm-dis %t.syclfb -o - | FileCheck %s --check-prefix=NORDC
-// NORDC-DAG: @SYCL_PropSetName.1 = internal unnamed_addr constant [22 x i8] c"SYCL/kernel param opt\00"
-// NORDC-DAG: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
-// NORDC-DAG: @llvm.global_ctors = {{.*}} { i32 1, ptr @sycl.descriptor_reg, ptr null }]
-//     NORDC: define internal void @sycl.descriptor_reg() section ".text.startup" {
-// NORDC-NEXT: entry:
-// NORDC-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
+// RUN: llvm-objdump --offloading %t.syclfb | FileCheck %s --check-prefix=NORDC
+// NORDC: OFFLOADING IMAGE [0]:
+// NORDC: triple spir64-unknown-unknown
+// NORDC: producer sycl
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host \
+// RUN:   -foffload-include-binary %t.syclfb -emit-llvm %s -o - | FileCheck %s
 
 // With thin LTO, sycl-post-link emits a two-column [Code|Properties] table.
 // RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \

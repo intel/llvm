@@ -95,6 +95,11 @@ void testFreeFunctionKernel(sycl::queue &q, sycl::context &ctx,
   } catch (sycl::exception &e) {
     assert(maxWGs == 0);
   }
+  // Wait for the kernel before freeing its memory. This also keeps
+  // root-group-synchronized kernels from running concurrently on an
+  // out-of-order queue: each is sized to fill the device, so overlapping
+  // launches cannot all have their work-groups resident and deadlock.
+  q.wait();
   sycl::free(data, ctx);
 }
 

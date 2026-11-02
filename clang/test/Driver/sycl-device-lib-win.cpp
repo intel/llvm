@@ -8,10 +8,12 @@
 /// compiler-rt builtins library (libclang_rt.builtins.bc).
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// ###########################################################################
 
 /// test behavior of device library default link
-// RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
 // SYCL_DEVICE_LIB_LINK_DEFAULT: llvm-link{{.*}} "{{.*}}lib\\libsycl-crt.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "{{.*}}lib\\libsycl-cmath.bc"
@@ -21,7 +23,7 @@
 /// ###########################################################################
 
 /// test behavior of disabling all device libraries
-// RUN: %clangxx -fsycl %s --no-offloadlib --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl %s --no-offloadlib -ccc-install-dir %{clang_install_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libsycl-cmath.bc
@@ -29,9 +31,9 @@
 /// ###########################################################################
 
 /// test llvm-link behavior for linking device libraries
-// RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
-// RUN: %clangxx -fsycl -save-temps %s --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} -### 2>&1 \
+// RUN: %clangxx -fsycl -save-temps %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
 // SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
 // SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}} "--only-needed"

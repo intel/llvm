@@ -39,6 +39,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
 #include <optional>
 
@@ -52,10 +53,6 @@ class DataLayout;
 class FunctionType;
 class LLVMContext;
 class IndexedInstrProfReader;
-
-namespace vfs {
-class FileSystem;
-}
 
 namespace abi {
 class ArgInfo;
@@ -1811,6 +1808,17 @@ public:
   /// MDString.
   llvm::Metadata *CreateMetadataIdentifierForCallGraphType(QualType T);
 
+  /// Applies C default argument promotions to a parameter type for Call Graph
+  /// Section type reconstruction.
+  QualType GetCallGraphPromotedType(QualType Ty) const;
+
+  /// Reconstructs a FunctionProtoType for an unprototyped function type
+  /// (FunctionNoProtoType) using the given parameter/argument types, applying
+  /// default argument promotions to ensure call-site and definition-site type
+  /// signatures match.
+  QualType ReconstructCallGraphPrototype(const FunctionNoProtoType *FNPT,
+                                         ArrayRef<QualType> ParamTypes) const;
+
   /// Create a metadata identifier that is intended to be used to check virtual
   /// calls via a member function pointer.
   llvm::Metadata *CreateMetadataIdentifierForVirtualMemPtrType(QualType T);
@@ -2231,6 +2239,17 @@ private:
   /// \return the function that registers the binary with the runtime, or null
   /// if the binary could not be read.
   llvm::Function *embedSYCLDeviceBinary();
+
+  /// Emit a per-module __sycl_registerlib_<unique_identifier> reference that
+  /// ties the host and device sides of a translation unit together. This is
+  /// used to force linking of static libraries: we emit a global constructor
+  /// that references (calls) the symbol, creating an undefined reference that
+  /// forces the corresponding device static library member (which defines the
+  /// matching symbol) to be pulled in at link time. The device-side definition
+  /// is emitted by clang-linker-wrapper, so this is new offload model only. The
+  /// unique identifier is what ties the two sides together.
+  /// \return the global constructor that calls registerlib function.
+  llvm::Function *createSYCLRegisterLibFunc();
 
   /// Determine whether the definition must be emitted; if this returns \c
   /// false, the definition can be emitted lazily if it's used.

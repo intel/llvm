@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
-// XFAIL: spirv-backend && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20853
 #include <iostream>
 
 #include "imf_utils.hpp"

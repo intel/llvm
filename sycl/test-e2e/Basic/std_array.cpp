@@ -1,6 +1,8 @@
 // Check that std::array is supported on device in debug mode on Windows.
 
 // REQUIRES: windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %clangxx --driver-mode=cl -fsycl -o %t.exe %s /Od /MDd /Zi /EHsc
 // RUN: %{run} %t.exe

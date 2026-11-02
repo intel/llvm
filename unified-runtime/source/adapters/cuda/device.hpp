@@ -10,6 +10,9 @@
 
 #include <ur/ur.hpp>
 
+#include <optional>
+#include <utility>
+
 #include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 
@@ -180,3 +183,15 @@ public:
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
+
+// Returns the {lowest, highest} stream priorities of the device, or
+// std::nullopt if it only supports the default priority. The device's context
+// must be current.
+inline std::optional<std::pair<int32_t, int32_t>> getStreamPriorityRange() {
+  int Least = 0, Greatest = 0;
+  UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(&Least, &Greatest));
+  // The UR API requires a range containing the default priority 0.
+  if (Greatest >= Least || Greatest > 0 || Least < 0)
+    return std::nullopt;
+  return std::pair<int32_t, int32_t>{Least, Greatest};
+}
