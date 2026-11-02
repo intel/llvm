@@ -73,7 +73,8 @@ capture mode.
 * ${X}_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING - ${x}QueueEndGraphCaptureExp was
   called on a queue that is not in graph capture mode.
 * ${X}_RESULT_ERROR_GRAPH_UNJOINED_FORKS - ${x}QueueEndGraphCaptureExp was called
-  while a forked queue was not joined back.
+  while a forked queue was not joined back. The capture still ends and the
+  recorded graph is still returned, but it is invalid.
 * ${X}_RESULT_ERROR_INVALID_GRAPH - an invalid graph, such as one whose capture
   ended with ${X}_RESULT_ERROR_GRAPH_UNJOINED_FORKS, was passed to
   ${x}GraphInstantiateGraphExp or ${x}GraphIsEmptyExp.
@@ -107,6 +108,9 @@ Changelog
 +-----------+---------------------------------------------+
 | 1.6       | Document when graph capture error codes are |
 |           | returned.                                   |
++-----------+---------------------------------------------+
+| 1.7       | ${x}QueueEndGraphCaptureExp returns the     |
+|           | recorded graph on unjoined forks.           |
 +-----------+---------------------------------------------+
 
 Support
