@@ -58,7 +58,7 @@
 // RUN:   | FileCheck %s --check-prefix=CHECK-MISSING
 // CHECK-MISSING-NOT: error:
 // CHECK-MISSING: "-cc1" "-triple" "spirv64-unknown-unknown"
-// CHECK-MISSING-NOT: "-mlink-builtin-bitcode"
+// CHECK-MISSING-NOT: libclang_rt.builtins
 
 // Compilations that stop at or before the compile phase produce no device LLVM
 // IR module, so the library is not linked even when it is present.
