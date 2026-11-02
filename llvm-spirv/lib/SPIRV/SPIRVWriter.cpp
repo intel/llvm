@@ -67,6 +67,7 @@
 #include "VectorComputeUtil.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -81,6 +82,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -1374,6 +1376,34 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVValue *BV, Value *V) {
   }
 }
 
+void LLVMToSPIRVBase::transAMDGPUAtomicMetadata(SPIRVValue *BV,
+                                                Instruction *I) {
+  // Records forward-reference their target, which needs
+  // OpExtInstWithForwardRefsKHR; emit them only if that extension is allowed.
+  if (!BM->preserveAuxData() ||
+      !BM->isAllowedToUseExtension(
+          ExtensionID::SPV_KHR_relaxed_extended_instruction))
+    return;
+  bool HasAny = false;
+  for (StringRef MDName :
+       {"amdgpu.no.fine.grained.memory", "amdgpu.no.remote.memory",
+        "atomic.ignore.denormal.mode"}) {
+    if (!I->getMetadata(MDName))
+      continue;
+    if (!HasAny) {
+      if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+        BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+      else
+        BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+      HasAny = true;
+    }
+    std::vector<SPIRVWord> Ops = {BV->getId(),
+                                  BM->getString(MDName.str())->getId()};
+    BM->addAuxData(NonSemanticAuxData::InstructionMetadata,
+                   transType(Type::getVoidTy(I->getContext())), Ops);
+  }
+}
+
 SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
                                               SPIRVType *ExpectedType) {
   // Constant expressions expect their pointer types to be i8* in opaque pointer
@@ -2622,9 +2652,21 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     if (SuccessorTrue == SuccessorFalse)
       return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
 
-    return mapValue(
-        V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
-                                        SuccessorTrue, SuccessorFalse, BB));
+    // Scale by the sum, not the larger element, so the emitted sum can't
+    // overflow 32 bits; an all-zero pair is skipped since SPIR-V requires
+    // at least one weight to be non-zero.
+    std::vector<SPIRVWord> BranchWeights;
+    uint64_t TrueWeight = 0, FalseWeight = 0;
+    if (extractBranchWeights(*Branch, TrueWeight, FalseWeight) &&
+        (TrueWeight != 0 || FalseWeight != 0)) {
+      SmallVector<uint32_t> Fitted =
+          downscaleWeights({TrueWeight, FalseWeight}, TrueWeight + FalseWeight);
+      BranchWeights.assign(Fitted.begin(), Fitted.end());
+    }
+
+    return mapValue(V, BM->addBranchConditionalInst(
+                           transValue(Branch->getCondition(), BB),
+                           SuccessorTrue, SuccessorFalse, BB, BranchWeights));
   }
 
   if (auto *Branch = dyn_cast<UncondBrInst>(V)) {
@@ -2835,15 +2877,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
     AtomicRMWInst::BinOp Op = ARMW->getOperation();
-    // uinc_wrap/udec_wrap have no opcode. On AMD targets SPIRVRegularizeLLVM
-    // rewrites them into a helper call so they never reach here; other targets
-    // reach here and are diagnosed as unsupported.
+    // Supported iff there is an opcode, except for fsub, which is lowered
+    // below. On AMD targets SPIRVRegularizeLLVM rewrites uinc_wrap/udec_wrap
+    // into a helper call so they never reach here.
     bool SupportedAtomicInst =
-        AtomicRMWInst::isFPOperation(Op)
-            ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FSub ||
-               Op == AtomicRMWInst::FMin || Op == AtomicRMWInst::FMax)
-            : (Op != AtomicRMWInst::Nand && Op != AtomicRMWInst::UIncWrap &&
-               Op != AtomicRMWInst::UDecWrap);
+        Op == AtomicRMWInst::FSub || LLVMSPIRVAtomicRmwOpCodeMap::find(Op);
     if (!BM->getErrorLog().checkError(
             SupportedAtomicInst, SPIRVEC_InvalidInstruction, V,
             "Atomic " + AtomicRMWInst::getOperationName(Op).str() +
@@ -2872,7 +2910,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     } else
       OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
 
-    return mapValue(V, BM->addInstTemplate(OC, Ops, BB, Ty));
+    SPIRVValue *BV = mapValue(V, BM->addInstTemplate(OC, Ops, BB, Ty));
+    transAMDGPUAtomicMetadata(BV, ARMW);
+    return BV;
   }
 
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(V)) {
@@ -6186,10 +6226,18 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
     }
   }
 
-  return BM->addCallInst(
+  SPIRVValue *BV = BM->addCallInst(
       transFunctionDecl(Callee),
       transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
       BB);
+  // SPIRVRegularizeLLVM rewrites atomicrmw uinc_wrap/udec_wrap into a call to
+  // an imported helper and moves the amdgpu.* atomic hints onto that call, so
+  // there is no atomicrmw left to read them from by the time we get here.
+  StringRef CalleeName = Callee->getName();
+  if (CalleeName.starts_with(kSPIRVName::TranslateSPIRVAtomicUIncWrap) ||
+      CalleeName.starts_with(kSPIRVName::TranslateSPIRVAtomicUDecWrap))
+    transAMDGPUAtomicMetadata(BV, CI);
+  return BV;
 }
 
 SPIRVValue *LLVMToSPIRVBase::transIndirectCallInst(CallInst *CI,

@@ -346,9 +346,9 @@ public:
                     SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addBinaryInst(Op, SPIRVType *, SPIRVValue *,
                                           SPIRVValue *, SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addBranchConditionalInst(SPIRVValue *, SPIRVLabel *,
-                                                     SPIRVLabel *,
-                                                     SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addBranchConditionalInst(
+      SPIRVValue *, SPIRVLabel *, SPIRVLabel *, SPIRVBasicBlock *,
+      const std::vector<SPIRVWord> &BranchWeights = {}) = 0;
   virtual SPIRVInstruction *addBranchInst(SPIRVLabel *, SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *addExtInst(SPIRVType *, SPIRVWord, SPIRVWord,
                                        const std::vector<SPIRVWord> &,
