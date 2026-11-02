@@ -9,6 +9,8 @@
 // RUN: %{run} %t.out
 // A cap below the device ceiling lowers the query and rejects a larger launch.
 // RUN: env UR_HIP_MAX_LOCAL_MEM_SIZE=32768 %{run} %t.out
+// The deprecated variable applies when the UR variable is unset.
+// RUN: env SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE=32768 %{run} %t.out
 
 //==------------------------ hip-local-mem-optin.cpp ----------------------===//
 //
@@ -141,12 +143,18 @@ int main() {
   const auto Reported = static_cast<size_t>(
       Q.get_device().get_info<sycl::info::device::local_mem_size>());
 
-  const char *CapEnv = std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE");
+  // Same precedence as the adapter: the UR variable, then the deprecated one.
+  const char *CapName = "UR_HIP_MAX_LOCAL_MEM_SIZE";
+  const char *CapEnv = std::getenv(CapName);
+  if (!CapEnv) {
+    CapName = "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE";
+    CapEnv = std::getenv(CapName);
+  }
   size_t Expected = static_cast<size_t>(Ceiling);
   if (CapEnv) {
     const int Cap = std::atoi(CapEnv);
     if (Cap <= 0) {
-      std::printf("UR_HIP_MAX_LOCAL_MEM_SIZE is not a positive size\n");
+      std::printf("%s is not a positive size\n", CapName);
       return 1;
     }
     Expected = static_cast<size_t>(std::min(Cap, Ceiling));

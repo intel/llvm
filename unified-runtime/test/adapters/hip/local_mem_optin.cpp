@@ -91,15 +91,16 @@ TEST_P(hipLocalMemOptInTest, LaunchAboveDefaultSharedMemory) {
                                  sizeof(reported), &reported, nullptr));
   // The adapter reports the opt-in ceiling. An environment cap may lower it.
   if (reported <= static_cast<uint64_t>(default_limit) &&
-      std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE")) {
-    GTEST_SKIP() << "UR_HIP_MAX_LOCAL_MEM_SIZE keeps the reported limit in "
-                    "the default pool";
+      (std::getenv("UR_HIP_MAX_LOCAL_MEM_SIZE") ||
+       std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE"))) {
+    GTEST_SKIP() << "the local memory cap keeps the reported limit in the "
+                    "default pool";
   }
   ASSERT_GT(reported, static_cast<uint64_t>(default_limit));
   const size_t bytes = static_cast<size_t>(default_limit) + 1;
   if (bytes > reported) {
-    GTEST_SKIP() << "UR_HIP_MAX_LOCAL_MEM_SIZE keeps this launch in the "
-                    "default pool";
+    GTEST_SKIP() << "the local memory cap keeps this launch in the default "
+                    "pool";
   }
 
   uur::raii::Program program = nullptr;
