@@ -1347,6 +1347,11 @@ public:
       LI->removeBlock(SCEVCheckBlock);
     }
 
+    // Clean up directly if the memory checks folded to false, to avoid further
+    // expansions re-using anything left over from MemCheckExp.
+    if (MemCheckBlock && !getMemRuntimeChecks().first)
+      eraseMemCheckBlock();
+
     // Outer loop is used as part of the later cost calculations.
     OuterLoop = L->getParentLoop();
   }
@@ -2897,6 +2902,9 @@ void LoopVectorizationPlanner::emitInvalidCostRemarks(
             })
             .Case([](const VPReductionRecipe *R) {
               return RecurrenceDescriptor::getOpcode(R->getRecurrenceKind());
+            })
+            .Case([](const VPBranchOnMaskRecipe *) {
+              return Instruction::CondBr;
             });
 
     // If the next recipe is different, or if there are no other pairs,
@@ -5256,21 +5264,6 @@ LoopVectorizationPlanner::precomputeCosts(VPlan &Plan, ElementCount VF,
     addFullyUnrolledInstructionsToIgnore(OrigLoop, Legal->getInductionVars(),
                                          CostCtx.SkipCostComputation);
 
-  // Pre-compute the costs for branches except for the backedge, as the number
-  // of replicate regions in a VPlan may not directly match the number of
-  // branches, which would lead to different decisions.
-  // TODO: Compute cost of branches for each replicate region in the VPlan,
-  // which is more accurate than the legacy cost model.
-  for (BasicBlock *BB : OrigLoop->blocks()) {
-    if (CostCtx.skipCostComputation(BB->getTerminator(), VF.isVector()))
-      continue;
-    CostCtx.SkipCostComputation.insert(BB->getTerminator());
-    if (BB == OrigLoop->getLoopLatch())
-      continue;
-    auto BranchCost = CostCtx.getLegacyCost(BB->getTerminator(), VF);
-    Cost += BranchCost;
-  }
-
   // Don't apply special costs when instruction cost is forced to make sure the
   // forced cost is used for each recipe.
   if (Opts.force_target_instruction_cost)
@@ -5577,19 +5570,6 @@ DenseMap<const SCEV *, Value *> LoopVectorizationPlanner::executePlan(
   if (EpilogueVecKind == EpilogueVectorizationKind::None)
     RUN_VPLAN_PASS(VPlanTransforms::removeBranchOnConst, BestVPlan,
                    /*OnlyLatches=*/false);
-  if (BestVPlan.getEntry()->getSingleSuccessor() ==
-      BestVPlan.getScalarPreheader()) {
-    // TODO: The vector loop would be dead, should not even try to vectorize.
-    ORE->emit([&]() {
-      return OptimizationRemarkAnalysis(DEBUG_TYPE, "VectorizationDead",
-                                        OrigLoop->getStartLoc(),
-                                        OrigLoop->getHeader())
-             << "Created vector loop never executes due to insufficient trip "
-                "count.";
-    });
-    return DenseMap<const SCEV *, Value *>();
-  }
-
   RUN_VPLAN_PASS(VPlanTransforms::removeDeadRecipes, BestVPlan);
 
   RUN_VPLAN_PASS(VPlanTransforms::convertToConcreteRecipes, BestVPlan);
@@ -5634,6 +5614,18 @@ DenseMap<const SCEV *, Value *> LoopVectorizationPlanner::executePlan(
                          EpilogueVectorizationKind::None))
     RUN_VPLAN_PASS(VPlanTransforms::combineRecipes, BestVPlan);
   RUN_VPLAN_PASS(VPlanTransforms::simplifyKnownEVL, BestVPlan, BestVF, PSE);
+  if (BestVPlan.getEntry()->getSingleSuccessor() ==
+      BestVPlan.getScalarPreheader()) {
+    // TODO: The vector loop would be dead, should not even try to vectorize.
+    ORE->emit([&]() {
+      return OptimizationRemarkAnalysis(DEBUG_TYPE, "VectorizationDead",
+                                        OrigLoop->getStartLoc(),
+                                        OrigLoop->getHeader())
+             << "Created vector loop never executes due to insufficient trip "
+                "count.";
+    });
+    return DenseMap<const SCEV *, Value *>();
+  }
 
   // 0. Generate SCEV-dependent code in the entry, including TripCount, before
   // making any changes to the CFG.
