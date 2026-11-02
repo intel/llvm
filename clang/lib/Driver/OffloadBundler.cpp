@@ -2035,14 +2035,14 @@ Error OffloadBundler::UnbundleFiles() {
       // entry (CodeObject) matches exactly, e.g. entry
       // sycl-spir64_gen-unknown-unknown-pvc for target
       // sycl-spir64_gen-unknown-unknown-pvc.
-      SmallVector<StringRef, 4> Outputs;
+      SmallVector<StringRef, 4> MatchedTargets;
       auto Exact = llvm::find_if(Worklist, [&](const auto &W) {
         OffloadTargetInfo Target(W.first(), BundlerConfig);
         return TargetIDPresenceMatches(CodeObject, Target) &&
                isCodeObjectCompatible(CodeObject, Target);
       });
       if (Exact != Worklist.end())
-        Outputs.push_back(Exact->first());
+        MatchedTargets.push_back(Exact->first());
       // Then, an ID-less SYCL entry (e.g. sycl-spir64_gen-unknown-unknown) is
       // used for every target with a target ID, or the reverse, for which the
       // blob has no exact entry.
@@ -2051,10 +2051,10 @@ Error OffloadBundler::UnbundleFiles() {
         if (!TargetIDPresenceMatches(CodeObject, Target) &&
             isCodeObjectCompatible(CodeObject, Target) &&
             !HasExactEntry(Target))
-          Outputs.push_back(W.first());
+          MatchedTargets.push_back(W.first());
       }
 
-      if (Outputs.empty())
+      if (MatchedTargets.empty())
         continue;
 
       SmallVector<char, 0> Bundle;
@@ -2063,15 +2063,15 @@ Error OffloadBundler::UnbundleFiles() {
         return Err;
       if (Error Err = FH->ReadBundleEnd(Input))
         return Err;
-      for (StringRef Target : Outputs) {
-        StringRef OutputFileName = Worklist.lookup(Target);
+      for (StringRef TargetID : MatchedTargets) {
+        StringRef OutputFileName = Worklist.lookup(TargetID);
         // Check if the output file can be opened and copy the bundle to it.
         std::error_code EC;
         raw_fd_ostream OutputFile(OutputFileName, EC, sys::fs::OF_None);
         if (EC)
           return createFileError(OutputFileName, EC);
         OutputFile << BundleOS.str();
-        Worklist.erase(Target);
+        Worklist.erase(TargetID);
       }
 
       // Record if we found the host bundle.
