@@ -198,6 +198,19 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(Path.str());
 }
 
+std::optional<SmallString<128>>
+SYCLInstallationDetector::findSYCLDeviceLib(StringRef LibName) const {
+  SmallVector<SmallString<128>, 4> DeviceLibPaths;
+  getSYCLDeviceLibPath(DeviceLibPaths);
+  for (const auto &LibPath : DeviceLibPaths) {
+    SmallString<128> FullLibName(LibPath);
+    llvm::sys::path::append(FullLibName, LibName);
+    if (D.getVFS().exists(FullLibName))
+      return FullLibName;
+  }
+  return std::nullopt;
+}
+
 void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_nostdlibinc, options::OPT_nostdinc)) {
@@ -1577,7 +1590,7 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  // Compilations that stop at or before the compile phase (-E, --precompile,
+  // Compilations that stop at or before the compile phase (e.g. -E,
   // -fsyntax-only) emit no IR, so they need no device libraries.
   if (getDriver().getFinalPhase(DriverArgs) > phases::Compile)
     BCLibs.append(
@@ -1877,7 +1890,7 @@ llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
               .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
               .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"}, "mtl_s")
               .Cases({"mtl_h", "12_71_4"}, "mtl_p")
-              .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
+              .Cases({"arl_h", "12_74_4"}, "arl_h")
               .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
@@ -2078,9 +2091,6 @@ SYCLToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
-  SmallVector<SmallString<128>, 4> LibraryPaths;
-  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
-
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
@@ -2088,21 +2098,12 @@ SYCLToolChain::getDeviceLibs(
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
   for (const auto &DeviceLib : DeviceLibs) {
-    bool DeviceLibFound = false;
-    for (const auto &LibraryPath : LibraryPaths) {
-      SmallString<128> FullLibName(LibraryPath);
-      llvm::sys::path::append(FullLibName, DeviceLib.Path);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        BitCodeLibraryInfo BitCodeLibrary(
-            {FullLibName, DeviceLib.ShouldInternalize});
-        BCLibs.emplace_back(BitCodeLibrary);
-        DeviceLibFound = true;
-        break;
-      }
-    }
     // The device libraries are all known internal libraries.  If any are not
     // found, emit an error.
-    if (!DeviceLibFound)
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(DeviceLib.Path))
+      BCLibs.emplace_back(
+          BitCodeLibraryInfo({*FullLibName, DeviceLib.ShouldInternalize}));
+    else
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
 
@@ -2129,9 +2130,9 @@ SYCLToolChain::getDeviceLibs(
       llvm::sys::path::append(BCPath, "libclang_rt.builtins-spirv64.bc");
       if (getVFS().exists(BCPath))
         BCLibs.emplace_back(std::string(BCPath), /*ShouldInternalize=*/true);
-      else
-        getDriver().Diag(diag::err_drv_device_lib_not_found)
-            << /*compiler-rt builtins*/ 1 << BCPath;
+      // The builtins only exist if compiler-rt was built for spirv64, so a
+      // missing library is not an error, as with the OpenMP NVPTX and AMDGPU
+      // builtins.
     }
   }
   return BCLibs;

@@ -1,4 +1,6 @@
-FROM nvidia/cuda:12.6.3-devel-ubuntu24.04
+# Overridden in sycl-containers.yaml to also build a CUDA 13.1 image.
+ARG base_image=nvidia/cuda:12.6.3-devel-ubuntu24.04
+FROM $base_image
 
 ENV DEBIAN_FRONTEND=noninteractive
 

@@ -52,6 +52,7 @@ enum ImageKind : uint16_t {
   IMG_PTX,
   IMG_SPIRV,
   IMG_SYCLBIN,
+  IMG_PISA,
   IMG_LAST,
 };
 

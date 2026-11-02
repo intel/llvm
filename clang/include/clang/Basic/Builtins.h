@@ -32,7 +32,7 @@ class TargetInfo;
 class IdentifierTable;
 class LangOptions;
 
-enum LanguageID : uint16_t {
+enum LanguageID : uint32_t {
   GNU_LANG = 0x1,            // builtin requires GNU mode.
   C_LANG = 0x2,              // builtin for c only.
   CXX_LANG = 0x4,            // builtin for cplusplus only.
@@ -49,6 +49,7 @@ enum LanguageID : uint16_t {
   C23_LANG = 0x2000,         // builtin requires C23 or later.
   SYCL_LANG = 0x4000,        // builtin requires SYCL.
   C2Y_LANG = 0x8000,         // builtin requires C2y or later.
+  REFLECTION_LANG = 0x10000, // builtin requires use of 'freflection' option.
   ALL_LANGUAGES = C_LANG | CXX_LANG | OBJC_LANG, // builtin for all languages.
   ALL_GNU_LANGUAGES = ALL_LANGUAGES | GNU_LANG,  // builtin requires GNU mode.
   ALL_MS_LANGUAGES = ALL_LANGUAGES | MS_LANG     // builtin requires MS mode.
@@ -466,6 +467,11 @@ public:
   /// Returns true if this is an immediate (consteval) function
   bool isImmediate(unsigned ID) const {
     return strchr(getAttributesString(ID), 'G') != nullptr;
+  }
+
+  /// Returns true if this is a reflection metafunction builtin.
+  bool isReflectionMetafunctionBuiltin(unsigned ID) const {
+    return getInfo(ID).Langs & REFLECTION_LANG;
   }
 
 private:

@@ -115,7 +115,7 @@ struct InlineAsmIdentifierInfo;
 namespace clang {
 class ADLResult;
 class APValue;
-struct ASTConstraintSatisfaction;
+class ASTConstraintSatisfaction;
 class ASTConsumer;
 class ASTContext;
 class ASTDeclReader;
@@ -188,7 +188,6 @@ class SemaX86;
 class StandardConversionSequence;
 class TemplateArgument;
 class TemplateArgumentLoc;
-class TemplateInstantiationCallback;
 class TemplatePartialOrderingContext;
 class TemplateSpecCandidateSet;
 class Token;
@@ -2479,6 +2478,8 @@ public:
   bool checkCommonAttributeFeatures(const Decl *D, const ParsedAttr &A,
                                     bool SkipArgCountCheck = false);
   bool checkCommonAttributeFeatures(const Stmt *S, const ParsedAttr &A,
+                                    bool SkipArgCountCheck = false);
+  bool checkCommonAttributeFeatures(QualType T, const ParsedAttr &A,
                                     bool SkipArgCountCheck = false);
 
   ///@}
@@ -4845,7 +4846,6 @@ public:
   NamedDecl *findLocallyScopedExternCDecl(DeclarationName Name);
 
   void deduceOpenCLAddressSpace(VarDecl *decl);
-  void deduceHLSLAddressSpace(VarDecl *decl);
 
   /// Adjust the \c DeclContext for a function or variable that might be a
   /// function-local external declaration.
@@ -9029,9 +9029,6 @@ public:
   concepts::TypeRequirement *BuildTypeRequirement(
       concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
   concepts::NestedRequirement *BuildNestedRequirement(Expr *E);
-  concepts::NestedRequirement *
-  BuildNestedRequirement(StringRef InvalidConstraintEntity,
-                         const ASTConstraintSatisfaction &Satisfaction);
   ExprResult ActOnRequiresExpr(SourceLocation RequiresKWLoc,
                                RequiresExprBodyDecl *Body,
                                SourceLocation LParenLoc,
@@ -14033,21 +14030,43 @@ public:
                           FunctionProtoType::ExceptionSpecInfo &ESI,
                           SmallVectorImpl<QualType> &ExceptionStorage,
                           const MultiLevelTemplateArgumentList &Args);
+  /// An attribute whose instantiation is deferred, together with the
+  /// instantiation scope to instantiate it in.
+  struct LateInstantiatedAttribute {
+    const Attr *TmplAttr;
+    LocalInstantiationScope *Scope;
+    Decl *NewDecl;
+
+    LateInstantiatedAttribute(const Attr *A, LocalInstantiationScope *S,
+                              Decl *D)
+        : TmplAttr(A), Scope(S), NewDecl(D) {}
+  };
+  typedef SmallVector<LateInstantiatedAttribute, 1> LateInstantiatedAttrVec;
+
+  /// Substitute into a function parameter. If \p LateAttrs is given, its
+  /// late-parsed attributes are deferred there, since they may name a
+  /// parameter that is not substituted yet; see \ref InstantiateLateAttrs.
   ParmVarDecl *
   SubstParmVarDecl(ParmVarDecl *D,
                    const MultiLevelTemplateArgumentList &TemplateArgs,
                    int indexAdjustment, UnsignedOrNone NumExpansions,
-                   bool ExpectParameterPack, bool EvaluateConstraints = true);
+                   bool ExpectParameterPack, bool EvaluateConstraints = true,
+                   LateInstantiatedAttrVec *LateAttrs = nullptr);
 
   /// Substitute the given template arguments into the given set of
   /// parameters, producing the set of parameter types that would be generated
-  /// from such a substitution.
+  /// from such a substitution. If there is a parameter with no ParmVarDecl to
+  /// substitute (a null entry of \p Params, as from a typedef'd function
+  /// type), its type needs to come from \p OldParamTypes instead, which must
+  /// then be passed, and \p OutParams gets null for it.
   bool SubstParmTypes(SourceLocation Loc, ArrayRef<ParmVarDecl *> Params,
                       const FunctionProtoType::ExtParameterInfo *ExtParamInfos,
                       const MultiLevelTemplateArgumentList &TemplateArgs,
                       SmallVectorImpl<QualType> &ParamTypes,
                       SmallVectorImpl<ParmVarDecl *> *OutParams,
-                      ExtParameterInfoBuilder &ParamInfos);
+                      ExtParameterInfoBuilder &ParamInfos,
+                      const QualType *OldParamTypes = nullptr,
+                      bool EvaluateConstraints = true);
 
   /// Substitute the given template arguments into the default argument.
   bool SubstDefaultArgument(SourceLocation Loc, ParmVarDecl *Param,
@@ -14399,17 +14418,6 @@ public:
   ExplicitSpecifier instantiateExplicitSpecifier(
       const MultiLevelTemplateArgumentList &TemplateArgs, ExplicitSpecifier ES);
 
-  struct LateInstantiatedAttribute {
-    const Attr *TmplAttr;
-    LocalInstantiationScope *Scope;
-    Decl *NewDecl;
-
-    LateInstantiatedAttribute(const Attr *A, LocalInstantiationScope *S,
-                              Decl *D)
-        : TmplAttr(A), Scope(S), NewDecl(D) {}
-  };
-  typedef SmallVector<LateInstantiatedAttribute, 1> LateInstantiatedAttrVec;
-
   /// Recheck instantiated thread-safety attributes that could not be validated
   /// on the dependent pattern declaration.
   bool checkInstantiatedThreadSafetyAttrs(const Decl *D, const Attr *A);
@@ -14418,6 +14426,14 @@ public:
                         const Decl *Pattern, Decl *Inst,
                         LateInstantiatedAttrVec *LateAttrs = nullptr,
                         LocalInstantiationScope *OuterMostScope = nullptr);
+
+  /// Instantiate the attributes that \ref InstantiateAttrs deferred to \p
+  /// LateAttrs, and attach them to their declarations. They are instantiated
+  /// in the scopes saved with them, which extend \p OuterMostScope, the
+  /// current scope.
+  void InstantiateLateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
+                            LateInstantiatedAttrVec &LateAttrs,
+                            LocalInstantiationScope *OuterMostScope);
 
   /// Update instantiation attributes after template was late parsed.
   ///
@@ -15307,7 +15323,7 @@ private:
   /// The key is based on the unsubstituted expression and the parameter
   /// mapping. This lets us not substituting the mapping more than once,
   /// which is (very!) expensive.
-  llvm::DenseMap<llvm::FoldingSetNodeID,
+  llvm::DenseMap<llvm::FoldingSetNodeIDRef,
                  UnsubstitutedConstraintSatisfactionCacheResult>
       UnsubstitutedConstraintSatisfactionCache;
 
@@ -15315,7 +15331,7 @@ private:
   /// concepts. Substituting into normalized concepts can be extremely expensive
   /// due to the redundancy of template parameters. This cache is intended for
   /// use by TemplateInstantiator to avoid redundant semantic checking.
-  llvm::DenseMap<llvm::FoldingSetNodeID, TemplateArgumentLoc>
+  llvm::DenseMap<llvm::FoldingSetNodeIDRef, TemplateArgumentLoc>
       *CurrentCachedTemplateArgs = nullptr;
 
   /// Caches pairs of template-like decls whose associated constraints were
@@ -15332,7 +15348,7 @@ private:
 
   /// Cache whether the associated constraint of a declaration
   /// is satisfied.
-  llvm::ContextualFoldingSet<ConstraintSatisfaction, const ASTContext &>
+  llvm::DenseMap<llvm::FoldingSetNodeIDRef, ConstraintSatisfaction *>
       SatisfactionCache;
 
   // The current stack of constraint satisfactions, so we can exit-early.

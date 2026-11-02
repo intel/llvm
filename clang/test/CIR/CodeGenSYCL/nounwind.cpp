@@ -16,7 +16,7 @@ void kernel_single_task(KernelType kf) { kf(); }
 
 struct KN;
 
-int ext(int);
+[[clang::sycl_external]] int ext(int);
 
 void test(int *p) {
   kernel_single_task<KN>([p]() { *p = ext(*p); });

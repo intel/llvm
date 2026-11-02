@@ -24,6 +24,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/MakeSupport.h"
 #include "clang/Basic/ObjCRuntime.h"
+#include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
@@ -2889,11 +2890,13 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
                 .Case("-Av8plus", {"+v8plus", "+v9"})
                 .Case("-Av8plusa", {"+v8plus", "+v9", "+vis"})
                 .Case("-Av8plusb", {"+v8plus", "+v9", "+vis", "+vis2"})
-                .Case("-Av8plusd", {"+v8plus", "+v9", "+vis", "+vis2", "+vis3"})
+                .Case("-Av8plusd", {"+v8plus", "+v9", "+vis", "+vis2", "+vis3",
+                                    "+ua2005", "+ua2007"})
                 .Case("-Av9", {"+v9"})
                 .Case("-Av9a", {"+v9", "+vis"})
                 .Case("-Av9b", {"+v9", "+vis", "+vis2"})
-                .Case("-Av9d", {"+v9", "+vis", "+vis2", "+vis3"})
+                .Case("-Av9d",
+                      {"+v9", "+vis", "+vis2", "+vis3", "+ua2005", "+ua2007"})
                 .Default({});
         if (!SparcTargetFeatures.empty())
           continue;
@@ -4236,6 +4239,7 @@ static void RenderHLSLOptions(const Driver &D, const ArgList &Args,
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("--dx-pdb-in-private");
   }
+  CmdArgs.push_back("-load-bool-from-mem=nonzero");
 }
 
 static void RenderOpenACCOptions(const Driver &D, const ArgList &Args,
@@ -10603,6 +10607,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
   }
   addOffloadCompressArgs(TCArgs, CmdArgs);
+  if (TCArgs.hasArg(options::OPT_v))
+    CmdArgs.push_back("--verbose");
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -11156,6 +11162,11 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
   }
 
+  // FIXME: --offload-compress is HIP only until the OpenMP runtime accepts it.
+  if (JA.isDeviceOffloading(Action::OFK_HIP) &&
+      Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false))
+    addOffloadCompressArgs(Args, CmdArgs, /*EmitCompressionFormat=*/true);
+
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::AtFileUTF8(),
       Args.MakeArgString(getToolChain().GetProgramPath(getShortName())),
@@ -11646,18 +11657,11 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
     SYCLInstallationDetector SYCLInstall(TC.getDriver(), TC.getTriple(),
                                          TCArgs);
-    SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
-    SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
-    SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
-    for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
-      SmallString<128> FullLibName(DeviceLibLoc);
-      llvm::sys::path::append(FullLibName, NativeBfloat16Name);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
-        SYCLDeviceLibDir += DeviceLibLoc.str();
-        addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
-        break;
-      }
+    if (auto FullLibName =
+            SYCLInstall.findSYCLDeviceLib("libsycl-native-bfloat16.bc")) {
+      SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+      SYCLDeviceLibDir += llvm::sys::path::parent_path(*FullLibName);
+      addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
     }
   }
 }
@@ -12226,9 +12230,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       }
 
       // If the user explicitly requested it via `--offload-arch` we should
-      // extract it from any static libraries if present.
-      for (StringRef Arg : ToolChainArgs.getAllArgValues(OPT_offload_arch_EQ))
-        CmdArgs.emplace_back(Args.MakeArgString("--should-extract=" + Arg));
+      // extract it from any static libraries if present. Device images are
+      // labeled with the canonical target ID, so request that.
+      for (StringRef Arg : ToolChainArgs.getAllArgValues(OPT_offload_arch_EQ)) {
+        std::optional<std::string> TargetID =
+            getCanonicalTargetID(TC->getTriple(), Arg);
+        CmdArgs.emplace_back(Args.MakeArgString(
+            "--should-extract=" + (TargetID ? StringRef(*TargetID) : Arg)));
+      }
 
       // If this is OpenMP the device linker will need `-lompdevice`.
       if (Kind == Action::OFK_OpenMP && !Args.hasArg(OPT_no_offloadlib) &&
@@ -12349,67 +12358,47 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                       /*default=*/true))
       CmdArgs.push_back("--no-sycl-rdc");
 
-    // -sycl-device-library-location=<dir> provides the location in which the
-    // SYCL device libraries can be found.
-    SmallString<128> DeviceLibDir(D.Dir);
-    llvm::sys::path::append(DeviceLibDir, "..", "lib");
-    // Check the library location candidates for the the libsycl-crt library
-    // and use that location.  Base the location on relative to driver if this
-    // is not resolved.
-    SmallVector<SmallString<128>, 4> LibLocCandidates;
     SYCLInstallationDetector SYCLInstallation(D, getToolChain().getTriple(),
                                               Args);
-    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt.bc");
-    for (const auto &LibLoc : LibLocCandidates) {
-      SmallString<128> FullLibName(LibLoc);
-      llvm::sys::path::append(FullLibName, LibName);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        DeviceLibDir = LibLoc;
-        break;
-      }
-    }
 
     // Device libraries for SYCL offloading are specified using
     // --bitcode-library=<triple>=<path to bc file> for each library.
-    // The full path must be provided (not relative to
-    // -sycl-device-library-location).
     //
     // Note: SPIR/SPIRV device libraries are linked at compile time using
     // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
-    // targets (NVPTX, AMD) pass device libraries to clang-linker-wrapper.
+    // targets (NVPTX, AMD, NativeCPU) pass device libraries to
+    // clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
+    bool HasNativeCPU = false;
 
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (const auto &[Kind, TC] :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
-      SmallVector<ToolChain::BitCodeLibraryInfo, 8> SYCLDeviceLibs;
+      HasNativeCPU |= TargetTriple.isNativeCPU();
       // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain).
+      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain)
+      // or NativeCPU.
       if (!TargetTriple.isSPIROrSPIRV()) {
         const ToolChain *HostTC =
             C.getSingleOffloadToolChain<Action::OFK_Host>();
         std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
         const toolchains::SYCLToolChain &SYCLTC =
             toolchains::getSYCLToolChain(D, *TC, *HostTC, Args, ScratchTC);
-        SYCLDeviceLibs.append(SYCLTC.getDeviceLibNames(D, Args, TargetTriple));
-      }
-      for (const auto &AddLib : SYCLDeviceLibs) {
-        if (llvm::sys::path::extension(AddLib.Path) == ".bc") {
-          SmallString<256> LibPath(DeviceLibDir);
-          llvm::sys::path::append(LibPath, AddLib.Path);
-          BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibPath).str());
-          continue;
-        }
+        // getDeviceLibs resolves the full path of each library and diagnoses
+        // any that are not found.
+        for (const auto &AddLib :
+             SYCLTC.getDeviceLibs(Args, /*BA=*/{}, Action::OFK_SYCL))
+          if (llvm::sys::path::extension(AddLib.Path) == ".bc")
+            BCLibList.push_back(
+                (Twine(TargetTriple.str()) + "=" + AddLib.Path).str());
       }
 
-      if (TC->getTriple().isNVPTX())
+      if (TargetTriple.isNVPTX())
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
-                TC->getTriple(), Args, *TC->getAuxTriple()))
+                TargetTriple, Args, *TC->getAuxTriple()))
           BCLibList.push_back(
-              (Twine(TC->getTriple().str()) + "=" + LibSpirvFile).str());
+              (Twine(TargetTriple.str()) + "=" + LibSpirvFile).str());
     }
 
     if (BCLibList.size())
@@ -12417,6 +12406,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
+    // -sycl-device-library-location=<dir> provides the location of the
+    // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
+    SmallString<128> DeviceLibDir(D.Dir);
+    llvm::sys::path::append(DeviceLibDir, "..", "lib");
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(
+            HasNativeCPU ? "libsycl-nativecpu_utils.bc"
+                         : "libsycl-native-bfloat16.bc"))
+      DeviceLibDir = llvm::sys::path::parent_path(*FullLibName);
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
@@ -12729,6 +12726,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       C.getDriver().Diag(diag::err_drv_invalid_int_value)
           << OffloadJobs.A->getAsString(Args) << OffloadJobs.Value;
     }
+    // --offload-jobs overrides -fsycl-max-parallel-link-jobs. Let the user
+    // know, rather than reporting the latter as an unused argument.
+    if (HasSYCL)
+      if (const Arg *A =
+              Args.getLastArg(options::OPT_fsycl_max_parallel_jobs_EQ))
+        C.getDriver().Diag(diag::warn_drv_overriding_option)
+            << A->getAsString(Args) << OffloadJobs.A->getAsString(Args);
   } else if (HasSYCL) {
     // For SYCL, -fsycl-max-parallel-link-jobs controls the number of device
     // compilation jobs (e.g. AOT compilation of split modules) that can run

@@ -22,6 +22,8 @@
 
 // Forced CUDA/HIP lambda numbering must be shared by all declarations of the same
 // namespace. Otherwise, the second function pointer refers to the first lambda.
+// (intel/llvm mangles lambdas in namespace-scope variable initializers in the
+// context of the variable, see #20176, hence the variable name in the symbols.)
 namespace reopened {
 static ATTR int (*first)() = [] ATTR { return 144; };
 }
@@ -29,10 +31,10 @@ namespace reopened {
 static ATTR int (*second)() = [] ATTR { return 7; };
 }
 
-// CHECK-DAG: @_ZN8reopenedL5firstE = internal{{.*}} global ptr @_ZN8reopenedUlvE_8__invokeEv
-// CHECK-DAG: @_ZN8reopenedL6secondE = internal{{.*}} global ptr @_ZN8reopenedUlvE0_8__invokeEv
-// CHECK-DAG: define internal{{.*}} i32 @_ZN8reopenedUlvE_8__invokeEv()
-// CHECK-DAG: define internal{{.*}} i32 @_ZN8reopenedUlvE0_8__invokeEv()
+// CHECK-DAG: @_ZN8reopenedL5firstE = internal{{.*}} global ptr @_ZN8reopenedL5firstMUlvE_8__invokeEv
+// CHECK-DAG: @_ZN8reopenedL6secondE = internal{{.*}} global ptr @_ZN8reopenedL6secondMUlvE_8__invokeEv
+// CHECK-DAG: define internal{{.*}} i32 @_ZN8reopenedL5firstMUlvE_8__invokeEv()
+// CHECK-DAG: define internal{{.*}} i32 @_ZN8reopenedL6secondMUlvE_8__invokeEv()
 // OPT-LABEL: define{{.*}} i32 @named_namespace()
 // OPT: ret i32 151
 extern "C" ATTR int named_namespace() {
@@ -47,10 +49,10 @@ namespace {
 static ATTR int (*second)() = [] ATTR { return 3; };
 }
 
-// CHECK-DAG: @_ZN12_GLOBAL__N_15firstE = internal{{.*}} global ptr @_ZN12_GLOBAL__N_1UlvE_8__invokeEv
-// CHECK-DAG: @_ZN12_GLOBAL__N_16secondE = internal{{.*}} global ptr @_ZN12_GLOBAL__N_1UlvE0_8__invokeEv
-// CHECK-DAG: define internal{{.*}} i32 @_ZN12_GLOBAL__N_1UlvE_8__invokeEv()
-// CHECK-DAG: define internal{{.*}} i32 @_ZN12_GLOBAL__N_1UlvE0_8__invokeEv()
+// CHECK-DAG: @_ZN12_GLOBAL__N_15firstE = internal{{.*}} global ptr @_ZN12_GLOBAL__N_15firstMUlvE_8__invokeEv
+// CHECK-DAG: @_ZN12_GLOBAL__N_16secondE = internal{{.*}} global ptr @_ZN12_GLOBAL__N_16secondMUlvE_8__invokeEv
+// CHECK-DAG: define internal{{.*}} i32 @_ZN12_GLOBAL__N_15firstMUlvE_8__invokeEv()
+// CHECK-DAG: define internal{{.*}} i32 @_ZN12_GLOBAL__N_16secondMUlvE_8__invokeEv()
 // OPT-LABEL: define{{.*}} i32 @anonymous_namespace()
 // OPT: ret i32 23
 extern "C" ATTR int anonymous_namespace() { return first() + second(); }

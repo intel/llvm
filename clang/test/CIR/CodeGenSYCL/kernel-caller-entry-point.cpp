@@ -8,11 +8,11 @@
 // On an ELF target such as spir64, the kernel caller entry point definition is
 // dso_local. dso_local is only attached to a definition, so this also verifies
 // that setDSOLocal() runs after body emission.
-// RUN: %clang_cc1 -std=c++20 -fsycl-is-device -triple spir64-unknown-unknown -fclangir -emit-cir %s -o %t-elf.cir
+// RUN: %clang_cc1 -std=c++20 -fsycl-is-device -mrelocation-model static -triple spir64-unknown-unknown -fclangir -emit-cir %s -o %t-elf.cir
 // RUN: FileCheck --input-file=%t-elf.cir %s -check-prefix=CIR-ELF
-// RUN: %clang_cc1 -std=c++20 -fsycl-is-device -triple spir64-unknown-unknown -fclangir -emit-llvm %s -o %t-elf-cir.ll
+// RUN: %clang_cc1 -std=c++20 -fsycl-is-device -mrelocation-model static -triple spir64-unknown-unknown -fclangir -emit-llvm %s -o %t-elf-cir.ll
 // RUN: FileCheck --input-file=%t-elf-cir.ll %s -check-prefix=LLVM-OGCG-ELF
-// RUN: %clang_cc1 -std=c++20 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -o %t-elf.ll
+// RUN: %clang_cc1 -std=c++20 -fsycl-is-device -mrelocation-model static -triple spir64-unknown-unknown -emit-llvm %s -o %t-elf.ll
 // RUN: FileCheck --input-file=%t-elf.ll %s -check-prefix=LLVM-OGCG-ELF
 
 // On AMDGPU and NVPTX, the kernel caller entry point uses the target's device
@@ -103,9 +103,9 @@ void test() {
 // kernel object byref (AMDGPU) or byval (NVPTX), while CIR passes it by value.
 // CIR-AMDGCN:       cir.func {{.*}}@_ZTS2KN{{.*}}cc(amdgpu_kernel)
 // CIR-AMDGCN:       cir.func {{.*}}@_ZTS8MemberKN{{.*}}cc(amdgpu_kernel)
-// LLVM-OGCG-AMDGCN: define dso_local amdgpu_kernel void @_ZTS2KN(
-// LLVM-OGCG-AMDGCN: define dso_local amdgpu_kernel void @_ZTS8MemberKN(
+// LLVM-OGCG-AMDGCN: define weak_odr amdgpu_kernel void @_ZTS2KN(
+// LLVM-OGCG-AMDGCN: define weak_odr amdgpu_kernel void @_ZTS8MemberKN(
 // CIR-NVPTX:        cir.func {{.*}}@_ZTS2KN{{.*}}cc(ptx_kernel)
 // CIR-NVPTX:        cir.func {{.*}}@_ZTS8MemberKN{{.*}}cc(ptx_kernel)
-// LLVM-OGCG-NVPTX:  define dso_local ptx_kernel void @_ZTS2KN(
-// LLVM-OGCG-NVPTX:  define dso_local ptx_kernel void @_ZTS8MemberKN(
+// LLVM-OGCG-NVPTX:  define weak_odr ptx_kernel void @_ZTS2KN(
+// LLVM-OGCG-NVPTX:  define weak_odr ptx_kernel void @_ZTS8MemberKN(

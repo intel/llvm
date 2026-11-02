@@ -134,7 +134,20 @@ void CIRGenModule::emitSYCLKernelCaller(const FunctionDecl *kernelEntryPointFn,
   cir::FuncOp funcOp = createCIRFunction(
       getLoc(kernelEntryPointFn->getSourceRange()), kernelInfo.GetKernelName(),
       funcType, /*funcDecl=*/nullptr);
-  funcOp.setLinkage(cir::GlobalLinkageKind::ExternalLinkage);
+  // The entry point inherits the linkage of the sycl_kernel_entry_point
+  // attributed function. If that function may be defined in multiple
+  // translation units (an inline function or an instantiated function
+  // template specialization), the entry point is emitted weak_odr (rather than
+  // linkonce_odr so that it is not discarded). Otherwise it has strong
+  // external linkage. Mirrors classic CodeGen's EmitSYCLKernelCaller.
+  GVALinkage gvaLinkage = ctx.GetGVALinkageForFunction(kernelEntryPointFn);
+  cir::GlobalLinkageKind linkage =
+      (gvaLinkage == GVA_DiscardableODR || gvaLinkage == GVA_StrongODR)
+          ? cir::GlobalLinkageKind::WeakODRLinkage
+          : cir::GlobalLinkageKind::ExternalLinkage;
+  funcOp.setLinkage(linkage);
+  mlir::SymbolTable::setSymbolVisibility(
+      funcOp, getMLIRVisibilityFromCIRLinkage(linkage));
 
   // Emit as a device kernel (e.g. spir_kernel). Classic CodeGen derives this
   // from CC_DeviceKernel via SetLLVMFunctionAttributes; CIR does not yet route

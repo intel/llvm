@@ -33,6 +33,6 @@ void use() { kernel<KN>([] { run(); }); }
 // LLVM:       call spir_func void @_ZZ3usevENKUlvE_clEv(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) %{{.*}})
 // LLVM:     define internal spir_func void @_ZZ3usevENKUlvE_clEv(
 // LLVM:       call spir_func void @_Z3runv()
-// LLVM:     define dso_local spir_func void @_Z3runv()
+// LLVM:     define linkonce_odr spir_func void @_Z3runv()
 // LLVM:       call spir_func noundef i32 @_Z4run2v()
-// LLVM:     define dso_local spir_func noundef i32 @_Z4run2v()
+// LLVM:     define linkonce_odr spir_func noundef i32 @_Z4run2v()

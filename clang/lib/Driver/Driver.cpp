@@ -8012,18 +8012,23 @@ static StringRef getCanonicalArchString(Compilation &C,
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "spir64_x86_64" << ArchStr;
     return StringRef();
+  } else if (Triple.isSPIRV() && ArchStr.starts_with("igca")) {
+    if (!StringToOffloadArch(ArchStr).isIntelIGCA()) {
+      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+          << "IGCA" << ArchStr;
+      return StringRef();
+    }
   }
   if (Arch.isNVPTX())
     return Args.MakeArgStringRef(OffloadArchToString(Arch));
 
   if (Arch.isAMDGPU() || Arch.isAMDGCNSPIRV()) {
-    llvm::StringMap<bool> Features;
-    std::optional<StringRef> Arch = parseTargetID(Triple, ArchStr, &Features);
-    if (!Arch) {
+    std::optional<std::string> TargetID = getCanonicalTargetID(Triple, ArchStr);
+    if (!TargetID) {
       C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
       return StringRef();
     }
-    return Args.MakeArgStringRef(getCanonicalTargetID(*Arch, Features));
+    return Args.MakeArgStringRef(*TargetID);
   }
   if (Arch.isIntelGPU()) {
     return Args.MakeArgStringRef(ArchStr);
@@ -8461,9 +8466,9 @@ Driver::BuildOffloadingActions(Compilation &C, llvm::opt::DerivedArgList &Args,
     // device binaries.
     if (IsSYCLHostOnly && Kind == Action::OFK_SYCL) {
       for (Action *&A : DeviceActions) {
-        // Find the input action (should be first in the chain)
+        // Find the source input, following the first input of each action.
         Action *InputAction = A;
-        while (InputAction->getInputs().size() == 1)
+        while (!InputAction->getInputs().empty())
           InputAction = *InputAction->input_begin();
 
         // Create a syntax-only compile action from the input
@@ -10746,15 +10751,14 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   }
 
   if (isSaveTempsEnabled()) {
-    // If we're saving temps and the temp file conflicts with any
-    // input/resulting file, then avoid overwriting.
-    if (!AtTopLevel && NamedOutput == BaseName) {
+    // If we're saving temps and the temp file is the input file, then avoid
+    // overwriting the input file. Compare the files, not their names: the
+    // output can name the input by another path (e.g. "sub/t.s" from
+    // -save-temps=obj), or with different case on a case-insensitive file
+    // system ("t.s" for an input "t.S").
+    if (!AtTopLevel) {
       bool SameFile = false;
-      SmallString<256> Result;
-      llvm::sys::fs::current_path(Result);
-      llvm::sys::path::append(Result, BaseName);
-      llvm::sys::fs::equivalent(BaseInput, Result.c_str(), SameFile);
-      // Must share the same path to conflict.
+      llvm::sys::fs::equivalent(BaseInput, NamedOutput, SameFile);
       if (SameFile) {
         StringRef Name = llvm::sys::path::filename(BaseInput);
         std::pair<StringRef, StringRef> Split = Name.split('.');
@@ -10765,6 +10769,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       }
     }
 
+    // If the temp file conflicts with any resulting file, then avoid
+    // overwriting it.
     const auto &ResultFiles = C.getResultFiles();
     const auto CollidingFilenameIt =
         llvm::find_if(ResultFiles, [NamedOutput](const auto &It) {

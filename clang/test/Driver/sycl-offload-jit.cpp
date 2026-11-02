@@ -70,19 +70,18 @@
 /// Check that SYCL compilation defaults to relocatable device code (-fgpu-rdc
 /// is passed to both the device and the host -cc1 invocation) and that
 /// -fno-gpu-rdc disables it.
-// RUN: %clang -### -fsycl --no-offloadlib -c %s 2>&1 \
+// RUN: %clang -### -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-SYCL-RDC,CHK-SYCL-RDC-HOST %s
-// RUN: %clang -### -fsycl --no-offloadlib -fgpu-rdc -c %s 2>&1 \
+// RUN: %clang -### -fsycl -fgpu-rdc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-SYCL-RDC,CHK-SYCL-RDC-HOST %s
-// RUN: %clang -### -fsycl --no-offloadlib -fno-gpu-rdc -c %s 2>&1 \
+// RUN: %clang -### -fsycl -fno-gpu-rdc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-NORDC %s
 // CHK-SYCL-RDC: "-cc1"{{.*}} "-fsycl-is-device" {{.*}} "-fgpu-rdc"
 // CHK-SYCL-RDC-HOST: "-cc1"{{.*}} "-fsycl-is-host" {{.*}} "-fgpu-rdc"
 // CHK-SYCL-NORDC-NOT: "-fgpu-rdc"
 
 /// Conversely, RDC mode embeds unlinked device code via -fembed-offload-object.
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:   --no-offloadlib -fgpu-rdc %s 2>&1 \
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl -fgpu-rdc %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RDC-EMBED %s \
 // RUN:     --implicit-check-not='"-foffload-include-binary"' \
 // RUN:     --implicit-check-not='"--emit-fatbin-only"'
@@ -90,8 +89,7 @@
 
 // Check that --allow-partial-linkage and --create-library are not passed to
 // clang-linker-wrapper for SYCL (they are spirv-link flags, not clang-sycl-linker flags).
-// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:   --no-offloadlib %s 2>&1 \
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SPIRVLINK-FLAGS %s
 // CHECK-NO-SPIRVLINK-FLAGS-NOT: --device-linker=spirv64-unknown-unknown=--allow-partial-linkage
 // CHECK-NO-SPIRVLINK-FLAGS-NOT: --device-linker=spirv64-unknown-unknown=--create-library
@@ -123,9 +121,7 @@
 // CHK-SPLIT-INVALID: error: invalid value 'bogus' in '-fsycl-device-image-split='
 
 /// Check -fsycl-device-image-split is unused when not linking (e.g. -c).
-// RUN: %clang -### -c --target=x86_64-unknown-linux-gnu -fsycl \
-// RUN:   --no-offloadlib \
-// RUN:   -fsycl-device-image-split=kernel %s 2>&1 \
+// RUN: %clang -### -c --target=x86_64-unknown-linux-gnu -fsycl -fsycl-device-image-split=kernel %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SPLIT-UNUSED %s
 // CHK-SPLIT-UNUSED: warning: argument unused during compilation: '-fsycl-device-image-split=kernel'
 

@@ -38,6 +38,7 @@
 #include "clang/CIR/MissingFeatures.h"
 #include "clang/CodeGenUtils/ModuleUtils.h"
 #include "clang/CodeGenUtils/RecordLayoutUtils.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -206,7 +207,8 @@ CIRGenModule::CIRGenModule(mlir::MLIRContext &mlirContext,
           /*openmp=*/langOpts.OpenMP != 0,
           /*openmp_is_target_device=*/langOpts.OpenMPIsTargetDevice,
           /*clang_abi_compat=*/
-          static_cast<int32_t>(langOpts.getClangABICompat())));
+          static_cast<int32_t>(langOpts.getClangABICompat()),
+          static_cast<int32_t>(langOpts.LongDoubleSize)));
 
   if (cgo.OptimizationLevel > 0 || cgo.OptimizeSize > 0)
     getModule()->setAttr(cir::CIRDialect::getOptInfoAttrName(),
@@ -562,6 +564,38 @@ void CIRGenModule::printPostfixForExternalizedDecl(llvm::raw_ostream &os,
   }
 }
 
+static bool shouldSkipAliasEmission(const CIRGenModule &cgm,
+                                    const ValueDecl *global) {
+  const LangOptions &langOpts = cgm.getLangOpts();
+  if (!langOpts.OpenMPIsTargetDevice && !langOpts.CUDA)
+    return false;
+
+  const auto *aa = global->getAttr<AliasAttr>();
+  GlobalDecl aliaseeGD;
+
+  // Check if the aliasee exists, if the aliasee is not found, skip the alias
+  // emission. This is executed for both the host and device.
+  if (!cgm.lookupRepresentativeDecl(aa->getAliasee(), aliaseeGD))
+    return true;
+
+  const auto *aliaseeDecl = dyn_cast<ValueDecl>(aliaseeGD.getDecl());
+  if (langOpts.OpenMPIsTargetDevice)
+    return !aliaseeDecl ||
+           !OMPDeclareTargetDeclAttr::isDeclareTargetDeclaration(aliaseeDecl);
+
+  // CUDA / HIP
+  const bool hasDeviceAttr = global->hasAttr<CUDADeviceAttr>();
+  const bool aliaseeHasDeviceAttr =
+      aliaseeDecl && aliaseeDecl->hasAttr<CUDADeviceAttr>();
+
+  if (langOpts.CUDAIsDevice)
+    return !hasDeviceAttr || !aliaseeHasDeviceAttr;
+
+  // CUDA / HIP Host
+  // we know that the aliasee exists from above, so we know to emit
+  return false;
+}
+
 void CIRGenModule::emitGlobal(clang::GlobalDecl gd) {
   if (const auto *cd = dyn_cast<clang::OpenACCConstructDecl>(gd.getDecl())) {
     emitGlobalOpenACCDecl(cd);
@@ -577,9 +611,8 @@ void CIRGenModule::emitGlobal(clang::GlobalDecl gd) {
   // If this is an alias definition (which otherwise looks like a declaration)
   // emit it now.
   if (global->hasAttr<AliasAttr>()) {
-    // Classic codegen calls shouldSkipAliasEmission here to skip alias
-    // emission for OpenMP target device and CUDA configurations.
-    assert(!cir::MissingFeatures::shouldSkipAliasEmission());
+    if (shouldSkipAliasEmission(*this, global))
+      return;
     emitAliasDefinition(gd);
     return;
   }
@@ -1486,20 +1519,24 @@ static void emitUsed(CIRGenModule &cgm, StringRef name,
 
   CIRGenBuilderTy &builder = cgm.getBuilder();
   mlir::Location loc = builder.getUnknownLoc();
+  cir::PointerType voidPtrTy = builder.getVoidPtrTy(
+      cgm.getTypes().getPointerAddressSpace(cgm.getASTContext().VoidTy));
+
   llvm::SmallVector<mlir::Attribute> usedArray;
   usedArray.resize(list.size());
   for (auto [i, op] : llvm::enumerate(list)) {
     usedArray[i] = cir::GlobalViewAttr::get(
-        cgm.voidPtrTy, mlir::FlatSymbolRefAttr::get(op.getNameAttr()));
+        voidPtrTy, mlir::FlatSymbolRefAttr::get(op.getNameAttr()));
   }
 
-  cir::ArrayType arrayTy = cir::ArrayType::get(cgm.voidPtrTy, usedArray.size());
+  cir::ArrayType arrayTy = cir::ArrayType::get(voidPtrTy, usedArray.size());
 
   cir::ConstArrayAttr initAttr = cir::ConstArrayAttr::get(
       arrayTy, mlir::ArrayAttr::get(&cgm.getMLIRContext(), usedArray));
 
-  cir::GlobalOp gv = cgm.createGlobalOp(loc, name, arrayTy,
-                                        /*isConstant=*/false);
+  cir::GlobalOp gv = cgm.createGlobalOp(
+      loc, name, arrayTy, /*isConstant=*/false,
+      cgm.getDataLayout().getDefaultGlobalsAddrSpace(&cgm.getMLIRContext()));
   gv.setLinkage(cir::GlobalLinkageKind::AppendingLinkage);
   gv.setInitialValueAttr(initAttr);
   gv.setSectionAttr(builder.getStringAttr("llvm.metadata"));
@@ -1989,6 +2026,20 @@ CIRGenModule::getCIRLinkageForDeclarator(const DeclaratorDecl *dd,
   // so we can use available_externally linkage.
   if (linkage == GVA_AvailableExternally)
     return cir::GlobalLinkageKind::AvailableExternallyLinkage;
+
+  // SYCL: Device code is not generally limited to one translation unit, but
+  // anything accessed from another translation unit is required to be annotated
+  // with the SYCL_EXTERNAL macro. For any function or variable that does not
+  // have this, linkonce_odr suffices. If -fno-sycl-rdc is passed, we know there
+  // is only one translation unit and can so mark them internal. Mirrors
+  // classic CodeGen's getLLVMLinkageForDeclarator.
+  if (getLangOpts().SYCLIsDevice && !dd->hasAttr<SYCLKernelAttr>() &&
+      !dd->hasAttr<SYCLDeviceAttr>() && !dd->hasAttr<SYCLExternalAttr>() &&
+      !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          dd->getType()))
+    return getLangOpts().GPURelocatableDeviceCode
+               ? cir::GlobalLinkageKind::LinkOnceODRLinkage
+               : cir::GlobalLinkageKind::InternalLinkage;
 
   // Note that Apple's kernel linker doesn't support symbol
   // coalescing, so we need to avoid linkonce and weak linkages there.

@@ -44,13 +44,13 @@ template <> [[clang::sycl_external]] void tFunc<int>(int arg) {}
 // Defined without the attribute and not used in device code: not emitted.
 int squareNoAttr(int x) { return x * x; }
 
-// CIR: cir.func {{.*}}@_Z6squarei({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
-// CIR: cir.func {{.*}}@_Z9deviceUsev() {{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
+// CIR: cir.func {{.*}}@_Z6squarei({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
+// CIR: cir.func {{.*}}@_Z9deviceUsev() {{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
 // CIR: cir.func private @_Z16declUsedInDevicei({{.*}} attributes {convergent{{[^"]*}}} loc
-// CIR: cir.func {{.*}}@_Z5func1i({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
-// CIR: cir.func {{.*}}@_Z8withAttrv() {{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
+// CIR: cir.func {{.*}}@_Z5func1i({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
+// CIR: cir.func {{.*}}@_Z8withAttrv() {{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
 // CIR: cir.func {{.*}}@_Z4ret1v() {{.*}} attributes {convergent{{[^"]*}}} {
-// CIR: cir.func {{.*}}@_Z5tFuncIiEvT_({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
+// CIR: cir.func {{.*}}@_Z5tFuncIiEvT_({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
 // CIR: cir.func {{.*}}@_ZTS2KN({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
 // CIR-NOT: @_Z8declOnlyv
 // CIR-NOT: @_Z12squareNoAttri
@@ -60,13 +60,14 @@ int squareNoAttr(int x) { return x * x; }
 // LLVM: declare spir_func void @_Z16declUsedInDevicei(i32 noundef) #[[DECL:[0-9]+]]
 // LLVM: define spir_func noundef i32 @_Z5func1i(i32 noundef %{{.*}}) #[[EXT]]
 // LLVM: define spir_func noundef i32 @_Z8withAttrv() #[[EXT]]
-// LLVM: define spir_func noundef i32 @_Z4ret1v() #[[NOEXT:[0-9]+]]
+// LLVM: define linkonce_odr spir_func noundef i32 @_Z4ret1v() #[[NOEXT:[0-9]+]]
 // LLVM: define spir_func void @_Z5tFuncIiEvT_(i32 noundef %{{.*}}) #[[EXT]]
 // ClangIR does not yet pass kernel arguments byval.
-// LLVM-CIR: define spir_kernel void @_ZTS2KN({{.*}}) #[[EXT]]
-// OGCG: define spir_kernel void @_ZTS2KN(ptr noundef byval({{.*}}) #[[EXT]]
+// LLVM-CIR: define spir_kernel void @_ZTS2KN({{.*}}) #[[KATTR:[0-9]+]]
+// OGCG: define spir_kernel void @_ZTS2KN(ptr noundef byval({{.*}}) #[[KATTR:[0-9]+]]
 // LLVM-NOT: @_Z8declOnlyv
 // LLVM-NOT: @_Z12squareNoAttri
-// LLVM-DAG: attributes #[[EXT]] = { {{.*}}"sycl-module-id"="{{.*}}sycl-external.cpp" }
+// LLVM-DAG: attributes #[[EXT]] = { {{.*}}"sycl-module-id"="{{.*}}sycl-external.cpp" {{.*}}"uniform-work-group-size" }
+// LLVM-DAG: attributes #[[KATTR]] = { {{.*}}"sycl-module-id"="{{.*}}sycl-external.cpp"{{.*}} }
 // LLVM-DAG: attributes #[[DECL]] = { convergent{{.*}} }
 // LLVM-DAG: attributes #[[NOEXT]] = { convergent {{.*}}noinline{{.*}} }

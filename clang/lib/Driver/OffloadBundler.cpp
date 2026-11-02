@@ -148,8 +148,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
     return;
   }
 
-  this->Triple = llvm::Triple(T.getArchName(), T.getVendorName(), T.getOSName(),
-                              T.getEnvironmentName());
+  this->Triple = std::move(T);
 }
 
 bool OffloadTargetInfo::hasHostKind() const {

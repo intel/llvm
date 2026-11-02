@@ -236,40 +236,40 @@ void test() {
 // CHECK: call noundef zeroext i1 @_Z32__spirv_GroupNonUniformShuffleUpibj
 // CHECK: call noundef zeroext i1 @_Z34__spirv_GroupNonUniformShuffleDownibj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualic
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformBroadcasticj
-// CHECK: call noundef signext i8 @_Z37__spirv_GroupNonUniformBroadcastFirstic
-// CHECK: call noundef signext i8 @_Z30__spirv_GroupNonUniformShuffleicj
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformShuffleXoricj
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformShuffleUpicj
-// CHECK: call noundef signext i8 @_Z34__spirv_GroupNonUniformShuffleDownicj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBroadcasticj
+// CHECK: call noundef i8 @_Z37__spirv_GroupNonUniformBroadcastFirstic
+// CHECK: call noundef i8 @_Z30__spirv_GroupNonUniformShuffleicj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformShuffleXoricj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformShuffleUpicj
+// CHECK: call noundef i8 @_Z34__spirv_GroupNonUniformShuffleDownicj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualia
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformBroadcastiaj
-// CHECK: call noundef signext i8 @_Z37__spirv_GroupNonUniformBroadcastFirstia
-// CHECK: call noundef signext i8 @_Z30__spirv_GroupNonUniformShuffleiaj
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformShuffleXoriaj
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformShuffleUpiaj
-// CHECK: call noundef signext i8 @_Z34__spirv_GroupNonUniformShuffleDowniaj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBroadcastiaj
+// CHECK: call noundef i8 @_Z37__spirv_GroupNonUniformBroadcastFirstia
+// CHECK: call noundef i8 @_Z30__spirv_GroupNonUniformShuffleiaj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformShuffleXoriaj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformShuffleUpiaj
+// CHECK: call noundef i8 @_Z34__spirv_GroupNonUniformShuffleDowniaj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualih
-// CHECK: call noundef zeroext i8 @_Z32__spirv_GroupNonUniformBroadcastihj
-// CHECK: call noundef zeroext i8 @_Z37__spirv_GroupNonUniformBroadcastFirstih
-// CHECK: call noundef zeroext i8 @_Z30__spirv_GroupNonUniformShuffleihj
-// CHECK: call noundef zeroext i8 @_Z33__spirv_GroupNonUniformShuffleXorihj
-// CHECK: call noundef zeroext i8 @_Z32__spirv_GroupNonUniformShuffleUpihj
-// CHECK: call noundef zeroext i8 @_Z34__spirv_GroupNonUniformShuffleDownihj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBroadcastihj
+// CHECK: call noundef i8 @_Z37__spirv_GroupNonUniformBroadcastFirstih
+// CHECK: call noundef i8 @_Z30__spirv_GroupNonUniformShuffleihj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformShuffleXorihj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformShuffleUpihj
+// CHECK: call noundef i8 @_Z34__spirv_GroupNonUniformShuffleDownihj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualis
-// CHECK: call noundef signext i16 @_Z32__spirv_GroupNonUniformBroadcastisj
-// CHECK: call noundef signext i16 @_Z37__spirv_GroupNonUniformBroadcastFirstis
-// CHECK: call noundef signext i16 @_Z30__spirv_GroupNonUniformShuffleisj
-// CHECK: call noundef signext i16 @_Z33__spirv_GroupNonUniformShuffleXorisj
-// CHECK: call noundef signext i16 @_Z32__spirv_GroupNonUniformShuffleUpisj
-// CHECK: call noundef signext i16 @_Z34__spirv_GroupNonUniformShuffleDownisj
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformBroadcastisj
+// CHECK: call noundef i16 @_Z37__spirv_GroupNonUniformBroadcastFirstis
+// CHECK: call noundef i16 @_Z30__spirv_GroupNonUniformShuffleisj
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformShuffleXorisj
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformShuffleUpisj
+// CHECK: call noundef i16 @_Z34__spirv_GroupNonUniformShuffleDownisj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualit
-// CHECK: call noundef zeroext i16 @_Z32__spirv_GroupNonUniformBroadcastitj
-// CHECK: call noundef zeroext i16 @_Z37__spirv_GroupNonUniformBroadcastFirstit
-// CHECK: call noundef zeroext i16 @_Z30__spirv_GroupNonUniformShuffleitj
-// CHECK: call noundef zeroext i16 @_Z33__spirv_GroupNonUniformShuffleXoritj
-// CHECK: call noundef zeroext i16 @_Z32__spirv_GroupNonUniformShuffleUpitj
-// CHECK: call noundef zeroext i16 @_Z34__spirv_GroupNonUniformShuffleDownitj
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformBroadcastitj
+// CHECK: call noundef i16 @_Z37__spirv_GroupNonUniformBroadcastFirstit
+// CHECK: call noundef i16 @_Z30__spirv_GroupNonUniformShuffleitj
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformShuffleXoritj
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformShuffleUpitj
+// CHECK: call noundef i16 @_Z34__spirv_GroupNonUniformShuffleDownitj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualii
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformBroadcastiij
 // CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstii
@@ -305,56 +305,56 @@ void test() {
 // CHECK: call noundef double @_Z33__spirv_GroupNonUniformShuffleXoridj
 // CHECK: call noundef double @_Z32__spirv_GroupNonUniformShuffleUpidj
 // CHECK: call noundef double @_Z34__spirv_GroupNonUniformShuffleDownidj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIAddiic
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIAddiicj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIMuliic
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIMuliicj
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseAndiicj
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformBitwiseOriic
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformBitwiseOriicj
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseXoriicj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIAddiia
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIAddiiaj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIMuliia
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformIMuliiaj
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseAndiia
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseAndiiaj
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformBitwiseOriia
-// CHECK: call noundef signext i8 @_Z32__spirv_GroupNonUniformBitwiseOriiaj
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseXoriia
-// CHECK: call noundef signext i8 @_Z33__spirv_GroupNonUniformBitwiseXoriiaj
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformIAddiih
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformIAddiihj
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformIMuliih
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformIMuliihj
-// CHECK: call noundef zeroext i8 @_Z33__spirv_GroupNonUniformBitwiseAndiih
-// CHECK: call noundef zeroext i8 @_Z33__spirv_GroupNonUniformBitwiseAndiihj
-// CHECK: call noundef zeroext i8 @_Z32__spirv_GroupNonUniformBitwiseOriih
-// CHECK: call noundef zeroext i8 @_Z32__spirv_GroupNonUniformBitwiseOriihj
-// CHECK: call noundef zeroext i8 @_Z33__spirv_GroupNonUniformBitwiseXoriih
-// CHECK: call noundef zeroext i8 @_Z33__spirv_GroupNonUniformBitwiseXoriihj
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformIAddiis
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformIAddiisj
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformIMuliis
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformIMuliisj
-// CHECK: call noundef signext i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis
-// CHECK: call noundef signext i16 @_Z33__spirv_GroupNonUniformBitwiseAndiisj
-// CHECK: call noundef signext i16 @_Z32__spirv_GroupNonUniformBitwiseOriis
-// CHECK: call noundef signext i16 @_Z32__spirv_GroupNonUniformBitwiseOriisj
-// CHECK: call noundef signext i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis
-// CHECK: call noundef signext i16 @_Z33__spirv_GroupNonUniformBitwiseXoriisj
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformIAddiit
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformIAddiitj
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformIMuliit
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformIMuliitj
-// CHECK: call noundef zeroext i16 @_Z33__spirv_GroupNonUniformBitwiseAndiit
-// CHECK: call noundef zeroext i16 @_Z33__spirv_GroupNonUniformBitwiseAndiitj
-// CHECK: call noundef zeroext i16 @_Z32__spirv_GroupNonUniformBitwiseOriit
-// CHECK: call noundef zeroext i16 @_Z32__spirv_GroupNonUniformBitwiseOriitj
-// CHECK: call noundef zeroext i16 @_Z33__spirv_GroupNonUniformBitwiseXoriit
-// CHECK: call noundef zeroext i16 @_Z33__spirv_GroupNonUniformBitwiseXoriitj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIAddiic
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIAddiicj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIMuliic
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIMuliicj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseAndiicj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBitwiseOriic
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBitwiseOriicj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseXoriicj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIAddiia
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIAddiiaj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIMuliia
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIMuliiaj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseAndiia
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseAndiiaj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBitwiseOriia
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBitwiseOriiaj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseXoriia
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseXoriiaj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIAddiih
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIAddiihj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIMuliih
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformIMuliihj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseAndiih
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseAndiihj
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBitwiseOriih
+// CHECK: call noundef i8 @_Z32__spirv_GroupNonUniformBitwiseOriihj
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseXoriih
+// CHECK: call noundef i8 @_Z33__spirv_GroupNonUniformBitwiseXoriihj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIAddiis
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIAddiisj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIMuliis
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIMuliisj
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseAndiisj
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformBitwiseOriis
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformBitwiseOriisj
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseXoriisj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIAddiit
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIAddiitj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIMuliit
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformIMuliitj
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseAndiit
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseAndiitj
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformBitwiseOriit
+// CHECK: call noundef i16 @_Z32__spirv_GroupNonUniformBitwiseOriitj
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseXoriit
+// CHECK: call noundef i16 @_Z33__spirv_GroupNonUniformBitwiseXoriitj
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformIAddiii
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformIAddiiij
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformIMuliii
@@ -375,30 +375,30 @@ void test() {
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformBitwiseOriijj
 // CHECK: call noundef i32 @_Z33__spirv_GroupNonUniformBitwiseXoriij
 // CHECK: call noundef i32 @_Z33__spirv_GroupNonUniformBitwiseXoriijj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMiniic
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMiniicj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMaxiic
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMaxiicj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMiniia
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMiniiaj
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMaxiia
-// CHECK: call noundef signext i8 @_Z27__spirv_GroupNonUniformSMaxiiaj
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformSMiniis
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformSMiniisj
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformSMaxiis
-// CHECK: call noundef signext i16 @_Z27__spirv_GroupNonUniformSMaxiisj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMiniic
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMiniicj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMaxiic
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMaxiicj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMiniia
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMiniiaj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMaxiia
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformSMaxiiaj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformSMiniis
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformSMiniisj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformSMaxiis
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformSMaxiisj
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformSMiniii
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformSMiniiij
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformSMaxiii
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformSMaxiiij
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformUMiniih
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformUMiniihj
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformUMaxiih
-// CHECK: call noundef zeroext i8 @_Z27__spirv_GroupNonUniformUMaxiihj
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformUMiniit
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformUMiniitj
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformUMaxiit
-// CHECK: call noundef zeroext i16 @_Z27__spirv_GroupNonUniformUMaxiitj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformUMiniih
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformUMiniihj
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformUMaxiih
+// CHECK: call noundef i8 @_Z27__spirv_GroupNonUniformUMaxiihj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformUMiniit
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformUMiniitj
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformUMaxiit
+// CHECK: call noundef i16 @_Z27__spirv_GroupNonUniformUMaxiitj
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformUMiniij
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformUMiniijj
 // CHECK: call noundef i32 @_Z27__spirv_GroupNonUniformUMaxiij

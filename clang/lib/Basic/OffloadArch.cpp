@@ -10,8 +10,10 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/TargetParser/AMDGPUTargetParser.h"
+#include "llvm/TargetParser/IntelGPUTargetParser.h"
 #include "llvm/TargetParser/NVPTXTargetParser.h"
 #include "llvm/TargetParser/Triple.h"
+#include <cassert>
 
 namespace clang {
 
@@ -116,6 +118,16 @@ static const IntelArchNameMap *lookupIntelArch(llvm::StringRef Name) {
   return nullptr;
 }
 
+OffloadArch OffloadArch::getIntelIGCA(llvm::IntelGPU::IGCATarget T) {
+  assert(T.isValid() && "T is not a valid IGCA target");
+  return {TargetArch::IntelIGCA, T.pack()};
+}
+
+llvm::IntelGPU::IGCATarget OffloadArch::igcaTarget() const {
+  assert(isIntelIGCA() && "cannot get IGCA target from a non-IGCA OffloadArch");
+  return llvm::IntelGPU::IGCATarget::unpack(Kind);
+}
+
 const char *OffloadArchToString(OffloadArch A) {
   switch (A.targetArch()) {
   case OffloadArch::TargetArch::Unused:
@@ -130,10 +142,18 @@ const char *OffloadArchToString(OffloadArch A) {
     return "amdgcnspirv";
   case OffloadArch::TargetArch::IntelCPU:
   case OffloadArch::TargetArch::IntelGPU: {
-    const IntelArchNameMap *Entry =
-        lookupIntelArch(A.targetArch(), A.intelKind());
-    return Entry ? Entry->Name : "unknown";
+    // Named by one of the SYCL IntelArch spellings.
+    if (A.isIntelArchKind()) {
+      const IntelArchNameMap *Entry =
+          lookupIntelArch(A.targetArch(), A.intelKind());
+      return Entry ? Entry->Name : "unknown";
+    }
+    if (A.isIntelCPU())
+      return "graniterapids";
+    return llvm::IntelGPU::getArchName(A.intelGPUKind()).data();
   }
+  case OffloadArch::TargetArch::IntelIGCA:
+    return llvm::IntelGPU::getIGCATargetName(A.igcaTarget()).data();
   case OffloadArch::TargetArch::Generic:
     return "generic";
   }
@@ -149,6 +169,8 @@ const char *OffloadArchToVirtualArchString(OffloadArch A) {
     return "compute_amdgcn";
   case OffloadArch::TargetArch::Unknown:
     return "unknown";
+  case OffloadArch::TargetArch::IntelIGCA:
+    return llvm::IntelGPU::getIGCATargetName(A.igcaTarget()).data();
   case OffloadArch::TargetArch::Unused:
   case OffloadArch::TargetArch::IntelCPU:
   case OffloadArch::TargetArch::IntelGPU:
@@ -168,6 +190,10 @@ OffloadArch StringToOffloadArch(llvm::StringRef S) {
     return OffloadArch::getAMDGCNSPIRV();
   if (S == "generic")
     return OffloadArch::getGeneric();
+  // Intel CPU offload has a single processor and no TargetParser list.
+  if (S == "graniterapids")
+    return OffloadArch::getIntelCPU();
+  // SYCL spellings of Intel CPUs and GPUs (e.g. "pvc", "bmg_g21").
   if (const IntelArchNameMap *Entry = lookupIntelArch(S))
     return OffloadArch::getIntel(Entry->V, Entry->Arch);
 
@@ -176,6 +202,10 @@ OffloadArch StringToOffloadArch(llvm::StringRef S) {
     return OffloadArch::getNVPTX(NV);
   if (llvm::AMDGPU::GPUKind AK = llvm::AMDGPU::parseArchAMDGCN(S))
     return OffloadArch::getAMDGPU(AK);
+  if (llvm::IntelGPU::GPUKind IK = llvm::IntelGPU::parseArch(S))
+    return OffloadArch::getIntelGPU(IK);
+  if (llvm::IntelGPU::IGCATarget IT = llvm::IntelGPU::parseIGCATarget(S))
+    return OffloadArch::getIntelIGCA(IT);
   return OffloadArch::getUnknown();
 }
 

@@ -538,9 +538,7 @@ def warn_drv_fraw_string_literals_in_cxx11 : Warning<
   InGroup<UnusedCommandLineArgument>;
 
 def err_drv_device_lib_not_found : Error<
-  "no %select{libclc|compiler-rt builtins bitcode}0 library '%1' found in the "
-  "clang resource directory%select{|; build compiler-rt with SPIR-V support or "
-  "pass '--no-offloadlib' to compile without it}0">;
+  "no %0 library '%1' found in the clang resource directory">;
 
 def err_drv_invalid_malign_branch_EQ : Error<
   "invalid argument '%0' to -malign-branch=; each element must be one of: %1">;
@@ -1005,6 +1003,10 @@ def err_drv_target_variant_invalid : Error<
   "unsupported '%0' value '%1'; use 'ios-macabi' instead">;
 def warn_drv_fsycl_with_c_type : Warning<
   "treating '%0' input as '%1' when -fsycl is used">, InGroup<ExpectedFileType>;
+def warn_drv_huge_device_code : Warning<
+  "total device code size of %0 may overflow 32-bit relocations in the host "
+  "link; consider linking with '-flink-huge-device-code'">,
+  InGroup<LargeDeviceKernel>;
 
 def err_drv_invalid_directx_shader_module : Error<
   "invalid profile : %0">;
