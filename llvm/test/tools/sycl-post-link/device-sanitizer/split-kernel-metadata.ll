@@ -1,10 +1,7 @@
 ; This test checks that after splitting, the sanitizer kernel metadata of each
 ; device image only describes the kernels defined in that image: the entries of
 ; the other kernels are zeroed out, and their kernel name strings are not copied
-; into the image. Otherwise every image carries the names of all kernels of the
-; program, and with -split=kernel the total size of the device images grows
-; quadratically with the number of kernels. The number of entries is kept, as
-; the metadata is a device global and all device images must agree on its size.
+; into the image.
 
 ; RUN: split-file %s %t
 
@@ -25,8 +22,8 @@
 ; RUN: FileCheck %s -input-file=%t/tsan_0.ll --check-prefix TSAN-B --implicit-check-not=KernelA
 ; RUN: FileCheck %s -input-file=%t/tsan_1.ll --check-prefix TSAN-A --implicit-check-not=KernelB
 
-; Kernels from two modules with different ids: all the entries of the metadata
-; global of the other module are zeroed out, and its sentinel kernel is kept.
+; Kernels from two TUs with different module ids: all entries of the metadata
+; global of the other TU are zeroed out, and its sentinel kernel is kept.
 ; RUN: sycl-post-link -properties -device-globals -split=kernel -symbols -S < %t/two-ids.ll -o %t/two-ids.table
 ; RUN: FileCheck %s -input-file=%t/two-ids_0.ll --check-prefix TWO-IDS-B --implicit-check-not=KernelA
 ; RUN: FileCheck %s -input-file=%t/two-ids_1.ll --check-prefix TWO-IDS-A --implicit-check-not=KernelB

@@ -21,20 +21,12 @@ using namespace llvm;
 
 namespace {
 
-constexpr StringRef KernelMetadataPrefixes[] = {
-    sycl::utils::ASAN_KERNEL_METADATA_PREFIX,
-    sycl::utils::MSAN_KERNEL_METADATA_PREFIX,
-    sycl::utils::TSAN_KERNEL_METADATA_PREFIX};
-
-bool isSanitizerKernelMetadata(const GlobalVariable &GV) {
-  return any_of(KernelMetadataPrefixes, [&GV](StringRef Prefix) {
-    return GV.getName().starts_with(Prefix);
-  });
-}
-
-// Returns the name of the kernel described by a sanitizer kernel metadata
-// entry { i64 ptrtoint (ptr addrspace(2) @__asan_kernel to i64), i64 <size>,
-// ... }, or an empty string if it can't be determined.
+// Returns the kernel name referenced by
+// Entry, one element of the array held by a sanitizer kernel metadata global
+//  (__{Asan,Msan,Tsan}KernelMetadata_<id>). Entry has the form
+// { i64 ptrtoint (ptr addrspace(2) @<name string> to i64), i64 <size>[, i64 <flags>] }
+// where <name string> is a null-terminated constant string. Returns an empty
+// string if Entry doesn't have this form.
 StringRef getKernelName(Constant *Entry) {
   auto *NameField =
       dyn_cast_or_null<ConstantExpr>(Entry->getAggregateElement(0u));
@@ -66,11 +58,10 @@ bool pruneSanitizerKernelMetadata(Module &M) {
   bool Modified = false;
   for (GlobalVariable &KernelMetadata : M.globals()) {
     if (!KernelMetadata.hasInitializer() ||
-        !isSanitizerKernelMetadata(KernelMetadata))
+        !sycl::utils::getSanitizerKernelMetadataModuleID(KernelMetadata))
       continue;
 
-    // SanitizerPostOptimizerPass has wrapped the array of entries into a
-    // structure type.
+    // SanitizerPostOptimizerPass wraps the array of entries into a struct.
     auto *Wrapper = dyn_cast<ConstantStruct>(KernelMetadata.getInitializer());
     if (!Wrapper || Wrapper->getNumOperands() != 1)
       continue;
@@ -106,15 +97,10 @@ bool pruneSanitizerKernelMetadata(Module &M) {
 
 bool createSanitizerModuleID(Module &M) {
   SmallVector<StringRef, 3> ModuleIDs;
-  for (GlobalVariable &GV : M.globals()) {
-    auto GVName = GV.getName();
-    for (StringRef Prefix : KernelMetadataPrefixes) {
-      if (GVName.starts_with(Prefix)) {
-        ModuleIDs.push_back(GVName.drop_front(Prefix.size()));
-        break;
-      }
-    }
-  }
+  for (GlobalVariable &GV : M.globals())
+    if (std::optional<StringRef> ModuleID =
+            sycl::utils::getSanitizerKernelMetadataModuleID(GV))
+      ModuleIDs.push_back(*ModuleID);
 
   if (ModuleIDs.empty())
     return false;

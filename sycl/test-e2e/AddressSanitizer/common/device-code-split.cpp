@@ -7,9 +7,8 @@
 // RUN: %{run} %t_per_kernel.out 2>&1 | FileCheck %s
 
 // Checks that when a program built from several translation units is split
-// into several device images, the sanitizer kernel metadata (a device global
-// copied into every image) has the same size in all of them, and that each
-// image still describes its own kernels, so the errors of every kernel are
+// into several device images, the sanitizer kernel metadata of each image
+// still describes its own kernels, so the errors of every kernel are
 // reported.
 
 #include <sycl/detail/core.hpp>
