@@ -5,9 +5,26 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22347
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21556
-// UNSUPPORTED: windows && run-mode
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22284
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out
 
 // Test interoperability buffer for the Level Zer backend
