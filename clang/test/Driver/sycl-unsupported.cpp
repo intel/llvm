@@ -86,3 +86,14 @@
 // RUN: not %clangxx -fsycl -fsycl-link=image -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=image
 // UNSUPPORTED_FPGA: option '[[BADOPT]]' is not supported and has been removed from the compiler. Please see the compiler documentation for more details
+
+// Check that -fsanitize= with undefined, alone or in a list, is diagnosed as
+// unsupported, while address is not.
+// RUN: %clangxx -fsycl -fsanitize=undefined -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_SAN -DOPT=-fsanitize=undefined
+// RUN: %clangxx -fsycl -fsanitize=address,undefined -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_SAN -DOPT=-fsanitize=address,undefined
+// RUN: %clangxx -fsycl -fsanitize=address -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix SUPPORTED_SAN
+// UNSUPPORTED_SAN: ignoring '[[OPT]]' option as it is not currently supported for target 'spir64{{.*}}'
+// SUPPORTED_SAN-NOT: not currently supported for target
