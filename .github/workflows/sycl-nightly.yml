@@ -402,7 +402,6 @@ jobs:
         -t Debug
         --cuda
         --native_cpu
-        --offload
         --level_zero_adapter_version ALL
         -DUR_STATIC_LOADER=${{ matrix.static }}
         -DUR_STATIC_ADAPTER_OPENCL=${{ matrix.static }}
