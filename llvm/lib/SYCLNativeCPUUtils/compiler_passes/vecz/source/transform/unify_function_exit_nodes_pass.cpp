@@ -1,4 +1,4 @@
-//===- UnifyFunctionExitNodes.cpp - Make all functions have a single exit -===//
+//===- unify_function_exit_nodes_pass.cpp - Make functions single-exit ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,11 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Type.h"
+#include "transform/unify_function_exit_nodes_pass.h"
+
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Type.h>
+
 using namespace llvm;
 
 namespace {
@@ -55,8 +57,8 @@ bool unifyReturnBlocks(Function &F) {
   // Insert a new basic block into the function, add PHI nodes (if the function
   // returns values), and convert all of the return instructions into
   // unconditional branches.
-  BasicBlock *NewRetBlock = BasicBlock::Create(F.getContext(),
-                                               "UnifiedReturnBlock", &F);
+  BasicBlock *NewRetBlock =
+      BasicBlock::Create(F.getContext(), "UnifiedReturnBlock", &F);
 
   PHINode *PN = nullptr;
   if (F.getReturnType()->isVoidTy()) {
@@ -85,8 +87,9 @@ bool unifyReturnBlocks(Function &F) {
 }
 } // namespace
 
-PreservedAnalyses UnifyFunctionExitNodesPass::run(Function &F,
-                                                  FunctionAnalysisManager &AM) {
+PreservedAnalyses
+vecz::UnifyFunctionExitNodesPass::run(Function &F,
+                                      FunctionAnalysisManager &AM) {
   bool Changed = false;
   Changed |= unifyUnreachableBlocks(F);
   Changed |= unifyReturnBlocks(F);
