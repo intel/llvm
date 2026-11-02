@@ -3,7 +3,7 @@
 // REQUIRES: vulkan
 
 // XFAIL: windows && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21985
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23692
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
