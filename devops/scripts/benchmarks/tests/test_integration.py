@@ -222,6 +222,28 @@ class TestE2E(unittest.TestCase):
             {"L0", "latency", "micro", "submit"},
         )
 
+    def test_queue_memcpy_sycl(self):
+        self._checkCase(
+            "memory_benchmark_sycl QueueMemcpy from Device to Device, size 1024",
+            "QueueMemcpy from Device to Device, size 1024",
+            {"memory", "latency", "SYCL", "micro"},
+        )
+
+    def test_usm_memory_allocation_ur(self):
+        self._checkCase(
+            "api_overhead_benchmark_ur UsmMemoryAllocation usmMemoryPlacement:Device size:256 measureMode:Both",
+            "UsmMemoryAllocation",
+            {"UR", "micro", "latency", "memory"},
+            "--test=UsmMemoryAllocation.*--strategy=sync",
+        )
+
+    def test_usm_fill_immediate_l0(self):
+        self._checkCase(
+            "memory_benchmark_l0 UsmFillImmediate, placement Device, size 4096, patternSize 4",
+            "UsmFillImmediate Device, small fill",
+            {"memory", "latency", "L0", "micro"},
+        )
+
     def test_torch_l0(self):
         self._checkCase(
             "torch_benchmark_l0 KernelSubmitEventRecordWait KernelWGCount 256, KernelWGSize 512, Profiling 0",
