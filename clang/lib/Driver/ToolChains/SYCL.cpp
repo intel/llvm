@@ -1561,8 +1561,8 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       // Native CPU can support options unsupported by other targets.
       if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
-      // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
+      // Sanitizers are not currently supported, except those returned by
+      // getSupportedDeviceSanitizers().
       if (A->getOption().getID() == options::OPT_fsanitize_EQ) {
         SanitizerMask Enabled;
         for (StringRef Value : A->getValues())
