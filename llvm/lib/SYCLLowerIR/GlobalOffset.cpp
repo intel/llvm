@@ -224,8 +224,15 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
   for (User *U : Users) {
     auto *CallToOld = dyn_cast<CallInst>(U);
-    if (!CallToOld)
-      return;
+    // Only direct calls where `Callee` is the callee are handled. If `Callee`
+    // is used in any other way (e.g. its address is taken or it is passed as a
+    // call argument), the implicit offset argument cannot be threaded through
+    // that use. Skipping such uses avoids constructing a call with a
+    // mismatched signature (which would otherwise crash the compiler). Note we
+    // must `continue` rather than `return` so remaining valid callers are still
+    // processed.
+    if (!CallToOld || CallToOld->getCalledOperand() != Callee)
+      continue;
 
     auto *Caller = CallToOld->getFunction();
 
@@ -273,10 +280,24 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
       }
       ImplicitOffsets.push_back(ImplicitOffset);
 
+      // Build the callee type from the *original* call's function type rather
+      // than from the callee's declared signature, then append the implicit
+      // offset parameter. LLVM allows a call whose function type differs from
+      // the callee's declared type (e.g. SYCL device code frequently calls
+      // functions through address-space-mismatched pointer types such as
+      // generic `ptr` vs `ptr addrspace(4)`). Using the callee's declared
+      // signature here would create a call whose argument types disagree with
+      // the parameter types, tripping a "bad signature" assertion.
+      FunctionType *OldCallTy = CallToOld->getFunctionType();
+      SmallVector<Type *, 8> NewParamTypes(OldCallTy->params());
+      NewParamTypes.push_back(ImplicitOffset->getType());
+      FunctionType *NewCallTy = FunctionType::get(
+          OldCallTy->getReturnType(), NewParamTypes, OldCallTy->isVarArg());
+
       // Replace call to other function (which now has a new parameter),
       // with a call including the new parameter to that same function.
       auto *NewCallInst = CallInst::Create(
-          /* Ty= */ CalleeWithImplicitParam->getFunctionType(),
+          /* Ty= */ NewCallTy,
           /* Func= */ CalleeWithImplicitParam,
           /* Args= */ ImplicitOffsets,
           /* NameStr= */ Twine(),

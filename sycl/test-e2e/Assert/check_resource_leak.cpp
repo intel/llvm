@@ -7,10 +7,6 @@
 // Therefore not planned to be supported at the moment. See
 // https://github.com/intel/llvm/issues/22228
 
-// TODO: Fails at JIT compilation for some reason.
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
-
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 #define SYCL_FALLBACK_ASSERT 1
