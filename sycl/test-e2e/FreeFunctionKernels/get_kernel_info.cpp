@@ -2,8 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: cpu
-// XFAIL-TRACKER: CMPLRLLVM-68536
 // UNSUPPORTED: cuda, hip
 // UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
