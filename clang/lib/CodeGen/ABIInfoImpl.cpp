@@ -318,9 +318,10 @@ bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays,
   return true;
 }
 
-const Type *CodeGen::isSingleElementRecord(QualType T, ASTContext &Context) {
+static const Type *getSingleElement(QualType T, ASTContext &Context,
+                                    bool AllowUnions) {
   const auto *RD = T->getAsRecordDecl();
-  if (!RD)
+  if (!RD || (!AllowUnions && RD->isUnion()))
     return nullptr;
 
   if (RD->hasFlexibleArrayMember())
@@ -341,7 +342,7 @@ const Type *CodeGen::isSingleElementRecord(QualType T, ASTContext &Context) {
 
       // If this is non-empty and not a single element struct, the composite
       // cannot be a single element struct.
-      Found = isSingleElementRecord(I.getType(), Context);
+      Found = getSingleElement(I.getType(), Context, AllowUnions);
       if (!Found)
         return nullptr;
     }
@@ -370,7 +371,7 @@ const Type *CodeGen::isSingleElementRecord(QualType T, ASTContext &Context) {
     if (!isAggregateTypeForABI(FT)) {
       Found = FT.getTypePtr();
     } else {
-      Found = isSingleElementRecord(FT, Context);
+      Found = getSingleElement(FT, Context, AllowUnions);
       if (!Found)
         return nullptr;
     }
@@ -382,6 +383,14 @@ const Type *CodeGen::isSingleElementRecord(QualType T, ASTContext &Context) {
     return nullptr;
 
   return Found;
+}
+
+const Type *CodeGen::isSingleElementRecord(QualType T, ASTContext &Context) {
+  return getSingleElement(T, Context, /*AllowUnions=*/true);
+}
+
+const Type *CodeGen::isSingleElementStruct(QualType T, ASTContext &Context) {
+  return getSingleElement(T, Context, /*AllowUnions=*/false);
 }
 
 Address CodeGen::EmitVAArgInstr(CodeGenFunction &CGF, Address VAListAddr,
