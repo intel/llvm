@@ -351,10 +351,10 @@ int main(int argc, const char **argv) {
                                   "bundling object files (-type=o)"));
     }
     if (!BundlerConfig.AddTargetSymbols) {
-      return reportError(createStringError(
-          errc::invalid_argument,
-          "-target-symbols-only cannot be used with "
-          "-add-target-symbols-to-bundled-object=false"));
+      return reportError(
+          createStringError(errc::invalid_argument,
+                            "-target-symbols-only cannot be used with "
+                            "-add-target-symbols-to-bundled-object=false"));
     }
   }
 
