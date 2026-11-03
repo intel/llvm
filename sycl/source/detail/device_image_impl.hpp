@@ -655,30 +655,47 @@ public:
     const bool StoredIsNative =
         Bin && Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
-    if (!StoredIsNative && !MDevices.empty()) {
-      std::call_once(MBackendContentOnce, [this, Bin] {
+    // Only Level Zero and OpenCL answer the binary query reliably today; the
+    // other adapters keep handing out the stored bytes.
+    context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    const backend BE = ContextImpl.getBackend();
+    const bool BackendHasNativeBinary =
+        BE == backend::ext_oneapi_level_zero || BE == backend::opencl;
+
+    if (!StoredIsNative && BackendHasNativeBinary && !MDevices.empty()) {
+      std::call_once(MBackendContentOnce, [this, Bin, &ContextImpl] {
         // The API takes no device; the first device the image was built for
         // selects the binary.
-        device_impl &Dev = *MDevices.front();
+        device_impl *Dev = MDevices.front();
         Managed<ur_program_handle_t> Built;
         ur_program_handle_t Program = MProgram;
         if (!Program) {
           if (!Bin)
             return;
-          // Selector-built executable bundles never build their images; get
-          // the (normally cached) program the way a launch would.
+          // Selector-built executable bundles never build their images and
+          // keep the whole requested device list, so pick a device the image
+          // can be built for and get the (normally cached) program the way a
+          // launch would.
+          auto It = std::find_if(
+              MDevices.begin(), MDevices.end(), [Bin](device_impl *D) {
+                return doesDevSupportDeviceRequirements(*D, *Bin) &&
+                       doesImageTargetMatchDevice(*Bin, *D);
+              });
+          if (It == MDevices.end())
+            return;
+          Dev = *It;
           ProgramManager &PM = ProgramManager::getInstance();
           std::vector<const RTDeviceBinaryImage *> Imgs{Bin};
           for (const RTDeviceBinaryImage *Dep : PM.collectDeviceImageDeps(
-                   *Bin, Dev, /*ErrorOnUnresolvableImport=*/true))
+                   *Bin, *Dev, /*ErrorOnUnresolvableImport=*/true))
             Imgs.push_back(Dep);
-          Built = PM.getBuiltURProgram(
-              std::move(Imgs), *getSyclObjImpl(MContext), devices_range{Dev},
-              nullptr, MSpecConstsBlob);
+          Built = PM.getBuiltURProgram(std::move(Imgs), ContextImpl,
+                                       devices_range{*Dev}, nullptr,
+                                       MSpecConstsBlob);
           Program = Built;
         }
         MBackendContent = std::move(
-            getProgramBinaryData(Program, devices_range{Dev}).front());
+            getProgramBinaryData(Program, devices_range{*Dev}).front());
       });
       if (!MBackendContent.empty()) {
         const std::byte *Begin =
