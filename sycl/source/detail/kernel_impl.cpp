@@ -177,16 +177,28 @@ std::string kernel_impl::getAttributesFromDeviceRequirements() const {
   const RTDeviceBinaryImage *Img = MDeviceImageImpl->get_bin_image_ref();
 
   std::vector<uint64_t> WGSize;
+  bool HasWGSize64 = false;
   std::optional<uint32_t> WGNumDims, SubGroupSize;
   std::vector<aspect> Aspects;
   for (const auto &Prop : Img->getDeviceRequirements()) {
     const std::string_view Name{Prop->Name};
     const DeviceBinaryProperty DBProp(Prop);
     if (Name == __SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE_UINT64) {
+      // Prefer the uint64_t encoding if both are present.
+      HasWGSize64 = true;
+      WGSize.clear();
       ByteArray Vals = DBProp.asByteArray();
       Vals.dropBytes(8);
       while (!Vals.empty())
         WGSize.push_back(Vals.consume<uint64_t>());
+    } else if (Name == __SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE) {
+      if (!HasWGSize64) {
+        WGSize.clear();
+        ByteArray Vals = DBProp.asByteArray();
+        Vals.dropBytes(8);
+        while (!Vals.empty())
+          WGSize.push_back(static_cast<uint64_t>(Vals.consume<uint32_t>()));
+      }
     } else if (Name == __SYCL_DEVICE_REQUIREMENTS_WORK_GROUP_NUM_DIM) {
       WGNumDims = DBProp.asUint32();
     } else if (Name == __SYCL_DEVICE_REQUIREMENTS_REQD_SUB_GROUP_SIZE) {
