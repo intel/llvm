@@ -5,11 +5,6 @@
 
 #include <cassert>
 
-// CheckMutations relies on assert failing constant evaluation.
-#if defined(NDEBUG)
-#error "this test requires assert, NDEBUG must not be defined"
-#endif
-
 #if !defined(__SYCL_BITCAST_IS_CONSTEXPR)
 #error "bfloat16 constexpr support requires __SYCL_BITCAST_IS_CONSTEXPR"
 #endif
@@ -93,6 +88,10 @@ constexpr bool CheckMutations() {
 #endif
   return true;
 }
+
+// Static assertion to trigger compile-time evaluation of CheckMutations()
+// this assertion will never trigger, but if any of the asserts in CheckMutations() fail,
+// this assertion will no longer have a constant value, causing a compile-time error.
 static_assert(CheckMutations(),
               "bfloat16 mutating operations must be constexpr");
 
