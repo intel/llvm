@@ -6,7 +6,7 @@
 // REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
 // UNSUPPORTED: windows && gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21985
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23694
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem

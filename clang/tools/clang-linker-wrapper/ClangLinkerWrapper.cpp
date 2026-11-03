@@ -269,7 +269,7 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   auto NewBinaryOrErr = OffloadBinary::create(*Binary);
   if (!NewBinaryOrErr)
     return NewBinaryOrErr.takeError();
-  return OffloadFile(std::move((*NewBinaryOrErr)[0]), std::move(Binary));
+  return OffloadFile(std::move((*NewBinaryOrErr)[0]));
 }
 
 std::string getExecutableDir(const char *Name) {
@@ -1553,7 +1553,7 @@ static Error unpackSYCLBINFiles(StringRef FileName,
     if (!BinariesOrErr)
       return BinariesOrErr.takeError();
     assert(BinariesOrErr->size() == 1 && "Expected a single offload binary");
-    Binaries.emplace_back(std::move(BinariesOrErr->front()), std::move(Buffer));
+    Binaries.emplace_back(std::move(BinariesOrErr->front()));
     return Error::success();
   };
 
@@ -3685,6 +3685,11 @@ getDeviceInput(const ArgList &Args) {
   for (StringRef Arg : Args.getAllArgValues(OPT_should_extract))
     ShouldExtract.insert(Saver.save(Arg));
 
+  // When no other input provides device code, such as when all objects are
+  // created with -fsycl-host-only, SYCL device code from archives is always
+  // extracted.
+  bool ExtractSYCLFromArchives = InputFiles.empty();
+
   // We only extract archive members from the fat binary if we find a used or
   // requested target. Unlike normal static archive handling, we just extract
   // every object file contained in the archive.
@@ -3701,7 +3706,9 @@ getDeviceInput(const ArgList &Args) {
     for (const auto &[Index, ID] : llvm::enumerate(CompatibleTargets)) {
       // Only extract if we have an object matching this target or it
       // was specifically requested.
-      if (!InputFiles.count(ID) && !ShouldExtract.contains(ID.second))
+      if (!InputFiles.count(ID) && !ShouldExtract.contains(ID.second) &&
+          !(ExtractSYCLFromArchives &&
+            Binary.getBinary()->getOffloadKind() == OFK_SYCL))
         continue;
 
       // If another target needs this binary it must be copied instead.
