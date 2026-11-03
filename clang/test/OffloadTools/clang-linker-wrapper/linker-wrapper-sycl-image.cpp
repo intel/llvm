@@ -47,6 +47,8 @@
 // RUN: clang-linker-wrapper --sycl-device-link --print-wrapped-module \
 // RUN:   --host-triple=x86_64-pc-windows-msvc --linker-path=/usr/bin/ld \
 // RUN:   %t.host-only.o -o %t.empty.obj 2>&1 | FileCheck %s --check-prefix=EMPTY
+// RUN: llvm-readobj --file-headers %t.empty.obj | FileCheck %s --check-prefix=EMPTY-COFF
+// EMPTY-COFF: Format: COFF-x86-64
 // RUN: %clang_cc1 -DEMPTY -fsycl-is-device -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.empty.bc
 // RUN: llvm-offload-binary -o %t.empty.fat --image=file=%t.empty.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang_cc1 -DEMPTY -triple=x86_64-unknown-linux-gnu %s -emit-obj -o %t.empty-input.o -fembed-offload-object=%t.empty.fat

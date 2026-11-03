@@ -307,6 +307,10 @@ Error saveModule(
     const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     module_split::ModuleDesc &MD, const Twine &OutputPrefix,
     const StringRef IRFilename) {
+  if (MD.getModule().global_values().empty() &&
+      MD.getModule().getModuleInlineAsm().empty())
+    return Error::success();
+
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = MD.isESIMD() ? ".esimd" : "";
 
@@ -347,9 +351,7 @@ Error saveModule(
               SplitMode, static_cast<int>(IdQueriesRange.getValue())))
         return E;
     }
-    if (!MD.getModule().global_values().empty() ||
-        !MD.getModule().getModuleInlineAsm().empty())
-      addTableRow(*Table, CopyTriple);
+    addTableRow(*Table, CopyTriple);
   }
 
   return Error::success();

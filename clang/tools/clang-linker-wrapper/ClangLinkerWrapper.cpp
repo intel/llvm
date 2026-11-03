@@ -1619,7 +1619,7 @@ static Expected<StringRef>
 runWrapperAndCompile(ArrayRef<module_split::SplitModule> SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
-  if (Target.empty() && !SplitModules.empty())
+  if (Target.empty())
     return createStringError(
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missing.");
@@ -2509,6 +2509,20 @@ Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   return *TempFileOrErr;
 }
 
+/// Emit the host object required by device pre-linking when there are no device
+/// inputs, without requiring a device triple or introducing runtime references.
+static Expected<StringRef> emitEmptySYCLWrapperObject(const ArgList &Args) {
+  LLVMContext C;
+  Module M("offload.wrapper.object", C);
+  M.setTargetTriple(Triple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
+  if (Args.hasArg(OPT_print_wrapped_module))
+    errs() << "Wrapped Module\n" << M;
+  if (DryRun)
+    return createOutputFile(ExecutableName + ".sycl.image.wrapper", "o");
+  return compileModule(M, OFK_SYCL);
+}
+
 /// Performs the wrapping stage with individual tool invocations for verbose
 /// printing.
 Expected<StringRef>
@@ -3080,6 +3094,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           return SYCLImagesOrErr.takeError();
 
         std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+        // Keep the SYCL group even if post-link removed every image so the
+        // fatbin-only path below can emit the container needed by the host.
         auto &SYCLImages = Images[OFK_SYCL];
         for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
           OffloadingImage TheImage{};
@@ -3721,7 +3737,7 @@ int main(int Argc, char **Argv) {
         // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
         if (FilesOrErr->empty()) {
-          auto OutputFile = sycl::runWrapperAndCompile({}, Args);
+          auto OutputFile = emitEmptySYCLWrapperObject(Args);
           if (!OutputFile)
             reportError(OutputFile.takeError());
           FilesOrErr->push_back(*OutputFile);

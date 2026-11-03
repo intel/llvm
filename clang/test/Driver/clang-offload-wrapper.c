@@ -13,6 +13,19 @@
 // EMPTY-NOT: __sycl_register_lib
 // EMPTY-NOT: __sycl_unregister_lib
 
+// NativeCPU uses an empty image with a kernel entry table, which must still be
+// registered with the runtime.
+// RUN: echo 'native_kernel' > %t.native.entries
+// RUN: clang-offload-wrapper -host=x86_64-unknown-linux-gnu -kind=sycl -target=native_cpu -entries=%t.native.entries %t.empty -o %t.native.bc
+// RUN: llvm-dis %t.native.bc -o - | FileCheck %s --check-prefix=NATIVE
+// RUN: clang-offload-wrapper -host=x86_64-pc-windows-msvc -kind=sycl -target=native_cpu -entries=%t.native.entries %t.empty -o %t.native.bc
+// RUN: llvm-dis %t.native.bc -o - | FileCheck %s --check-prefix=NATIVE
+// NATIVE-DAG: @__sycl_native_cpu_decls = internal constant [2 x %__nativecpu_entry]
+// NATIVE-DAG: ptr @native_kernel.SYCLNCPU
+// NATIVE-DAG: c"__nativecpu_end\00"
+// NATIVE-DAG: call void @__sycl_register_lib(
+// NATIVE-DAG: call void @__sycl_unregister_lib(
+
 //
 // Check help message.
 //

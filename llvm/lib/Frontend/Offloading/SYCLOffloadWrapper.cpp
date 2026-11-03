@@ -797,7 +797,7 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          SYCLWrappingOptions Options) {
   if (llvm::all_of(Images, [](const SYCLImage &Image) {
         return Image.Image->getBufferSize() == 0 &&
-               Image.Target != "native_cpu";
+               !Triple(Image.Target).isNativeCPU();
       }))
     return Error::success();
 
