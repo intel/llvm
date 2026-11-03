@@ -1012,6 +1012,8 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
         Args.push_back("--only=amdgpu");
       else if (Kind == Action::OFK_Cuda)
         Args.push_back("--only=nvptx");
+      else if (Kind == Action::OFK_SYCL)
+        Args.push_back("--only=intel");
     }
     auto StdoutOrErr = C.getDriver().executeProgram(Args);
 
@@ -1038,6 +1040,13 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
 }
 
 using TripleSet = std::multiset<llvm::Triple>;
+
+/// \return the SPIR-V target for SYCL on \p HostTriple: spirv64 on a 64-bit
+/// host, spirv32 otherwise.
+static llvm::Triple getSYCLDefaultTriple(const llvm::Triple &HostTriple) {
+  return llvm::Triple(HostTriple.isArch64Bit() ? llvm::Triple::spirv64
+                                               : llvm::Triple::spirv32);
+}
 
 // Attempts to infer the correct offloading toolchain triple by looking at the
 // requested offloading kind and architectures.
@@ -1107,6 +1116,13 @@ static TripleSet inferOffloadToolchains(Compilation &C,
 
     llvm::Triple Triple =
         OffloadArchToTriple(C.getDefaultToolChain().getTriple(), ID);
+    // For SYCL, compile an Intel GPU or CPU, an IGCA target or "generic" for
+    // SPIR-V: spirv64-unknown-unknown on a 64-bit host, spirv32-unknown-unknown
+    // otherwise. Intel GPU and CPU architectures that OffloadArchToTriple
+    // already maps to a SPIR AOT triple (spir64_gen / spir64_x86_64) keep it.
+    if (Kind == Action::OFK_SYCL && (ID.isIntel() || ID.isGeneric()) &&
+        Triple.getArch() == llvm::Triple::UnknownArch)
+      Triple = getSYCLDefaultTriple(C.getDefaultToolChain().getTriple());
     if (UsesLLVMOffloading)
       Triple.setEnvironment(llvm::Triple::LLVM);
 
