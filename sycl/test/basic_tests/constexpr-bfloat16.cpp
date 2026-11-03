@@ -90,8 +90,9 @@ constexpr bool CheckMutations() {
 }
 
 // Static assertion to trigger compile-time evaluation of CheckMutations()
-// this assertion will never trigger, but if any of the asserts in CheckMutations() fail,
-// this assertion will no longer have a constant value, causing a compile-time error.
+// this assertion will never trigger, but if any of the asserts in
+// CheckMutations() fail, this assertion will no longer have a constant value,
+// causing a compile-time error.
 static_assert(CheckMutations(),
               "bfloat16 mutating operations must be constexpr");
 
