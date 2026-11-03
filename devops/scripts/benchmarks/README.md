@@ -47,6 +47,7 @@ of internal data structures. In order to use it one should
 - have `COMPUTE_BENCHMARKS_BUILD_PATH` env variable pointing to build directory of compute-benchmarks
 - set `LLVM_BENCHMARKS_UNIT_TESTING=1`
 - set `GPU_TYPE` variable to the type of GPU to be tested (i.e. `PVC` or `BMG`)
+- optionally set `OFFLOAD_PREFIX` to the liboffload install prefix (see `--offload-prefix`) to run the OFFLOAD (`ol`) tests; they are skipped otherwise. The build in `COMPUTE_BENCHMARKS_BUILD_PATH` must have been made with `--offload-prefix`, so that it contains the `*_ol` binaries.
 
 Then tests can be executed by
 ```
