@@ -245,6 +245,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   foreach(library ur_loaderd umfd)
     list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/${library}.lib)
   endforeach()
+  if(UR_STATIC_LOADER)
+    list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ur_commond.lib)
+  endif()
   list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/ur_loaderd.dll)
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
     list(APPEND URD_BYPRODUCTS
@@ -269,10 +272,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     BINARY_DIR ${URD_BINARY_DIR}
     INSTALL_DIR ${URD_INSTALL_DIR}
     BUILD_ALWAYS ON
-    INSTALL_BYPRODUCTS ${URD_BYPRODUCTS}
-    INSTALL_COMMAND ${CMAKE_COMMAND}
+    BUILD_BYPRODUCTS ${URD_BYPRODUCTS}
+    BUILD_COMMAND ${CMAKE_COMMAND}
       --build <BINARY_DIR> --config Debug
       --target install-unified-runtime-libraries
+    INSTALL_COMMAND ""
     CMAKE_CACHE_ARGS
       -DCMAKE_BUILD_TYPE:STRING=Debug
       -DCMAKE_MSVC_RUNTIME_LIBRARY:STRING=MultiThreadedDebugDLL
