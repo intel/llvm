@@ -431,8 +431,10 @@ void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
     if (!Cmd)
       continue;
     EnqueueResultT Res;
-    bool Enqueued =
-        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
+    // BLOCKING re-registers Cmd on any command that still blocks it, so that
+    // its waiter is not lost.
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res,
+                                                   ToCleanUp, Cmd, BLOCKING);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");

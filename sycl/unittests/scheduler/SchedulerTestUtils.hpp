@@ -103,6 +103,7 @@ public:
   using sycl::detail::Scheduler::addCopyBack;
   using sycl::detail::Scheduler::checkLeavesCompletion;
   using sycl::detail::Scheduler::cleanupCommands;
+  using sycl::detail::Scheduler::enqueueUnblockedCommands;
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
 
   sycl::detail::MemObjRecord *
