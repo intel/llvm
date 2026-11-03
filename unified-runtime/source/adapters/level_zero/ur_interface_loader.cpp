@@ -245,6 +245,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnHostTaskExp = ur::level_zero::v1::urEnqueueHostTaskExp;
   pDdiTable->pfnNativeCommandExp =
       ur::level_zero::v1::urEnqueueNativeCommandExp;
+  pDdiTable->pfnTimelineSemaphoreSignalExp =
+      ur::level_zero::v1::urEnqueueTimelineSemaphoreSignalExp;
+  pDdiTable->pfnTimelineSemaphoreWaitExp =
+      ur::level_zero::v1::urEnqueueTimelineSemaphoreWaitExp;
   pDdiTable->pfnGraphExp = ur::level_zero::v1::urEnqueueGraphExp;
 
   return result;
@@ -541,6 +545,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    ur_api_version_t version, ur_timeline_semaphore_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnCreateExp = ur::level_zero::v1::urTimelineSemaphoreCreateExp;
+  pDdiTable->pfnRetainExp = ur::level_zero::v1::urTimelineSemaphoreRetainExp;
+  pDdiTable->pfnReleaseExp = ur::level_zero::v1::urTimelineSemaphoreReleaseExp;
+  pDdiTable->pfnHostWaitExp =
+      ur::level_zero::v1::urTimelineSemaphoreHostWaitExp;
+  pDdiTable->pfnHostSignalExp =
+      ur::level_zero::v1::urTimelineSemaphoreHostSignalExp;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -758,6 +780,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result = NAMESPACE_::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
                                                  &ddi->Sampler);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetTimelineSemaphoreExpProcAddrTable(
+      UR_API_VERSION_CURRENT, &ddi->TimelineSemaphoreExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &ddi->USM);

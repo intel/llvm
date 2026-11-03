@@ -11879,6 +11879,272 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreCreateExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] initial value of the semaphore
+    uint64_t initialValue,
+    /// [out][alloc] pointer to the handle of the semaphore object created
+    ur_exp_timeline_semaphore_handle_t *phSemaphore) {
+  auto pfnCreateExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnCreateExp(hContext, initialValue, phSemaphore);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreRetainExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreRetainExp(
+    /// [in][retain] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+  auto pfnRetainExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnRetainExp;
+
+  if (nullptr == pfnRetainExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnRetainExp(hSemaphore);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreReleaseExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreReleaseExp(
+    /// [in][release] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+  auto pfnReleaseExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnReleaseExp;
+
+  if (nullptr == pfnReleaseExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnReleaseExp(hSemaphore);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostWaitExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostWaitExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value) {
+  auto pfnHostWaitExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnHostWaitExp;
+
+  if (nullptr == pfnHostWaitExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnHostWaitExp(hSemaphore, value);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostSignalExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value) {
+  auto pfnHostSignalExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnHostSignalExp;
+
+  if (nullptr == pfnHostSignalExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  ur_result_t result = pfnHostSignalExp(hSemaphore, value);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreSignalExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreSignalExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnTimelineSemaphoreSignalExp =
+      getContext()->urDdiTable.EnqueueExp.pfnTimelineSemaphoreSignalExp;
+
+  if (nullptr == pfnTimelineSemaphoreSignalExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnTimelineSemaphoreSignalExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreWaitExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreWaitExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnTimelineSemaphoreWaitExp =
+      getContext()->urDdiTable.EnqueueExp.pfnTimelineSemaphoreWaitExp;
+
+  if (nullptr == pfnTimelineSemaphoreWaitExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hSemaphore)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (phEventWaitList == NULL && numEventsInWaitList > 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList == 0)
+      return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    URLOG_CTX_INVALID_REFERENCE(hQueue);
+  }
+
+  ur_result_t result = pfnTimelineSemaphoreWaitExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
+  if (getContext()->enableLaunchBlocking && result == UR_RESULT_SUCCESS) {
+    result = getContext()->blockOnQueue(hQueue);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphCreateExp
 __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
@@ -12898,6 +13164,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnNativeCommandExp =
       ur_validation_layer::urEnqueueNativeCommandExp;
 
+  dditable.pfnTimelineSemaphoreSignalExp =
+      pDdiTable->pfnTimelineSemaphoreSignalExp;
+  pDdiTable->pfnTimelineSemaphoreSignalExp =
+      ur_validation_layer::urEnqueueTimelineSemaphoreSignalExp;
+
+  dditable.pfnTimelineSemaphoreWaitExp = pDdiTable->pfnTimelineSemaphoreWaitExp;
+  pDdiTable->pfnTimelineSemaphoreWaitExp =
+      ur_validation_layer::urEnqueueTimelineSemaphoreWaitExp;
+
   dditable.pfnGraphExp = pDdiTable->pfnGraphExp;
   pDdiTable->pfnGraphExp = ur_validation_layer::urEnqueueGraphExp;
 
@@ -13666,6 +13941,54 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TimelineSemaphoreExp
+/// table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_timeline_semaphore_exp_dditable_t *pDdiTable) {
+  auto &dditable =
+      ur_validation_layer::getContext()->urDdiTable.TimelineSemaphoreExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_validation_layer::urTimelineSemaphoreCreateExp;
+
+  dditable.pfnRetainExp = pDdiTable->pfnRetainExp;
+  pDdiTable->pfnRetainExp = ur_validation_layer::urTimelineSemaphoreRetainExp;
+
+  dditable.pfnReleaseExp = pDdiTable->pfnReleaseExp;
+  pDdiTable->pfnReleaseExp = ur_validation_layer::urTimelineSemaphoreReleaseExp;
+
+  dditable.pfnHostWaitExp = pDdiTable->pfnHostWaitExp;
+  pDdiTable->pfnHostWaitExp =
+      ur_validation_layer::urTimelineSemaphoreHostWaitExp;
+
+  dditable.pfnHostSignalExp = pDdiTable->pfnHostSignalExp;
+  pDdiTable->pfnHostSignalExp =
+      ur_validation_layer::urTimelineSemaphoreHostSignalExp;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's USM table
 ///        with current process' addresses
 ///
@@ -14115,6 +14438,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetSamplerProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Sampler);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetTimelineSemaphoreExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->TimelineSemaphoreExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

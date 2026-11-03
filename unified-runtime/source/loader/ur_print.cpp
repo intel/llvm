@@ -2104,6 +2104,22 @@ ur_result_t urPrintEnqueueNativeCommandExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintEnqueueTimelineSemaphoreSignalExpParams(
+    const struct ur_enqueue_timeline_semaphore_signal_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueTimelineSemaphoreWaitExpParams(
+    const struct ur_enqueue_timeline_semaphore_wait_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintEnqueueGraphExpParams(const struct ur_enqueue_graph_exp_params_t *params,
                              char *buffer, const size_t buff_size,
@@ -3042,6 +3058,46 @@ ur_result_t urPrintSamplerGetNativeHandleParams(
 
 ur_result_t urPrintSamplerCreateWithNativeHandleParams(
     const struct ur_sampler_create_with_native_handle_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTimelineSemaphoreCreateExpParams(
+    const struct ur_timeline_semaphore_create_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTimelineSemaphoreRetainExpParams(
+    const struct ur_timeline_semaphore_retain_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTimelineSemaphoreReleaseExpParams(
+    const struct ur_timeline_semaphore_release_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTimelineSemaphoreHostWaitExpParams(
+    const struct ur_timeline_semaphore_host_wait_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintTimelineSemaphoreHostSignalExpParams(
+    const struct ur_timeline_semaphore_host_signal_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

@@ -179,6 +179,13 @@ struct ur_queue_t_ : ur_queue_extensions {
                           const ur_exp_enqueue_native_command_properties_t *,
                           uint32_t, const ur_event_handle_t *,
                           ur_event_handle_t *) = 0;
+  virtual ur_result_t enqueueTimelineSemaphoreSignalExp(
+      ur_exp_timeline_semaphore_handle_t, uint64_t, uint32_t,
+      const ur_event_handle_t *, ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueTimelineSemaphoreWaitExp(ur_exp_timeline_semaphore_handle_t, uint64_t,
+                                  uint32_t, const ur_event_handle_t *,
+                                  ur_event_handle_t *) = 0;
   virtual ur_result_t queueBeginGraphCapteExp() = 0;
   virtual ur_result_t queueBeginCapteIntoGraphExp(ur_exp_graph_handle_t) = 0;
   virtual ur_result_t queueEndGraphCapteExp(ur_exp_graph_handle_t *) = 0;

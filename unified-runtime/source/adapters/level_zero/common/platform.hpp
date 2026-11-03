@@ -13,6 +13,7 @@
 #include "unified-runtime/ur_api.h"
 #include "ze_api.h"
 #include "ze_ddi.h"
+#include "ze_intel_ext.hpp"
 #include "zes_api.h"
 
 namespace ur::level_zero {
@@ -319,6 +320,13 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
     ze_result_t (*zeDeviceGetPriorityLevels)(ze_device_handle_t, int32_t *,
                                              int32_t *) = nullptr;
   } ZeQueuePriorityExt;
+
+  // Intel driver experimental memory operations, used by timeline semaphores.
+  struct ZeMemoryOpsExtension {
+    bool Supported = false;
+    ur_pfnZexCommandListAppendWriteToMemory_t
+        zexCommandListAppendWriteToMemory = nullptr;
+  } ZeMemoryOpsExt;
 };
 
 } // namespace ur::level_zero

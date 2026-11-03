@@ -71,6 +71,13 @@ struct ze_global_memsize {
   uint64_t value;
 };
 
+// Timeline semaphore support of a device, see v2/timeline_semaphore.hpp.
+struct ze_timeline_semaphore_caps {
+  bool Supported;
+  // The largest value that the semaphore storage may hold on this device.
+  uint64_t MaxValue;
+};
+
 // Queue priority range, see makeQueuePriorityRange.
 struct ze_queue_priority_range {
   int32_t Highest;
@@ -354,6 +361,7 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<struct ze_queue_priority_range> ZeQueuePriorityRange;
+  ZeCache<struct ze_timeline_semaphore_caps> ZeTimelineSemaphoreCaps;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
   ZeCache<ZexStruct<ur_ze_intel_device_block_array_exp_properties_t>>

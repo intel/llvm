@@ -53,6 +53,8 @@ class node_impl;
 
 namespace detail {
 
+class timeline_semaphore_impl;
+
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
 
@@ -434,6 +436,13 @@ public:
   /// \param CodeLoc is the code location of the submit call.
   void submit_async_free_direct(void *Ptr,
                                 const detail::code_location &CodeLoc);
+
+  /// Submits a timeline semaphore signal or wait operation to the queue,
+  /// without creating a handler. On an out-of-order queue the operation acts
+  /// as a barrier.
+  void submit_timeline_semaphore_direct(
+      const std::shared_ptr<timeline_semaphore_impl> &Semaphore, uint64_t Value,
+      bool IsSignal, const detail::code_location &CodeLoc);
 
   void submit_graph_direct_without_event(
       const std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>

@@ -1729,6 +1729,11 @@ public:
                  UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_timeline_semaphore) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP>()
+          .value_or(0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
