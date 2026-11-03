@@ -13,7 +13,7 @@ namespace {
 template <typename FnT> bool throwsKernelNotSupported(FnT kFn) {
   try {
     kFn();
-  } catch (const sycl::exception &e) {
+  } catch (const exception &e) {
     return e.code() == errc::kernel_not_supported;
   }
   return false;

@@ -2222,10 +2222,7 @@ public:
     if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
       // A device_global with device_image_scope lives in a device image, so
       // there is nothing to copy to if no kernel accesses it.
-      if constexpr (IsDeviceImageScoped)
-        throw sycl::exception(
-            make_error_code(errc::kernel_not_supported),
-            "No kernel accesses the device_global with device_image_scope.");
+      throwIfDeviceGlobalNotUsedInKernel<IsDeviceImageScoped>();
 
       // A device_global without device_image_scope that isn't used in any
       // kernels falls back to doing the memory operation on host-only.
@@ -2266,10 +2263,7 @@ public:
     if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
       // A device_global with device_image_scope lives in a device image, so
       // there is nothing to copy from if no kernel accesses it.
-      if constexpr (IsDeviceImageScoped)
-        throw sycl::exception(
-            make_error_code(errc::kernel_not_supported),
-            "No kernel accesses the device_global with device_image_scope.");
+      throwIfDeviceGlobalNotUsedInKernel<IsDeviceImageScoped>();
 
       // A device_global without device_image_scope that isn't used in any
       // kernels falls back to doing the memory operation on host-only.
@@ -3057,6 +3051,14 @@ private:
   queue getQueue();
 
   void incrementArgShift(int Shift);
+
+  template <bool IsDeviceImageScoped>
+  void throwIfDeviceGlobalNotUsedInKernel() const {
+    if constexpr (IsDeviceImageScoped)
+      throw sycl::exception(
+          make_error_code(errc::kernel_not_supported),
+          "No kernel accesses the device_global with device_image_scope.");
+  }
 
 protected:
   /// Registers event dependencies in this command group.

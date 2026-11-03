@@ -767,6 +767,16 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUnusedCopyMemcpyThrows) {
       CGH.copy(DeviceGlobalImgScopeUnused, Vals);
     });
   });
+  ExpectKernelNotSupported([&] {
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.memcpy(DeviceGlobalImgScopeUnused, Vals);
+    });
+  });
+  ExpectKernelNotSupported([&] {
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.memcpy(Vals, DeviceGlobalImgScopeUnused);
+    });
+  });
 }
 
 // Without device_image_scope an unused device_global is still usable.
