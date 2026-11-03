@@ -19,7 +19,6 @@ from .compute_enums import (
     NATIVE_GRAPH_RUNTIMES,
     PROFILERS,
     RUNTIMES,
-    SUBMIT_KERNEL_RUNTIMES,
     SYCL_AND_LEVEL_ZERO_RUNTIMES,
     SYCL_RUNTIMES,
     TORCH_BENCHMARK_RUNTIMES,
@@ -52,12 +51,6 @@ def with_offload(runtimes: list[RUNTIMES]) -> list[RUNTIMES]:
 def round_to_multiple(size: int, multiple: int) -> int:
     """Rounds size to the nearest positive multiple of multiple."""
     return max(multiple, (size + multiple // 2) // multiple * multiple)
-
-
-def submit_kernel_runtimes() -> list[RUNTIMES]:
-    if offload_enabled():
-        return SUBMIT_KERNEL_RUNTIMES.copy()
-    return COMPUTE_BENCHMARK_RUNTIMES.copy()
 
 
 class ComputeBench(Suite):
@@ -168,7 +161,7 @@ class ComputeBench(Suite):
         long_kernel_exec_time_ooo = [20, 200]
 
         submit_kernel_params = product(
-            submit_kernel_runtimes(),
+            with_offload(COMPUTE_BENCHMARK_RUNTIMES),
             [0, 1],  # in_order_queue
             [0, 1],  # measure_completion
             [0, 1],  # use_events
@@ -840,7 +833,7 @@ class ComputeBenchCoreSuite(ComputeBench):
     def benchmarks(self) -> list[Benchmark]:
         core_benches = []
         submit_kernel_params = product(
-            submit_kernel_runtimes(),
+            with_offload(COMPUTE_BENCHMARK_RUNTIMES),
             [0, 1],  # in_order_queue
             list(PROFILERS),
         )
@@ -961,9 +954,7 @@ class SubmitKernel(ComputeBenchmark):
         return (0.0, None)
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        if offload_enabled():
-            return SUBMIT_KERNEL_RUNTIMES.copy()
-        return COMPUTE_BENCHMARK_RUNTIMES.copy()
+        return with_offload(COMPUTE_BENCHMARK_RUNTIMES.copy())
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
