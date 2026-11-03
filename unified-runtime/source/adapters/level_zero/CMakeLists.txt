@@ -61,7 +61,7 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
     )
 endif()
 
-if(UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2)
+if(UR_STANDALONE_BUILD AND (UR_STATIC_ADAPTER_L0 OR UR_STATIC_ADAPTER_L0_V2))
     set(ADAPTER_L0_TARGETS_TO_INSTALL LevelZeroLoader LevelZeroLoader-Headers)
     # 'utils' target from 'level-zero-loader' includes path which is prefixed
     # in the source directory, this breaks the installation of 'utils' target.

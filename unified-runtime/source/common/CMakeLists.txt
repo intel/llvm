@@ -179,13 +179,7 @@ if (UNIX)
     target_link_libraries(ur_common PUBLIC Threads::Threads)
 endif()
 
-install(TARGETS ur_common
-    COMPONENT unified-runtime
-    EXPORT ${PROJECT_NAME}-targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+install_ur_library(ur_common)
 
 # ur_umf (and the umf::umf target it wraps) only exists when UR_UMF_REQUIRED,
 # i.e. when some adapter actually links against it (see top of this file).
