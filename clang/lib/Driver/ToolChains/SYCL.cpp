@@ -1543,10 +1543,6 @@ static inline bool SupportedByNativeCPU(const llvm::Triple &Triple,
   return false;
 }
 
-static SanitizerMask getSupportedDeviceSanitizers() {
-  return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
-}
-
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -1562,13 +1558,14 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
       // Sanitizers are not currently supported, except those returned by
-      // getSupportedDeviceSanitizers().
+      // getSupportedSanitizers().
       if (A->getOption().getID() == options::OPT_fsanitize_EQ) {
         SanitizerMask Enabled;
         for (StringRef Value : A->getValues())
           Enabled |= expandSanitizerGroups(
               parseSanitizerValue(Value, /*AllowGroups=*/true));
-        if (Enabled && !(Enabled & ~getSupportedDeviceSanitizers()))
+        if (Enabled &&
+            !(Enabled & ~getSupportedSanitizers({}, Action::OFK_SYCL)))
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target_host_only)
@@ -2114,7 +2111,7 @@ SYCLToolChain::getDeviceLibs(
 SanitizerMask SYCLToolChain::getSupportedSanitizers(
     BoundArch /*BA*/, Action::OffloadKind /*DeviceOffloadKind*/) const {
 
-  return getSupportedDeviceSanitizers();
+  return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
 
 VersionTuple SYCLToolChain::computeMSVCVersion(const Driver *D,
