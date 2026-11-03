@@ -142,14 +142,14 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
-  std::vector<adapter_impl *> &Adapters = ur::initializeUr();
+  std::vector<std::shared_ptr<adapter_impl>> &Adapters = ur::initializeUr();
   std::vector<std::pair<platform, adapter_impl *>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
   for (auto &Adapter : Adapters) {
     const auto &AdapterPlatforms = getAdapterPlatforms(*Adapter);
     for (const auto &P : AdapterPlatforms) {
-      PlatformsWithAdapter.push_back({P, Adapter});
+      PlatformsWithAdapter.push_back({P, Adapter.get()});
     }
   }
 
@@ -484,13 +484,14 @@ void platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<adapter_impl *> &Adapters = ur::initializeUr();
-    auto It = std::find_if(Adapters.begin(), Adapters.end(),
-                           [&Platform = MPlatform](adapter_impl *&Adapter) {
-                             return Adapter->containsUrPlatform(Platform);
-                           });
+    std::vector<std::shared_ptr<adapter_impl>> &Adapters = ur::initializeUr();
+    auto It = std::find_if(
+        Adapters.begin(), Adapters.end(),
+        [&Platform = MPlatform](const std::shared_ptr<adapter_impl> &Adapter) {
+          return Adapter->containsUrPlatform(Platform);
+        });
     if (It != Adapters.end()) {
-      adapter_impl *&Adapter = *It;
+      std::shared_ptr<adapter_impl> &Adapter = *It;
       std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
       Adapter->adjustLastDeviceId(MPlatform);
     }
