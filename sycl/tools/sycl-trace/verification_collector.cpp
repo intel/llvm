@@ -13,7 +13,7 @@
 
 #include "usm_analyzer.hpp"
 
-#include <sycl/detail/spinlock.hpp>
+#include <spinlock.hpp>
 
 #include <iostream>
 #include <mutex>
