@@ -160,12 +160,16 @@ target_include_directories(UnifiedRuntime-Headers
 find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
-  # Install the UR loader.
-  install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
-    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
-  )
+  get_target_property(_ur_loader_type ur_loader TYPE)
+  # If the UR loader is built as a static lib, it is linked into the SYCL
+  # runtime, so do not install it.
+  if(NOT _ur_loader_type STREQUAL "STATIC_LIBRARY")
+    install(TARGETS ur_loader
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
+    )
+  endif()
 
   # The loader dlopen()s its shared layers from its own directory, so they have
   # to be installed alongside it.
@@ -421,8 +425,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
 endif()
 
 if(TARGET umf)
-  install(TARGETS umf
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-    RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+  get_target_property(_umf_type umf TYPE)
+  # If UMF is built as a static lib, it is linked into its consumers (the UR
+  # loader and adapters), so do not install it.
+  if(NOT _umf_type STREQUAL "STATIC_LIBRARY")
+    install(TARGETS umf
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+      RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+  endif()
 endif()

@@ -1146,7 +1146,7 @@ SCEVExpander::getAddRecExprPHILiterally(const SCEVAddRecExpr *Normalized,
 
   // Create the PHI.
   BasicBlock *Header = L->getHeader();
-  Builder.SetInsertPoint(Header, Header->begin());
+  Builder.SetInsertPoint(Header->begin());
   PHINode *PN =
       Builder.CreatePHI(ExpandTy, pred_size(Header), Twine(IVName) + ".iv");
 
@@ -1279,13 +1279,15 @@ SCEVExpander::expandAddRecExprLiterally(SCEVUseT<const SCEVAddRecExpr *> S) {
   return Result;
 }
 
-Value *SCEVExpander::tryToReuseLCSSAPhi(SCEVUseT<const SCEVAddRecExpr *> S) {
+std::pair<PHINode *, const SCEV *>
+SCEVExpander::findReusableLCSSAPhi(ScalarEvolution &SE,
+                                   SCEVUseT<const SCEVAddRecExpr *> S,
+                                   const BasicBlock *InsertBB) {
   Type *STy = S->getType();
   const Loop *L = S->getLoop();
   BasicBlock *EB = L->getExitBlock();
-  if (!EB || !EB->getSinglePredecessor() ||
-      !SE.DT.dominates(EB, Builder.GetInsertBlock()))
-    return nullptr;
+  if (!EB || !EB->getSinglePredecessor() || !SE.DT.dominates(EB, InsertBB))
+    return {nullptr, nullptr};
 
   // Helper to check if the diff between S and ExitSCEV is simple enough to
   // allow reusing the LCSSA phi.
@@ -1311,7 +1313,7 @@ Value *SCEVExpander::tryToReuseLCSSAPhi(SCEVUseT<const SCEVAddRecExpr *> S) {
     Type *PhiTy = PN.getType();
     const SCEV *Diff = nullptr;
     if (STy->isIntegerTy() && PhiTy->isPointerTy() &&
-        DL.getAddressType(PhiTy) == STy) {
+        SE.getDataLayout().getAddressType(PhiTy) == STy) {
       const SCEV *AddrSCEV = SE.getPtrToAddrExpr(ExitSCEV);
       Diff = CanReuse(AddrSCEV);
     } else if (STy == PhiTy) {
@@ -1322,17 +1324,24 @@ Value *SCEVExpander::tryToReuseLCSSAPhi(SCEVUseT<const SCEVAddRecExpr *> S) {
 
     assert(Diff->getType()->isIntegerTy() &&
            "difference must be of integer type");
-    Value *DiffV = expand(Diff);
-    Value *BaseV = fixupLCSSAFormFor(&PN);
-    if (PhiTy->isPointerTy()) {
-      if (STy->isPointerTy())
-        return Builder.CreatePtrAdd(BaseV, DiffV);
-      BaseV = Builder.CreatePtrToAddr(BaseV);
-    }
-    return Builder.CreateAdd(BaseV, DiffV);
+    return {&PN, Diff};
   }
 
-  return nullptr;
+  return {nullptr, nullptr};
+}
+
+Value *SCEVExpander::tryToReuseLCSSAPhi(SCEVUseT<const SCEVAddRecExpr *> S) {
+  auto [PN, Diff] = findReusableLCSSAPhi(SE, S, Builder.GetInsertBlock());
+  if (!PN)
+    return nullptr;
+  Value *DiffV = expand(Diff);
+  Value *BaseV = fixupLCSSAFormFor(PN);
+  if (PN->getType()->isPointerTy()) {
+    if (S->getType()->isPointerTy())
+      return Builder.CreatePtrAdd(BaseV, DiffV);
+    BaseV = Builder.CreatePtrToAddr(BaseV);
+  }
+  return Builder.CreateAdd(BaseV, DiffV);
 }
 
 Value *SCEVExpander::visitAddRecExpr(SCEVUseT<const SCEVAddRecExpr *> S) {
@@ -1745,7 +1754,7 @@ Value *SCEVExpander::expand(SCEVUse S) {
     return I->second;
 
   SCEVInsertPointGuard Guard(Builder, this);
-  Builder.SetInsertPoint(InsertPt->getParent(), InsertPt);
+  Builder.SetInsertPoint(InsertPt);
 
   // Expand the expression into instructions.
   Value *V = findExistingExpansionAndDropPoisonFlags(S, &*InsertPt);
@@ -1890,7 +1899,7 @@ void SCEVExpander::replaceCongruentIVInc(
     else
       IP = OrigInc->getNextNode()->getIterator();
 
-    IRBuilder<> Builder(IP->getParent(), IP);
+    IRBuilder<> Builder(IP);
     Builder.SetCurrentDebugLocation(IsomorphicInc->getDebugLoc());
     NewInc =
         Builder.CreateTruncOrBitCast(OrigInc, IsomorphicInc->getType(), IVName);
@@ -1992,8 +2001,7 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
     ++NumElim;
     Value *NewIV = OrigPhiRef;
     if (OrigPhiRef->getType() != Phi->getType()) {
-      IRBuilder<> Builder(L->getHeader(),
-                          L->getHeader()->getFirstInsertionPt());
+      IRBuilder<> Builder(L->getHeader()->getFirstInsertionPt());
       Builder.SetCurrentDebugLocation(Phi->getDebugLoc());
       NewIV = Builder.CreateTruncOrBitCast(OrigPhiRef, Phi->getType(), IVName);
     }

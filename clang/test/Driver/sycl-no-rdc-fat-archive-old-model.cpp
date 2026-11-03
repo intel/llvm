@@ -5,14 +5,23 @@
 /// compiler-rt builtins library (libclang_rt.builtins.bc).
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
+/// Compiler will try to find clang-offload-bundler tool in directory
+/// specified with '-ccc-install-dir', so create a simulated installation
+/// in temporary directory and create symlink for clang-offload-bundler and
+/// all dummy devicelib files.
+// RUN: rm -rf %t && mkdir -p %t/bin
+// RUN: ln -s %/S/Inputs/SYCL/lib %t/lib
+// RUN: ln -s %llvmshlibdir/../bin/clang-offload-bundler %t/bin/clang-offload-bundler
+// DEFINE: %{clang_install_dir} = %/t/bin
+
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t_lib.a %t1_bundle.o
-// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=off --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_kernel --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_source --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=off -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=auto -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_kernel -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -fsycl-device-code-split=per_source -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // CHECK: 1: input, "{{.*}}_lib.a", archive
 // CHECK: 2: clang-offload-unbundler, {1}, tempfilelist
 // CHECK: 3: spirv-to-ir-wrapper, {2}, tempfilelist, (device-sycl)
