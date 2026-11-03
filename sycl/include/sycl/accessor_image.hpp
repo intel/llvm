@@ -639,22 +639,21 @@ public:
 #endif
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty as the spec states the destructor of an accessor must not have
+    // any effect
+  }
+#else
   ~accessor() = default;
+#endif
 
   // common reference semantics
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  accessor(const accessor &) noexcept = default;
-  accessor &operator=(const accessor &) noexcept;
-  accessor(accessor &&) noexcept = default;
-  accessor &operator=(accessor &&) noexcept;
-#else
   accessor(const accessor &) noexcept = default;
   accessor &operator=(const accessor &) noexcept = default;
   accessor(accessor &&) noexcept = default;
   accessor &operator=(accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
 private:
@@ -674,21 +673,6 @@ public:
   accessor() = default;
 #endif
 };
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-accessor<DataT, Dimensions, AccessMode, access::target::image, IsPlaceholder> &
-accessor<DataT, Dimensions, AccessMode, access::target::image,
-         IsPlaceholder>::operator=(const accessor &) noexcept = default;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-accessor<DataT, Dimensions, AccessMode, access::target::image, IsPlaceholder> &
-accessor<DataT, Dimensions, AccessMode, access::target::image,
-         IsPlaceholder>::operator=(accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 /// Host image accessor.
 ///
@@ -722,40 +706,21 @@ public:
     (void)propList;
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty
+  }
+#else
   ~accessor() = default;
+#endif
 
   // common reference semantics
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  accessor(const accessor &) noexcept = default;
-  accessor &operator=(const accessor &) noexcept;
-  accessor(accessor &&) noexcept = default;
-  accessor &operator=(accessor &&) noexcept;
-#else
   accessor(const accessor &) noexcept = default;
   accessor &operator=(const accessor &) noexcept = default;
   accessor(accessor &&) noexcept = default;
   accessor &operator=(accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-         IsPlaceholder> &
-accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-         IsPlaceholder>::operator=(const accessor &) noexcept = default;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-         IsPlaceholder> &
-accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-         IsPlaceholder>::operator=(accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 /// Image array accessor.
 ///
@@ -817,22 +782,20 @@ public:
 #endif
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty
+  }
+#else
   ~accessor() = default;
+#endif
 
   // common reference semantics
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  accessor(const accessor &) noexcept = default;
-  accessor &operator=(const accessor &) noexcept;
-  accessor(accessor &&) noexcept = default;
-  accessor &operator=(accessor &&) noexcept;
-#else
   accessor(const accessor &) noexcept = default;
   accessor &operator=(const accessor &) noexcept = default;
   accessor(accessor &&) noexcept = default;
   accessor &operator=(accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   detail::__image_array_slice__<DataT, Dimensions, AccessMode, IsPlaceholder>
   operator[](size_t Index) const {
@@ -840,23 +803,6 @@ public:
                                          IsPlaceholder>(*this, Index);
   }
 };
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-         IsPlaceholder> &
-accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-         IsPlaceholder>::operator=(const accessor &) noexcept = default;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-         IsPlaceholder> &
-accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-         IsPlaceholder>::operator=(accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // SYCL 2020 image accessors
 
@@ -932,21 +878,20 @@ public:
 
   unsampled_image_accessor(unsampled_image_accessor &&Rhs) = default;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  unsampled_image_accessor &
-  operator=(const unsampled_image_accessor &Rhs) noexcept;
-
-  unsampled_image_accessor &operator=(unsampled_image_accessor &&Rhs) noexcept;
-#else
   unsampled_image_accessor &
   operator=(const unsampled_image_accessor &Rhs) = default;
 
   unsampled_image_accessor &operator=(unsampled_image_accessor &&Rhs) = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~unsampled_image_accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty as the spec states the destructor of an accessor must not
+    // have any effect
+  }
+#else
   ~unsampled_image_accessor() = default;
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
   bool operator==(const unsampled_image_accessor &Rhs) const;
@@ -1031,21 +976,6 @@ private:
   }
 };
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget> &
-unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>::
-operator=(const unsampled_image_accessor &) noexcept = default;
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget> &
-unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>::
-operator=(unsampled_image_accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 template <typename DataT, int Dimensions = 1,
           access_mode AccessMode =
               (std::is_const_v<DataT> ? access_mode::read
@@ -1094,23 +1024,21 @@ public:
 
   host_unsampled_image_accessor(host_unsampled_image_accessor &&Rhs) = default;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  host_unsampled_image_accessor &
-  operator=(const host_unsampled_image_accessor &Rhs) noexcept;
-
-  host_unsampled_image_accessor &
-  operator=(host_unsampled_image_accessor &&Rhs) noexcept;
-#else
   host_unsampled_image_accessor &
   operator=(const host_unsampled_image_accessor &Rhs) = default;
 
   host_unsampled_image_accessor &
   operator=(host_unsampled_image_accessor &&Rhs) = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  ~host_unsampled_image_accessor() = default;
+  ~host_unsampled_image_accessor()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      {
+          // User-declared so the type is not trivially copyable; intentionally
+          // empty
+      }
+#else
+      = default;
+#endif
 
   bool operator==(const host_unsampled_image_accessor &Rhs) const {
     return Rhs.impl == impl;
@@ -1187,19 +1115,6 @@ private:
       : base_class{Impl} {}
 };
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions, access_mode AccessMode>
-host_unsampled_image_accessor<DataT, Dimensions, AccessMode> &
-host_unsampled_image_accessor<DataT, Dimensions, AccessMode>::operator=(
-    const host_unsampled_image_accessor &) noexcept = default;
-template <typename DataT, int Dimensions, access_mode AccessMode>
-host_unsampled_image_accessor<DataT, Dimensions, AccessMode> &
-host_unsampled_image_accessor<DataT, Dimensions, AccessMode>::operator=(
-    host_unsampled_image_accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 template <typename DataT, int Dimensions,
           image_target AccessTarget = image_target::device>
 class __SYCL_EBO sampled_image_accessor :
@@ -1268,20 +1183,20 @@ public:
 
   sampled_image_accessor(sampled_image_accessor &&Rhs) = default;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  sampled_image_accessor &operator=(const sampled_image_accessor &Rhs) noexcept;
-
-  sampled_image_accessor &operator=(sampled_image_accessor &&Rhs) noexcept;
-#else
   sampled_image_accessor &
   operator=(const sampled_image_accessor &Rhs) = default;
 
   sampled_image_accessor &operator=(sampled_image_accessor &&Rhs) = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~sampled_image_accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty as the spec states the destructor of an accessor must not
+    // have any effect
+  }
+#else
   ~sampled_image_accessor() = default;
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
   bool operator==(const sampled_image_accessor &Rhs) const;
@@ -1346,19 +1261,6 @@ private:
   }
 };
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions, image_target AccessTarget>
-sampled_image_accessor<DataT, Dimensions, AccessTarget> &
-sampled_image_accessor<DataT, Dimensions, AccessTarget>::operator=(
-    const sampled_image_accessor &) noexcept = default;
-template <typename DataT, int Dimensions, image_target AccessTarget>
-sampled_image_accessor<DataT, Dimensions, AccessTarget> &
-sampled_image_accessor<DataT, Dimensions, AccessTarget>::operator=(
-    sampled_image_accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 template <typename DataT, int Dimensions>
 class __SYCL_EBO host_sampled_image_accessor
     : private detail::SampledImageAccessorBaseHost,
@@ -1402,23 +1304,21 @@ public:
 
   host_sampled_image_accessor(host_sampled_image_accessor &&Rhs) = default;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Assignment operators are intentionally defaulted out of line, after the
-  // class, so the type is not trivially copyable.
-  host_sampled_image_accessor &
-  operator=(const host_sampled_image_accessor &Rhs) noexcept;
-
-  host_sampled_image_accessor &
-  operator=(host_sampled_image_accessor &&Rhs) noexcept;
-#else
   host_sampled_image_accessor &
   operator=(const host_sampled_image_accessor &Rhs) = default;
 
   host_sampled_image_accessor &
   operator=(host_sampled_image_accessor &&Rhs) = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  ~host_sampled_image_accessor() = default;
+  ~host_sampled_image_accessor()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      {
+          // User-declared so the type is not trivially copyable; intentionally
+          // empty
+      }
+#else
+      = default;
+#endif
 
   bool operator==(const host_sampled_image_accessor &Rhs) const {
     return Rhs.impl == impl;
@@ -1466,19 +1366,6 @@ private:
   host_sampled_image_accessor(const detail::SampledImageAccessorImplPtr &Impl)
       : base_class{Impl} {}
 };
-
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// User-provided (defaulted out of line rather than on first declaration) so
-// the type is not trivially copyable; this is intentional.
-template <typename DataT, int Dimensions>
-host_sampled_image_accessor<DataT, Dimensions> &
-host_sampled_image_accessor<DataT, Dimensions>::operator=(
-    const host_sampled_image_accessor &) noexcept = default;
-template <typename DataT, int Dimensions>
-host_sampled_image_accessor<DataT, Dimensions> &
-host_sampled_image_accessor<DataT, Dimensions>::operator=(
-    host_sampled_image_accessor &&) noexcept = default;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 namespace detail {
 // Add specializations for SYCL accessor types to the is_sycl_accessor trait.

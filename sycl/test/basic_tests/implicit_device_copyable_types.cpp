@@ -126,6 +126,8 @@ int main() {
   static_assert(!sycl::is_device_copyable_v<
                 sycl::accessor<int, 1, sycl::access_mode::read_write>>);
   static_assert(!std::is_trivially_copyable_v<sycl::local_accessor<int, 1>>);
+  static_assert(
+      !std::is_trivially_destructible_v<sycl::local_accessor<int, 1>>);
   static_assert(!sycl::is_device_copyable_v<sycl::local_accessor<int, 1>>);
   static_assert(!sycl::is_device_copyable_v<sycl::host_accessor<int, 1>>);
   static_assert(!sycl::is_device_copyable_v<sycl::accessor<
