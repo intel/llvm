@@ -1,0 +1,103 @@
+name: UR - Check Network Cards
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ur-check-network-cards.yml'
+
+jobs:
+  check-network:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - UR_CP_OPENCLNATIVE_01_01
+          - UR_CP_OPENCLNATIVE_01_02
+          - UR_DNP_06_PVC_03
+          - UR_DNP_06_PVC_03_L0
+          - UR_DNP_INTEL_05_01
+          - UR_DNP_INTEL_05_01_PVC
+          - UR_DNP_INTEL_05_01_WinVM
+          - UR_exaperf-pvc34
+          - UR_MOM_01
+          - UR_MOM_03_WinVM
+          - UR_MOM_12
+          - UR_MOM_56
+          - UR_MOM_58_Build
+          - UR_MOM_58_PVC
+          - UR_MOM_59_PVC
+          - UR_MOM_59_WinVM
+          - UR_PC_AMD_23_01
+          - UR_PC_AMD_34
+          - UR_PC_BMG_46
+          - UR_PC_BMG_47
+          - UR_PC_BMG_JF_WO200
+          - UR_PC_NVIDIA_35
+          - UR_PRE_ESM_01
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check network card (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          {
+            echo "=== Runner: ${{ matrix.runner }} ==="
+            echo ""
+            echo "=== lspci network devices ==="
+            lspci | grep -i -E 'network|ethernet' || true
+            echo ""
+            echo "=== Network interfaces ==="
+            ip link show
+            echo ""
+            echo "=== Interface details (ethtool) ==="
+            for iface in $(ls /sys/class/net/ | grep -v lo); do
+              echo "--- $iface ---"
+              ethtool -i "$iface" 2>/dev/null || true
+            done
+          } 2>&1 | tee network-info.txt
+
+      - name: Check network card (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          "=== Runner: ${{ matrix.runner }} ===" | Tee-Object -FilePath network-info.txt
+          "" | Tee-Object -FilePath network-info.txt -Append
+          "=== Network Adapters ===" | Tee-Object -FilePath network-info.txt -Append
+          Get-NetAdapter | Format-Table -AutoSize | Out-String | Tee-Object -FilePath network-info.txt -Append
+          "" | Tee-Object -FilePath network-info.txt -Append
+          "=== Adapter Details ===" | Tee-Object -FilePath network-info.txt -Append
+          Get-NetAdapter | Get-NetAdapterHardwareInfo -ErrorAction SilentlyContinue | Format-List | Out-String | Tee-Object -FilePath network-info.txt -Append
+
+      - name: Upload partial artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: network-info-${{ matrix.runner }}
+          path: network-info.txt
+
+  merge-results:
+    needs: check-network
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: network-info-*
+          path: results
+
+      - name: Combine results
+        run: |
+          for dir in results/network-info-*/; do
+            runner=$(basename "$dir" | sed 's/network-info-//')
+            echo "========================================" >> combined-network-info.txt
+            echo "Runner: $runner" >> combined-network-info.txt
+            echo "========================================" >> combined-network-info.txt
+            cat "$dir/network-info.txt" >> combined-network-info.txt
+            echo "" >> combined-network-info.txt
+          done
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: network-info-all-runners
+          path: combined-network-info.txt
