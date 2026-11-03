@@ -230,10 +230,16 @@ std::string kernel_impl::getAttributesFromDeviceRequirements() const {
   if (SubGroupSize)
     Append("reqd_sub_group_size(" + std::to_string(*SubGroupSize) + ")");
   if (!Aspects.empty()) {
-    std::string Str = "device_has(";
-    for (size_t I = 0; I < Aspects.size(); ++I)
-      Str += (I ? ", aspect::" : "aspect::") + getAspectNameStr(Aspects[I]);
-    Append(Str + ")");
+    std::string Str;
+    for (aspect A : Aspects) {
+      try {
+        Str += (Str.empty() ? "aspect::" : ", aspect::") + getAspectNameStr(A);
+      } catch (const sycl::exception &) {
+        // Unknown aspect, e.g. from a newer compiler.
+      }
+    }
+    if (!Str.empty())
+      Append("device_has(" + Str + ")");
   }
   return Result;
 }
