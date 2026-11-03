@@ -172,11 +172,9 @@ std::optional<unsigned> kernel_impl ::getFreeFuncKernelArgSize() const {
 }
 
 std::string kernel_impl::getAttributesFromDeviceRequirements() const {
-  if (!MDeviceImageImpl)
+  if (!MDeviceImageImpl || !MDeviceImageImpl->hasRTDeviceBinaryImage())
     return {};
-  const RTDeviceBinaryImage *Img = MDeviceImageImpl->get_bin_image();
-  if (!Img)
-    return {};
+  const RTDeviceBinaryImage *Img = MDeviceImageImpl->get_bin_image_ref();
 
   std::vector<uint64_t> WGSize;
   std::optional<uint32_t> WGNumDims, SubGroupSize;

@@ -554,8 +554,9 @@ public:
     return std::get<const RTDeviceBinaryImage *>(MBinImage);
   }
 
-  const RTDeviceBinaryImage *get_bin_image() const noexcept {
-    return hasRTDeviceBinaryImage() ? get_bin_image_ref() : nullptr;
+  bool hasRTDeviceBinaryImage() const noexcept {
+    return std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage) &&
+           get_bin_image_ref() != nullptr;
   }
 
   const context &get_context() const noexcept { return MContext; }
@@ -909,11 +910,6 @@ private:
     }
 
     return RetT(Name);
-  }
-
-  bool hasRTDeviceBinaryImage() const noexcept {
-    return std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage) &&
-           get_bin_image_ref() != nullptr;
   }
 
   static std::string_view trimXsFlags(std::string_view &str) {
