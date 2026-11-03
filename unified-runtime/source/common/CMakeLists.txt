@@ -139,6 +139,14 @@ if (UR_UMF_REQUIRED)
 
     FetchContent_MakeAvailable(unified-memory-framework)
     FetchContent_GetProperties(unified-memory-framework)
+
+    # A static UMF is linked into its consumers. Excluding its directory also
+    # drops UMF's own install rules, which would otherwise ship its archives
+    # and development files.
+    if(NOT UR_STANDALONE_BUILD AND NOT UMF_BUILD_SHARED_LIBRARY)
+      set_property(DIRECTORY ${unified-memory-framework_SOURCE_DIR}
+        PROPERTY EXCLUDE_FROM_ALL TRUE)
+    endif()
   endif()
 else()
   message(STATUS "No adapter requires UMF, skipping its build")
