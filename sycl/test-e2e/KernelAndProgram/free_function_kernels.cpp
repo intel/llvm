@@ -1,8 +1,6 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: windows && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21994
 // This test tests free function kernel code generation and execution.
 
 #include <iostream>
