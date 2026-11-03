@@ -34,6 +34,14 @@ sycl::ext::oneapi::experimental::device_global<
         sycl::ext::oneapi::experimental::device_image_scope))>
     DeviceGlobalImgScope;
 
+sycl::ext::oneapi::experimental::device_global<DeviceGlobalElemType>
+    DeviceGlobalUnused;
+sycl::ext::oneapi::experimental::device_global<
+    DeviceGlobalElemType,
+    decltype(sycl::ext::oneapi::experimental::properties(
+        sycl::ext::oneapi::experimental::device_image_scope))>
+    DeviceGlobalImgScopeUnused;
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -732,4 +740,43 @@ TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
   EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
+}
+
+TEST_F(DeviceGlobalTest, DeviceGlobalImgScopeUnusedCopyMemcpyThrows) {
+  int Vals[2] = {42, 1234};
+  auto ExpectKernelNotSupported = [](auto &&KFn) {
+    try {
+      KFn();
+      FAIL() << "Expected an exception";
+    } catch (const sycl::exception &Excpt) {
+      EXPECT_EQ(Excpt.code(), sycl::errc::kernel_not_supported);
+    }
+  };
+
+  ExpectKernelNotSupported([&] { Q.copy(Vals, DeviceGlobalImgScopeUnused); });
+  ExpectKernelNotSupported([&] { Q.copy(DeviceGlobalImgScopeUnused, Vals); });
+  ExpectKernelNotSupported([&] { Q.memcpy(DeviceGlobalImgScopeUnused, Vals); });
+  ExpectKernelNotSupported([&] { Q.memcpy(Vals, DeviceGlobalImgScopeUnused); });
+  ExpectKernelNotSupported([&] {
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.copy(Vals, DeviceGlobalImgScopeUnused);
+    });
+  });
+  ExpectKernelNotSupported([&] {
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.copy(DeviceGlobalImgScopeUnused, Vals);
+    });
+  });
+}
+
+// Without device_image_scope an unused device_global is still usable.
+TEST_F(DeviceGlobalTest, DeviceGlobalUnusedCopyMemcpy) {
+  int WriteVals[2] = {42, 1234};
+  int ReadVals[2] = {0, 0};
+
+  EXPECT_NO_THROW(Q.copy(WriteVals, DeviceGlobalUnused).wait());
+  EXPECT_NO_THROW(Q.copy(DeviceGlobalUnused, ReadVals).wait());
+
+  EXPECT_EQ(ReadVals[0], WriteVals[0]);
+  EXPECT_EQ(ReadVals[1], WriteVals[1]);
 }
