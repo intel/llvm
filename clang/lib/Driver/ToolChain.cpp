@@ -1210,6 +1210,10 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
     return *Path;
 
   if (T.isSPIROrSPIRV() && T.isArch64Bit()) {
+    // SYCL compiles device code for spir64 triples (spir64, spir64_gen,
+    // spir64_x86_64, ...), but libc is built for spirv64-unknown-unknown
+    // only, so fall back to that directory.
+    // TODO: Remove this when SYCL device compilation uses spirv64 triples.
     if (auto Path = getPathForTriple(llvm::Triple("spirv64-unknown-unknown")))
       return *Path;
   }
