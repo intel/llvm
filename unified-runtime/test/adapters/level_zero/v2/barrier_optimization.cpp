@@ -13,7 +13,7 @@
 #include "../ze_tracer_common.hpp"
 #include "uur/fixtures.h"
 
-// These handles are reset when inserting the barrier. 
+// These handles are reset when inserting the barrier.
 static int waitOnEventsCount = 0;
 static int signalEventCount = 0;
 static int barrierCount = 0;
@@ -75,8 +75,8 @@ struct urBarrierOptimizationTest : uur::urKernelExecutionTest {
         q, nullptr, static_cast<uint32_t>(waitList.size()), waitList.data(),
         &e));
     events.push_back(e);
-    ASSERT_SUCCESS(urEventWait(static_cast<uint32_t>(events.size()),
-                               events.data()));
+    // Wait on the barrier only: its completion must imply all earlier events.
+    ASSERT_SUCCESS(urEventWait(1, &e));
     for (auto ev : events) {
       ur_event_status_t status;
       ASSERT_SUCCESS(urEventGetInfo(ev, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
@@ -99,6 +99,7 @@ TEST_P(urBarrierOptimizationTest, EventsFromDifferentQueues) {
   UUR_RETURN_ON_FATAL_FAILURE(barrier(q2, {a, b}));
   EXPECT_GE(waitOnEventsCount, 1);
   EXPECT_EQ(signalEventCount, 1);
+  EXPECT_EQ(barrierCount, 0);
 }
 
 // Barrier on idle Q1 waiting only on pending events from Q2: expect
@@ -110,6 +111,7 @@ TEST_P(urBarrierOptimizationTest, EventsFromOtherQueueOnIdleQueue) {
   UUR_RETURN_ON_FATAL_FAILURE(barrier(q1, {a, b}));
   EXPECT_GE(waitOnEventsCount, 1);
   EXPECT_EQ(signalEventCount, 1);
+  EXPECT_EQ(barrierCount, 0);
 }
 
 // Barrier with an empty wait list on profiling Q3 after all work finished:
