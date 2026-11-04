@@ -491,6 +491,15 @@ int32_x8 make_f8f6f4_operand(const sycl::marray<T, Size> &Vals) {
   return Operand;
 }
 
+// marray is aligned only to its element type. Copying its object
+// representation is defined; a pointer cast to a wider MFMA operand would be
+// misaligned and would violate strict aliasing.
+template <typename To, typename From> To pack_mfma_operand(const From &Frag) {
+  static_assert(sizeof(To) == sizeof(From),
+                "MFMA operand size does not match the fragment");
+  return sycl::bit_cast<To>(Frag);
+}
+
 template <typename Ta, typename Tb, typename Tc, std::size_t M, std::size_t K,
           std::size_t N,
           sycl::ext::oneapi::experimental::matrix::layout LayoutA,
@@ -546,14 +555,14 @@ void joint_matrix_mad_hip(
 #if defined(__gfx950__)
     else if constexpr (M == 16 && N == 16 && K == 32) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x32_f16(
-          *reinterpret_cast<const half_x8 *>(&A.wi_marray),
-          *reinterpret_cast<const half_x8 *>(&B.wi_marray),
+          pack_mfma_operand<half_x8>(A.wi_marray),
+          pack_mfma_operand<half_x8>(B.wi_marray),
           *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
     } else if constexpr (M == 32 && N == 32 && K == 16) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x16_f16(
-          *reinterpret_cast<const half_x8 *>(&A.wi_marray),
-          *reinterpret_cast<const half_x8 *>(&B.wi_marray),
+          pack_mfma_operand<half_x8>(A.wi_marray),
+          pack_mfma_operand<half_x8>(B.wi_marray),
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
@@ -575,14 +584,14 @@ void joint_matrix_mad_hip(
 #if defined(__gfx950__)
     else if constexpr (M == 16 && N == 16 && K == 32) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
-          *reinterpret_cast<const bfloat16_x8 *>(&A.wi_marray),
-          *reinterpret_cast<const bfloat16_x8 *>(&B.wi_marray),
+          pack_mfma_operand<bfloat16_x8>(A.wi_marray),
+          pack_mfma_operand<bfloat16_x8>(B.wi_marray),
           *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
     } else if constexpr (M == 32 && N == 32 && K == 16) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
-          *reinterpret_cast<const bfloat16_x8 *>(&A.wi_marray),
-          *reinterpret_cast<const bfloat16_x8 *>(&B.wi_marray),
+          pack_mfma_operand<bfloat16_x8>(A.wi_marray),
+          pack_mfma_operand<bfloat16_x8>(B.wi_marray),
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
@@ -600,14 +609,14 @@ void joint_matrix_mad_hip(
     // (8 int8 values per work-item).
     if constexpr (M == 16 && N == 16 && K == 32) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x32_i8(
-          *reinterpret_cast<const int64_t *>(&A.wi_marray),
-          *reinterpret_cast<const int64_t *>(&B.wi_marray),
+          pack_mfma_operand<int64_t>(A.wi_marray),
+          pack_mfma_operand<int64_t>(B.wi_marray),
           *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
     } else if constexpr (M == 32 && N == 32 && K == 16) {
       auto result = __builtin_amdgcn_mfma_i32_32x32x16_i8(
-          *reinterpret_cast<const int64_t *>(&A.wi_marray),
-          *reinterpret_cast<const int64_t *>(&B.wi_marray),
+          pack_mfma_operand<int64_t>(A.wi_marray),
+          pack_mfma_operand<int64_t>(B.wi_marray),
           *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
@@ -616,14 +625,14 @@ void joint_matrix_mad_hip(
     // (16 int8 values per work-item).
     else if constexpr (M == 16 && N == 16 && K == 64) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x64_i8(
-          *reinterpret_cast<const int32_x4 *>(&A.wi_marray),
-          *reinterpret_cast<const int32_x4 *>(&B.wi_marray),
+          pack_mfma_operand<int32_x4>(A.wi_marray),
+          pack_mfma_operand<int32_x4>(B.wi_marray),
           *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
     } else if constexpr (M == 32 && N == 32 && K == 32) {
       auto result = __builtin_amdgcn_mfma_i32_32x32x32_i8(
-          *reinterpret_cast<const int32_x4 *>(&A.wi_marray),
-          *reinterpret_cast<const int32_x4 *>(&B.wi_marray),
+          pack_mfma_operand<int32_x4>(A.wi_marray),
+          pack_mfma_operand<int32_x4>(B.wi_marray),
           *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
@@ -651,8 +660,8 @@ void joint_matrix_mad_hip(
     if constexpr ((M == 16 && K == 32) || (M == 32 && K == 16)) {
       // FP8 MFMAs with 64-bit operands (8 values per work-item). On gfx950
       // these opcodes interpret FP8/BF8 as OCP E4M3/E5M2.
-      const auto a = *reinterpret_cast<const int64_t *>(&A.wi_marray);
-      const auto b = *reinterpret_cast<const int64_t *>(&B.wi_marray);
+      const auto a = pack_mfma_operand<int64_t>(A.wi_marray);
+      const auto b = pack_mfma_operand<int64_t>(B.wi_marray);
       constexpr bool AIsE4M3 = std::is_same_v<Ta, fp8_e4m3_t>;
       constexpr bool BIsE4M3 = std::is_same_v<Tb, fp8_e4m3_t>;
       if constexpr (M == 16) {
