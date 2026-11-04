@@ -1604,10 +1604,13 @@ LLVMToSPIRVDbgTran::transDbgLocalVariable(const DILocalVariable *Var) {
   Ops[ColumnIdx] = 0; // This version of DILocalVariable has no column number
   Ops[ParentIdx] = getScope(Var->getScope())->getId();
   Ops[FlagsIdx] = transDebugFlags(Var);
-  if (SPIRVWord ArgNumber = Var->getArg())
+  std::vector<SPIRVWord> ConstantArgs = {LineIdx, ColumnIdx, FlagsIdx};
+  if (SPIRVWord ArgNumber = Var->getArg()) {
     Ops.push_back(ArgNumber);
+    ConstantArgs.push_back(ArgNumberIdx);
+  }
   if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
+    transformToConstant(Ops, ConstantArgs);
   return BM->addDebugInfo(SPIRVDebug::LocalVariable, getVoidTy(), Ops);
 }
 

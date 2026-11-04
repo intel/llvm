@@ -1204,9 +1204,12 @@ DINode *SPIRVToLLVMDbgTran::transLocalVariable(const SPIRVExtInst *DebugInst) {
   if (SPIRVFlags & SPIRVDebug::FlagIsObjectPointer)
     Flags |= DINode::FlagObjectPointer;
 
-  if (Ops.size() > ArgNumberIdx)
+  if (Ops.size() > ArgNumberIdx) {
+    SPIRVWord ArgNo = getConstantValueOrLiteral(Ops, ArgNumberIdx,
+                                                DebugInst->getExtSetKind());
     return getDIBuilder(DebugInst).createParameterVariable(
-        Scope, Name, Ops[ArgNumberIdx], File, LineNo, Ty, true, Flags);
+        Scope, Name, ArgNo, File, LineNo, Ty, true, Flags);
+  }
   return getDIBuilder(DebugInst).createAutoVariable(Scope, Name, File, LineNo,
                                                     Ty, true, Flags);
 }
@@ -1683,8 +1686,7 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
       return DbgDeclare;
     }
     return DIB.insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
-                             GetExpression(Ops[ExpressionIdx]), Loc,
-                             BB);
+                             GetExpression(Ops[ExpressionIdx]), Loc, BB);
   }
   case SPIRVDebug::Value: {
     using namespace SPIRVDebug::Operand::DebugValue;
