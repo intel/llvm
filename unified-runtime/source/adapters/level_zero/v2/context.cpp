@@ -156,10 +156,11 @@ void ur_context_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
   }
 
   std::shared_lock<ur_shared_mutex> lock(Mutex);
-  UR_LOG(INFO, "{} peerDevice:{} in the default pool and {} usmPools",
+  UR_LOG(INFO, "{} peerDevice:{} in the default pools and {} usmPools",
          isAdding ? "adding" : "removing", peerDevice->Id.value(),
          usmPoolHandles.size())
   defaultUSMPool.changeResidentDevice(hDevice, peerDevice, isAdding);
+  asyncPool.changeResidentDevice(hDevice, peerDevice, isAdding);
   for (const auto &hPool : usmPoolHandles) {
     hPool->changeResidentDevice(hDevice, peerDevice, isAdding);
   }
