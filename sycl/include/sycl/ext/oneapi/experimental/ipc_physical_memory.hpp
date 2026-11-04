@@ -21,7 +21,10 @@
 
 #include <cstddef>
 
-#if __has_include(<span>)
+// MSVC STL warns (STL4038) when <span> is included before C++20, and it
+// reports the language mode in _MSVC_LANG rather than __cplusplus.
+#if __has_include(<span>) &&                                                  \
+    (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
 #include <span>
 #endif
 
