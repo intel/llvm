@@ -1210,10 +1210,7 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
     return *Path;
 
   if (T.isSPIROrSPIRV() && T.isArch64Bit()) {
-    llvm::Triple Canon(T);
-    Canon.setArchName("spirv64");
-    Canon = llvm::Triple(Canon.normalize());
-    if (auto Path = getPathForTriple(Canon))
+    if (auto Path = getPathForTriple(llvm::Triple("spirv64-unknown-unknown")))
       return *Path;
   }
 
