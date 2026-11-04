@@ -12,6 +12,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/code_location.hpp>
+#include <sycl/detail/defines.hpp> // for __SYCL_STANDALONE_DEBUG
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
@@ -282,6 +283,8 @@ template <int Dims, typename LambdaArgType> struct TransformUserItemType {
 
 } // namespace detail
 
+// Keep the full definition in every -g TU: handlers are only constructed inside
+// libsycl, so constructor homing would otherwise leave gdb a forward decl.
 /// Command group handler class.
 ///
 /// Objects of the handler class collect information about command group, such
@@ -315,7 +318,7 @@ template <int Dims, typename LambdaArgType> struct TransformUserItemType {
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT handler {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT handler {
   friend sycl::detail::ImplUtils;
 
 private:
