@@ -12336,10 +12336,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // Device libraries for SYCL offloading are specified using
     // --bitcode-library=<triple>=<path to bc file> for each library.
     //
-    // Note: SPIR/SPIRV device libraries are linked at compile time using
-    // -mlink-builtin-bitcode, so they are not passed here. Only non-SPIR
-    // targets (NVPTX, AMD, NativeCPU) pass device libraries to
-    // clang-linker-wrapper.
+    // Also forwarded for SPIR/SPIRV as a link-time fallback for old-model
+    // objects/archives that never got device libs linked at compile time.
     SmallVector<std::string, 4> BCLibList;
     bool HasNativeCPU = false;
 
@@ -12348,23 +12346,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       llvm::Triple TargetTriple = TC->getTriple();
       HasNativeCPU |= TargetTriple.isNativeCPU();
-      // SPIR or SPIR-V device libraries are compiled into the device compile
-      // step. Non-SPIR here means NVPTX/AMDGCN (CudaToolChain/AMDGPUToolChain)
-      // or NativeCPU.
-      if (!TargetTriple.isSPIROrSPIRV()) {
-        const ToolChain *HostTC =
-            C.getSingleOffloadToolChain<Action::OFK_Host>();
-        std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
-        const toolchains::SYCLToolChain &SYCLTC =
-            toolchains::getSYCLToolChain(D, *TC, *HostTC, Args, ScratchTC);
-        // getDeviceLibs resolves the full path of each library and diagnoses
-        // any that are not found.
-        for (const auto &AddLib :
-             SYCLTC.getDeviceLibs(Args, /*BA=*/{}, Action::OFK_SYCL))
-          if (llvm::sys::path::extension(AddLib.Path) == ".bc")
-            BCLibList.push_back(
-                (Twine(TargetTriple.str()) + "=" + AddLib.Path).str());
-      }
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      std::unique_ptr<toolchains::SYCLToolChain> ScratchTC;
+      const toolchains::SYCLToolChain &SYCLTC =
+          toolchains::getSYCLToolChain(D, *TC, *HostTC, Args, ScratchTC);
+      // getDeviceLibs resolves the full path of each library and diagnoses
+      // any that are not found.
+      for (const auto &AddLib :
+           SYCLTC.getDeviceLibs(Args, /*BA=*/{}, Action::OFK_SYCL))
+        if (llvm::sys::path::extension(AddLib.Path) == ".bc")
+          BCLibList.push_back(
+              (Twine(TargetTriple.str()) + "=" + AddLib.Path).str());
 
       if (TargetTriple.isNVPTX())
         if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
