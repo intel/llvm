@@ -509,7 +509,9 @@ The program is ill-formed if `kernel-name`, resolved against the
 types of `args`, does not name a SYCL free function kernel (a function declared
 with the `nd_range_kernel<Dims>` or `single_task_kernel` property).  The
 program is also ill-formed if the free function kernel that `kernel-name`
-resolves to is not declared before the use of the macro.
+resolves to is not declared before the use of the macro (see
+<<integration-header-restrictions, Restrictions for integration header
+implementations>>).
 
 Ordinary C++ template argument deduction applies to `kernel-name`.  A template
 parameter of the kernel that cannot be deduced from `args` — for example a
@@ -1011,6 +1013,7 @@ As with standard SYCL kernels, these kernel properties can be queried via
 `kernel::get_info` using either the `info::kernel::attributes` information
 descriptor or the `info::kernel_device_specific` information descriptors.
 
+[[integration-header-restrictions]]
 === Restrictions for integration header implementations
 
 [_Note:_ The {dpcpp} implementation of this extension currently has the
@@ -1085,6 +1088,31 @@ void caller() {
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void foo(float) {/*...*/}
+```
+
+* For the same reason, the free function kernel that
+  `SYCL_EXT_ONEAPI_KERNEL_FUNCTION` resolves `kernel-name` to must be declared
+  before the use of the macro.
+  The host compilation sees the forward declarations of all free function
+  kernels in the translation unit, while the device compilation sees only the
+  declarations that precede the use.
+  If the best match is declared after the use, the two compilations would
+  resolve `kernel-name` to different kernels, so the program is ill-formed and
+  the implementation diagnoses it.
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void bar(int *p, double v) {/*...*/}
+
+void caller(sycl::queue q, int *p) {
+  // Error: bar(int *, float) is the best match on the host, where it is forward
+  // declared in the integration header, but the device compilation does not see
+  // it here and would select bar(int *, double).
+  syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(bar, p, 1.0f));
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void bar(int *p, float v) {/*...*/}
 ```
 
 The allowed types are:
