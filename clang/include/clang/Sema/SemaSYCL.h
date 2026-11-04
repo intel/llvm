@@ -285,9 +285,12 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
-  // Kernels that a call to __builtin_sycl_resolve_kernel_function selected on
-  // the host side only through the forward declaration in the integration
-  // header.
+  // The __builtin_sycl_resolve_kernel_function() builtin function might be
+  // used in situations that resolve to a user-written declaration during device
+  // compilation, but resolve to a declaration for a different overload
+  // candidate during host compilation due to additional forward declarations
+  // that appear in the integration header. Such cases are recorded for later
+  // diagnostic purposes.
   struct KernelResolvedBeforeDeclaration {
     SourceLocation Loc;
     const FunctionDecl *Kernel;
