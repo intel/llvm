@@ -7986,16 +7986,29 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   Args.ClaimAllArgs(options::OPT_cl_ignored_Group);
 }
 
-/// Returns the canonical name for the offloading architecture when using a HIP
-/// or CUDA architecture.
+/// \return true if \p Triple is a SPIR-V target with no vendor or OS, such as
+/// spirv64-unknown-unknown.
+static bool isPlainSPIRV(const llvm::Triple &Triple) {
+  return Triple.isSPIRV() &&
+         Triple.getVendor() == llvm::Triple::UnknownVendor &&
+         Triple.getOS() == llvm::Triple::UnknownOS;
+}
+
+/// Returns the canonical name for the offloading architecture \p ArchStr on
+/// \p Triple, or an empty string after diagnosing an architecture that
+/// \p Triple does not support.
 static StringRef getCanonicalArchString(Compilation &C,
                                         const llvm::opt::DerivedArgList &Args,
                                         StringRef ArchStr,
-                                        const llvm::Triple &Triple) {
-  // Lookup the CUDA / HIP architecture string. Only report an error if we were
-  // expecting the triple to be only NVPTX / AMDGPU.
+                                        const llvm::Triple &Triple,
+                                        Action::OffloadKind Kind) {
   OffloadArch Arch =
       StringToOffloadArch(getProcessorFromTargetID(Triple, ArchStr));
+  // On SPIR-V, an Intel name or "generic" takes no target features, so
+  // "xe-pvc:foo" is not "xe-pvc".
+  if (Triple.isSPIRV() && (Arch.isIntel() || Arch.isGeneric()) &&
+      ArchStr.contains(':'))
+    Arch = OffloadArch::getUnknown();
   if (Triple.isNVPTX() && (Arch.isUnknown() || !Arch.isNVPTX())) {
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "CUDA" << ArchStr;
@@ -8028,12 +8041,28 @@ static StringRef getCanonicalArchString(Compilation &C,
     C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
         << "spir64_x86_64" << ArchStr;
     return StringRef();
-  } else if (Triple.isSPIRV() && ArchStr.starts_with("igca")) {
-    if (!StringToOffloadArch(ArchStr).isIntelIGCA()) {
-      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
-          << "IGCA" << ArchStr;
-      return StringRef();
-    }
+  } else if (Triple.isSPIRV() && ArchStr.starts_with("igca") &&
+             !Arch.isIntelIGCA()) {
+    // Only an invalid IGCA target stops here; a valid one still needs the
+    // SPIR-V target checks below.
+    C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+        << "IGCA" << ArchStr;
+    return StringRef();
+  } else if (Kind == Action::OFK_SYCL && isPlainSPIRV(Triple) &&
+             !ArchStr.empty() && !Arch.isIntel() && !Arch.isGeneric()) {
+    // A SYCL device on a plain SPIR-V target is an Intel GPU or CPU, an IGCA
+    // target or "generic". Reject anything else, as for CUDA and HIP, rather
+    // than build for a device that does not exist.
+    C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+        << "SYCL" << ArchStr;
+    return StringRef();
+  } else if (Kind == Action::OFK_SYCL && Triple.isSPIRV() &&
+             !isPlainSPIRV(Triple) && Arch.isIntel()) {
+    // An Intel name or IGCA target always uses a plain SPIR-V target, so
+    // reject it on any other SPIR-V target, e.g. spirv64-amd-amdhsa.
+    C.getDriver().Diag(clang::diag::err_target_unsupported_arch)
+        << ArchStr << Triple.str();
+    return StringRef();
   }
   if (Arch.isNVPTX())
     return Args.MakeArgStringRef(OffloadArchToString(Arch));
@@ -8165,7 +8194,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
 
           for (auto ArchStr : *GPUsOrErr) {
             StringRef CanonicalStr = getCanonicalArchString(
-                C, Args, Args.MakeArgString(ArchStr), TC.getTriple());
+                C, Args, Args.MakeArgString(ArchStr), TC.getTriple(), Kind);
             if (!CanonicalStr.empty())
               Archs.insert(CanonicalStr);
             else
@@ -8173,7 +8202,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
           }
         } else {
           StringRef CanonicalStr =
-              getCanonicalArchString(C, Args, Arch, TC.getTriple());
+              getCanonicalArchString(C, Args, Arch, TC.getTriple(), Kind);
           if (!CanonicalStr.empty())
             Archs.insert(CanonicalStr);
           else
@@ -8186,7 +8215,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
           Archs.clear();
         } else {
           StringRef ArchStr =
-              getCanonicalArchString(C, Args, Arch, TC.getTriple());
+              getCanonicalArchString(C, Args, Arch, TC.getTriple(), Kind);
           Archs.erase(ArchStr);
         }
       }
@@ -8278,7 +8307,7 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                                   ? ""
                                   : OffloadArchToString(TripleOffloadArch);
     StringRef CanonicalStr =
-        getCanonicalArchString(C, Args, ArchStr, TC.getTriple());
+        getCanonicalArchString(C, Args, ArchStr, TC.getTriple(), Kind);
     if (!CanonicalStr.empty())
       Archs.insert(CanonicalStr);
   }
