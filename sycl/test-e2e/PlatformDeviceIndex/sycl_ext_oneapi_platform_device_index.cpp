@@ -1,4 +1,6 @@
 // REQUIRES: level_zero_dev_kit, opencl_icd
+// XFAIL: cuda-ge-13
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23720
 
 // RUN: %{build} %level_zero_options %opencl_lib -o %t.out
 // RUN: %{run} %t.out
