@@ -642,7 +642,7 @@ private:
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
-  std::string LibDir = CLANG_INSTALL_LIBDIR_BASENAME;
+  std::string LibDir = (Prefix + "/").str() + CLANG_INSTALL_LIBDIR_BASENAME;
 
   PrecompiledPreambles Preambles;
 };
@@ -869,7 +869,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     if (LibName.find("libspirv") != std::string::npos)
       LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
     else if (LibName == "libc.bc")
-      LibPath = (TC.getLibDir() + TripleName + "/" + LibName).str();
+      LibPath = (TC.getLibDir() + "/" + TripleName + "/" + LibName).str();
     else if (LibName == "libclang_rt.builtins.bc")
       LibPath =
           (TC.getPrefix() + getCompilerRTSuffix() + TripleName + "/" + LibName)
