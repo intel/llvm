@@ -2496,6 +2496,17 @@ e.g. directly to a queue without returning an event.
 link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
 can be used with SYCL Graphs.
 
+==== sycl_ext_oneapi_inter_process_communication
+
+USM device pointers shared between processes using the `ipc::memory` functions
+defined by
+link:../experimental/sycl_ext_oneapi_inter_process_communication.asciidoc[sycl_ext_oneapi_inter_process_communication]
+can be used in graph nodes in the same way as other USM device pointers. This
+applies to both the process that exported the allocation and the process that
+opened it. A pointer returned by `ipc::memory::open()` must not be closed with
+`ipc::memory::close()` while an executable graph that uses it may still be
+executing.
+
 ==== sycl_ext_oneapi_kernel_compiler_spirv
 
 The kernels loaded using
