@@ -63,6 +63,10 @@ int main(int argc, char **) {
   // device. Both log entries must refer to the same allocation.
   // CHECK: Allocating on peer
   // CHECK-UNRESTRICTED: Allocating on peer
+  // CHECK-UNRESTRICTED: allocation [[PEER_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[PEER_DEVICE:(0[xX])?[0-9a-fA-F]+]]
+  // CHECK-UNRESTRICTED-NOT: allocation {{.*}} of size: 8388608 made resident
+  // CHECK-UNRESTRICTED: allocation [[PEER_PTR]] of size: 8388608 made resident on device [[COMMAND_DEVICE:(0[xX])?[0-9a-fA-F]+]]
+  // CHECK-UNRESTRICTED-NOT: allocation {{.*}} of size: 8388608 made resident
   // CHECK: allocation [[PEER_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[PEER_DEVICE:(0[xX])?[0-9a-fA-F]+]]
   // CHECK-NOT: allocation {{.*}} of size: 8388608 made resident
   // CHECK: allocation [[PEER_PTR]] of size: 8388608 made resident on device [[COMMAND_DEVICE:(0[xX])?[0-9a-fA-F]+]]
@@ -77,8 +81,8 @@ int main(int argc, char **) {
   // on both devices instead.
   // CHECK: Allocating on command
   // CHECK-UNRESTRICTED: Allocating on command
-  // CHECK-UNRESTRICTED: allocation [[COMMAND_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[COMMAND_DEVICE:(0[xX])?[0-9a-fA-F]+]]
-  // CHECK-UNRESTRICTED: allocation [[COMMAND_PTR]] of size: 8388608 made resident on device [[PEER_DEVICE:(0[xX])?[0-9a-fA-F]+]]
+  // CHECK-UNRESTRICTED: allocation [[COMMAND_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[COMMAND_DEVICE]]
+  // CHECK-UNRESTRICTED: allocation [[COMMAND_PTR]] of size: 8388608 made resident on device [[PEER_DEVICE]]
   // CHECK-UNRESTRICTED-NOT: allocation {{.*}} of size: 8388608 made resident
   // CHECK-UNRESTRICTED: Allocations checked
   // CHECK: allocation {{(0[xX])?[0-9a-fA-F]+}} of size: 8388608 made resident on device [[COMMAND_DEVICE]]
