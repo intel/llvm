@@ -17,7 +17,7 @@ int main() {
   sycl::queue Q;
 
   auto *I = sycl::malloc_device<int>(1, Q);
-  Q.single_task([=]() { I[0] = 42; });
+  Q.single_task([=]() { I[0] = 42; }).wait_and_throw();
 
   sycl::free(I, Q);
 
