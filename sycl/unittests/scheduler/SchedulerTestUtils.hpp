@@ -103,8 +103,8 @@ public:
   using sycl::detail::Scheduler::addCopyBack;
   using sycl::detail::Scheduler::checkLeavesCompletion;
   using sycl::detail::Scheduler::cleanupCommands;
-  using sycl::detail::Scheduler::enqueueUnblockedCommands;
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
+  using sycl::detail::Scheduler::retryEnqueueBlockedUsers;
 
   sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(sycl::detail::queue_impl *Queue,

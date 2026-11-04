@@ -233,12 +233,12 @@ TEST_F(SchedulerTest, BlockedUserReRegisteredOnNextBlockedCommand) {
   ASSERT_EQ(0u, B.MBlockedUsers.size());
 
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  MockScheduler::enqueueUnblockedCommands(A.MBlockedUsers, Lock, ToCleanUp);
+  MockScheduler::retryEnqueueBlockedUsers(A.MBlockedUsers, Lock, ToCleanUp);
   ASSERT_FALSE(Root.isSuccessfullyEnqueued());
   ASSERT_EQ(1u, B.MBlockedUsers.size());
   ASSERT_EQ(Root.getEvent(), B.MBlockedUsers[0]);
 
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  MockScheduler::enqueueUnblockedCommands(B.MBlockedUsers, Lock, ToCleanUp);
+  MockScheduler::retryEnqueueBlockedUsers(B.MBlockedUsers, Lock, ToCleanUp);
   ASSERT_TRUE(Root.isSuccessfullyEnqueued());
 }
