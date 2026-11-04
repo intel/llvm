@@ -436,18 +436,23 @@ void joint_matrix_mad_hip(
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // CDNA3 (gfx942) int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
-    // (8 int8 values per work-item).
+    // (8 int8 values per work-item). bit_cast copies the marray object
+    // representation: marray<int8_t, 8> is only 1-byte aligned, so an int64_t*
+    // load would be misaligned and would violate strict aliasing.
+    static_assert(sizeof(A.wi_marray) == sizeof(int64_t) &&
+                      sizeof(B.wi_marray) == sizeof(int64_t),
+                  "CDNA3 int8 MFMA operands are 8 packed int8 values");
+    const int64_t PackedA = sycl::bit_cast<int64_t>(A.wi_marray);
+    const int64_t PackedB = sycl::bit_cast<int64_t>(B.wi_marray);
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x32_i8(
-          *reinterpret_cast<const int64_t *>(&A.wi_marray),
-          *reinterpret_cast<const int64_t *>(&B.wi_marray),
-          *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
+          PackedA, PackedB, *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0,
+          0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_i32_32x32x16_i8(
-          *reinterpret_cast<const int64_t *>(&A.wi_marray),
-          *reinterpret_cast<const int64_t *>(&B.wi_marray),
-          *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
+          PackedA, PackedB, *reinterpret_cast<const int32x16 *>(&C.wi_marray),
+          0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
 #else
