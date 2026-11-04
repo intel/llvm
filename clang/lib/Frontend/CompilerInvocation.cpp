@@ -5399,6 +5399,9 @@ bool CompilerInvocation::CreateFromArgsImpl(
     CreateEmptyFile(LangOpts.SYCLIntFooter);
   }
 
+  if (T.isGPU() && !LangOpts.OpenCL)
+    Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
+
   ParseCodeGenArgs(Res.getCodeGenOpts(), Args, DashX, Diags, T,
                    Res.getFrontendOpts().OutputFile, LangOpts);
 
