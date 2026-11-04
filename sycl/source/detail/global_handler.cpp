@@ -15,6 +15,7 @@
 #include <detail/config.hpp>
 #include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -205,6 +206,15 @@ ProgramManager &GlobalHandler::getProgramManager() {
   static ProgramManager &PM = getOrCreate(MProgramManager);
   return PM;
 }
+
+#if SYCL_EXT_JIT_ENABLE
+jit_compiler &GlobalHandler::getJITCompiler() {
+  const LockGuard Lock{MJITCompiler.Lock};
+  if (!MJITCompiler.Inst)
+    MJITCompiler.Inst.reset(new jit_compiler());
+  return *MJITCompiler.Inst;
+}
+#endif
 
 std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
 GlobalHandler::getPlatformToDefaultContextCache() {
@@ -446,6 +456,9 @@ void shutdown_late() {
       nullptr, std::memory_order_release);
   GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
+
+  // The JIT compiler owns image tables referenced by the program manager.
+  GlobalHandler::RTGlobalObjHandler->MJITCompiler.Inst.reset(nullptr);
 
   // Clear the adapters and reset the instance if it was there.
   GlobalHandler::RTGlobalObjHandler->unloadAdapters();

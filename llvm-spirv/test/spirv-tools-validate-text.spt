@@ -1,0 +1,18 @@
+; RUN: llvm-spirv --spirv-text -r --spirv-validate %s -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
+; REQUIRES: libspirv_val
+
+; Ensure validation is skipped for the internal text format.
+; CHECK: define spir_kernel void @test()
+
+119734787 65536 393230 6 0
+2 Capability Addresses
+2 Capability Kernel
+3 MemoryModel 2 2
+5 EntryPoint 6 4 "test"
+2 TypeVoid 2
+3 TypeFunction 3 2
+5 Function 2 4 0 3
+2 Label 5
+1 Return
+1 FunctionEnd

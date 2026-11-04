@@ -123,6 +123,11 @@ function(libclc_add_library target_name)
   endif()
 
   set(library_dir ${LIBCLC_OUTPUT_LIBRARY_DIR}/${ARG_TARGET_TRIPLE})
+  set(install_dir ${LIBCLC_INSTALL_DIR}/${ARG_TARGET_TRIPLE})
+  if(LIBCLC_LIBDIR_SUBDIR)
+    string(APPEND library_dir "/${LIBCLC_LIBDIR_SUBDIR}")
+    string(APPEND install_dir "/${LIBCLC_LIBDIR_SUBDIR}")
+  endif()
   file(MAKE_DIRECTORY ${library_dir})
 
   # Create a combined static archive from all object libraries for installation.
@@ -211,7 +216,7 @@ function(libclc_add_library target_name)
   add_dependencies(${ARG_PARENT_TARGET} ${target_name} ${archive_target})
 
   install(FILES ${builtins_lib} $<TARGET_FILE:${archive_target}>
-    DESTINATION ${LIBCLC_INSTALL_DIR}/${ARG_TARGET_TRIPLE}
+    DESTINATION ${install_dir}
     COMPONENT ${ARG_PARENT_TARGET}
   )
 endfunction()
