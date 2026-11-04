@@ -12,14 +12,14 @@
 // a context.
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/properties/all_properties.hpp>
 
 void test(sycl::context &C, sycl::device &D, sycl::property_list Props) {
   sycl::queue Q(C, D, Props);
-  (void)Q.submit([&](sycl::handler &CGH) {
-    CGH.single_task<class EmptyKernel>([=]() {});
-  });
-  Q.wait();
+  // Force native queue creation without GPU work that could be starved by other
+  // tests: https://github.com/intel/llvm/issues/23735.
+  (void)sycl::get_native<sycl::backend::ext_oneapi_level_zero>(Q);
 }
 
 int main(int Argc, const char *Argv[]) {

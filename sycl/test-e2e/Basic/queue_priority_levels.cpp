@@ -4,13 +4,14 @@
 // Checks sycl::ext::oneapi::property::queue::priority and the priority_range
 // device descriptor.
 
+#include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/backend/hip.hpp>
 #include <sycl/ext/oneapi/info/device.hpp>
 #include <sycl/properties/all_properties.hpp>
 
 #include <cassert>
 #include <iostream>
-#include <vector>
 
 namespace prop = sycl::ext::oneapi::property::queue;
 
@@ -19,18 +20,22 @@ static_assert(SYCL_EXT_ONEAPI_QUEUE_PRIORITY >= 2);
 static void checkQueue(const sycl::device &Dev,
                        const sycl::property_list &Props) {
   sycl::queue Q{Dev, Props};
-  constexpr size_t N = 64;
-  std::vector<int> Data(N, -1);
-  {
-    sycl::buffer<int> Buf{Data.data(), sycl::range<1>{N}};
-    Q.submit([&](sycl::handler &CGH) {
-      sycl::accessor Acc{Buf, CGH, sycl::write_only};
-      CGH.parallel_for(sycl::range<1>{N},
-                       [=](sycl::id<1> I) { Acc[I] = static_cast<int>(I[0]); });
-    });
+  // Some adapters create native queues/streams lazily. Force creation without
+  // GPU work that could be starved by other tests:
+  // https://github.com/intel/llvm/issues/23735.
+  switch (Dev.get_backend()) {
+  case sycl::backend::ext_oneapi_level_zero:
+    (void)sycl::get_native<sycl::backend::ext_oneapi_level_zero>(Q);
+    break;
+  case sycl::backend::ext_oneapi_cuda:
+    (void)sycl::get_native<sycl::backend::ext_oneapi_cuda>(Q);
+    break;
+  case sycl::backend::ext_oneapi_hip:
+    (void)sycl::get_native<sycl::backend::ext_oneapi_hip>(Q);
+    break;
+  default:
+    break;
   }
-  for (size_t I = 0; I < N; ++I)
-    assert(Data[I] == static_cast<int>(I));
 }
 
 static void checkThrows(const sycl::device &Dev,
