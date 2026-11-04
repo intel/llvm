@@ -1,6 +1,8 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // UNSUPPORTED: level_zero_v2_adapter
 // UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23735
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
