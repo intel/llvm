@@ -13,8 +13,21 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT: clang{{.*}} "-mlink-builtin-bitcode" "{{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-crt.bc"
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-cmath.bc
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/dpcpp-{{[0-9]+}}/sycl/libsycl-imf.bc
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/{{.*}}/libc.bc
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}/lib/spirv64-unknown-unknown/libc.bc
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: "-mlink-builtin-bitcode-postopt"
+
+/// ###########################################################################
+
+/// test behavior of libc.bc linking for spir64_gen and spir64_x86_64 targets.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --offload-new-driver %s -ccc-install-dir %{clang_install_dir} -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_LIBC_GEN
+// SYCL_DEVICE_LIB_LINK_LIBC_GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
+// SYCL_DEVICE_LIB_LINK_LIBC_GEN-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
+
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s -ccc-install-dir %{clang_install_dir} -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_LIBC_CPU
+// SYCL_DEVICE_LIB_LINK_LIBC_CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
+// SYCL_DEVICE_LIB_LINK_LIBC_CPU-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 /// ###########################################################################
 
@@ -23,6 +36,7 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libsycl-cmath.bc
+// SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libc.bc
 
 /// ###########################################################################
 
@@ -41,7 +55,7 @@
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
-// SYCL_DEVICE_LIB_ASAN-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s -ccc-install-dir %{clang_install_dir} -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_ASAN_MACRO
@@ -58,7 +72,7 @@
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-pvc.bc"
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-cpu for CPU target AOT compilation when asan flag is applied.
@@ -68,7 +82,7 @@
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-cpu.bc"
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 /// ###########################################################################
 /// Test link behavior for multiple targets. Currently, we default to the
@@ -81,12 +95,12 @@
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libsycl-crt.bc"
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
-// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN_CPU_GPU-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
@@ -102,7 +116,7 @@
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan-dg2.bc"
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan for multiple targets AOT compilation
@@ -114,7 +128,7 @@
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-asan.bc"
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_ASAN_MUL-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 /// ###########################################################################
 /// test behavior of libsycl-msan.o linking when -fsanitize=memory is available
@@ -132,7 +146,7 @@
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-cmath.bc
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf.bc
 // SYCL_DEVICE_LIB_MSAN-SAME: "-mlink-bitcode-file" "{{.*}}libsycl-msan.bc"
-// SYCL_DEVICE_LIB_MSAN-SAME: "-mlink-builtin-bitcode" "{{.*}}libc.bc"
+// SYCL_DEVICE_LIB_MSAN-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
 // RUN: %clangxx -fsycl --offload-new-driver %s -ccc-install-dir %{clang_install_dir} -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_MSAN_MACRO

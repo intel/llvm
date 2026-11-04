@@ -20,9 +20,9 @@
 // CHECK: 12: preprocessor, {11}, c++-cpp-output, (device-sycl)
 // CHECK: 13: compiler, {12}, ir, (device-sycl)
 // CHECK: 14: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64-unknown-unknown)" {13}, c++-cpp-output
-// CHECK: 18: input, "{{.*}}libsycl-crt{{.*}}", ir, (device-sycl)
-// CHECK: 25: input, "{{.*}}libc{{.*}}", ir, (device-sycl)
-// CHECK: 26: input, "{{.*}}libclang_rt.builtins{{.*}}", ir, (device-sycl)
+// CHECK: 18: input, "{{.*}}libsycl-crt.bc", ir, (device-sycl)
+// CHECK: 25: input, "{{.*}}lib{{[/\\]}}spirv64-unknown-unknown{{[/\\]}}libc.bc", ir, (device-sycl)
+// CHECK: 26: input, "{{.*}}libclang_rt.builtins.bc", ir, (device-sycl)
 // CHECK: 27: linker, {18, {{.*}}, 26}, ir, (device-sycl)
 // CHECK: 28: linker, {4, 27}, ir, (device-sycl)
 // CHECK: 29: sycl-post-link, {28}, tempfiletable, (device-sycl)
