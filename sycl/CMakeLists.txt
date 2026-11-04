@@ -614,6 +614,7 @@ foreach(target IN LISTS libclc_targets)
 endforeach()
 
 # Currently, we only enable compiler-rt builtin library and libc for spirv64 targets.
+# TODO: enable libc and compiler-rt builtins for other targets including nvptx64.
 foreach(target IN LISTS libc_targets)
   add_dependencies(sycl-toolchain runtimes-${target})
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libc)
