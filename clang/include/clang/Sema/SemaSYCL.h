@@ -471,6 +471,7 @@ public:
                                        SourceLocation RParen,
                                        ParsedType ParsedTy);
 
+  void handleSYCLExternalAttr(Decl *D, const ParsedAttr &AL);
   void handleKernelAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLTypeAttr(Decl *D, const ParsedAttr &AL);
   void handleSYCLDeviceAttr(Decl *D, const ParsedAttr &AL);
