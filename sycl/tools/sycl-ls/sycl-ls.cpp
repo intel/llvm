@@ -629,8 +629,8 @@ int main(int argc, char **argv) {
                         "custom_selector(acc)    : ");
 
     if (!debug)
-      std::cout << "If other devices are expected but don't appear, run with "
-                   "'--debug' to get more details."
+      std::cout << "\nRun with '--debug' to get more details if more "
+                   "devices/platforms are expected."
                 << std::endl;
   } catch (sycl::exception &e) {
     std::cerr << "SYCL Exception encountered: " << e.what() << std::endl
