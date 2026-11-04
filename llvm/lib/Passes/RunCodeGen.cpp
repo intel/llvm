@@ -70,8 +70,7 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
   Opt.DisableVerify = DisableVerify;
   MachineModuleInfo MMI(&TM);
   PassInstrumentationCallbacks PIC;
-  const auto &LibraryOptions = M.getContext().getLibraryOptions();
-  PipelineTuningOptions PTOptions(&LibraryOptions);
+  PipelineTuningOptions PTOptions;
   PassBuilder PB(M.getContext(), &TM, PTOptions, std::nullopt, &PIC, VFS);
   // Register the frontend's preset TLI before registerFunctionAnalyses() below
   // installs the default TargetLibraryAnalysis: AnalysisManager::registerPass()

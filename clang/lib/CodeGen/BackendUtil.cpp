@@ -954,7 +954,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (TM)
     TM->setPGOOption(PGOOpt);
 
-  PipelineTuningOptions PTO(&LibraryOptions);
+  PipelineTuningOptions PTO;
   PTO.LoopUnrolling = CodeGenOpts.UnrollLoops;
   PTO.LoopInterchange = CodeGenOpts.InterchangeLoops;
   PTO.LoopFusion = CodeGenOpts.FuseLoops;
@@ -1551,7 +1551,6 @@ runThinLTOBackend(CompilerInstance &CI, ModuleSummaryIndex *CombinedIndex,
   Conf.SampleProfile = std::move(SampleProfile);
   const cl::LibraryOptionsContext &LibraryOptions =
       M->getContext().getLibraryOptions();
-  Conf.PTO = PipelineTuningOptions(&LibraryOptions);
   Conf.PTO.LoopUnrolling = CGOpts.UnrollLoops;
   Conf.PTO.LoopInterchange = CGOpts.InterchangeLoops;
   Conf.PTO.LoopFusion = CGOpts.FuseLoops;
