@@ -5996,9 +5996,13 @@ ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
 
   Expr *KernelCall = TheCall->getArg(0);
 
-  // Resolved again when the call is instantiated.
-  if (KernelCall->isTypeDependent() || KernelCall->isValueDependent())
+  // A call with type-dependent arguments is built without being checked and is
+  // checked when it is instantiated. A call that is only value-dependent has
+  // already selected its callee, so it is resolved here.
+  if (KernelCall->isTypeDependent()) {
+    TheCall->setType(getASTContext().DependentTy);
     return TheCall;
+  }
 
   // The failed call has already been diagnosed.
   if (KernelCall->containsErrors())
