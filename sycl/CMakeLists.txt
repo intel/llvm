@@ -601,7 +601,6 @@ foreach(target IN LISTS libclc_targets)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libspirv-builtins)
 endforeach()
 
-
 # Currently, we only enable compiler-rt builtin library and libc for spirv64 targets.
 foreach(target IN LISTS libc_targets)
   add_dependencies(sycl-toolchain runtimes-${target})
@@ -680,7 +679,7 @@ foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
   if("${component}" MATCHES "^runtimes-(.*)::(.*)")
     set(tgt "${CMAKE_MATCH_1}")
     set(component "${CMAKE_MATCH_2}")
-    if ("${component}" STREQUAL "libc")
+    if("${component}" STREQUAL "libc")
       set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libc/cmake_install.cmake")
       sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "runtimes-${tgt}")
     else()
