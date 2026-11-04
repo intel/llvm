@@ -3,7 +3,7 @@
 // REQUIRES: vulkan
 
 // XFAIL: windows && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23692
+// XFAIL-TRACKER: GSD-13691
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -119,6 +119,22 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 
   const VkExtent3D imgExtent = {imgWidth, imgHeight, 1};
 
+  // Create the images as a producer would create a depth texture. Vulkan only
+  // transfers to and from them here; the SYCL kernel accesses the imported
+  // memory through its own image handles, so no STORAGE usage is needed on the
+  // Vulkan side. Depth formats are not required to support STORAGE, and some
+  // drivers reject it, which would make vkCreateImage undefined.
+  const VkImageUsageFlags imgUsage =
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+  if (!isExportableImageFormatSupported(vkCtx, imgInFormat, imgType,
+                                        VK_IMAGE_TILING_OPTIMAL, imgUsage)) {
+    log_error("Exportable VK_FORMAT_D32_SFLOAT depth attachment is not "
+              "supported by this Vulkan driver");
+    return false;
+  }
+
   ImageResources inputImage;
   ImageResources outputImage;
 
@@ -134,24 +150,16 @@ bool runTest(VulkanContext &vkCtx, const sycl::device &syclDevice,
 
   // Create/allocate device images.
   {
-    // STORAGE_BIT: SYCL reads/writes this as a storage image; without it the
-    // layout is transfer-only and imported reads land at the wrong offset.
-    inputImage = createExportableImage(
-        vkCtx, imgExtent, imgInFormat, imgType, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    inputImage = createExportableImage(vkCtx, imgExtent, imgInFormat, imgType,
+                                       VK_IMAGE_TILING_OPTIMAL, imgUsage);
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(vkCtx.device, inputImage.image,
                                  &memRequirements);
     // Import must describe the whole (padded) allocation the driver requires.
     importSizeBytes = std::max<size_t>(imgSizeBytes, memRequirements.size);
 
-    // STORAGE_BIT: same as input image; the kernel writes it as a storage
-    // image.
-    outputImage = createExportableImage(
-        vkCtx, imgExtent, imgOutFormat, imgType, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    outputImage = createExportableImage(vkCtx, imgExtent, imgOutFormat, imgType,
+                                        VK_IMAGE_TILING_OPTIMAL, imgUsage);
   }
 
   // Transition image layouts.
