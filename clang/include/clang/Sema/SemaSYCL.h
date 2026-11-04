@@ -408,9 +408,11 @@ public:
   /// a call to a SYCL free function kernel, and build a pointer to the selected
   /// kernel.
   ExprResult BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall);
-  /// The first declaration of \p FD in the translation unit other than the
-  /// one in the integration header, or null if there is none.
-  const Decl *getFirstDeclOutsideIntegrationHeader(const FunctionDecl *FD);
+  /// A declaration of \p FD other than the one in the integration header,
+  /// preceding \p Before if it is valid, or null if there is none.
+  const Decl *
+  getDeclOutsideIntegrationHeader(const FunctionDecl *FD,
+                                  SourceLocation Before = SourceLocation());
   /// Diagnose the kernels that a call to __builtin_sycl_resolve_kernel_function
   /// selected only through the integration header. Called at the end of the
   /// translation unit.

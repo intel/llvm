@@ -5945,11 +5945,11 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
-// The first declaration of FD (or, for a specialization, of its primary
-// template) in the translation unit, ignoring the forward declaration in the
-// integration header.
-const Decl *
-SemaSYCL::getFirstDeclOutsideIntegrationHeader(const FunctionDecl *FD) {
+// A declaration of FD (or, for a specialization, of its primary template)
+// other than the forward declaration in the integration header. If Before is
+// valid, the declaration must precede it.
+const Decl *SemaSYCL::getDeclOutsideIntegrationHeader(const FunctionDecl *FD,
+                                                      SourceLocation Before) {
   const SourceManager &SM = SemaRef.getSourceManager();
   StringRef IntHeader =
       SemaRef.getPreprocessor().getPreprocessorOpts().IncludeHeader;
@@ -5957,21 +5957,19 @@ SemaSYCL::getFirstDeclOutsideIntegrationHeader(const FunctionDecl *FD) {
   if (!IntHeader.empty())
     IntHeaderFE = SM.getFileManager().getOptionalFileRef(IntHeader);
 
-  const Decl *First = nullptr;
-  auto Visit = [&](const Decl *D) {
+  auto Matches = [&](const Decl *D) {
     SourceLocation DeclLoc = SM.getExpansionLoc(D->getLocation());
     if (IntHeaderFE &&
         SM.getFileEntryRefForID(SM.getFileID(DeclLoc)) == IntHeaderFE)
-      return;
-    if (!First || SM.isBeforeInTranslationUnit(
-                      DeclLoc, SM.getExpansionLoc(First->getLocation())))
-      First = D;
+      return false;
+    return Before.isInvalid() || SM.isBeforeInTranslationUnit(DeclLoc, Before);
   };
-  if (const FunctionTemplateDecl *FTD = FD->getPrimaryTemplate())
-    llvm::for_each(FTD->redecls(), Visit);
-  else
-    llvm::for_each(FD->redecls(), Visit);
-  return First;
+  if (const FunctionTemplateDecl *FTD = FD->getPrimaryTemplate()) {
+    auto It = llvm::find_if(FTD->redecls(), Matches);
+    return It != FTD->redecls_end() ? *It : nullptr;
+  }
+  auto It = llvm::find_if(FD->redecls(), Matches);
+  return It != FD->redecls_end() ? *It : nullptr;
 }
 
 void SemaSYCL::diagnoseKernelsResolvedBeforeDeclaration() {
@@ -5979,7 +5977,7 @@ void SemaSYCL::diagnoseKernelsResolvedBeforeDeclaration() {
        KernelsResolvedBeforeDeclaration) {
     Diag(K.Loc, diag::err_sycl_resolve_kernel_function_declared_after)
         << K.Kernel << K.Kernel->getType();
-    if (const Decl *D = getFirstDeclOutsideIntegrationHeader(K.Kernel))
+    if (const Decl *D = getDeclOutsideIntegrationHeader(K.Kernel))
       Diag(D->getLocation(), diag::note_not_found_by_two_phase_lookup)
           << K.Kernel << /*no namespace hint*/ 0;
   }
@@ -6039,11 +6037,16 @@ ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
   // at this point. The two sides would then launch different kernels. This is
   // diagnosed at the end of the translation unit, once the application's own
   // declaration of the kernel has been seen and can be pointed to.
+  //
+  // Declarations are parsed in order, so outside of a template instantiation
+  // every existing declaration precedes the call and the source locations need
+  // not be compared. With delayed template parsing, a template body is parsed
+  // at the end of the translation unit on the host side only.
   if (getLangOpts().SYCLIsHost) {
-    const SourceManager &SM = SemaRef.getSourceManager();
-    const Decl *D = getFirstDeclOutsideIntegrationHeader(ResolvedFn);
-    if (!D || !SM.isBeforeInTranslationUnit(
-                  SM.getExpansionLoc(D->getLocation()), Loc))
+    bool ParsedInOrder = !SemaRef.inTemplateInstantiation() &&
+                         !getLangOpts().DelayedTemplateParsing;
+    if (!getDeclOutsideIntegrationHeader(
+            ResolvedFn, ParsedInOrder ? SourceLocation() : Loc))
       KernelsResolvedBeforeDeclaration.push_back({Loc, ResolvedFn});
   }
 
