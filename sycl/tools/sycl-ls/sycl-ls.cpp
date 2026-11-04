@@ -16,6 +16,11 @@
 // In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors.
 //
+// Independently, debug mode (enabled with --debug) prints diagnostic
+// information to help find out why expected platforms or devices are missing:
+// it checks render group permissions, enables UR adapter loading logs and
+// suggests backend-specific tools for further investigation.
+//
 #include <sycl/sycl.hpp>
 
 #include <algorithm>
@@ -105,6 +110,9 @@ std::string getGPUFamily(syclex::architecture Arch) {
 
 // Controls verbose output vs. concise.
 bool verbose;
+
+// Controls diagnostic for missing devices or platforms.
+bool debug;
 
 // Controls whether to discard filter environment variables or not.
 bool DiscardFilters;
@@ -286,14 +294,19 @@ printSelectorChoice(const std::function<int(const device &)> &Selector,
 }
 
 static int printUsageAndExit() {
-  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]"
-            << std::endl;
+  std::cout
+      << "Usage: sycl-ls [--verbose] [--debug] [--ignore-device-selectors]"
+      << std::endl;
   std::cout << "This program lists all devices and backends discovered by SYCL."
             << std::endl;
   std::cout << "\n Options:" << std::endl;
   std::cout
       << "\t --verbose " << "\t Verbosely prints all the discovered platforms. "
       << "It also lists the device chosen by various SYCL device selectors."
+      << std::endl;
+  std::cout
+      << "\t --debug "
+      << "\t Prints diagnostic information when loading devices and platforms."
       << std::endl;
   std::cout
       << "\t --ignore-device-selectors "
@@ -430,6 +443,7 @@ static void checkRenderGroupPermission() {
 int main(int argc, char **argv) {
   if (argc == 1) {
     verbose = false;
+    debug = false;
     DiscardFilters = false;
   } else {
     // Parse CLI options.
@@ -438,12 +452,14 @@ int main(int argc, char **argv) {
         verbose = true;
       else if (argv[i] == "--ignore-device-selectors"sv)
         DiscardFilters = true;
+      else if (argv[i] == "--debug"sv)
+        debug = true;
       else
         return printUsageAndExit();
     }
   }
 
-  if (verbose)
+  if (debug)
     checkRenderGroupPermission();
 
   bool SuppressNumberPrinting = false;
@@ -466,7 +482,7 @@ int main(int argc, char **argv) {
     if (DiscardFilters && FilterEnvVars.size())
       unsetFilterEnvVars();
 
-    // In verbose mode, if UR logging has not already been enabled by the user,
+    // In debug mode, if UR logging has not already been enabled by the user,
     // enable the printing of any errors related to adapter loading.
     constexpr const char *Loggers[] = {"UR_LOG_LOADER",    "UR_LOG_CUDA",
                                        "UR_LOG_HIP",       "UR_LOG_NATIVE_CPU",
@@ -474,7 +490,7 @@ int main(int argc, char **argv) {
                                        "UR_LOG_LEVEL_ZERO"};
     std::vector<const char *> SetLoggers;
 
-    if (verbose) {
+    if (debug) {
       for (const auto &Logger : Loggers)
         if (nullptr == std::getenv(Logger)) {
           SetLoggers.push_back(Logger);
@@ -484,14 +500,16 @@ int main(int argc, char **argv) {
 
     const auto &Platforms = platform::get_platforms();
 
-    if (verbose) {
+    if (debug) {
       for (const auto &Logger : SetLoggers) {
         unsetenv(Logger);
       }
-    } else if (Platforms.size() == 0) {
-      std::cout
-          << "No platforms found - run with '--verbose' to get more details."
-          << std::endl;
+    }
+    if (Platforms.size() == 0) {
+      std::cout << "No platforms found";
+      if (!debug)
+        std::cout << " - run with '--debug' to get more details";
+      std::cout << "." << std::endl;
     }
 
     // Keep track of the number of devices per backend
@@ -525,7 +543,6 @@ int main(int argc, char **argv) {
     if (verbose) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
       uint32_t PlatformNum = 0;
-      std::set<backend> SeenBackends;
       if (!SuppressNumberPrinting)
         DeviceNums.clear();
       for (const auto &Platform : Platforms) {
@@ -549,10 +566,16 @@ int main(int argc, char **argv) {
           }
           printDeviceInfo(Device, true, "        ");
         }
-        if (!Devices.empty())
+      }
+    }
+
+    if (debug) {
+      std::set<backend> SeenBackends;
+      for (const auto &Platform : Platforms) {
+        backend Backend = Platform.get_backend();
+        if (!Platform.get_devices().empty())
           SeenBackends.insert(Backend);
       }
-
       if (SeenBackends.count(backend::opencl) == 0) {
         std::cout
             << "If you expect OpenCL devices to be present, the clinfo "
@@ -582,7 +605,9 @@ int main(int argc, char **argv) {
           << "strace can be used to diagnose any missing shared libraries."
           << std::endl;
 #endif
-    } else {
+    }
+
+    if (!verbose) {
       return EXIT_SUCCESS;
     }
 
@@ -603,6 +628,10 @@ int main(int argc, char **argv) {
     printSelectorChoice(custom_selector(info::device_type::accelerator),
                         "custom_selector(acc)    : ");
 
+    if (!debug)
+      std::cout << "If other devices are expected but don't appear, run with "
+                   "'--debug' to get more details."
+                << std::endl;
   } catch (sycl::exception &e) {
     std::cerr << "SYCL Exception encountered: " << e.what() << std::endl
               << std::endl;

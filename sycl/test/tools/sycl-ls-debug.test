@@ -1,0 +1,35 @@
+REQUIRES: linux
+
+-- Check that '--debug' prints diagnostic information and that it is not
+-- printed without it.
+
+RUN: sycl-ls --debug > debug.out
+RUN: FileCheck --input-file debug.out --check-prefix CHECK-DEBUG %s
+CHECK-DEBUG-NOT: run with '--debug'
+CHECK-DEBUG: strace can be used to diagnose any missing shared libraries.
+CHECK-DEBUG-NOT: default_selector_v
+CHECK-DEBUG-NOT: run with '--debug'
+
+-- '--debug' enables the UR loader logs on stderr.
+RUN: env --unset=UR_LOG_LOADER sycl-ls --debug 2> debug_err.out
+RUN: FileCheck --input-file debug_err.out --check-prefix CHECK-DEBUG-LOG %s
+CHECK-DEBUG-LOG: adapters loaded
+
+-- '--verbose' and '--debug' are independent.
+RUN: sycl-ls --verbose --debug > verbose_debug.out
+RUN: FileCheck --input-file verbose_debug.out --check-prefix CHECK-VERBOSE-DEBUG %s
+CHECK-VERBOSE-DEBUG: Platforms:
+CHECK-VERBOSE-DEBUG: strace can be used to diagnose any missing shared libraries.
+CHECK-VERBOSE-DEBUG: default_selector_v
+CHECK-VERBOSE-DEBUG-NOT: run with '--debug'
+
+RUN: sycl-ls --verbose > verbose.out
+RUN: FileCheck --input-file verbose.out --check-prefix CHECK-VERBOSE %s
+CHECK-VERBOSE-NOT: strace can be used
+CHECK-VERBOSE: default_selector_v
+CHECK-VERBOSE: run with '--debug' to get more details.
+
+RUN: sycl-ls > concise.out
+RUN: FileCheck --input-file concise.out --check-prefix CHECK-CONCISE %s
+CHECK-CONCISE-NOT: strace can be used
+CHECK-CONCISE-NOT: default_selector_v

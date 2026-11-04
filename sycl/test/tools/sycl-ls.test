@@ -24,4 +24,4 @@ RUN: diff vanilla_verbose.out sda_ignore_device_selector_v.out
 -- Check illegal CLI option with sycl-ls.
 
 RUN: not sycl-ls --some-random-option &> error_msg.txt ; FileCheck --input-file error_msg.txt --check-prefix CHECK_ERROR_MSG %s
-CHECK_ERROR_MSG: Usage: sycl-ls [--verbose] [--ignore-device-selectors]
+CHECK_ERROR_MSG: Usage: sycl-ls [--verbose] [--debug] [--ignore-device-selectors]
