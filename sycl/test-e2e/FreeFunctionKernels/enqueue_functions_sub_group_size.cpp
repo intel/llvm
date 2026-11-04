@@ -56,8 +56,8 @@ int check(const char *How, const int *Ptr, size_t N, size_t Expected) {
 
 template <int SIMD, typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::sub_group_size<SIMD>))
-void probe_deduced(T *ptr) {
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (syclexp::sub_group_size<SIMD>)) void probe_deduced(T *ptr) {
   auto item = syclext::this_work_item::get_nd_item<1>();
   ptr[item.get_global_linear_id()] =
       static_cast<T>(item.get_sub_group().get_local_linear_range());
