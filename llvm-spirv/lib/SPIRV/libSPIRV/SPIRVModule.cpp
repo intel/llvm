@@ -350,9 +350,9 @@ public:
 
   // Constant creation functions
   SPIRVInstruction *addBranchInst(SPIRVLabel *, SPIRVBasicBlock *) override;
-  SPIRVInstruction *addBranchConditionalInst(SPIRVValue *, SPIRVLabel *,
-                                             SPIRVLabel *,
-                                             SPIRVBasicBlock *) override;
+  SPIRVInstruction *addBranchConditionalInst(
+      SPIRVValue *, SPIRVLabel *, SPIRVLabel *, SPIRVBasicBlock *,
+      const std::vector<SPIRVWord> &BranchWeights = {}) override;
   SPIRVValue *addCompositeConstant(SPIRVType *,
                                    const std::vector<SPIRVValue *> &) override;
   SPIRVEntry *addCompositeConstantContinuedINTEL(
@@ -869,6 +869,7 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
     if (!BV->getParent())
       addTo(VariableVec, E);
   } break;
+  case OpExtInstWithForwardRefsKHR:
   case OpExtInst: {
     SPIRVExtInst *EI = static_cast<SPIRVExtInst *>(E);
     if ((EI->getExtSetKind() == SPIRVEIS_Debug ||
@@ -1692,6 +1693,12 @@ SPIRVEntry *SPIRVModuleImpl::addDebugInfo(SPIRVWord InstId, SPIRVType *TheType,
 
 SPIRVEntry *SPIRVModuleImpl::addAuxData(SPIRVWord InstId, SPIRVType *TheType,
                                         const std::vector<SPIRVWord> &Args) {
+  // Instruction-metadata aux records forward-reference their target
+  // instruction's result <id>.
+  if (InstId == NonSemanticAuxData::InstructionMetadata)
+    return addEntry(new SPIRVExtInstWithForwardRefsKHR(
+        this, getId(), TheType, SPIRVEIS_NonSemantic_AuxData,
+        getExtInstSetId(SPIRVEIS_NonSemantic_AuxData), InstId, Args));
   return addEntry(new SPIRVExtInst(
       this, getId(), TheType, SPIRVEIS_NonSemantic_AuxData,
       getExtInstSetId(SPIRVEIS_NonSemantic_AuxData), InstId, Args));
@@ -1821,7 +1828,14 @@ SPIRVInstruction *SPIRVModuleImpl::addBranchInst(SPIRVLabel *TargetLabel,
 
 SPIRVInstruction *SPIRVModuleImpl::addBranchConditionalInst(
     SPIRVValue *Condition, SPIRVLabel *TrueLabel, SPIRVLabel *FalseLabel,
-    SPIRVBasicBlock *BB) {
+    SPIRVBasicBlock *BB, const std::vector<SPIRVWord> &BranchWeights) {
+  assert((BranchWeights.empty() || BranchWeights.size() == 2) &&
+         "SPIR-V allows either no Branch Weights or exactly two");
+  if (BranchWeights.size() == 2)
+    return addInstruction(
+        new SPIRVBranchConditional(Condition, TrueLabel, FalseLabel, BB,
+                                   BranchWeights[0], BranchWeights[1]),
+        BB);
   return addInstruction(
       new SPIRVBranchConditional(Condition, TrueLabel, FalseLabel, BB), BB);
 }

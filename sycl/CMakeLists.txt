@@ -618,7 +618,8 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  if(NOT ("amdgcn-amd-amdhsa" IN_LIST libclc_targets))
+  if(NOT ("amdgcn-amd-amdhsa" IN_LIST libclc_targets OR
+          "amdgcn-amd-amdhsa-llvm" IN_LIST libclc_targets))
     message(FATAL_ERROR "HIP support requires building \"libclc\" for the AMDGCN target")
   endif()
 

@@ -4,8 +4,11 @@
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
-// UNSUPPORTED: linux
+// UNSUPPORTED: linux && !cuda
 // UNSUPPORTED-TRACKER: GSD-12357
+
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23696
 
 /*
     Run ALL the vulkan formats through the gauntlet. sampled and unsampled.
