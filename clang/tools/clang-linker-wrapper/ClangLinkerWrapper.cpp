@@ -2509,18 +2509,45 @@ Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   return *TempFileOrErr;
 }
 
+static std::unique_ptr<Module> createHostWrapperModule(LLVMContext &C,
+                                                       const ArgList &Args) {
+  auto M = std::make_unique<Module>("offload.wrapper.module", C);
+  Triple HostTriple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  M->setTargetTriple(HostTriple);
+  M->setDataLayout(HostTriple.computeDataLayout());
+  return M;
+}
+
+static Expected<StringRef> emitWrapperObject(Module &M, const ArgList &Args,
+                                             OffloadKind Kind) {
+  if (Args.hasArg(OPT_print_wrapped_module))
+    errs() << M;
+  if (Args.hasArg(OPT_save_temps)) {
+    int FD = -1;
+    auto TempFileOrErr = createOutputFile(
+        ExecutableName + "." + getOffloadKindName(Kind) + ".image.wrapper",
+        "bc");
+    if (!TempFileOrErr)
+      return TempFileOrErr.takeError();
+    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
+      return errorCodeToError(EC);
+    llvm::raw_fd_ostream OS(FD, true);
+    WriteBitcodeToFile(M, OS);
+  }
+  if (DryRun)
+    return createOutputFile(ExecutableName + "." + getOffloadKindName(Kind) +
+                                ".image.wrapper",
+                            "o");
+  return compileModule(M, Kind);
+}
+
 /// Emit the host object required by device pre-linking when there are no device
 /// inputs, without requiring a device triple or introducing runtime references.
 static Expected<StringRef> emitEmptySYCLWrapperObject(const ArgList &Args) {
   LLVMContext C;
-  Module M("offload.wrapper.object", C);
-  M.setTargetTriple(Triple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
-  if (Args.hasArg(OPT_print_wrapped_module))
-    errs() << "Wrapped Module\n" << M;
-  if (DryRun)
-    return createOutputFile(ExecutableName + ".sycl.image.wrapper", "o");
-  return compileModule(M, OFK_SYCL);
+  auto M = createHostWrapperModule(C, Args);
+  return emitWrapperObject(*M, Args, OFK_SYCL);
 }
 
 /// Performs the wrapping stage with individual tool invocations for verbose
@@ -2601,11 +2628,8 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
         ArrayRef<char>(Buffer->getBufferStart(), Buffer->getBufferSize()));
 
   LLVMContext Context;
-  Module M("offload.wrapper.module", Context);
-  Triple TheTriple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  M.setTargetTriple(TheTriple);
-  M.setDataLayout(TheTriple.computeDataLayout());
+  auto WrapperModule = createHostWrapperModule(Context, Args);
+  Module &M = *WrapperModule;
 
   switch (Kind) {
   case OFK_OpenMP:
@@ -2638,25 +2662,7 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
                              " wrapping is not supported");
   }
 
-  if (Args.hasArg(OPT_print_wrapped_module))
-    errs() << M;
-  if (Args.hasArg(OPT_save_temps)) {
-    int FD = -1;
-    auto TempFileOrErr = createOutputFile(
-        ExecutableName + "." + getOffloadKindName(Kind) + ".image.wrapper",
-        "bc");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
-    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
-      return errorCodeToError(EC);
-    llvm::raw_fd_ostream OS(FD, true);
-    WriteBitcodeToFile(M, OS);
-  }
-
-  auto FileOrErr = compileModule(M, Kind);
-  if (!FileOrErr)
-    return FileOrErr.takeError();
-  return *FileOrErr;
+  return emitWrapperObject(M, Args, Kind);
 }
 
 /// Perform the OpenMP bundling with 'llvm-offload-binary' in verbose mode.

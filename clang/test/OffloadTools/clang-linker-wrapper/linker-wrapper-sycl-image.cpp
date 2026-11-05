@@ -49,6 +49,20 @@
 // RUN:   %t.host-only.o -o %t.empty.obj 2>&1 | FileCheck %s --check-prefix=EMPTY
 // RUN: llvm-readobj --file-headers %t.empty.obj | FileCheck %s --check-prefix=EMPTY-COFF
 // EMPTY-COFF: Format: COFF-x86-64
+
+// Empty wrappers share the normal host module setup and save-temps emission.
+// RUN: clang-linker-wrapper --sycl-device-link --save-temps --print-wrapped-module \
+// RUN:   --host-triple=i386-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   %t.host-only.o -o %t.empty32.o 2>&1 | FileCheck %s --check-prefix=EMPTY32
+// RUN: llvm-dis %t.empty32.o.sycl.image.wrapper.bc -o - | FileCheck %s --check-prefix=EMPTY32
+// RUN: llvm-readobj --file-headers %t.empty32.o | FileCheck %s --check-prefix=EMPTY32-OBJ
+// EMPTY32: source_filename = "offload.wrapper.module"
+// EMPTY32: target datalayout = "e-m:e-p:32:32-{{.*}}"
+// EMPTY32: target triple = "i386-unknown-linux-gnu"
+// EMPTY32-NOT: __sycl_register_lib
+// EMPTY32-NOT: __sycl_unregister_lib
+// EMPTY32-OBJ: Format: elf32-i386
+
 // RUN: %clang_cc1 -DEMPTY -fsycl-is-device -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.empty.bc
 // RUN: llvm-offload-binary -o %t.empty.fat --image=file=%t.empty.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang_cc1 -DEMPTY -triple=x86_64-unknown-linux-gnu %s -emit-obj -o %t.empty-input.o -fembed-offload-object=%t.empty.fat
