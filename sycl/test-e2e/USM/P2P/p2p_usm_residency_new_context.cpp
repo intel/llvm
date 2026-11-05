@@ -11,6 +11,12 @@
 // RUN: %{run-aux} FileCheck %s < %t.log || FileCheck %s --check-prefix=CHECK-SKIP < %t.log
 // RUN: env UR_LOADER_USE_LEVEL_ZERO_V2=1 SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=1 UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" %{run} %t.out reverse > %t.reverse.log 2>&1
 // RUN: %{run-aux} FileCheck %s < %t.reverse.log || FileCheck %s --check-prefix=CHECK-SKIP < %t.reverse.log
+// RUN: env UR_LOADER_USE_LEVEL_ZERO_V2=1 UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" %{run} %t.out > %t.default.log 2>&1
+// RUN: %{run-aux} FileCheck %s < %t.default.log || FileCheck %s --check-prefix=CHECK-SKIP < %t.default.log
+// RUN: env UR_LOADER_USE_LEVEL_ZERO_V2=1 UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" %{run} %t.out reverse > %t.default.reverse.log 2>&1
+// RUN: %{run-aux} FileCheck %s < %t.default.reverse.log || FileCheck %s --check-prefix=CHECK-SKIP < %t.default.reverse.log
+// RUN: env UR_LOADER_USE_LEVEL_ZERO_V2=1 SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=0 UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" %{run} %t.out > %t.disabled.log 2>&1
+// RUN: %{run-aux} FileCheck %s --check-prefix=CHECK-UNRESTRICTED < %t.disabled.log || FileCheck %s --check-prefix=CHECK-SKIP < %t.disabled.log
 
 // Enable only command -> peer before creating the context and its USM pools.
 // Existing pools are updated directly by enable_peer_access, which bypasses
@@ -56,6 +62,11 @@ int main(int argc, char **) {
   // The peer's allocation must be resident on its owner AND the command
   // device. Both log entries must refer to the same allocation.
   // CHECK: Allocating on peer
+  // CHECK-UNRESTRICTED: Allocating on peer
+  // CHECK-UNRESTRICTED: allocation [[PEER_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[PEER_DEVICE:(0[xX])?[0-9a-fA-F]+]]
+  // CHECK-UNRESTRICTED-NOT: allocation {{.*}} of size: 8388608 made resident
+  // CHECK-UNRESTRICTED: allocation [[PEER_PTR]] of size: 8388608 made resident on device [[COMMAND_DEVICE:(0[xX])?[0-9a-fA-F]+]]
+  // CHECK-UNRESTRICTED-NOT: allocation {{.*}} of size: 8388608 made resident
   // CHECK: allocation [[PEER_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[PEER_DEVICE:(0[xX])?[0-9a-fA-F]+]]
   // CHECK-NOT: allocation {{.*}} of size: 8388608 made resident
   // CHECK: allocation [[PEER_PTR]] of size: 8388608 made resident on device [[COMMAND_DEVICE:(0[xX])?[0-9a-fA-F]+]]
@@ -65,9 +76,15 @@ int main(int argc, char **) {
   void *CommandPtr = sycl::malloc_device(Size, Command, Context);
   assert(CommandPtr);
 
-  // The reverse direction was never enabled: this allocation must be
-  // resident only on its owner, not on the peer.
+  // The reverse direction was never enabled: by default this allocation is
+  // resident only on its owner. The unrestricted override makes it resident
+  // on both devices instead.
   // CHECK: Allocating on command
+  // CHECK-UNRESTRICTED: Allocating on command
+  // CHECK-UNRESTRICTED: allocation [[COMMAND_PTR:(0[xX])?[0-9a-fA-F]+]] of size: 8388608 made resident on device [[COMMAND_DEVICE]]
+  // CHECK-UNRESTRICTED: allocation [[COMMAND_PTR]] of size: 8388608 made resident on device [[PEER_DEVICE]]
+  // CHECK-UNRESTRICTED-NOT: allocation {{.*}} of size: 8388608 made resident
+  // CHECK-UNRESTRICTED: Allocations checked
   // CHECK: allocation {{(0[xX])?[0-9a-fA-F]+}} of size: 8388608 made resident on device [[COMMAND_DEVICE]]
   // CHECK-NOT: allocation {{.*}} of size: 8388608 made resident
   // CHECK: Allocations checked
