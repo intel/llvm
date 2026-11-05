@@ -83,11 +83,6 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 4, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 32, 2, 1)
-__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 2, 32, 1)
-
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
@@ -96,12 +91,22 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
 
-// gfx942 (CDNA3) int8 MFMA uses larger K dimensions with packed operands:
+// Shapes that only joint_matrix_mad_hip's CDNA3 path lowers. They must stay
+// undefined for other targets, so that using them is a compile error rather
+// than a MAD that silently leaves the accumulator unwritten.
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 4, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 32, 2, 1)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 2, 32, 1)
+
+// CDNA3 int8 MFMA uses larger K dimensions with packed operands:
 // 16x16x32 and 32x32x16. Each work-item holds 8 int8 values (one i64).
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 32, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 32, 16, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 16, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 32, 8)
+#endif
 
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
 

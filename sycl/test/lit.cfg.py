@@ -189,18 +189,27 @@ if "amdgcn-amd-amdhsa" in triple:
     # per arch) can gate themselves with `REQUIRES: hip-arch-gfx942`. This means
     # only the tests matching the selected arch run in a given invocation, which
     # is the natural model since a single device compilation targets one arch.
-    offload_arch_flags = [
-        f for f in additional_flags if f.startswith("--offload-arch=")
-    ]
-    if offload_arch_flags:
-        amd_arch = offload_arch_flags[-1].split("=", 1)[1]
-    else:
+    # Both the "--offload-arch=<arch>" and "--offload-arch <arch>" spellings are
+    # accepted by the driver; the last occurrence wins.
+    amd_arch = None
+    has_offload_arch = False
+    flag_tokens = [f for f in additional_flags if f]
+    for i, flag in enumerate(flag_tokens):
+        if flag.startswith("--offload-arch="):
+            has_offload_arch = True
+            amd_arch = flag.split("=", 1)[1]
+        elif flag == "--offload-arch":
+            has_offload_arch = True
+            if i + 1 < len(flag_tokens):
+                amd_arch = flag_tokens[i + 1]
+    if not has_offload_arch:
         amd_arch = lit_config.params.get("amd_arch", "gfx90a")
         additional_flags += [
             "-Xsycl-target-backend=amdgcn-amd-amdhsa",
             "--offload-arch=" + amd_arch,
         ]
-    config.available_features.add("hip-arch-" + amd_arch)
+    if amd_arch:
+        config.available_features.add("hip-arch-" + amd_arch)
 
 config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
 if config.sycl_headers_filter is not None:

@@ -14,6 +14,10 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 
+#include <algorithm>
+#include <cassert>
+#include <vector>
+
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 bool find_combination(const combination &comb,

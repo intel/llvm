@@ -1,7 +1,6 @@
 // REQUIRES: hip
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx942 %s -o compile-query-hip
 
-#include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
