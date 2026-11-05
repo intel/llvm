@@ -1,2 +1,6 @@
 # Please use "#" to add comments here.
 # Do not delete the file even if it's empty.
+
+# Casts to a non-matching address space are expected to yield a null pointer,
+# but OCL CPU returns the original pointer unchanged.
+khr_dynamic_addrspace_cast
