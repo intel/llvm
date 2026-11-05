@@ -8097,18 +8097,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.addOptOutFlag(CmdArgs, options::OPT_fopenmp_extensions,
                        options::OPT_fno_openmp_extensions);
   }
-  // Forward the offload runtime change to code generation, liboffload implies
-  // new driver. Otherwise, check if we should forward the new driver to change
-  // offloading code generation.
+  // Forward '-foffload-via-llvm' to code generation to target the LLVM/Offload
+  // runtime.
   if (Args.hasFlag(options::OPT_foffload_via_llvm,
-                   options::OPT_fno_offload_via_llvm, false)) {
-    CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
-  } else if (Args.hasFlag(options::OPT_offload_new_driver,
-                          options::OPT_no_offload_new_driver,
-                          (C.getActiveOffloadKinds() != Action::OFK_None &&
-                           C.getActiveOffloadKinds() != Action::OFK_SYCL))) {
-    CmdArgs.push_back("--offload-new-driver");
-  }
+                   options::OPT_fno_offload_via_llvm, false))
+    CmdArgs.push_back("-foffload-via-llvm");
 
   const XRayArgs &XRay = TC.getXRayArgs(Args);
   XRay.addArgs(TC, Args, CmdArgs, InputType);
@@ -10800,6 +10793,24 @@ static void addRunTimeWrapperOpts(Compilation &C,
   }
 }
 
+// Pass the host objects with device code so the wrapper can define the
+// __sycl_registerlib_<unique_identifier> functions they reference.
+static void addSYCLHostInputs(Compilation &C, ArgStringList &CmdArgs) {
+  llvm::SmallSetVector<StringRef, 4> Files;
+  for (const Command &Cmd : C.getJobs()) {
+    const Action &A = Cmd.getSource();
+    if (isa<OffloadUnbundlingJobAction>(A)) {
+      if (const auto *IA = dyn_cast<InputAction>(A.getInputs().front()))
+        Files.insert(IA->getInputArg().getValue());
+    } else if (isa<AssembleJobAction>(A) &&
+               A.isHostOffloading(Action::OFK_SYCL)) {
+      Files.insert_range(Cmd.getOutputFilenames());
+    }
+  }
+  for (StringRef File : Files)
+    CmdArgs.append({"-kind=host", C.getArgs().MakeArgString(File)});
+}
+
 void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -10904,6 +10915,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // Input files are passed via the batch job file table.
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
     WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
+    addSYCLHostInputs(C, WrapperArgs);
 
     auto Cmd = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(),
@@ -10993,6 +11005,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     assert(Inputs[I].isFilename() && "Invalid input.");
     CmdArgs.push_back(TCArgs.MakeArgString(Inputs[I].getFilename()));
   }
+  if (C.hasOffloadToolChain<Action::OFK_SYCL>())
+    addSYCLHostInputs(C, CmdArgs);
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
