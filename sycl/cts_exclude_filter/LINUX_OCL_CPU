@@ -1,6 +1,8 @@
 # Please use "#" to add comments here.
 # Do not delete the file even if it's empty.
 
-# Casts to a non-matching address space are expected to yield a null pointer,
-# but OCL CPU returns the original pointer unchanged.
+# Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit:
+# a cast to a non-matching address space returns the original pointer instead
+# of a null one. Same cause as the UNSUPPORTED markers on
+# sycl/test-e2e/AddressCast/*. See https://github.com/intel/llvm/issues/22224
 khr_dynamic_addrspace_cast
