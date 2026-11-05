@@ -14,12 +14,12 @@
 
 namespace ur::level_zero::v2 {
 
-ur_event_handle_t event_pool::allocate() {
+ur_event_handle_t event_pool::allocate(bool forceCreate) {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<ur_mutex> lock(mutex);
 
-  if (freelist.empty()) {
+  if (forceCreate || freelist.empty()) {
     events.emplace_back(hContext, provider->allocate(), this);
     freelist.push_back(&events.back());
   }

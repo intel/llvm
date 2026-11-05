@@ -43,6 +43,23 @@ TEST_P(urEventCreateExpTest, SuccessWithProfilingFlag) {
   ASSERT_NE(*event.ptr(), nullptr);
 }
 
+TEST_P(urEventCreateExpTest, SuccessWithForceEventCreationFlag) {
+  ur_exp_event_desc_t desc = {
+      UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
+      nullptr,
+      UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION,
+  };
+
+  uur::raii::Event event{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, event.ptr()));
+
+  if (!event)
+    return;
+
+  ASSERT_NE(*event.ptr(), nullptr);
+}
+
 TEST_P(urEventCreateExpTest, SuccessWithLowPowerSyncMode) {
   ur_exp_event_sync_mode_desc_t sync{
       UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC,
