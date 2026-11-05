@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-host -fsyntax-only -include-internal-header %S/Inputs/resolve_kernel_function_int_header.h %s -verify=host
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-host -fsyntax-only -include-internal-header %S/Inputs/resolve_kernel_function_int_header.h -fdelayed-template-parsing %s -verify=host
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-host -fsyntax-only -include-internal-header %S/Inputs/resolve_kernel_function_int_header.h -fdelayed-template-parsing %s -verify=host,delayed
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsyntax-only %s -verify=device
 
 // The integration header makes every free function kernel visible on the host
@@ -97,6 +97,23 @@ void test_visibility(int *p) {
 
 // host-note@+1 {{'block_scope' should be declared prior to the call site}}
 ND_KERNEL void block_scope(int *p, float v) {}
+
+// A kernel found by argument-dependent lookup at the point of instantiation may
+// be declared after the template, because the device side finds it there as
+// well. With delayed template parsing the launch is still rejected, since the
+// declaration follows it.
+template <typename T> auto launch_adl(T *p) {
+  // delayed-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'adl_kernel' of type 'void (S *)', which the device compiler cannot see at this launch}}
+  return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(adl_kernel, p));
+}
+namespace adl {
+struct S {};
+// delayed-note@+1 {{'adl_kernel' should be declared prior to the call site}}
+ND_KERNEL void adl_kernel(S *p) {}
+} // namespace adl
+void test_adl(adl::S *s) {
+  static_assert(LAUNCHES(launch_adl(s), &adl::adl_kernel));
+}
 
 void test(int *p) {
   // Declared before the launch: both sides select the same kernel.

@@ -22,3 +22,7 @@ void via_using(int *p, float v);
 } // namespace ns
 void block_scope(int *p, double v);
 void block_scope(int *p, float v);
+namespace adl {
+struct S;
+void adl_kernel(S *p);
+} // namespace adl

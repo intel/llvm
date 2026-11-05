@@ -6060,20 +6060,22 @@ ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
   //
   // Name lookup finds the most recent visible declaration, so the kernel is
   // visible without the integration header unless lookup found the forward
-  // declaration there, either directly or through a using-declaration.
-  // Outside of a template instantiation no location comparison is needed. A
-  // lookup that happens later, in an instantiation or, with delayed template
-  // parsing, in a template body parsed at the end of the translation unit on
-  // the host side only, may find a declaration that follows the call.
+  // declaration there, either directly or through a using-declaration. This
+  // also holds in a template instantiation: the declarations found by ordinary
+  // lookup were found at the template definition, and those found by
+  // argument-dependent lookup at the point of instantiation are found by the
+  // device side as well. Only with delayed template parsing, which the host
+  // side uses on Windows but the device side does not, is a template body
+  // parsed at the end of the translation unit, where lookup may find a
+  // declaration that follows the call.
   if (getLangOpts().SYCLIsHost) {
     const NamedDecl *Found = getFoundCallee(CE);
     if (!Found)
       Found = ResolvedFn;
     const Decl *Target = Found->getUnderlyingDecl();
-    bool ParsedInOrder = !SemaRef.inTemplateInstantiation() &&
-                         !getLangOpts().DelayedTemplateParsing;
     if (isInIntegrationHeader(Target) ||
-        (!ParsedInOrder && !getDeclOutsideIntegrationHeader(Target, Loc)))
+        (getLangOpts().DelayedTemplateParsing &&
+         !getDeclOutsideIntegrationHeader(Target, Loc)))
       KernelsResolvedBeforeDeclaration.push_back({Loc, ResolvedFn, Found});
   }
 
