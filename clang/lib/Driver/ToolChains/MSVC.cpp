@@ -586,6 +586,13 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(std::string("-out:") + Output.getFilename()));
 
+  // Performing link for dependency file information, undefined symbols are OK.
+  // For example, __sycl_registerlib_<unique_identifier> functions are not
+  // defined until clang-offload-wrapper runs. True link time errors for symbols
+  // will be captured at host link.
+  if (JA.getType() == types::TY_Host_Dependencies_Image)
+    CmdArgs.push_back("/FORCE:UNRESOLVED");
+
   // Control Flow Guard checks
   for (const Arg *A : Args.filtered(options::OPT__SLASH_guard)) {
     StringRef GuardArgs = A->getValue();

@@ -12,7 +12,7 @@
 // REQUIRES: ocloc, target-spir, windows
 // REQUIRES: gpu-intel-dg2 || arch-intel_gpu_bmg_g21
 
-// DEFINE: %{clcxx} = %clangxx --driver-mode=cl -fsycl --offload-new-driver /MD -Wno-error=unused-command-line-argument
+// DEFINE: %{clcxx} = %clangxx --driver-mode=cl -fsycl /MD -Wno-error=unused-command-line-argument
 
 // RUN: %{clcxx} -fsycl-targets=spir64 -c %S/Inputs/static-lib-registerlib-jit.cpp -o %t.jit.obj
 // RUN: %{clcxx} -fsycl-link -fsycl-targets=spir64 %t.jit.obj -o %t.jit.pre.obj

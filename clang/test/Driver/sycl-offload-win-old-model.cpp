@@ -127,7 +127,8 @@
 // RUN: touch %t-orig.lib
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver %t-orig.lib %s -### /link -out:force_out_file 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=HOSTDEP_LINK_OVERRIDE
-// HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[HOSTDEP_LINK_OUT:.+\.out]]"{{.*}} "-out:force_out_file" "-out:[[HOSTDEP_LINK_OUT]]"
+// HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[HOSTDEP_LINK_OUT:.+\.out]]"{{.*}} "-out:force_out_file" "-out:[[HOSTDEP_LINK_OUT]]" "/FORCE:UNRESOLVED"
 // HOSTDEP_LINK_OVERRIDE: clang-offload-deps{{.*}}
 // HOSTDEP_LINK_OVERRIDE: link{{.*}} "-out:[[LINK_OUT:.+\.exe]]"{{.*}} "-out:force_out_file"
 // HOSTDEP_LINK_OVERRIDE-NOT: "-out:[[LINK_OUT]]"
+// HOSTDEP_LINK_OVERRIDE-NOT: "/FORCE:UNRESOLVED"

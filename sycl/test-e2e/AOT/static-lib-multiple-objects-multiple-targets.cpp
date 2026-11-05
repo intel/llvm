@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // Pull SYCL device code out of a static library, without --whole-archive, using
-// the new offloading model and gcc for the final host link. The archive holds
+// gcc for the final host link. The archive holds
 // three translation units, each pre-linked with -fsycl-link for a single
 // distinct target (spir64 / intel_gpu_dg2 / intel_gpu_bmg_g21), so each
 // contributes its own __sycl_registerlib_<unique_identifier>.
@@ -38,13 +38,13 @@
 // their pre-linked objects have to be pulled in by the
 // __sycl_registerlib_<unique_identifier> references instead.
 // RUN: mkdir -p %t.dir && cp %t.a %t.dir/libregisterlib.a
-// RUN: %clangxx %{ond} %t.main.o -L%sycl_libs_dir -lsycl -Wl,-rpath,%sycl_libs_dir -L%t.dir -lregisterlib -o %t.l.exe
+// RUN: %clangxx -Wno-error=unused-command-line-argument %t.main.o -L%sycl_libs_dir -lsycl -Wl,-rpath,%sycl_libs_dir -L%t.dir -lregisterlib -o %t.l.exe
 // RUN: %{run} %t.l.exe
 
 // With a SYCL main the spir64 member's device code is linked into the wrapper
 // object, while the AOT members' still comes from their pre-linked objects.
-// RUN: %clangxx -fsycl %{ond} %cxx_std_optionc++17 -fPIC -c %s -o %t.main.sycl.o
-// RUN: %clangxx -fsycl %{ond} %t.main.sycl.o -L%t.dir -lregisterlib -o %t.l.sycl.exe
+// RUN: %clangxx -fsycl %cxx_std_optionc++17 -fPIC -c %s -o %t.main.sycl.o
+// RUN: %clangxx -fsycl %t.main.sycl.o -L%t.dir -lregisterlib -o %t.l.sycl.exe
 // RUN: %{run} %t.l.sycl.exe
 
 #include <sycl/detail/core.hpp>

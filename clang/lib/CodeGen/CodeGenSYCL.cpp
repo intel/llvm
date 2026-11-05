@@ -16,6 +16,7 @@
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Object/IRObjectFile.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <cassert>
@@ -133,9 +134,38 @@ llvm::Function *CodeGenModule::embedSYCLDeviceBinary() {
   return RegistrationFunc;
 }
 
+/// Return true if any of the offload objects may contain SYCL device code. The
+/// old offloading model passes the device bitcode, which has no symbols if the
+/// translation unit has no device code. Any other object is assumed to have
+/// device code.
+static bool mayHaveSYCLDeviceCode(CodeGenModule &CGM) {
+  for (StringRef File : CGM.getCodeGenOpts().OffloadObjects) {
+    // Errors opening the file are reported when it is embedded.
+    auto BufferOrErr = CGM.getFileSystem()->getBufferForFile(File);
+    if (!BufferOrErr)
+      return true;
+    // Only read the bitcode symbol table, which is much cheaper than loading
+    // the module.
+    llvm::Expected<llvm::object::IRSymtabFile> SymtabOrErr =
+        llvm::object::readIRSymtab((*BufferOrErr)->getMemBufferRef());
+    if (!SymtabOrErr) {
+      llvm::consumeError(SymtabOrErr.takeError());
+      return true;
+    }
+    if (!SymtabOrErr->TheReader.symbols().empty())
+      return true;
+  }
+  return false;
+}
+
 llvm::Function *CodeGenModule::createSYCLRegisterLibFunc() {
   assert(!LangOpts.SYCLUniquePrefix.empty() &&
          "Expected non-empty SYCL unique prefix");
+  // Without RDC, the old offloading model allows a host object without device
+  // code to be linked by a host linker, with no SYCL device link to define
+  // the function, so only reference it if there may be device code.
+  if (!LangOpts.GPURelocatableDeviceCode && !mayHaveSYCLDeviceCode(*this))
+    return nullptr;
   std::string RegisterFuncName =
       "__sycl_registerlib_" + LangOpts.SYCLUniquePrefix;
   llvm::FunctionType *RegisterFTy =
