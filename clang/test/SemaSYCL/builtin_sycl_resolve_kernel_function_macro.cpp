@@ -12,8 +12,7 @@
 
 #define ST_KERNEL                                                              \
   [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel",    \
-                                                "")]]                          \
-  __attribute__((sycl_device))
+                                                "")]]
 
 // The kernels of the spec's "templates or overloaded" example.
 template <typename T> ND_KERNEL void iota(T start, T *ptr) {}

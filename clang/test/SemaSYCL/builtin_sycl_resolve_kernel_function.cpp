@@ -5,8 +5,7 @@
 // function kernels cannot be member functions or function objects.
 
 #define ND_KERNEL                                                              \
-  [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 1)]]   \
-  __attribute__((sycl_device))
+  [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 1)]]
 
 ND_KERNEL void k(int *p) {}
 
