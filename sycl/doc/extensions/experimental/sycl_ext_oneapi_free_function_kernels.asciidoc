@@ -509,9 +509,10 @@ The program is ill-formed if `kernel-name`, resolved against the
 types of `args`, does not name a SYCL free function kernel (a function declared
 with the `nd_range_kernel<Dims>` or `single_task_kernel` property).  The
 program is also ill-formed if the free function kernel that `kernel-name`
-resolves to is not declared before the use of the macro (see
-<<integration-header-restrictions, Restrictions for integration header
-implementations>>).
+resolves to is not declared before the use of the macro, unless the use is in a
+template and argument-dependent lookup at the point of instantiation finds the
+kernel (see <<integration-header-restrictions, Restrictions for integration
+header implementations>>).
 
 Ordinary C++ template argument deduction applies to `kernel-name`.  A template
 parameter of the kernel that cannot be deduced from `args` — for example a
@@ -1092,7 +1093,8 @@ void foo(float) {/*...*/}
 
 * For the same reason, the free function kernel that
   `SYCL_EXT_ONEAPI_KERNEL_FUNCTION` resolves `kernel-name` to must be declared
-  before the use of the macro.
+  before the use of the macro, unless the use is in a template and
+  argument-dependent lookup at the point of instantiation finds the kernel.
   The host compilation sees the forward declarations of all free function
   kernels in the translation unit, while the device compilation sees only the
   declarations that precede the use.

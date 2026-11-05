@@ -32,6 +32,7 @@
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -6032,18 +6033,37 @@ ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
   // different kernels. That is the case if name lookup found the forward
   // declaration, directly or through a using-declaration, unless the
   // application declared the kernel before the integration header (e.g. in a
-  // header passed with -include). Redeclarations are chained in parse order.
+  // header passed with -include; redeclarations are chained in parse order),
+  // or argument-dependent lookup, which the device side performs as well,
+  // finds an application declaration of the kernel.
   if (getLangOpts().SYCLIsHost && !SemaRef.isSFINAEContext()) {
     const NamedDecl *Found = getFoundCallee(CE);
     if (!Found)
       Found = ResolvedFn;
     const Decl *Target = Found->getUnderlyingDecl();
     if (isInIntegrationHeader(Target)) {
-      bool DeclaredBefore = false;
-      for (const Decl *D = Target->getPreviousDecl(); D && !DeclaredBefore;
+      bool Visible = false;
+      for (const Decl *D = Target->getPreviousDecl(); D && !Visible;
            D = D->getPreviousDecl())
-        DeclaredBefore = isVisibleApplicationDecl(D);
-      if (!DeclaredBefore) {
+        Visible = isVisibleApplicationDecl(D);
+      // Argument-dependent lookup applies to a call through an unqualified,
+      // unparenthesized name.
+      const auto *Callee =
+          dyn_cast<DeclRefExpr>(CE->getCallee()->IgnoreImpCasts());
+      if (!Visible && Callee && !Callee->hasQualifier()) {
+        SmallVector<Expr *, 4> Args;
+        for (Expr *Arg : CE->arguments())
+          Args.push_back(Arg->IgnoreImpCasts());
+        ADLResult Functions;
+        SemaRef.ArgumentDependentLookup(ResolvedFn->getDeclName(),
+                                        CE->getExprLoc(), Args, Functions);
+        const Decl *Canonical = Target->getCanonicalDecl();
+        Visible = llvm::any_of(Functions, [&](const NamedDecl *D) {
+          return D->getCanonicalDecl() == Canonical &&
+                 isVisibleApplicationDecl(D);
+        });
+      }
+      if (!Visible) {
         Diag(Loc, diag::err_sycl_resolve_kernel_function_declared_after)
             << ResolvedFn << ResolvedFn->getType();
         if (const auto *Shadow = dyn_cast<UsingShadowDecl>(Found))

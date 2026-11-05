@@ -112,20 +112,46 @@ void test_adl(adl::S *s) {
 }
 
 // A launch in the kernel's own namespace, where ordinary lookup at the template
-// definition finds the forward declaration in the integration header, is
-// rejected: the kernel is not declared before the use of the macro. A template
-// with a deduced return type is not parsed late even with delayed template
-// parsing.
+// definition finds the forward declaration in the integration header. The
+// kernel is declared after the template, but as in C++, argument-dependent
+// lookup at the point of instantiation finds it, on both sides. A call whose
+// arguments have no associated namespace, or a qualified call, does not use
+// argument-dependent lookup, so there the device side selects another kernel.
+// A template with a deduced return type is not parsed late even with delayed
+// template parsing.
 namespace ns2 {
+ND_KERNEL void no_adl_kernel(int *p, double v) {}
+ND_KERNEL void qualified_kernel(int *p, double v) {}
+
 template <typename U> auto launch_same_ns(U *p) {
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'same_ns_kernel' of type 'void (T *)', which the device compiler cannot see at this launch}}
   return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(same_ns_kernel, p));
 }
+template <typename U> auto launch_no_adl(int *p, U v) {
+  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'no_adl_kernel' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(no_adl_kernel, p, v));
+}
+template <typename U> auto launch_qualified(int *p, U v) {
+  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'qualified_kernel' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ns2::qualified_kernel, p, v));
+}
+
 struct T {};
 ND_KERNEL void same_ns_kernel(T *p) {}
+ND_KERNEL void no_adl_kernel(int *p, float v) {}
+ND_KERNEL void qualified_kernel(int *p, float v) {}
 } // namespace ns2
-// host-note@+1 {{in instantiation of function template specialization 'ns2::launch_same_ns<ns2::T>' requested here}}
-void test_same_ns(ns2::T *t) { (void)ns2::launch_same_ns(t); }
+
+void test_same_ns(ns2::T *t, int *p) {
+  static_assert(LAUNCHES(ns2::launch_same_ns(t), &ns2::same_ns_kernel));
+  // host-note@+1 {{in instantiation of function template specialization 'ns2::launch_no_adl<float>' requested here}}
+  (void)ns2::launch_no_adl(p, 1.0f);
+  // host-note@+1 {{in instantiation of function template specialization 'ns2::launch_qualified<float>' requested here}}
+  (void)ns2::launch_qualified(p, 1.0f);
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(LAUNCHES(ns2::launch_no_adl(p, 1.0f), static_cast<void (*)(int *, double)>(&ns2::no_adl_kernel)));
+  static_assert(LAUNCHES(ns2::launch_qualified(p, 1.0f), static_cast<void (*)(int *, double)>(&ns2::qualified_kernel)));
+#endif
+}
 
 // A kernel declared in a header passed with -include precedes the integration
 // header and is visible on both sides.

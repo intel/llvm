@@ -29,6 +29,10 @@ void adl_kernel(S *p);
 namespace ns2 {
 struct T;
 void same_ns_kernel(T *p);
+void no_adl_kernel(int *p, double v);
+void no_adl_kernel(int *p, float v);
+void qualified_kernel(int *p, double v);
+void qualified_kernel(int *p, float v);
 } // namespace ns2
 void from_include(int *p, double v);
 void from_include(int *p, float v);
