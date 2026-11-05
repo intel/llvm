@@ -70,6 +70,34 @@ void test_templates_after(int *p, float *fp) {
   static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(template_after_use, p, fp)), static_cast<void (*)(int *, float *)>(&template_after_use<float>)));
 }
 
+// A declaration that precedes the launch but is not visible there: a
+// using-declaration only names the overloads declared before it, and a
+// block-scope declaration is visible only in its block.
+namespace ns {
+ND_KERNEL void via_using(int *p, double v) {}
+} // namespace ns
+using ns::via_using; // host-note {{using declaration}}
+namespace ns {
+ND_KERNEL void via_using(int *p, float v) {}
+} // namespace ns
+
+ND_KERNEL void block_scope(int *p, double v) {}
+void other() { ND_KERNEL void block_scope(int *p, float v); }
+
+void test_visibility(int *p) {
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(via_using, p, 1.0f)), static_cast<void (*)(int *, double)>(&ns::via_using)));
+  static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(block_scope, p, 1.0f)), static_cast<void (*)(int *, double)>(&block_scope)));
+#endif
+  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'via_using' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(via_using, p, 1.0f));
+  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'block_scope' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(block_scope, p, 1.0f));
+}
+
+// host-note@+1 {{'block_scope' should be declared prior to the call site}}
+ND_KERNEL void block_scope(int *p, float v) {}
+
 void test(int *p) {
   // Declared before the launch: both sides select the same kernel.
   static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(before, p, 1.0f)), &before));

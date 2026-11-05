@@ -5945,31 +5945,47 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
 }
 
-// A declaration of FD (or, for a specialization, of its primary template)
-// other than the forward declaration in the integration header. If Before is
-// valid, the declaration must precede it.
-const Decl *SemaSYCL::getDeclOutsideIntegrationHeader(const FunctionDecl *FD,
-                                                      SourceLocation Before) {
-  const SourceManager &SM = SemaRef.getSourceManager();
+bool SemaSYCL::isInIntegrationHeader(const Decl *D) {
   StringRef IntHeader =
       SemaRef.getPreprocessor().getPreprocessorOpts().IncludeHeader;
-  OptionalFileEntryRef IntHeaderFE;
-  if (!IntHeader.empty())
-    IntHeaderFE = SM.getFileManager().getOptionalFileRef(IntHeader);
+  if (IntHeader.empty())
+    return false;
+  const SourceManager &SM = SemaRef.getSourceManager();
+  OptionalFileEntryRef IntHeaderFE =
+      SM.getFileManager().getOptionalFileRef(IntHeader);
+  return IntHeaderFE && SM.getFileEntryRefForID(SM.getFileID(SM.getExpansionLoc(
+                            D->getLocation()))) == IntHeaderFE;
+}
 
-  auto Matches = [&](const Decl *D) {
-    SourceLocation DeclLoc = SM.getExpansionLoc(D->getLocation());
-    if (IntHeaderFE &&
-        SM.getFileEntryRefForID(SM.getFileID(DeclLoc)) == IntHeaderFE)
+// A redeclaration of D, other than the forward declaration in the integration
+// header, that is visible to ordinary name lookup. If Before is valid, the
+// declaration must precede it.
+const Decl *SemaSYCL::getDeclOutsideIntegrationHeader(const Decl *D,
+                                                      SourceLocation Before) {
+  const SourceManager &SM = SemaRef.getSourceManager();
+  auto Matches = [&](const Decl *Redecl) {
+    if (isInIntegrationHeader(Redecl) || Redecl->isLocalExternDecl() ||
+        Redecl->getFriendObjectKind() != Decl::FOK_None)
       return false;
-    return Before.isInvalid() || SM.isBeforeInTranslationUnit(DeclLoc, Before);
+    return Before.isInvalid() ||
+           SM.isBeforeInTranslationUnit(
+               SM.getExpansionLoc(Redecl->getLocation()), Before);
   };
-  if (const FunctionTemplateDecl *FTD = FD->getPrimaryTemplate()) {
-    auto It = llvm::find_if(FTD->redecls(), Matches);
-    return It != FTD->redecls_end() ? *It : nullptr;
+  auto It = llvm::find_if(D->redecls(), Matches);
+  return It != D->redecls_end() ? *It : nullptr;
+}
+
+// The declaration that name lookup found for the callee of CE, or null if the
+// callee is not named directly.
+static const NamedDecl *getFoundCallee(const CallExpr *CE) {
+  const Expr *Callee = CE->getCallee()->IgnoreParenImpCasts();
+  while (const auto *UO = dyn_cast<UnaryOperator>(Callee)) {
+    if (UO->getOpcode() != UO_Deref && UO->getOpcode() != UO_AddrOf)
+      break;
+    Callee = UO->getSubExpr()->IgnoreParenImpCasts();
   }
-  auto It = llvm::find_if(FD->redecls(), Matches);
-  return It != FD->redecls_end() ? *It : nullptr;
+  const auto *DRE = dyn_cast<DeclRefExpr>(Callee);
+  return DRE ? DRE->getFoundDecl() : nullptr;
 }
 
 void SemaSYCL::diagnoseKernelsResolvedBeforeDeclaration() {
@@ -5977,7 +5993,10 @@ void SemaSYCL::diagnoseKernelsResolvedBeforeDeclaration() {
        KernelsResolvedBeforeDeclaration) {
     Diag(K.Loc, diag::err_sycl_resolve_kernel_function_declared_after)
         << K.Kernel << K.Kernel->getType();
-    if (const Decl *D = getDeclOutsideIntegrationHeader(K.Kernel))
+    if (const auto *Shadow = dyn_cast<UsingShadowDecl>(K.Found))
+      Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl) << 0;
+    else if (const Decl *D =
+                 getDeclOutsideIntegrationHeader(K.Found->getUnderlyingDecl()))
       Diag(D->getLocation(), diag::note_not_found_by_two_phase_lookup)
           << K.Kernel << /*no namespace hint*/ 0;
   }
@@ -6038,16 +6057,24 @@ ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
   // diagnosed at the end of the translation unit, once the application's own
   // declaration of the kernel has been seen and can be pointed to.
   //
-  // Declarations are parsed in order, so outside of a template instantiation
-  // every existing declaration precedes the call and the source locations need
-  // not be compared. With delayed template parsing, a template body is parsed
-  // at the end of the translation unit on the host side only.
+  //
+  // Name lookup finds the most recent visible declaration, so the kernel is
+  // visible without the integration header unless lookup found the forward
+  // declaration there, either directly or through a using-declaration.
+  // Outside of a template instantiation no location comparison is needed. A
+  // lookup that happens later, in an instantiation or, with delayed template
+  // parsing, in a template body parsed at the end of the translation unit on
+  // the host side only, may find a declaration that follows the call.
   if (getLangOpts().SYCLIsHost) {
+    const NamedDecl *Found = getFoundCallee(CE);
+    if (!Found)
+      Found = ResolvedFn;
+    const Decl *Target = Found->getUnderlyingDecl();
     bool ParsedInOrder = !SemaRef.inTemplateInstantiation() &&
                          !getLangOpts().DelayedTemplateParsing;
-    if (!getDeclOutsideIntegrationHeader(
-            ResolvedFn, ParsedInOrder ? SourceLocation() : Loc))
-      KernelsResolvedBeforeDeclaration.push_back({Loc, ResolvedFn});
+    if (isInIntegrationHeader(Target) ||
+        (!ParsedInOrder && !getDeclOutsideIntegrationHeader(Target, Loc)))
+      KernelsResolvedBeforeDeclaration.push_back({Loc, ResolvedFn, Found});
   }
 
   QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());

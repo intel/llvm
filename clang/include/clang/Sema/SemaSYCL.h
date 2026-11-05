@@ -294,6 +294,8 @@ private:
   struct KernelResolvedBeforeDeclaration {
     SourceLocation Loc;
     const FunctionDecl *Kernel;
+    // The declaration that name lookup found for the kernel.
+    const NamedDecl *Found;
   };
   llvm::SmallVector<KernelResolvedBeforeDeclaration, 1>
       KernelsResolvedBeforeDeclaration;
@@ -408,10 +410,13 @@ public:
   /// a call to a SYCL free function kernel, and build a pointer to the selected
   /// kernel.
   ExprResult BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall);
-  /// A declaration of \p FD other than the one in the integration header,
-  /// preceding \p Before if it is valid, or null if there is none.
+  /// Whether \p D is the forward declaration in the integration header.
+  bool isInIntegrationHeader(const Decl *D);
+  /// A redeclaration of \p D visible to ordinary name lookup, other than the
+  /// one in the integration header and preceding \p Before if it is valid, or
+  /// null if there is none.
   const Decl *
-  getDeclOutsideIntegrationHeader(const FunctionDecl *FD,
+  getDeclOutsideIntegrationHeader(const Decl *D,
                                   SourceLocation Before = SourceLocation());
   /// Diagnose the kernels that a call to __builtin_sycl_resolve_kernel_function
   /// selected only through the integration header. Called at the end of the

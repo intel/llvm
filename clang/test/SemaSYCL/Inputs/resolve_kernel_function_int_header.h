@@ -16,3 +16,9 @@ template <typename T> void overload_after_use(int *p, T v);
 void overload_after_use(int *p, double *v);
 template <typename T> void template_after_use(int *p, T v);
 template <typename T> void template_after_use(int *p, T *v);
+namespace ns {
+void via_using(int *p, double v);
+void via_using(int *p, float v);
+} // namespace ns
+void block_scope(int *p, double v);
+void block_scope(int *p, float v);
