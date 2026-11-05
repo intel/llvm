@@ -234,6 +234,19 @@ class test_env:
         os.chdir(self.old_dir)
 
 
+def is_default_system_include_dir(path):
+    # Passing a default system include directory such as /usr/include with
+    # -isystem moves it ahead of the C++ standard library headers in the search
+    # order, which breaks their use of #include_next.
+    return os.path.normpath(path) == "/usr/include"
+
+
+def isystem_option(path):
+    if is_default_system_include_dir(path):
+        return ""
+    return " -isystem " + path
+
+
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
@@ -243,7 +256,7 @@ if platform.system() == "Windows":
     )
 elif platform.system() == "Linux":
     config.substitutions.append(("%obj_ext", ".o"))
-    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
+    config.substitutions.append(("%sycl_include", isystem_option(config.sycl_include)))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -646,10 +659,8 @@ else:
         (
             "%sycl_options",
             (" -lsycl9" if platform.system() == "Windows" else " -lsycl")
-            + " -isystem "
-            + config.sycl_include
-            + " -isystem "
-            + os.path.join(config.sycl_include, "sycl")
+            + isystem_option(config.sycl_include)
+            + isystem_option(os.path.join(config.sycl_include, "sycl"))
             + " -L"
             + config.sycl_libs_dir,
         )
