@@ -112,7 +112,6 @@
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Register Class Info Analysis
 ; CHECK-NEXT:       Early Machine Loop Invariant Code Motion
-; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       RISC-V VL Optimizer
 ; CHECK-NEXT:       RISC-V Vector Peephole Optimization
 ; CHECK-NEXT:       RISC-V Fold Memory Offset
@@ -129,7 +128,6 @@
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine InstCombiner
 ; CHECK-NEXT:       Early Machine Loop Invariant Code Motion
-; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Machine Cycle Info Analysis
 ; CHECK-NEXT:       Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Common Subexpression Elimination
@@ -183,7 +181,6 @@
 ; CHECK-NEXT:       PostRA Machine Sink
 ; CHECK-NEXT:       Machine Cycle Info Analysis
 ; CHECK-NEXT:       Machine Block Frequency Analysis
-; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       MachinePostDominator Tree Construction
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
