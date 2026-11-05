@@ -18,12 +18,12 @@ ND_KERNEL void late(int *p, double v) {}
 ND_KERNEL void dep(int *p, double v) {}
 
 template <typename T> void launch_nondep(int *p) {
-  // inorder-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'late' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // inorder-error@+1 {{host compilation selects free function kernel 'late' of type 'void (int *, float)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(late, p, 1.0f));
 }
 
 template <typename T> void launch_dep(int *p, T v) {
-  // inorder-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'dep' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // inorder-error@+1 {{host compilation selects free function kernel 'dep' of type 'void (int *, float)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(dep, p, v));
 }
 
@@ -53,10 +53,10 @@ void test_templates(int *p, float *fp, double *dp) {
 
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(spec_after_use, p, 2)); // #late_spec_use
 
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'overload_after_use' of type 'void (int *, double *)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'overload_after_use' of type 'void (int *, double *)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(overload_after_use, p, dp));
 
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'template_after_use<float>' of type 'void (int *, float *)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'template_after_use<float>' of type 'void (int *, float *)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(template_after_use, p, fp));
 }
 
@@ -89,9 +89,9 @@ void test_visibility(int *p) {
   static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(via_using, p, 1.0f)), static_cast<void (*)(int *, double)>(&ns::via_using)));
   static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(block_scope, p, 1.0f)), static_cast<void (*)(int *, double)>(&block_scope)));
 #endif
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'via_using' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'via_using' of type 'void (int *, float)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(via_using, p, 1.0f));
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'block_scope' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'block_scope' of type 'void (int *, float)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(block_scope, p, 1.0f));
 }
 
@@ -127,11 +127,11 @@ template <typename U> auto launch_same_ns(U *p) {
   return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(same_ns_kernel, p));
 }
 template <typename U> auto launch_no_adl(int *p, U v) {
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'no_adl_kernel' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'no_adl_kernel' of type 'void (int *, float)', which is not visible during device compilation}}
   return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(no_adl_kernel, p, v));
 }
 template <typename U> auto launch_qualified(int *p, U v) {
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'qualified_kernel' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'qualified_kernel' of type 'void (int *, float)', which is not visible during device compilation}}
   return nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ns2::qualified_kernel, p, v));
 }
 
@@ -178,14 +178,14 @@ void test(int *p) {
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(late, p, 1.0f)), static_cast<void (*)(int *, double)>(&late)));
 #endif
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'late' of type 'void (int *, float)', which the device compiler cannot see at this launch; declare the kernel before the launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'late' of type 'void (int *, float)', which is not visible during device compilation; declare the kernel before the launch}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(late, p, 1.0f));
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'late' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'late' of type 'void (int *, float)', which is not visible during device compilation}}
   (void)__builtin_sycl_resolve_kernel_function(late(p, 1.0f));
 
   // On the device side the template is not declared at all yet.
   // device-error@+2 {{use of undeclared identifier 'late_tmpl'}}
-  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'late_tmpl<float>' of type 'void (int *, float)', which the device compiler cannot see at this launch}}
+  // host-error@+1 {{host compilation selects free function kernel 'late_tmpl<float>' of type 'void (int *, float)', which is not visible during device compilation}}
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(late_tmpl, p, 1.0f));
 
   // inorder-note@+1 {{in instantiation of function template specialization 'launch_dep<float>' requested here}}

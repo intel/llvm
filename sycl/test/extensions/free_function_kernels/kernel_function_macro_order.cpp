@@ -23,7 +23,7 @@ void late(int *p, double v) {}
 
 void launch_late(sycl::queue q, int *p) {
 #ifndef __SYCL_DEVICE_ONLY__
-  // expected-error@+2 {{SYCL-DPCPP split compilation selects free function kernel 'late' of type 'void (int *, float)', which the device compiler cannot see at this launch; declare the kernel before the launch}}
+  // expected-error@+2 {{host compilation selects free function kernel 'late' of type 'void (int *, float)', which is not visible during device compilation; declare the kernel before the launch}}
 #endif
   syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(late, p, 1.0f));
 }
@@ -50,7 +50,7 @@ void via_using(int *p, float v) {}
 
 void launch_via_using(sycl::queue q, int *p) {
 #ifndef __SYCL_DEVICE_ONLY__
-  // expected-error@+2 {{SYCL-DPCPP split compilation selects free function kernel 'via_using' of type 'void (int *, float)', which the device compiler cannot see at this launch; declare the kernel before the launch}}
+  // expected-error@+2 {{host compilation selects free function kernel 'via_using' of type 'void (int *, float)', which is not visible during device compilation; declare the kernel before the launch}}
 #endif
   syclexp::single_task(q, SYCL_EXT_ONEAPI_KERNEL_FUNCTION(via_using, p, 1.0f));
 }

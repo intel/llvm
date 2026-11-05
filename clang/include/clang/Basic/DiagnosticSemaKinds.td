@@ -13965,9 +13965,8 @@ def err_sycl_resolve_kernel_function_not_free_function : Error<
   "the function resolved by '__builtin_sycl_resolve_kernel_function' is not a "
   "SYCL free function kernel">;
 def err_sycl_resolve_kernel_function_declared_after : Error<
-  "SYCL-DPCPP split compilation selects free function kernel %0 of type %1, "
-  "which the device compiler cannot see at this launch; declare the kernel "
-  "before the launch">;
+  "host compilation selects free function kernel %0 of type %1, which is not "
+  "visible during device compilation; declare the kernel before the launch">;
 def err_sycl_resolve_kernel_function_not_a_call : Error<
   "argument to '__builtin_sycl_resolve_kernel_function' must be a call to a "
   "SYCL free function kernel">;
