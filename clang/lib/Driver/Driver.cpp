@@ -4134,6 +4134,26 @@ static bool hasOffloadSections(Compilation &C, const StringRef &File,
   return !Sections.empty();
 }
 
+/// Return true if \p File is an object created with -fsycl-link that is being
+/// linked into a final host image. Such an object is a regular host object
+/// that holds already wrapped SYCL device images, which the
+/// clang-offload-wrapper places in sections named like bundles (e.g.
+/// sycl-spir64), but it has no host bundle. Unlike a fat object, it must be
+/// passed to the host linker as is: unbundling it would drop the host code that
+/// registers the images and send the final device images back through the
+/// device link. -fsycl-link itself still consumes the device images of such
+/// inputs, so it is not affected.
+static bool isSYCLLinkWrappedObject(Compilation &C, StringRef File) {
+  if (C.getArgs().hasArg(options::OPT_fsycl_link_EQ))
+    return false;
+  if (isStaticArchiveFile(File) || !isObjectFile(File.str()))
+    return false;
+  SmallVector<std::string, 4> Sections(getOffloadSections(C, File));
+  return !Sections.empty() && llvm::all_of(Sections, [](StringRef S) {
+    return S.starts_with("sycl-");
+  });
+}
+
 // Simple helper function for Linker options, where the option is valid if
 // it has '-' or '--' as the designator.
 static bool optionMatches(const std::string &Option,
@@ -5604,6 +5624,12 @@ class OffloadingActionBuilder final {
         if (IA->getType() == types::TY_Object && !isObjectFile(InputName))
           return ABRT_Inactive;
 
+        // Objects created with -fsycl-link already contain final, wrapped
+        // device images and are only consumed by the host link.
+        if (IA->getType() == types::TY_Object &&
+            isSYCLLinkWrappedObject(C, InputName))
+          return ABRT_Inactive;
+
         for (auto &TargetInfo : SYCLTargetInfoList) {
           (void)TargetInfo;
           SYCLDeviceActions.push_back(
@@ -6940,7 +6966,10 @@ public:
         InputArg->getOption().getKind() == llvm::opt::Option::InputClass &&
         !InputArg->getOption().hasFlag(options::LinkerInput) &&
         (!types::isSrcFile(HostAction->getType()) ||
-         HostAction->getType() == types::TY_PP_HIP)) {
+         HostAction->getType() == types::TY_PP_HIP) &&
+        !(HostAction->getType() == types::TY_Object &&
+          C.hasOffloadToolChain<Action::OFK_SYCL>() &&
+          isSYCLLinkWrappedObject(C, InputArg->getValue()))) {
       ActionList HostActionList;
       Action *A(HostAction);
       bool HasSPIRTarget = false;
