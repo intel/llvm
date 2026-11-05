@@ -22,6 +22,7 @@ const int dataSize = 32;
 int main() {
   int dataA[dataSize] = {0};
   int dataB[dataSize] = {0};
+  int Error = 0;
 
   {
     queue Queue{property::queue::in_order()};
@@ -61,8 +62,9 @@ int main() {
       if (readBufferB[i] != i) {
         std::cout << "Result mismatches " << readBufferB[i] << " vs expected "
                   << i << " for index " << i << std::endl;
+        Error = 1;
       }
     }
   }
-  return 0;
+  return Error;
 }

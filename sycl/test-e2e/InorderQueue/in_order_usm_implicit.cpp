@@ -24,6 +24,7 @@
 using namespace sycl;
 
 int main() {
+  int Error = 0;
 
   {
     queue Queue{property::queue::in_order()};
@@ -55,6 +56,7 @@ int main() {
       if (dataB[i] != i) {
         std::cout << "Result mismatches " << dataB[i] << " vs expected " << i
                   << " for index " << i << std::endl;
+        Error = 1;
       }
     }
 
@@ -62,5 +64,5 @@ int main() {
     free(dataA, ctxt);
     free(dataB, ctxt);
   }
-  return 0;
+  return Error;
 }
