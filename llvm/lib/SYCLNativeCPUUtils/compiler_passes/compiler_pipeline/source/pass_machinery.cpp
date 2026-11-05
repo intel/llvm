@@ -68,7 +68,7 @@ static cl::opt<bool, true> VerifyEach("verify-each",
 
 PassMachinery::PassMachinery(LLVMContext &Ctx, TargetMachine *TM,
                              bool VerifyEach, DebugLogging debugLogLevel)
-    : TM(TM) {
+    : LLVMCtx(Ctx), TM(TM) {
   llvm::PrintPassOptions PrintPassOpts;
   PrintPassOpts.Verbose = DebugPM == DebugLogging::Verbose;
   PrintPassOpts.SkipAnalyses = DebugPM == DebugLogging::Quiet;
@@ -81,7 +81,7 @@ PassMachinery::~PassMachinery() {}
 
 void PassMachinery::initializeStart(PipelineTuningOptions PTO) {
   const std::optional<PGOOptions> PGOOpt;
-  PB = PassBuilder(TM, PTO, PGOOpt, &PIC);
+  PB.emplace(TM, PTO, PGOOpt, &PIC);
 }
 
 void PassMachinery::registerPasses() {
@@ -94,7 +94,7 @@ void PassMachinery::initializeFinish() {
   // chance to register their own versions of LLVM analyses first.
   registerPasses();
   // With all passes registered, cross-register all the proxies
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+  PB->crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   // Allow registration of callbacks and instrumentation machinery
   addClassToPassNames();
@@ -105,15 +105,15 @@ void PassMachinery::initializeFinish() {
 }
 
 void PassMachinery::buildDefaultAAPipeline() {
-  FAM.registerPass([&] { return PB.buildDefaultAAPipeline(); });
+  FAM.registerPass([&] { return PB->buildDefaultAAPipeline(); });
 }
 
 void PassMachinery::registerLLVMAnalyses() {
   // Register standard analyses
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
+  PB->registerModuleAnalyses(MAM);
+  PB->registerCGSCCAnalyses(CGAM);
+  PB->registerFunctionAnalyses(FAM);
+  PB->registerLoopAnalyses(LAM);
 }
 
 } // namespace utils

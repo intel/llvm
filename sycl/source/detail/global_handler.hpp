@@ -23,6 +23,7 @@ class platform_impl;
 class context_impl;
 class Scheduler;
 class ProgramManager;
+class jit_compiler;
 class Sync;
 class adapter_impl;
 class ods_target_list;
@@ -77,6 +78,7 @@ public:
   /// returned access object keeps the Scheduler alive until it is destroyed.
   static SchedulerAccess getSchedulerAccess() noexcept;
   ProgramManager &getProgramManager();
+  jit_compiler &getJITCompiler();
   Sync &getSync();
   std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
@@ -153,6 +155,10 @@ private:
     SpinLock Lock;
   };
 
+#ifdef _WIN32
+  static bool winEarlyExitCheck(bool);
+#endif
+
   template <typename T, typename... Types>
   T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
@@ -168,6 +174,7 @@ private:
   // count accesses that must finish before the Scheduler can be destroyed.
   static std::atomic<uint64_t> MSchedulerAccessState;
   InstWithLock<ProgramManager> MProgramManager;
+  InstWithLock<jit_compiler> MJITCompiler;
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
   InstWithLock<

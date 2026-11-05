@@ -12,6 +12,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/code_location.hpp>
+#include <sycl/detail/defines.hpp> // for __SYCL_STANDALONE_DEBUG
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/get_device_kernel_info.hpp>
@@ -282,6 +283,8 @@ template <int Dims, typename LambdaArgType> struct TransformUserItemType {
 
 } // namespace detail
 
+// Keep the full definition in every -g TU: handlers are only constructed inside
+// libsycl, so constructor homing would otherwise leave gdb a forward decl.
 /// Command group handler class.
 ///
 /// Objects of the handler class collect information about command group, such
@@ -315,7 +318,7 @@ template <int Dims, typename LambdaArgType> struct TransformUserItemType {
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT handler {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT handler {
   friend sycl::detail::ImplUtils;
 
 private:
@@ -2241,8 +2244,12 @@ public:
         ext::oneapi::experimental::device_image_scope_key>();
 
     if (!detail::isDeviceGlobalUsedInKernel(&Dest)) {
-      // If the corresponding device_global isn't used in any kernels, we fall
-      // back to doing the memory operation on host-only.
+      // A device_global with device_image_scope lives in a device image, so
+      // there is nothing to copy to if no kernel accesses it.
+      throwIfDeviceGlobalNotUsedInKernel<IsDeviceImageScoped>();
+
+      // A device_global without device_image_scope that isn't used in any
+      // kernels falls back to doing the memory operation on host-only.
       memcpyToHostOnlyDeviceGlobal(&Dest, Src, sizeof(T), IsDeviceImageScoped,
                                    NumBytes, DestOffset);
       return;
@@ -2278,8 +2285,12 @@ public:
         ext::oneapi::experimental::device_image_scope_key>();
 
     if (!detail::isDeviceGlobalUsedInKernel(&Src)) {
-      // If the corresponding device_global isn't used in any kernels, we fall
-      // back to doing the memory operation on host-only.
+      // A device_global with device_image_scope lives in a device image, so
+      // there is nothing to copy from if no kernel accesses it.
+      throwIfDeviceGlobalNotUsedInKernel<IsDeviceImageScoped>();
+
+      // A device_global without device_image_scope that isn't used in any
+      // kernels falls back to doing the memory operation on host-only.
       memcpyFromHostOnlyDeviceGlobal(Dest, &Src, IsDeviceImageScoped, NumBytes,
                                      SrcOffset);
       return;
@@ -3064,6 +3075,14 @@ private:
   queue getQueue();
 
   void incrementArgShift(int Shift);
+
+  template <bool IsDeviceImageScoped>
+  void throwIfDeviceGlobalNotUsedInKernel() const {
+    if constexpr (IsDeviceImageScoped)
+      throw sycl::exception(
+          make_error_code(errc::kernel_not_supported),
+          "No kernel accesses the device_global with device_image_scope.");
+  }
 
 protected:
   /// Registers event dependencies in this command group.

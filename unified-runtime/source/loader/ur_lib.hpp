@@ -110,6 +110,9 @@ public:
 
   codeloc_data codelocData;
 
+  // Set when Init took a umfInit reference that teardown must release.
+  bool holdsUmfRef = false;
+
   void parseEnvEnabledLayers();
   ur_result_t initLayers();
   void tearDownLayers() const;
