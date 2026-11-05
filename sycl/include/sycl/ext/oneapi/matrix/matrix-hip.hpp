@@ -28,6 +28,14 @@ namespace detail {
 
 constexpr int WAVEFRONT_SIZE = 64;
 
+// gfx942 is production CDNA3 (MI300). gfx940 and gfx941 are the pre-release
+// MI300A and MI300X revisions; they expose the same MFMA shapes.
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#define __SYCL_HIP_MATRIX_CDNA3 1
+#else
+#define __SYCL_HIP_MATRIX_CDNA3 0
+#endif
+
 template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout Layout =
@@ -94,7 +102,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
 // Shapes that only joint_matrix_mad_hip's CDNA3 path lowers. They must stay
 // undefined for other targets, so that using them is a compile error rather
 // than a MAD that silently leaves the accumulator unwritten.
-#if defined(__gfx942__)
+#if __SYCL_HIP_MATRIX_CDNA3
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 32, 2, 1)
@@ -387,9 +395,9 @@ void joint_matrix_mad_hip(
     const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
-#if defined(__gfx90a__) || defined(__gfx942__)
+#if defined(__gfx90a__) || __SYCL_HIP_MATRIX_CDNA3
   if constexpr (std::is_same_v<Tm, float>) {
-#if defined(__gfx942__)
+#if __SYCL_HIP_MATRIX_CDNA3
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x4f32(
           A.wi_marray[0], B.wi_marray[0],
@@ -438,8 +446,8 @@ void joint_matrix_mad_hip(
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(double));
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
-#if defined(__gfx942__)
-    // CDNA3 (gfx942) int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
+#if __SYCL_HIP_MATRIX_CDNA3
+    // CDNA3 int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
     // (8 int8 values per work-item). bit_cast copies the marray object
     // representation: marray<int8_t, 8> is only 1-byte aligned, so an int64_t*
     // load would be misaligned and would violate strict aliasing.
@@ -477,8 +485,10 @@ void joint_matrix_mad_hip(
     }
 #endif
   }
-#endif // __gfx90a__ || __gfx942__
+#endif // __gfx90a__ || __SYCL_HIP_MATRIX_CDNA3
 }
+
+#undef __SYCL_HIP_MATRIX_CDNA3
 
 } // namespace detail
 } // namespace oneapi

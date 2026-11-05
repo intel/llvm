@@ -1,5 +1,6 @@
 // REQUIRES: hip
-// REQUIRES: hip-arch-gfx942
+// gfx940 and gfx941 are pre-release MI300 revisions and match gfx942.
+// REQUIRES: hip-arch-gfx942 || hip-arch-gfx941 || hip-arch-gfx940
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
 
 // CDNA3 supports one-block F32 MFMA shapes: 16x16x4 and 32x32x2.

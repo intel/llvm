@@ -7,6 +7,8 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
+// gfx940 and gfx941 are pre-release MI300A and MI300X revisions. They expose
+// the same joint_matrix support as production gfx942.
 template <architecture Arch> void check_arch() {
   // Compile-time query to validate the matrix parameters
   using myparams =
@@ -33,6 +35,8 @@ template <architecture Arch> void check_arch() {
 }
 
 int main() {
+  check_arch<architecture::amd_gpu_gfx940>();
+  check_arch<architecture::amd_gpu_gfx941>();
   check_arch<architecture::amd_gpu_gfx942>();
 
   return 0;
