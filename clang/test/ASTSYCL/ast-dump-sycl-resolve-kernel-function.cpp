@@ -26,8 +26,7 @@
 // CHECK: TranslationUnitDecl {{.*}}
 
 #define ND_KERNEL                                                              \
-  [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 1)]]   \
-  __attribute__((sycl_device))
+  [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 1)]]
 
 template <typename T> ND_KERNEL void axpy(T *y, T a) {}
 ND_KERNEL void k2(int *p, int n) {}
