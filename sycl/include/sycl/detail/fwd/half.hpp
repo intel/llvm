@@ -17,9 +17,7 @@ class half;
 
 // Several aliases are defined below:
 // - StorageT: actual representation of half data type. It is used by scalar
-//   half values. On device side, it points to some native half data type, while
-//   on host it is represented by a 16-bit integer that the implementation
-//   manipulates to emulate half-precision floating-point behavior.
+//   half values, on host and device alike.
 //
 // - BIsRepresentationT: data type which is used by built-in functions. It is
 //   distinguished from StorageT, because on host, we can still operate on the
@@ -33,12 +31,11 @@ class half;
 //
 // - VecNStorageT: representation of N-element vector of halfs. Follows the
 //   same logic as VecElemT.
-#ifdef __SYCL_DEVICE_ONLY__
 using StorageT = _Float16;
+#ifdef __SYCL_DEVICE_ONLY__
 using BIsRepresentationT = _Float16;
 using VecElemT = _Float16;
 #else  // SYCL_DEVICE_ONLY
-using StorageT = uint16_t;
 // No need to extract underlying data type for built-in functions operating on
 // host
 using BIsRepresentationT = half;
