@@ -44,11 +44,11 @@ endforeach()
 
 # We only enable compiler-rt builtin library and libc for spirv64 target.
 foreach(tgt IN LISTS libc_targets)
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libc)
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS "runtimes-${tgt}::libc")
 endforeach()
 
 foreach(tgt IN LISTS compiler-rt_targets)
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS "runtimes-${tgt}::libc")
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-${tgt})
 endforeach()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
