@@ -25,6 +25,51 @@ template <typename T> void launch_dep(int *p, T v) {
   nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(dep, p, v));
 }
 
+// Explicit specializations and instantiations are resolved consistently: the
+// integration header forward declares the explicit specialization, which is
+// the kernel both sides select.
+template <typename T> ND_KERNEL void ffk(int *p, T v) {}
+template <> ND_KERNEL void ffk(int *p, int v) {}
+template void ffk(int *p, long);
+
+// An explicit specialization declared after its use is ill-formed C++; the
+// forward declaration in the integration header hides that on the host side,
+// but the device side diagnoses it.
+template <typename T> ND_KERNEL void spec_after_use(int *p, T v) {}
+
+// A better-matching non-template overload declared after the launch.
+template <typename T> ND_KERNEL void overload_after_use(int *p, T v) {}
+
+// A better-matching template declared after the launch, which another launch
+// uses, so that the integration header forward declares it.
+template <typename T> ND_KERNEL void template_after_use(int *p, T v) {}
+
+void test_templates(int *p, float *fp, double *dp) {
+  static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ffk, p, '1')), &ffk<char>));
+  static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ffk, p, 2)), &ffk<int>));
+  static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(ffk, p, 3L)), &ffk<long>));
+
+  nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(spec_after_use, p, 2)); // #late_spec_use
+
+  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'overload_after_use' of type 'void (int *, double *)', which the device compiler cannot see at this launch}}
+  nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(overload_after_use, p, dp));
+
+  // host-error@+1 {{SYCL-DPCPP split compilation selects free function kernel 'template_after_use<float>' of type 'void (int *, float *)', which the device compiler cannot see at this launch}}
+  nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(template_after_use, p, fp));
+}
+
+// device-error@+2 {{explicit specialization of 'spec_after_use<int>' after instantiation}}
+// device-note@#late_spec_use {{implicit instantiation first required here}}
+template <> ND_KERNEL void spec_after_use(int *p, int v) {}
+// host-note@+1 {{'overload_after_use' should be declared prior to the call site}}
+ND_KERNEL void overload_after_use(int *p, double *v) {}
+// host-note@+1 {{'template_after_use<float>' should be declared prior to the call site}}
+template <typename T> ND_KERNEL void template_after_use(int *p, T *v) {}
+
+void test_templates_after(int *p, float *fp) {
+  static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(template_after_use, p, fp)), static_cast<void (*)(int *, float *)>(&template_after_use<float>)));
+}
+
 void test(int *p) {
   // Declared before the launch: both sides select the same kernel.
   static_assert(LAUNCHES(nd_launch(SYCL_EXT_ONEAPI_KERNEL_FUNCTION(before, p, 1.0f)), &before));
