@@ -154,12 +154,12 @@ int producer(const std::string &Exe, const std::string &CommsFile) {
     std::cerr << "Consumer process failed, raw status " << Rc << "\n";
     Errors = 1;
   } else {
-    // TODO: Read Data back in a graphO.n BMG with the
-    // L0v2 adapter, a graph in the exporting process that accesses Data after
-    // the consumer has imported and closed it fails with
-    // UR_RESULT_ERROR_DEVICE_LOST or UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
-    // while an eager copy works. This was observed in CI on Linux kernel 6.11
-    // but does not reproduce on locally kernel 6.17 with the identical UMD.
+    // TODO: Read Data back in a graph. On BMG with the L0v2 adapter, a graph
+    // in the exporting process that accesses Data after the consumer has
+    // imported and closed it fails with UR_RESULT_ERROR_DEVICE_LOST or
+    // UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, while an eager copy works. This was
+    // observed in CI on Linux kernel 6.11 but does not reproduce locally on
+    // kernel 6.17 with the identical UMD.
     Queue.memcpy(Snapshot, Data, N * sizeof(int)).wait();
     Errors = countMismatches(Snapshot, "Producer");
   }
