@@ -15,6 +15,8 @@
 
 namespace prop = sycl::ext::oneapi::property::queue;
 
+static_assert(SYCL_EXT_ONEAPI_QUEUE_PRIORITY >= 2);
+
 namespace {
 
 bool PrioritySupported = false;
