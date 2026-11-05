@@ -13,8 +13,7 @@
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #include "matrix-tensorcores.hpp"
-#elif defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||     \
-    defined(__gfx942__)
+#elif defined(__gfx90a__) || defined(__gfx942__)
 #include "matrix-hip.hpp"
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)

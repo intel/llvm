@@ -7,8 +7,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-// gfx940, gfx941 and gfx942 are CDNA3 parts and expose identical joint_matrix
-// support, so the compile-time query must succeed for all three architectures.
 template <architecture Arch> void check_arch() {
   // Compile-time query to validate the matrix parameters
   using myparams =
@@ -35,8 +33,6 @@ template <architecture Arch> void check_arch() {
 }
 
 int main() {
-  check_arch<architecture::amd_gpu_gfx940>();
-  check_arch<architecture::amd_gpu_gfx941>();
   check_arch<architecture::amd_gpu_gfx942>();
 
   return 0;

@@ -3,8 +3,8 @@
 // RUN:   -fsycl-targets=amd_gpu_gfx90a %s 2>&1 | FileCheck %s
 
 // The fp32 (16x16x4, 32x32x2) and packed int8 (16x16x32, 32x32x16)
-// joint_matrix shapes are only lowered to MFMA on CDNA3 (gfx940/941/942).
-// gfx90a must reject them at compile time.
+// joint_matrix shapes are only lowered to MFMA on gfx942. gfx90a must reject
+// them at compile time.
 
 #include <sycl/sycl.hpp>
 

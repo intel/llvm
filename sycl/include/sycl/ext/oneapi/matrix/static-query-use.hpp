@@ -574,14 +574,9 @@ struct matrix_params<
   using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
 };
 
-/////////////////////////////////////////////////////////////////
-/// AMD Matrix Cores - GFX940, GFX941 and GFX942 (CDNA3) ///
-/////////////////////////////////////////////////////////////////
-
-template <architecture Arch>
-inline constexpr bool is_amd_cdna3_v = Arch == architecture::amd_gpu_gfx940 ||
-                                       Arch == architecture::amd_gpu_gfx941 ||
-                                       Arch == architecture::amd_gpu_gfx942;
+//////////////////////////////////////////////
+/// AMD Matrix Cores - GFX942 architecture ///
+//////////////////////////////////////////////
 
 template <typename Ta, typename Tc>
 constexpr bool is_combination_valid_amd_gfx942(size_t sM, size_t sN,
@@ -613,21 +608,19 @@ constexpr bool are_types_valid_amd_gfx942() {
 
 // Default-values query:
 // Specialization for when only types are given, need to query only sizes
-template <architecture Arch, typename Ta, typename Tb, typename Tc, typename Td>
+template <typename Ta, typename Tb, typename Tc, typename Td>
 struct matrix_params<
-    Arch, Ta, Tb, Tc, Td, 0, 0, 0,
+    architecture::amd_gpu_gfx942, Ta, Tb, Tc, Td, 0, 0, 0,
     typename std::enable_if_t<(
-        is_amd_cdna3_v<Arch> && !std::is_same_v<Ta, void> &&
-        !std::is_same_v<Tb, void> && !std::is_same_v<Tc, void> &&
-        !std::is_same_v<Td, void> && std::is_same_v<Ta, Tb> &&
-        std::is_same_v<Tc, Td>)>> {
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
+        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td>)>> {
   static_assert(
       are_types_valid_amd_gfx942<Ta, Tc>(),
-      "Invalid types for AMD gfx940/gfx941/gfx942, supported types are half, "
-      "float, int8_t, int32_t, double and bfloat16 ");
+      "Invalid types for AMD gfx942, supported types are half, float, "
+      "int8_t, int32_t, double and bfloat16 ");
 
-  // Default sizes for AMD gfx940/gfx941/gfx942 were chosen to represent a
-  // square matrix
+  // Default sizes for AMD gfx942 were chosen to represent a square matrix
   static constexpr std::size_t M = 16;
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K =
@@ -647,19 +640,19 @@ struct matrix_params<
 
 // Validation query
 // Specialization when both types and sizes are given
-template <architecture Arch, typename Ta, typename Tb, typename Tc, typename Td,
-          size_t sM, size_t sN, size_t sK>
+template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
+          size_t sN, size_t sK>
 struct matrix_params<
-    Arch, Ta, Tb, Tc, Td, sM, sN, sK,
+    architecture::amd_gpu_gfx942, Ta, Tb, Tc, Td, sM, sN, sK,
     typename std::enable_if_t<(
-        is_amd_cdna3_v<Arch> && !std::is_same_v<Ta, void> &&
-        !std::is_same_v<Tb, void> && !std::is_same_v<Tc, void> &&
-        !std::is_same_v<Td, void> && std::is_same_v<Ta, Tb> &&
-        std::is_same_v<Tc, Td> && sM != 0 && sN != 0 && sK != 0)>> {
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && !std::is_same_v<Td, void> &&
+        std::is_same_v<Ta, Tb> && std::is_same_v<Tc, Td> && sM != 0 &&
+        sN != 0 && sK != 0)>> {
   static_assert(
       is_combination_valid_amd_gfx942<Ta, Tc>(sM, sN, sK),
-      "Invalid parameters for AMD gfx940/gfx941/gfx942, query valid "
-      "combinations using: "
+      "Invalid parameters for AMD gfx942, query valid combinations "
+      "using: "
       "q.get_device().get_info<sycl::ext::oneapi::experimental::info::device::"
       "matrix_combinations>()");
 
