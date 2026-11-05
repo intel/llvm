@@ -3,7 +3,7 @@
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out %S/../../Inputs/Kernels/saxpy.spv 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not} %}
 
 // Test native recording with intermixed SYCL and Level-Zero kernels.
 

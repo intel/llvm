@@ -834,7 +834,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+bool Command::enqueue(EnqueueResultT &EnqueueResult,
                       std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
@@ -850,29 +850,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
-  // If the command is blocked from enqueueing
+  // A blocked command is never waited on here: the caller holds the graph read
+  // lock. GraphProcessor::enqueueCommand defers blocking callers until the
+  // command is unblocked.
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
-    // Exit if enqueue type is not blocking
-    if (!Blocking) {
-      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
-      return false;
-    }
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Scoped trace event notifier that emits a barrier begin and barrier end
-    // event, which models the barrier while enqueuing along with the blocked
-    // reason, as determined by the scheduler
-    std::string Info = "enqueue.barrier[";
-    Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-#endif
-
-    // Wait if blocking
-    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-      ;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-#endif
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
+    return false;
   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);

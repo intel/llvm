@@ -4,6 +4,10 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21806
 
+// Swapped values are sporadically wrong on Arc on Windows.
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22293
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: spirv-backend && gpu

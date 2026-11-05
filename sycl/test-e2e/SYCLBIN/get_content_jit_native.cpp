@@ -1,6 +1,4 @@
 // REQUIRES: aspect-usm_device_allocations
-// XFAIL: windows && run-mode && cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // -- End-to-end test that ext_oneapi_get_content() on an executable-state
 // -- kernel_bundle whose source image is SPIR-V emits native device code
@@ -30,7 +28,7 @@ static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 16;
 static constexpr float EPS = 0.001f;
 
-// Strip OffloadBinary v2 wrapper and return raw SYCLBIN bytes.
+// Strip OffloadBinary v2/v3 wrapper and return raw SYCLBIN bytes.
 std::pair<const char *, size_t>
 stripOffloadWrapper(const std::vector<char> &Bytes) {
   struct Hdr {

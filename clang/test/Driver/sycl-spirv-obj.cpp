@@ -2,8 +2,10 @@
 /// Tests for SPIR-V related objects
 ///
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// -fsycl-device-obj=spirv
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-device-obj=spirv -### %s 2>&1 | \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-device-obj=spirv -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix SPIRV_DEVICE_OBJ
 // SPIRV_DEVICE_OBJ: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SPIRV_DEVICE_OBJ-SAME: "-aux-triple" "x86_64-unknown-linux-gnu"

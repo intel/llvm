@@ -44,7 +44,7 @@ namespace ext::oneapi::experimental::ipc::event {
 inline void put(handle &IpcHandle) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return put(IpcHandle, Ctx);
+  return ipc::event::put(IpcHandle, Ctx);
 }
 
 inline sycl::event open(const ipc::handle_data_t &HandleData,
