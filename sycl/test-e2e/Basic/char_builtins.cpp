@@ -9,7 +9,6 @@
 using namespace sycl;
 
 constexpr size_t BufferSize = 16;
-constexpr size_t NElems = 32;
 constexpr size_t WorkGroupSize = 8;
 
 template <typename T>
@@ -66,13 +65,16 @@ template <typename T> int doCharTest(const T *A, const T *B, T *C) {
   }
 
   // Regression test async work-group copy builtins.
+  std::array<T, BufferSize> Copied{};
   {
     buffer<T> ABuf(A, BufferSize);
+    buffer<T> OutBuf(Copied.data(), BufferSize);
     Q.submit([&](handler &CGH) {
       auto AAcc = ABuf.template get_access<access_mode::read_write>(CGH);
+      auto Out = OutBuf.template get_access<access_mode::write>(CGH);
       local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
 
-      nd_range<1> NDR{range<1>(NElems), range<1>(WorkGroupSize)};
+      nd_range<1> NDR{range<1>(BufferSize), range<1>(WorkGroupSize)};
       CGH.parallel_for<>(NDR, [=](nd_item<1> NDId) {
         auto GrId = NDId.get_group_linear_id();
         size_t NElemsToCopy = WorkGroupSize;
@@ -82,9 +84,16 @@ template <typename T> int doCharTest(const T *A, const T *B, T *C) {
             AAcc.template get_multi_ptr<access::decorated::legacy>() + Offset,
             NElemsToCopy);
         E.wait();
+        auto CopyBack = NDId.async_work_group_copy(
+            Out.template get_multi_ptr<access::decorated::legacy>() + Offset,
+            Local.template get_multi_ptr<access::decorated::legacy>(),
+            NElemsToCopy);
+        CopyBack.wait();
       });
     });
   }
+  for (size_t I = 0; I < BufferSize; ++I)
+    assert(Copied[I] == A[I] && "error: async work-group copy failed");
 
   if (!std::is_same_v<T, char>) {
     return check<T>(A, B, C, FVec);

@@ -32,8 +32,8 @@ int main() {
                  [](const sycl::device &D) { return sycl::queue{D}; });
   ////////////////////////////////////////////////////////////////////////
 
-  if (!Devs[0].ext_oneapi_can_access_peer(
-          Devs[1], sycl::ext::oneapi::peer_access::access_supported)) {
+  if (!Devs[1].ext_oneapi_can_access_peer(
+          Devs[0], sycl::ext::oneapi::peer_access::access_supported)) {
     std::cout << "P2P access is not supported by devices, exiting."
               << std::endl;
     return 0;
@@ -47,7 +47,8 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
 
   int *arr0 = malloc<int>(N, Queues[0], usm::alloc::device);
-  Queues[0].memcpy(arr0, &input[0], N * sizeof(int));
+  // Finish initialization before reading the source through another queue.
+  Queues[0].memcpy(arr0, &input[0], N * sizeof(int)).wait_and_throw();
 
   int *arr1 = malloc<int>(N, Queues[1], usm::alloc::device);
   // P2P copy performed here:
@@ -72,5 +73,5 @@ int main() {
 
   printf("%s\n", ok ? "PASS" : "FAIL");
 
-  return 0;
+  return ok ? 0 : 1;
 }
