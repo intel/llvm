@@ -1317,8 +1317,7 @@ void CodeGenModule::Release() {
         // be registered before any of them run, hence a priority.
         AddGlobalCtor(SYCLCtorFunction, /*Priority=*/101);
       assert(CodeGenOpts.OffloadObjects.empty() && "Unexpected offload object");
-    } else if (LangOpts.OffloadingNewDriver &&
-               !CodeGenOpts.OffloadObjects.empty()) {
+    } else if (!CodeGenOpts.OffloadObjects.empty()) {
       // Only emit the registerlib reference if there has been a device compile
       // (so OffloadObjects is not empty).
       AddGlobalCtor(createSYCLRegisterLibFunc());

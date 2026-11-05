@@ -3440,9 +3440,10 @@ Error emitExtractCommands(
 }
 
 /// Extract the offload binaries embedded in the single host object \p Buffer
-/// into \p Binaries. If any were found, also record the object's undefined
+/// into \p Binaries. If any were found, or the object has old offload model
+/// device code, also record the object's undefined
 /// __sycl_registerlib_<unique_identifier> references in SYCLRegisterLibFuncMap
-/// for the triple and arch of each of those binaries.
+/// for the triple and arch of each of those binaries or bundles.
 static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
     MemoryBufferRef Buffer, llvm::SmallVectorImpl<OffloadFile> &Binaries) {
   size_t OldNumBinaries = Binaries.size();
@@ -3452,9 +3453,10 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
     // fall through to the SYCL bundled objects extraction path.
     consumeError(std::move(Err));
   }
-  // No need to process the symbols if the object contains no device code.
-  if (OldNumBinaries == Binaries.size())
-    return Error::success();
+  SmallVector<TripleAndArch> Targets;
+  for (size_t Idx = OldNumBinaries; Idx < Binaries.size(); Idx++)
+    Targets.push_back({Binaries[Idx].getBinary()->getTriple().str(),
+                       Binaries[Idx].getBinary()->getArch().str()});
   LLVMContext Context;
   static constexpr StringRef SYCLRegisterLibPrefix = "__sycl_registerlib_";
   Expected<std::unique_ptr<SymbolicFile>> ObjOrErr =
@@ -3464,6 +3466,24 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
     consumeError(ObjOrErr.takeError());
     return Error::success();
   }
+  // Old offload model objects have their device code in bundle sections, use
+  // the same triple and arch as sycl::extractBundledObjects.
+  if (auto *Obj = dyn_cast<ObjectFile>(ObjOrErr->get()); Targets.empty() && Obj)
+    for (const SectionRef &Sec : Obj->sections()) {
+      Expected<StringRef> SecName = Sec.getName();
+      if (!SecName)
+        return SecName.takeError();
+      StringRef Bundle = *SecName;
+      if (!Bundle.consume_front("__CLANG_OFFLOAD_BUNDLE__sycl-"))
+        continue;
+      llvm::Triple TT(Bundle);
+      std::string Str = TT.isSPIROrSPIRV() ? TT.str() + "-" : TT.str();
+      auto [Triple, Arch] = StringRef(Str).rsplit('-');
+      Targets.push_back({Triple.str(), Arch.str()});
+    }
+  // No need to process the symbols if the object contains no device code.
+  if (Targets.empty())
+    return Error::success();
   SmallSet<std::string, 4> FuncNames;
   for (const BasicSymbolRef &Sym : (*ObjOrErr)->symbols()) {
     Expected<uint32_t> FlagsOrErr = Sym.getFlags();
@@ -3480,13 +3500,8 @@ static Error extractOffloadBinariesAndRegisterLibSymbolsFromObject(
   }
   if (FuncNames.empty())
     return Error::success();
-  for (size_t Idx = OldNumBinaries; Idx < Binaries.size(); Idx++) {
-    const OffloadFile &Binary = Binaries[Idx];
-    std::string Triple = Binary.getBinary()->getTriple().str();
-    std::string Arch = Binary.getBinary()->getArch().str();
-    SYCLRegisterLibFuncMap[{Triple, Arch}].insert(FuncNames.begin(),
-                                                  FuncNames.end());
-  }
+  for (const TripleAndArch &Target : Targets)
+    SYCLRegisterLibFuncMap[Target].insert(FuncNames.begin(), FuncNames.end());
   return Error::success();
 }
 

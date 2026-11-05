@@ -36,6 +36,7 @@
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -1350,10 +1351,92 @@ public:
     }
   }
 
+  // Define the __sycl_registerlib_<unique_identifier> functions referenced by
+  // host objects with device code for one of the wrapped SYCL targets.
+  Error defineRegisterLibFuncs(const SameKindPack &HostPack) {
+    auto SYCLPack = Packs.find(OldOffloadKind::SYCL);
+    if (SYCLPack == Packs.end())
+      return Error::success();
+    auto DefineFuncs = [&](MemoryBufferRef Buf) -> Error {
+      Expected<std::unique_ptr<ObjectFile>> ObjOrErr =
+          ObjectFile::createObjectFile(Buf);
+      if (!ObjOrErr) {
+        consumeError(ObjOrErr.takeError());
+        return Error::success();
+      }
+      // Unbundled host objects come from this compilation and final device
+      // images are always wrapped, so both have device code being linked.
+      bool HasBundle = false, HasDeviceCode = false;
+      for (const SectionRef &Sec : (*ObjOrErr)->sections()) {
+        Expected<StringRef> SecName = Sec.getName();
+        if (!SecName)
+          return SecName.takeError();
+        if (!SecName->starts_with("__CLANG_OFFLOAD_BUNDLE__sycl-"))
+          continue;
+        HasBundle = true;
+        StringRef Arch = SecName->split('-').second.split('-').first;
+        HasDeviceCode |= Arch.ends_with("_image") ||
+                         llvm::any_of(*SYCLPack->second, [&](const auto &Img) {
+                           return Img->Tgt == Arch;
+                         });
+      }
+      if (HasBundle && !HasDeviceCode)
+        return Error::success();
+      for (const SymbolRef &Sym : (*ObjOrErr)->symbols()) {
+        Expected<StringRef> Name = Sym.getName();
+        if (!Name)
+          return Name.takeError();
+        Expected<uint32_t> Flags = Sym.getFlags();
+        if (!Flags)
+          return Flags.takeError();
+        if (!(*Flags & SymbolRef::SF_Undefined) ||
+            !Name->starts_with("__sycl_registerlib_") || M.getFunction(*Name))
+          continue;
+        Function *F =
+            Function::Create(FunctionType::get(Type::getVoidTy(C), false),
+                             GlobalValue::WeakAnyLinkage, *Name, &M);
+        ReturnInst::Create(C, BasicBlock::Create(C, "entry", F));
+        if (M.getTargetTriple().supportsCOMDAT())
+          F->setComdat(M.getOrInsertComdat(*Name));
+      }
+      return Error::success();
+    };
+    for (const auto &HostImg : HostPack) {
+      auto BufOrErr = MemoryBuffer::getFile(HostImg->File);
+      if (!BufOrErr)
+        return createFileError(HostImg->File, BufOrErr.getError());
+      MemoryBufferRef Buf = (*BufOrErr)->getMemBufferRef();
+      if (identify_magic(Buf.getBuffer()) != file_magic::archive) {
+        if (Error E = DefineFuncs(Buf))
+          return E;
+        continue;
+      }
+      Expected<std::unique_ptr<Archive>> ArOrErr = Archive::create(Buf);
+      if (!ArOrErr)
+        return ArOrErr.takeError();
+      Error Err = Error::success();
+      for (const Archive::Child &Child : (*ArOrErr)->children(Err)) {
+        Expected<MemoryBufferRef> ChildBuf = Child.getMemoryBufferRef();
+        if (!ChildBuf)
+          return ChildBuf.takeError();
+        if (Error E = DefineFuncs(*ChildBuf))
+          return E;
+      }
+      if (Err)
+        return Err;
+    }
+    return Error::success();
+  }
+
   Expected<const Module *> wrap() {
     for (auto &X : Packs) {
       OldOffloadKind Kind = X.first;
       SameKindPack *Pack = X.second.get();
+      if (Kind == OldOffloadKind::Host) {
+        if (Error E = defineRegisterLibFuncs(*Pack))
+          return std::move(E);
+        continue;
+      }
       Expected<GlobalVariable *> DescOrErr = createBinDesc(Kind, *Pack);
       if (!DescOrErr)
         return DescOrErr.takeError();
@@ -1841,7 +1924,7 @@ int main(int argc, const char **argv) {
         return 1;
       }
       if (CurInputGroup.size() != 0) {
-        if (BatchMode) {
+        if (BatchMode && Knd != OldOffloadKind::Host) {
           // transform the batch job (a table of filenames) into a series of
           // 'Wr.addImage' operations for each record in the table
           assert(CurInputGroup.size() == 1 && "1 input in batch mode expected");
