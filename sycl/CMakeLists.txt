@@ -591,15 +591,18 @@ get_targets_building_llvm_runtime(libc libc_targets)
 
 # Ensure that libc and compiler-rt are enabled for the spirv64 target, the SYCL
 # driver links libc.bc and libclang_rt.builtins.bc for spirv64 device code.
-foreach(runtime IN ITEMS libc compiler-rt)
-  if(NOT ("spirv64-unknown-unknown" IN_LIST ${runtime}_targets))
-    message(FATAL_ERROR
-      "SYCL toolchain requires building \"${runtime}\" for the spirv64 target. "
-      "Add \"spirv64-unknown-unknown\" to the CMake argument "
-      "\"LLVM_RUNTIME_TARGETS\" and \"${runtime}\" to the CMake argument "
-      "\"RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES\"")
-  endif()
-endforeach()
+# libc and compiler-rt for spirv64 are not enabled for Mac.
+if(NOT APPLE)
+  foreach(runtime IN ITEMS libc compiler-rt)
+    if(NOT ("spirv64-unknown-unknown" IN_LIST ${runtime}_targets))
+      message(FATAL_ERROR
+        "SYCL toolchain requires building \"${runtime}\" for the spirv64 target. "
+        "Add \"spirv64-unknown-unknown\" to the CMake argument "
+        "\"LLVM_RUNTIME_TARGETS\" and \"${runtime}\" to the CMake argument "
+        "\"RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES\"")
+    endif()
+  endforeach()
+endif()
 
 foreach(target IN LISTS libclc_targets)
   add_dependencies(sycl-toolchain libclc-${target})

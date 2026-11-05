@@ -48,7 +48,7 @@ foreach(tgt IN LISTS libc_targets)
 endforeach()
 
 foreach(tgt IN LISTS compiler-rt_targets)
-  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS builtins-${tgt})
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS "runtimes-${tgt}::libc")
 endforeach()
 
 set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
@@ -74,12 +74,13 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
     set(tgt "${CMAKE_MATCH_1}")
     set(component "${CMAKE_MATCH_2}")
     list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-${tgt})
-    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc"
-                                 "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-stamps")
-  elseif("${component}" STREQUAL "libc")
-    list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-spirv64-unknown-unknown)
-    sycl_jit_add_install_command("libc" "${CMAKE_BINARY_DIR}/runtimes/runtimes-spirv64-unknown-unknown-bins/"
-                                 "${CMAKE_BINARY_DIR}/runtimes/runtimes-spirv64-unknown-unknown-stamps")
+    if("${component}" STREQUAL "libc")
+      sycl_jit_add_install_command("libc" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/"
+                                   "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-stamps")
+    else()
+      sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc"
+                                   "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-stamps")
+    endif()
   elseif("${component}" STREQUAL "builtins-spirv64-unknown-unknown")
     list(APPEND SYCL_JIT_RESOURCE_DEPS builtins-spirv64-unknown-unknown)
     sycl_jit_add_install_command("clang_rt.builtins-spirv64" "${CMAKE_BINARY_DIR}/runtimes/builtins-spirv64-unknown-unknown-bins/")
