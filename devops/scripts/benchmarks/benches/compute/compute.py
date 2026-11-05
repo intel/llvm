@@ -19,7 +19,6 @@ from .compute_enums import (
     NATIVE_GRAPH_RUNTIMES,
     PROFILERS,
     RUNTIMES,
-    SUBMIT_KERNEL_RUNTIMES,
     SYCL_AND_LEVEL_ZERO_RUNTIMES,
     SYCL_RUNTIMES,
     TORCH_BENCHMARK_RUNTIMES,
@@ -43,10 +42,15 @@ def offload_enabled() -> bool:
     return bool(options.offload_prefix)
 
 
-def submit_kernel_runtimes() -> list[RUNTIMES]:
+def with_offload(runtimes: list[RUNTIMES]) -> list[RUNTIMES]:
     if offload_enabled():
-        return SUBMIT_KERNEL_RUNTIMES.copy()
-    return COMPUTE_BENCHMARK_RUNTIMES.copy()
+        return [*runtimes, RUNTIMES.OFFLOAD]
+    return runtimes
+
+
+def round_to_multiple(size: int, multiple: int) -> int:
+    """Rounds size to the nearest positive multiple of multiple."""
+    return max(multiple, (size + multiple // 2) // multiple * multiple)
 
 
 class ComputeBench(Suite):
@@ -61,8 +65,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Sep 14, 2026
-        return "32dcb8b6d0e3a4ad138cee7cbf1217ac78ba2fd1"
+        # Oct 30, 2026
+        return "de729a5340ac5bfaae7ae75c12e5c8b5cf645c1a"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -157,7 +161,7 @@ class ComputeBench(Suite):
         long_kernel_exec_time_ooo = [20, 200]
 
         submit_kernel_params = product(
-            submit_kernel_runtimes(),
+            with_offload(COMPUTE_BENCHMARK_RUNTIMES),
             [0, 1],  # in_order_queue
             [0, 1],  # measure_completion
             [0, 1],  # use_events
@@ -304,13 +308,24 @@ class ComputeBench(Suite):
             GraphApiFinalizeGraph(self, RUNTIMES.SYCL, 1, "Llama"),
         ]
         for profiler_type in list(PROFILERS):
-            benches.append(
-                QueueInOrderMemcpy(self, 0, "Device", "Device", 1024, profiler_type)
-            )
-            benches.append(
-                QueueInOrderMemcpy(self, 0, "Host", "Device", 1024, profiler_type)
-            )
-            benches.append(QueueMemcpy(self, "Device", "Device", 1024, profiler_type))
+            for runtime in [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO, RUNTIMES.OFFLOAD]:
+                if runtime == RUNTIMES.LEVEL_ZERO and profiler_type != PROFILERS.TIMER:
+                    # The L0 implementation has no CPU counter profiler.
+                    continue
+                benches.append(
+                    QueueInOrderMemcpy(
+                        self, runtime, 0, "Device", "Device", 1024, profiler_type
+                    )
+                )
+                benches.append(
+                    QueueInOrderMemcpy(
+                        self, runtime, 0, "Host", "Device", 1024, profiler_type
+                    )
+                )
+            for runtime in [RUNTIMES.SYCL, RUNTIMES.OFFLOAD]:
+                benches.append(
+                    QueueMemcpy(self, runtime, "Device", "Device", 1024, profiler_type)
+                )
             benches.append(
                 ExecImmCopy(self, 0, 1, "Device", "Device", 1024, profiler_type)
             )
@@ -736,24 +751,58 @@ class ComputeBench(Suite):
                 ]
 
         # Add UR-specific benchmarks
-        benches += [
-            # TODO: multithread_benchmark_ur fails with segfault
-            # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
-            # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
-            # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
-            # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
-            # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
-            # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
-            UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
-            UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
-            UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
-            UsmBatchMemoryAllocation(
-                self, RUNTIMES.UR, "Device", 128, 16 * 1024, "Both"
-            ),
-            UsmBatchMemoryAllocation(
-                self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
-            ),
+        # TODO: multithread_benchmark_ur fails with segfault
+        # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 1, 1, 1, 1, 0),
+        # MemcpyExecute(self, RUNTIMES.UR, 400, 1, 102400, 10, 0, 1, 1, 1, 0),
+        # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 1, 0),
+        # MemcpyExecute(self, RUNTIMES.UR, 100, 4, 102400, 10, 1, 1, 0, 0, 0),
+        # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 0),
+        # MemcpyExecute(self, RUNTIMES.UR, 4096, 4, 1024, 10, 0, 1, 0, 1, 1),
+
+        # Add USM allocation benchmarks
+        for runtime in [RUNTIMES.UR, RUNTIMES.LEVEL_ZERO, RUNTIMES.OFFLOAD]:
+            benches += [
+                UsmMemoryAllocation(self, runtime, "Device", 256, "Both"),
+                UsmMemoryAllocation(self, runtime, "Device", 256 * 1024, "Both"),
+            ]
+        for runtime in [RUNTIMES.UR, RUNTIMES.OFFLOAD]:
+            benches += [
+                UsmBatchMemoryAllocation(self, runtime, "Device", 128, 256, "Both"),
+                UsmBatchMemoryAllocation(
+                    self, runtime, "Device", 128, 16 * 1024, "Both"
+                ),
+                UsmBatchMemoryAllocation(
+                    self, runtime, "Device", 128, 128 * 1024, "Both"
+                ),
+            ]
+
+        # Add UsmFillImmediate benchmarks. L0 only supports power-of-two
+        # patterns; the 3-byte pattern takes liboffload's replicating fill path.
+        fill_sizes = [
+            ("small", 4 * 1024, 10000, False),
+            ("large", 512 * 1024 * 1024, 100, True),
         ]
+        fill_patterns = [
+            (RUNTIMES.LEVEL_ZERO, 4),
+            (RUNTIMES.OFFLOAD, 4),
+            (RUNTIMES.OFFLOAD, 3),
+        ]
+        for (size_label, size, iterations, report_bandwidth), (
+            runtime,
+            pattern_size,
+        ) in product(fill_sizes, fill_patterns):
+            benches.append(
+                UsmFillImmediate(
+                    self,
+                    runtime,
+                    "Device",
+                    size,
+                    size_label,
+                    pattern_size,
+                    iterations,
+                    report_bandwidth,
+                )
+            )
 
         benches += [
             MemcpyExecute(
@@ -784,7 +833,7 @@ class ComputeBenchCoreSuite(ComputeBench):
     def benchmarks(self) -> list[Benchmark]:
         core_benches = []
         submit_kernel_params = product(
-            submit_kernel_runtimes(),
+            with_offload(COMPUTE_BENCHMARK_RUNTIMES),
             [0, 1],  # in_order_queue
             list(PROFILERS),
         )
@@ -905,9 +954,7 @@ class SubmitKernel(ComputeBenchmark):
         return (0.0, None)
 
     def _supported_runtimes(self) -> list[RUNTIMES]:
-        if offload_enabled():
-            return SUBMIT_KERNEL_RUNTIMES.copy()
-        return COMPUTE_BENCHMARK_RUNTIMES.copy()
+        return with_offload(COMPUTE_BENCHMARK_RUNTIMES.copy())
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1020,7 +1067,16 @@ class RecordAndReplay(ComputeBenchmark):
 
 
 class QueueInOrderMemcpy(ComputeBenchmark):
-    def __init__(self, bench, isCopyOnly, source, destination, size, profiler_type):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        isCopyOnly,
+        source,
+        destination,
+        size,
+        profiler_type,
+    ):
         self._is_copy_only = isCopyOnly
         self._source = source
         self._destination = destination
@@ -1030,30 +1086,37 @@ class QueueInOrderMemcpy(ComputeBenchmark):
         self._iterations_trace = 10
         super().__init__(
             bench,
-            "memory_benchmark_sycl",
+            f"memory_benchmark_{runtime.value}",
             "QueueInOrderMemcpy",
-            profiler_type=profiler_type,
+            runtime,
+            profiler_type,
         )
 
     def name(self):
-        return f"memory_benchmark_sycl QueueInOrderMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
+        return f"memory_benchmark_{self._runtime.value} QueueInOrderMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"SYCL QueueInOrderMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} QueueInOrderMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
+
+    def explicit_group(self):
+        return f"QueueInOrderMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         operation = "copy-only" if self._is_copy_only else "copy and command submission"
         return (
-            f"Measures SYCL in-order queue memory copy performance for {operation} from "
+            f"Measures {runtime_to_name(self._runtime)} in-order queue memory copy performance for {operation} from "
             f"{self._source} to {self._destination} with {self._size} bytes, executed 100 times per iteration."
         )
 
     def get_tags(self):
-        return ["memory", "latency", "SYCL", "micro"]
+        return ["memory", "latency", runtime_to_tag_name(self._runtime), "micro"]
+
+    def _supported_runtimes(self) -> list[RUNTIMES]:
+        return with_offload(super()._supported_runtimes())
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
-        return [
+        bin_args = [
             f"--iterations={iters}",
             f"--IsCopyOnly={self._is_copy_only}",
             f"--sourcePlacement={self._source}",
@@ -1063,10 +1126,17 @@ class QueueInOrderMemcpy(ComputeBenchmark):
             "--withCopyOffload=0",
             f"--profilerType={self._profiler_type.value}",
         ]
+        if self._runtime == RUNTIMES.LEVEL_ZERO:
+            # The L0 implementation reports GB/s; print the time like the
+            # other implementations do.
+            bin_args.append("--doNotPrintBandwidth")
+        return bin_args
 
 
 class QueueMemcpy(ComputeBenchmark):
-    def __init__(self, bench, source, destination, size, profiler_type):
+    def __init__(
+        self, bench, runtime: RUNTIMES, source, destination, size, profiler_type
+    ):
         self._source = source
         self._destination = destination
         self._size = size
@@ -1074,23 +1144,33 @@ class QueueMemcpy(ComputeBenchmark):
         self._iterations_regular = 10000
         self._iterations_trace = 10
         super().__init__(
-            bench, "memory_benchmark_sycl", "QueueMemcpy", profiler_type=profiler_type
+            bench,
+            f"memory_benchmark_{runtime.value}",
+            "QueueMemcpy",
+            runtime,
+            profiler_type,
         )
 
     def name(self):
-        return f"memory_benchmark_sycl QueueMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
+        return f"memory_benchmark_{self._runtime.value} QueueMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"SYCL QueueMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
+        return f"{self._runtime.value.upper()} QueueMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
+
+    def explicit_group(self):
+        return f"QueueMemcpy from {self._source} to {self._destination}, size {self._size}{self._cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
-            f"Measures general SYCL queue memory copy performance from {self._source} to "
+            f"Measures general {runtime_to_name(self._runtime)} queue memory copy performance from {self._source} to "
             f"{self._destination} with {self._size} bytes per operation."
         )
 
     def get_tags(self):
-        return ["memory", "latency", "SYCL", "micro"]
+        return ["memory", "latency", runtime_to_tag_name(self._runtime), "micro"]
+
+    def _supported_runtimes(self) -> list[RUNTIMES]:
+        return with_offload(super()._supported_runtimes())
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         iters = self._get_iters(flamegraph_enabled)
@@ -1551,6 +1631,9 @@ class UsmMemoryAllocation(ComputeBenchmark):
     def explicit_group(self):
         return f"UsmMemoryAllocation"
 
+    def _supported_runtimes(self) -> list[RUNTIMES]:
+        return with_offload(super()._supported_runtimes())
+
     def description(self) -> str:
         what_is_measured = "Both memory allocation and memory free are timed"
         if self._measure_mode == "Allocate":
@@ -1573,6 +1656,7 @@ class UsmMemoryAllocation(ComputeBenchmark):
             f"--type={self._usm_memory_placement}",
             f"--size={self._size}",
             f"--measureMode={self._measure_mode}",
+            "--strategy=sync",
         ]
 
 
@@ -1615,6 +1699,9 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
     def explicit_group(self):
         return f"UsmBatchMemoryAllocation"
 
+    def _supported_runtimes(self) -> list[RUNTIMES]:
+        return with_offload(super()._supported_runtimes())
+
     def description(self) -> str:
         what_is_measured = "Both memory allocation and memory free are timed"
         if self._measure_mode == "Allocate":
@@ -1639,6 +1726,89 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
             f"--size={self._size}",
             f"--measureMode={self._measure_mode}",
         ]
+
+
+class UsmFillImmediate(ComputeBenchmark):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        placement,
+        size,
+        size_label,
+        pattern_size,
+        iterations,
+        report_bandwidth,
+    ):
+        self._placement = placement
+        # The fill size must be a multiple of the pattern size.
+        self._size = round_to_multiple(size, pattern_size)
+        self._size_label = size_label
+        self._pattern_size = pattern_size
+        self._report_bandwidth = report_bandwidth
+        self._iterations_regular = iterations
+        self._iterations_trace = min(iterations, 10)
+        super().__init__(
+            bench, f"memory_benchmark_{runtime.value}", "UsmFillImmediate", runtime
+        )
+
+    def name(self):
+        return f"memory_benchmark_{self._runtime.value} UsmFillImmediate, placement {self._placement}, size {self._size}, patternSize {self._pattern_size}"
+
+    def display_name(self) -> str:
+        return f"{self._runtime.value.upper()} UsmFillImmediate, placement {self._placement}, size {self._size}, patternSize {self._pattern_size}"
+
+    def explicit_group(self):
+        return f"UsmFillImmediate {self._placement}, {self._size_label} fill"
+
+    def lower_is_better(self):
+        return not self._report_bandwidth
+
+    def description(self) -> str:
+        metric = "bandwidth" if self._report_bandwidth else "time"
+        replicated = (
+            " liboffload fills non-power-of-two patterns by replicating them "
+            "with device copies instead of a native Level Zero fill."
+            if self._runtime == RUNTIMES.OFFLOAD
+            and self._pattern_size & (self._pattern_size - 1)
+            else ""
+        )
+        return (
+            f"Measures the {metric} of filling {self._size} bytes of usm {self._placement} "
+            f"memory with a {self._pattern_size}-byte random pattern through "
+            f"{runtime_to_name(self._runtime)} API, including host synchronization."
+            f"{replicated}"
+        )
+
+    def get_tags(self):
+        metric_tag = "throughput" if self._report_bandwidth else "latency"
+        return ["memory", metric_tag, runtime_to_tag_name(self._runtime), "micro"]
+
+    def range(self) -> tuple[float, float]:
+        return (0.0, None)
+
+    def _supported_runtimes(self) -> list[RUNTIMES]:
+        return with_offload(super()._supported_runtimes())
+
+    def _unit(self) -> str:
+        return "GB/s" if self._report_bandwidth else super()._unit()
+
+    def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
+        iters = self._get_iters(flamegraph_enabled)
+        bin_args = [
+            f"--iterations={iters}",
+            f"--memory={self._placement}",
+            f"--size={self._size}",
+            "--contents=Zeros",
+            f"--patternSize={self._pattern_size}",
+            "--patternContents=Random",
+            "--forceBlitter=0",
+            "--useEvents=0",
+        ]
+        if not self._report_bandwidth:
+            # The CSV output rounds GB/s of small fills to too few digits.
+            bin_args.append("--doNotPrintBandwidth")
+        return bin_args
 
 
 class GraphApiFinalizeGraph(ComputeBenchmark):
