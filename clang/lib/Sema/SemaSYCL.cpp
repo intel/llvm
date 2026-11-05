@@ -5946,33 +5946,24 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
 }
 
 bool SemaSYCL::isInIntegrationHeader(const Decl *D) {
-  StringRef IntHeader =
-      SemaRef.getPreprocessor().getPreprocessorOpts().IncludeHeader;
-  if (IntHeader.empty())
-    return false;
   const SourceManager &SM = SemaRef.getSourceManager();
-  OptionalFileEntryRef IntHeaderFE =
-      SM.getFileManager().getOptionalFileRef(IntHeader);
-  return IntHeaderFE && SM.getFileEntryRefForID(SM.getFileID(SM.getExpansionLoc(
-                            D->getLocation()))) == IntHeaderFE;
+  if (!IntegrationHeaderFile) {
+    StringRef Path =
+        SemaRef.getPreprocessor().getPreprocessorOpts().IncludeHeader;
+    IntegrationHeaderFile = Path.empty()
+                                ? std::nullopt
+                                : SM.getFileManager().getOptionalFileRef(Path);
+  }
+  return *IntegrationHeaderFile &&
+         SM.getFileEntryRefForID(SM.getFileID(
+             SM.getExpansionLoc(D->getLocation()))) == *IntegrationHeaderFile;
 }
 
-// A redeclaration of D, other than the forward declaration in the integration
-// header, that is visible to ordinary name lookup. If Before is valid, the
-// declaration must precede it.
-const Decl *SemaSYCL::getDeclOutsideIntegrationHeader(const Decl *D,
-                                                      SourceLocation Before) {
-  const SourceManager &SM = SemaRef.getSourceManager();
-  auto Matches = [&](const Decl *Redecl) {
-    if (isInIntegrationHeader(Redecl) || Redecl->isLocalExternDecl() ||
-        Redecl->getFriendObjectKind() != Decl::FOK_None)
-      return false;
-    return Before.isInvalid() ||
-           SM.isBeforeInTranslationUnit(
-               SM.getExpansionLoc(Redecl->getLocation()), Before);
-  };
-  auto It = llvm::find_if(D->redecls(), Matches);
-  return It != D->redecls_end() ? *It : nullptr;
+// Whether D is a declaration in the application's code that ordinary name
+// lookup can find, which excludes block-scope and friend declarations.
+bool SemaSYCL::isVisibleApplicationDecl(const Decl *D) {
+  return !isInIntegrationHeader(D) && !D->isLocalExternDecl() &&
+         D->getFriendObjectKind() == Decl::FOK_None;
 }
 
 // The declaration that name lookup found for the callee of CE, or null if the
@@ -5986,21 +5977,6 @@ static const NamedDecl *getFoundCallee(const CallExpr *CE) {
   }
   const auto *DRE = dyn_cast<DeclRefExpr>(Callee);
   return DRE ? DRE->getFoundDecl() : nullptr;
-}
-
-void SemaSYCL::diagnoseKernelsResolvedBeforeDeclaration() {
-  for (const KernelResolvedBeforeDeclaration &K :
-       KernelsResolvedBeforeDeclaration) {
-    Diag(K.Loc, diag::err_sycl_resolve_kernel_function_declared_after)
-        << K.Kernel << K.Kernel->getType();
-    if (const auto *Shadow = dyn_cast<UsingShadowDecl>(K.Found))
-      Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl) << 0;
-    else if (const Decl *D =
-                 getDeclOutsideIntegrationHeader(K.Found->getUnderlyingDecl()))
-      Diag(D->getLocation(), diag::note_not_found_by_two_phase_lookup)
-          << K.Kernel << /*no namespace hint*/ 0;
-  }
-  KernelsResolvedBeforeDeclaration.clear();
 }
 
 // The operand of __builtin_sycl_resolve_kernel_function is an ordinary call,
@@ -6050,33 +6026,31 @@ ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
     return ExprError();
   }
 
-  // The integration header forward declares every free function kernel ahead
-  // of the application's code, so on the host side the call may have selected
-  // a kernel that the device side, which has no integration header, cannot see
-  // at this point. The two sides would then launch different kernels. This is
-  // diagnosed at the end of the translation unit, once the application's own
-  // declaration of the kernel has been seen and can be pointed to.
-  //
-  //
-  // Name lookup finds the most recent visible declaration, so the kernel is
-  // visible without the integration header unless lookup found the forward
-  // declaration there, either directly or through a using-declaration. This
-  // also holds in a template instantiation: the declarations found by ordinary
-  // lookup were found at the template definition, and those found by
-  // argument-dependent lookup at the point of instantiation are found by the
-  // device side as well. Only with delayed template parsing, which the host
-  // side uses on Windows but the device side does not, is a template body
-  // parsed at the end of the translation unit, where lookup may find a
-  // declaration that follows the call.
-  if (getLangOpts().SYCLIsHost) {
+  // On the host side the integration header forward declares every free
+  // function kernel ahead of the application's code, so the call may select a
+  // kernel that the device side cannot see here and the two sides would launch
+  // different kernels. That is the case if name lookup found the forward
+  // declaration, directly or through a using-declaration, unless the
+  // application declared the kernel before the integration header (e.g. in a
+  // header passed with -include). Redeclarations are chained in parse order.
+  if (getLangOpts().SYCLIsHost && !SemaRef.isSFINAEContext()) {
     const NamedDecl *Found = getFoundCallee(CE);
     if (!Found)
       Found = ResolvedFn;
     const Decl *Target = Found->getUnderlyingDecl();
-    if (isInIntegrationHeader(Target) ||
-        (getLangOpts().DelayedTemplateParsing &&
-         !getDeclOutsideIntegrationHeader(Target, Loc)))
-      KernelsResolvedBeforeDeclaration.push_back({Loc, ResolvedFn, Found});
+    if (isInIntegrationHeader(Target)) {
+      bool DeclaredBefore = false;
+      for (const Decl *D = Target->getPreviousDecl(); D && !DeclaredBefore;
+           D = D->getPreviousDecl())
+        DeclaredBefore = isVisibleApplicationDecl(D);
+      if (!DeclaredBefore) {
+        Diag(Loc, diag::err_sycl_resolve_kernel_function_declared_after)
+            << ResolvedFn << ResolvedFn->getType();
+        if (const auto *Shadow = dyn_cast<UsingShadowDecl>(Found))
+          Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl)
+              << 0;
+      }
+    }
   }
 
   QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());

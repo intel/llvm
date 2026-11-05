@@ -26,3 +26,11 @@ namespace adl {
 struct S;
 void adl_kernel(S *p);
 } // namespace adl
+namespace ns2 {
+struct T;
+void same_ns_kernel(T *p);
+} // namespace ns2
+void from_include(int *p, double v);
+void from_include(int *p, float v);
+void sfinae_kernel(int *p, double v);
+void sfinae_kernel(int *p, float v);

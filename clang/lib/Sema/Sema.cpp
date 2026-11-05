@@ -1328,8 +1328,6 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
       SYCL().getSyclIntegrationHeader().emit(getLangOpts().SYCLIntHeader);
     SYCL().MarkDevices();
   }
-  if (getLangOpts().SYCLIsHost)
-    SYCL().diagnoseKernelsResolvedBeforeDeclaration();
 
   emitDeferredDiags();
 

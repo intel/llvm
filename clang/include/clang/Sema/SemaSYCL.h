@@ -285,20 +285,8 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
-  // The __builtin_sycl_resolve_kernel_function() builtin function might be
-  // used in situations that resolve to a user-written declaration during device
-  // compilation, but resolve to a declaration for a different overload
-  // candidate during host compilation due to additional forward declarations
-  // that appear in the integration header. Such cases are recorded for later
-  // diagnostic purposes.
-  struct KernelResolvedBeforeDeclaration {
-    SourceLocation Loc;
-    const FunctionDecl *Kernel;
-    // The declaration that name lookup found for the kernel.
-    const NamedDecl *Found;
-  };
-  llvm::SmallVector<KernelResolvedBeforeDeclaration, 1>
-      KernelsResolvedBeforeDeclaration;
+  // The integration header file, once looked up.
+  std::optional<OptionalFileEntryRef> IntegrationHeaderFile;
 
   // A map that keeps track of all structs encountered with
   // special types inside. Relevant for free function kernels only.
@@ -412,16 +400,9 @@ public:
   ExprResult BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall);
   /// Whether \p D is the forward declaration in the integration header.
   bool isInIntegrationHeader(const Decl *D);
-  /// A redeclaration of \p D visible to ordinary name lookup, other than the
-  /// one in the integration header and preceding \p Before if it is valid, or
-  /// null if there is none.
-  const Decl *
-  getDeclOutsideIntegrationHeader(const Decl *D,
-                                  SourceLocation Before = SourceLocation());
-  /// Diagnose the kernels that a call to __builtin_sycl_resolve_kernel_function
-  /// selected only through the integration header. Called at the end of the
-  /// translation unit.
-  void diagnoseKernelsResolvedBeforeDeclaration();
+  /// Whether \p D is a declaration in the application's code that ordinary
+  /// name lookup can find.
+  bool isVisibleApplicationDecl(const Decl *D);
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
