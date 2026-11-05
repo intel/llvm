@@ -5,9 +5,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-
 // Bare-name launch via the SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro. The existing
 // enqueue-function API (nd_launch / single_task taking a kernel_function<Func>
 // selector) is kept unchanged; SYCL_EXT_ONEAPI_KERNEL_FUNCTION(name, args...)
