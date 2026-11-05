@@ -48,7 +48,7 @@ int main() {
 
   int *arr0 = malloc<int>(N, Queues[0], usm::alloc::device);
   // Finish initialization before reading the source through another queue.
-  Queues[0].memcpy(arr0, &input[0], N * sizeof(int)).wait_and_throw();
+  Queues[0].memcpy(arr0, input.data(), N * sizeof(int)).wait_and_throw();
 
   int *arr1 = malloc<int>(N, Queues[1], usm::alloc::device);
   // P2P copy performed here:

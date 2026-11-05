@@ -70,6 +70,8 @@ template <typename T> int doCharTest(const T *A, const T *B, T *C) {
     buffer<T> ABuf(A, BufferSize);
     buffer<T> OutBuf(Copied.data(), BufferSize);
     Q.submit([&](handler &CGH) {
+      // Legacy async_work_group_copy requires a non-const source multi_ptr,
+      // which a read-only accessor cannot provide.
       auto AAcc = ABuf.template get_access<access_mode::read_write>(CGH);
       auto Out = OutBuf.template get_access<access_mode::write>(CGH);
       local_accessor<T, 1> Local(range<1>{WorkGroupSize}, CGH);
