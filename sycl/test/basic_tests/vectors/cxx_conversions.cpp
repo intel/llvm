@@ -1,4 +1,3 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
@@ -36,13 +35,8 @@ using sw_float_2 = decltype(std::declval<vec<float, 4>>().swizzle<1, 2>());
 using sw_double_1 = decltype(std::declval<vec<double, 4>>().swizzle<1>());
 using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 
-#if defined(__SYCL_USE_LIBSYCL8_VEC_IMPL) && (__SYCL_USE_LIBSYCL8_VEC_IMPL)
-#define EXCEPT_NEW_VEC_IMPL
-#define NEW_VEC_IMPL_ONLY !
-#else
 #define EXCEPT_NEW_VEC_IMPL !
 #define NEW_VEC_IMPL_ONLY
-#endif
 
 // clang-format off
 
