@@ -499,6 +499,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnTimestampRecordingExp = urEnqueueTimestampRecordingExp;
   pDdiTable->pfnNativeCommandExp = urEnqueueNativeCommandExp;
+  pDdiTable->pfnUSMDeviceAllocExp = urEnqueueUSMDeviceAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp = urEnqueueUSMSharedAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = urEnqueueUSMHostAllocExp;
+  pDdiTable->pfnUSMFreeExp = urEnqueueUSMFreeExp;
   pDdiTable->pfnCommandBufferExp = urEnqueueCommandBufferExp;
   pDdiTable->pfnKernelLaunchWithArgsExp = urEnqueueKernelLaunchWithArgsExp;
   pDdiTable->pfnGraphExp = urEnqueueGraphExp;
