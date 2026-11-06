@@ -6358,6 +6358,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       } else {
         CmdArgs.push_back("-emit-llvm-bc");
       }
+      // Host only compilations only use the device IR for the device symbols
+      // (.tgtsym) added to the host object, so the optimization pipeline is
+      // not needed.
+      if (IsSYCLDevice && D.offloadHostOnly())
+        CmdArgs.push_back("-disable-llvm-passes");
     } else if (JA.getType() == types::TY_IFS ||
                JA.getType() == types::TY_IFS_CPP) {
       StringRef ArgStr =
@@ -10592,6 +10597,9 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
   }
+  // Host only compilations only add the device symbols to the object.
+  if (C.getDriver().offloadHostOnly())
+    CmdArgs.push_back("-target-symbols-only");
   addOffloadCompressArgs(TCArgs, CmdArgs);
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(

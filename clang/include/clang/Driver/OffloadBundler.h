@@ -35,6 +35,7 @@ public:
   bool CheckInputArchive = false;
   bool PrintExternalCommands = false;
   bool AddTargetSymbols = true;
+  bool TargetSymbolsOnly = false;
   bool HipOpenmpCompatible = false;
   bool Compress = false;
   bool Verbose = false;
