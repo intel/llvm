@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:mxfp_paper_url: https://arxiv.org/pdf/2310.10537
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -153,15 +154,14 @@ B matrix must have the value `use::b`. The C and D matrices must both
 have the value `use::accumulator`. This is used by backend
 implementations to reason about the layout of the matrix in
 registers.
+In the case of matrix multiply and add with block scaling, `scale` use
+value indicates that the matrix contains the scaling factors needed
+for the operation.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-enum class use {
-  a,
-  b,
-  accumulator
-};
+enum class use { a, b, accumulator, scale };
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -708,6 +708,40 @@ float round_to_tf32(float elem);
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
+==== Joint Matrix With 4 bits Data Types
+`joint_matrix` type and functions may be used on 4 bits data types only
+on a device that supports the corresponding `matrix_type`. If the type
+is `fp4_e2m1_x`, the application must check that the device reports a
+combination using `matrix_type::fp4_e2m1` in the
+`info::device::matrix_combinations` query.
+These checks must be done before submitting a kernel using any of the
+`joint_matrix` APIs in this extension.
+
+Note that only 8 bits packing is supported for `fp4_e2m1_x`, so
+`fp4_e2m1_x<2>` is the only usable form.
+Also, the matrix number of rows `Rows` and
+columns  `Cols` represents the number of 4bits elements, which includes
+the packing factor 2.
+
+In the case of element-wise operations, `joint_matrix_apply` performs
+operations and returns elements of the packed type
+`sycl::ext::oneapi::experimental::fp4_e2m1_x<2>`.
+
+In the following example, every element of the matrix `A` of type
+`sycl::ext::oneapi::experimental::fp4_e2m1_x<2>` is converted to
+an `marray` of 2 `sycl::half` elements before it is multiplied by
+`alpha`. Then, the result is converted back to the FP4 packed type
+using `assign` API.
+
+```c++
+joint_matrix_apply(sg, A,
+[=](sycl::ext::oneapi::experimental::fp4_e2m1_x<2> &x) {
+  marray<sycl::half, 2> mval = (marray<sycl::half, 2>)x;
+  mval *= alpha;
+  x.assign(mval);
+});
+```
+
 === Example using `int8_t` type
 ```c++
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -747,6 +781,121 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
                       N, layout::row_major);
 }).wait();
 ```
+
+=== MXFP Matrix Support
+The APIs `joint_matrix_bmad` and `joint_matrix_convert` defined in
+this section may be used only on a device that supports the
+corresponding `matrix_type`. If the input or output type is
+`fp4_e2m1_x`, the application must check that the device reports a
+combination using `matrix_type::fp4_e2m1` in the
+`info::device::matrix_combinations` query.
+These checks must be done before submitting a kernel using any of the
+APIs in this section.
+
+==== Multiply and Add With Block Scaling
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
+          std::size_t M, std::size_t K, std::size_t N,
+          layout LayoutA, layout LayoutB, layout LayoutAs, layout LayoutBs>
+void joint_matrix_bmad(Group g,
+    joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic> &D,
+    const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+    const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+          use::scale, M, K/32, LayoutAs> &Ascale,
+    const joint_matrix<Group, sycl::ext::oneapi::experimental::fp8_e8m0_x<1>,
+          use::scale, K/32, N, LayoutBs> &Bscale,
+    const joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> &C);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+The matrix multiply and add with block scaling function is similar to
+`joint_matrix_mad` but has two additional input arguments `Ascale` and
+`Bscale`.
+
+These scaling factors `Ascale` and `Bscale` are matrices of type
+`sycl::ext::oneapi::experimental::fp8_e8m0_x<1>` which is an 8-bits
+floating-point type that represents the exponent of an FP32 floating
+point normal number. The number of rows of `Ascale` is `M` and number
+of columns of `Bscale` is `N`. The number of columns of `Ascale` and
+the number of rows of `Bscale` is `K` divided by the scaling block
+size which is equal to 32. The scaling block size represents the of
+number of elements needed along the K dimension to calculate one scale value.
+
+`joint_matrix_bmad` performs the multiply operation on the matrices
+`A` and `B` in {mxfp_paper_url}[MXFP] format, multiplies the result
+with `Ascale` and `Bscale`, then it accumulates the result with `C`
+and returns the result into the matrix `D`.
+
+Each device supports only certain combinations of types for the `A`,
+`B`, `Ascale`, `Bscale`, and `C` matrices. The application must use
+the query operations to ensure that the combination of types and
+scales is supported on the device where the kernel calling
+`joint_matrix_bmad` runs.
+
+==== 4 bits Data Types Conversions
+This API `joint_matrix_convert` extends the existing 4 bits scalar
+conversions to directly work on `joint_matrix` data types. In
+this extension, only 8 bits packing is supported for `fp4_e2m1_x`, so
+`fp4_e2m1_x<2>` is the only usable form.
+There are two definitions for this
+API: with and without seed that is used for stochastic rounding. A
+regular conversion is performed in the first API while a stochastic
+rounding conversion is performed in the second API. In the second API,
+besides the returned converted matrix `dst`, a new seed value is
+generated in `seed`. The two APIs follow the same rounding behavior
+described in
+link:../../proposed/sycl_ext_oneapi_fp4.asciidoc[sycl_ext_oneapi_fp4]
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template <typename Group, typename From, typename To, std::size_t Rows,
+std::size_t Cols, use Use, layout Layout>
+void joint_matrix_convert(Group g,
+                const joint_matrix<Group, From, Use, Rows, Cols, Layout> &src,
+                joint_matrix<Group, To, Use, Rows, Cols, Layout> &dest);
+
+template <typename Group, typename From, typename To, std::size_t Rows,
+std::size_t Cols, use Use, layout Layout>
+void joint_matrix_convert(Group g,
+                const joint_matrix<Group, From, Use, Rows, Cols, Layout> &src,
+                joint_matrix<Group, To, Use, Rows, Cols, Layout> &dest,
+                uint32_t &seed);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+`joint_matrix_convert` does not support all possible combinations of
+conversions. The table below lists the combinations of `From` and `To`
+that are supported: up conversions and down conversions with and without seed
+used for stochastic rounding.
+
+[frame="none",options="header"]
+|======================
+|Description| From | To
+.4+|FP4 E2M1 Upconversions |
+sycl::ext::oneapi::experimental::fp4_e2m1_x<2> | bfloat16
+| sycl::ext::oneapi::experimental::fp4_e2m1_x<2> | sycl::half
+| sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::ext::oneapi::experimental::fp8_e4m3_x<1>
+| sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::ext::oneapi::experimental::fp8_e5m2_x<1>
+
+
+.2+|FP4 E2M1 Down conversions
+| bfloat16 |sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::half | sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+
+.2+|FP4 E2M1 Down conversions with stochastic rounding
+| bfloat16 |sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+| sycl::half | sycl::ext::oneapi::experimental::fp4_e2m1_x<2>
+
+
+|======================
 
 === Query Interface
 Most devices support only certain values for the `Rows` and `Cols`
@@ -958,6 +1107,9 @@ descriptors that can be queried using `get_info` API.
 |`ext::oneapi::experimental::info::device::matrix_combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
 and types on this device
+|`ext::oneapi::experimental::info::device::matrix_scaled_combinations` |
+`std::vector<combination>`| tells the set of supported matrix sizes
+and types that can be used in `joint_matrix_bmad` operation on this device
 |======================
 
 The runtime query returns a vector of `matrix_combinations` of `combination`
@@ -969,6 +1121,10 @@ continuous or discrete number of sizes. If a device support a
 continuous number of sizes, the `max_*` variant is applied and only
 the maximum number is returned. However, if a device supports a
 discrete list of numbers so the `msize, nsize, ksize` variant is applied.
+
+In the case of `joint_matrix_bmad` operation, the
+`matrix_scaled_combinations` descriptor returns a vector of
+`combination` type.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -986,7 +1142,10 @@ enum class matrix_type {
   uint8,
   uint16,
   uint32,
-  uint64
+  uint64,
+  fp8_e5m2,
+  fp8_e4m3,
+  fp4_e2m1
 };
 struct combination {
   size_t max_msize;
@@ -1004,7 +1163,8 @@ struct combination {
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-Each combination of the `matrix_combinations` vector composes the types and
+Each combination of the `matrix_combinations` vector and the
+`matrix_scaled_combinations` vector composes the types and
 sizes of A, B, C, and D matrices supported by the device
 implementation. The table below provides a description of each member
 of the `combination` struct.
@@ -1039,7 +1199,10 @@ the `T` template parameter as follows: +
 `uint8`: `uint8_t` +
 `uint16`: `uint16_t` +
 `uint32`: `uint32_t` +
-`uint64`: `uint64_t`
+`uint64`: `uint64_t` +
+`fp8_e5m2`: `sycl::ext::oneapi::experimental::fp8_e5m2_x<1>` +
+`fp8_e4m3`: `sycl::ext::oneapi::experimental::fp8_e4m3_x<1>` +
+`fp4_e2m1`: `sycl::ext::oneapi::experimental::fp4_e2m1_x<2>` +
 |======================
 
 ===== Runtime Query Example:
@@ -1252,12 +1415,32 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
-`matrix_type::fp32` .2+| `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
+`matrix_type::fp32` | `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_bmg_g31`, `architecture::intel_gpu_lnl_m`,
 `architecture::intel_gpu_ptl_h`, `architecture::intel_gpu_ptl_u`,
 `architecture::intel_gpu_wcl`, `architecture::intel_gpu_nvl_s`,
 `architecture::intel_gpu_nvl_u`, `architecture::intel_gpu_nvl_p`,
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e5m2`       |  `matrix_type::fp8_e5m2`   |
+`matrix_type::fp32`, `matrix_type::bf16` |
+`matrix_type::fp32` , `matrix_type::bf16` |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e5m2`       |  `matrix_type::fp8_e4m3`   |
+`matrix_type::fp32`, `matrix_type::bf16`|
+`matrix_type::fp32`, `matrix_type::bf16` |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e4m3`       |  `matrix_type::fp8_e5m2`   |
+`matrix_type::fp32` , `matrix_type::bf16`|
+`matrix_type::fp32`, `matrix_type::bf16`   |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+|  `matrix_type::fp8_e4m3`       |  `matrix_type::fp8_e4m3`   |
+`matrix_type::fp32`, `matrix_type::bf16`|
+`matrix_type::fp32`, `matrix_type::bf16`   |  +<=+ 8 |  16   |  32 |
+`architecture::intel_gpu_cri`
+.1+| `matrix_type::fp4_e2m1`  .1+| `matrix_type::fp4_e2m1` .1+|
+`matrix_type::fp32`, `matrix_type::bf16` |
+`matrix_type::fp32`, `matrix_type::bf16`  .1+| 8 |  16 .1+|  64 |
 `architecture::intel_gpu_cri`
 |======================
 
@@ -1381,6 +1564,53 @@ be used. An attempt to run the compiled code on an unsupported architecture will
 |16 |16 |4
 |======================
 
+=== Appendix II: `joint_matrix_bmad` Combinations Per Hardware
+
+==== Intel XMX
+This is currently available in devices with the architecture
+`architecture::intel_gpu_cri`
+[frame="none",options="header"]
+|======================
+| A type | B type | C type | D type | M | N | K | device
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16` .3+|
+`matrix_type::fp32`, `matrix_type::fp16` .3+| `matrix_type::fp32`,
+`matrix_type::fp16` |  8 |  16 |  16
+.3+|`architecture::intel_gpu_cri`
+|32|32|32
+|32|32|64
+.3+| `matrix_type::bf16`  .3+| `matrix_type::bf16` .3+|
+`matrix_type::fp32`, `matrix_type::bf16` .3+| `matrix_type::fp32`,
+`matrix_type::bf16`|  8 |  16 |  16
+.3+|`architecture::intel_gpu_cri`
+|32|32|32
+|32|32|64
+.2+| `matrix_type::fp8_e5m2`  .2+| `matrix_type::fp8_e5m2` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16` |  8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp8_e5m2`  .2+| `matrix_type::fp8_e4m3` .2+|
+`matrix_type::fp32` , `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16`|  8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp8_e4m3`  .2+| `matrix_type::fp8_e5m2` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+|`matrix_type::fp32`,
+`matrix_type::bf16` | 8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp8_e4m3`  .2+| `matrix_type::fp8_e4m3` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16` |  8 |  16 .2+|  32
+.2+|`architecture::intel_gpu_cri`
+|32|32
+.2+| `matrix_type::fp4_e2m1`  .2+| `matrix_type::fp4_e2m1` .2+|
+`matrix_type::fp32`, `matrix_type::bf16` .2+| `matrix_type::fp32`,
+`matrix_type::bf16` |  8 |  16 .2+|  64
+.2+|`architecture::intel_gpu_cri`
+|32|32
+|======================
+
 === Revision History
 
 [frame="none",options="header"]
@@ -1408,4 +1638,8 @@ load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
 |12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
+|13  |2026-09-02 |Dounia Khaldi | Add fp8 (`fp8_e5m2_x`, `fp8_e4m3_x`) and
+fp4 (`fp4_e2m1_x`) support: `matrix_type` enumerators, `joint_matrix_convert`
+combinations, and Intel XMX supported combinations for
+`architecture::intel_gpu_cri`
 |======================
