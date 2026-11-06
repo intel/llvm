@@ -13,6 +13,7 @@ from .constants import (
     LIT_CI_OPTIONS,
     TEST_TYPE_ADAPTER_SPECIFIC,
     TEST_TYPE_CONFORMANCE,
+    TEST_TYPE_LOADER,
     LIT_FILTER_OUT_ADAPTER_SPECIFIC,
     MAX_LINES_TO_SCAN,
 )
@@ -32,6 +33,11 @@ def get_test_config(test_type: str) -> TestConfig:
         return TestConfig(
             target="check-unified-runtime-conformance",
             log_file="conformance_tests.log",
+        )
+    elif test_type == TEST_TYPE_LOADER:
+        return TestConfig(
+            target="check-unified-runtime-loader",
+            log_file="loader_tests.log",
         )
     else:
         raise ValueError(f"Invalid test_type: {test_type}")

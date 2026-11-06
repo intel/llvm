@@ -62,6 +62,7 @@ jobs:
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
+      build_configure_extra_args: --cuda --native_cpu --build-lld
 
       toolchain_artifact: sycl_linux_default
       e2e_binaries_artifact: e2e_bin

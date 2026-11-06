@@ -139,6 +139,7 @@ public:
   void transFunctionMetadataAsUserSemanticDecoration(SPIRVFunction *BF,
                                                      Function *F);
   void transAuxDataInst(SPIRVValue *BV, Value *V);
+  void transAMDGPUAtomicMetadata(SPIRVValue *BV, Instruction *I);
 
   bool transGlobalVariables();
 

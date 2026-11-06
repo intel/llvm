@@ -81,3 +81,9 @@ target_include_directories(LLVMSPIRVLib
     ${CMAKE_CURRENT_SOURCE_DIR}/libSPIRV
     ${CMAKE_CURRENT_SOURCE_DIR}/Mangler
 )
+
+if(SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_VAL)
+  target_compile_definitions(LLVMSPIRVLib PRIVATE LLVM_SPIRV_HAVE_SPIRV_TOOLS=1)
+  target_include_directories(LLVMSPIRVLib PRIVATE ${SPIRV_TOOLS_INCLUDE_DIRS})
+  target_link_libraries(LLVMSPIRVLib PRIVATE ${SPIRV_TOOLS_LDFLAGS})
+endif()

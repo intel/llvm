@@ -189,6 +189,7 @@ jobs:
         --cmake-opt="-DUR_STATIC_LOADER=OFF"
         --cmake-opt="-DUR_STATIC_ADAPTER_L0=OFF"
         --cmake-opt="-DUR_STATIC_ADAPTER_L0_V2=OFF"
+        --cmake-opt="-DUR_USE_EXTERNAL_UMF=OFF"
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
@@ -249,6 +250,7 @@ jobs:
         --cmake-opt="-DUR_STATIC_LOADER=OFF"
         --cmake-opt="-DUR_STATIC_ADAPTER_L0=OFF"
         --cmake-opt="-DUR_STATIC_ADAPTER_L0_V2=OFF"
+        --cmake-opt="-DUR_USE_EXTERNAL_UMF=OFF"
       build_image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert
@@ -314,6 +316,7 @@ jobs:
         --cmake-opt="-DUR_STATIC_LOADER=OFF"
         --cmake-opt="-DUR_STATIC_ADAPTER_L0=OFF"
         --cmake-opt="-DUR_STATIC_ADAPTER_L0_V2=OFF"
+        --cmake-opt="-DUR_USE_EXTERNAL_UMF=OFF"
       build_image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       changes: '[]'
       toolchain_artifact: sycl_linux_prod_noassert

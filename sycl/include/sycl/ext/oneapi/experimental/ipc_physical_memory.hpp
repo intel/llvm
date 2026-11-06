@@ -43,7 +43,7 @@ __SYCL_EXPORT void put(handle &ipc_handle, const sycl::context &ctx);
 inline void put(handle &ipc_handle) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
-  return put(ipc_handle, Ctx);
+  return ipc::physical_memory::put(ipc_handle, Ctx);
 }
 
 inline physical_mem open(const ipc::handle_data_t &HandleData,

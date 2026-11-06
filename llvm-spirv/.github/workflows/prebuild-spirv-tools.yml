@@ -35,6 +35,7 @@ jobs:
         if: steps.spirv-tools-cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools SPIRV-Tools
+          git log -1
           python3 SPIRV-Tools/utils/git-sync-deps
           cmake -S SPIRV-Tools -B SPIRV-Tools/build \
             -DCMAKE_BUILD_TYPE=Release \
