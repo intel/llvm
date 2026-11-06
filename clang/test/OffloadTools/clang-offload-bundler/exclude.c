@@ -30,7 +30,7 @@
 
 
 // Unbundle archive
-// RUN: clang-offload-bundler -type=aoo -excluded-targets=sycl-fpga_aoco-intel-unknown -targets=sycl-spir64_fpga-unknown-unknown -input=%S/Inputs/clang-offload-bundler-exclude/fatlib.a -output=%t-my_output.txt -unbundle -allow-missing-bundles
+// RUN: clang-offload-bundler -type=aoo -excluded-targets=sycl-fpga_aoco-intel-unknown -targets=sycl-spir64_fpga-unknown-unknown -input=%S/Inputs/exclude/fatlib.a -output=%t-my_output.txt -unbundle -allow-missing-bundles
 
 // Check that output of unbundling doesn't contain content of device2
 // RUN: cat %t-my_output.txt | xargs cat | strings | not grep "DUMMY IR2"
