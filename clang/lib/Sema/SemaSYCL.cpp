@@ -951,15 +951,25 @@ class SingleDeviceFunctionTracker {
     //    scope.
     if (CurrentDecl->getIdentifier() &&
         CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item" &&
-        isDeclaredInSYCLNamespace(CurrentDecl) &&
-        !CurrentDecl->hasAttr<SYCLScopeAttr>()) {
-      CurrentDecl->addAttr(SYCLScopeAttr::CreateImplicit(
-          Parent.SemaSYCLRef.getASTContext(), SYCLScopeAttr::Level::WorkItem));
-      FunctionDecl *Caller = CallStack.back();
-      if (!Caller->hasAttr<SYCLScopeAttr>()) {
-        Caller->addAttr(
-            SYCLScopeAttr::CreateImplicit(Parent.SemaSYCLRef.getASTContext(),
-                                          SYCLScopeAttr::Level::WorkGroup));
+        isDeclaredInSYCLNamespace(CurrentDecl)) {
+      ASTContext &Ctx = Parent.SemaSYCLRef.getASTContext();
+      if (!CurrentDecl->hasAttr<SYCLScopeAttr>())
+        CurrentDecl->addAttr(
+            SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkItem));
+      // Every function between the parallel_for_work_group body and this call
+      // runs in work-group scope, so mark the call stack.
+      for (FunctionDecl *Caller : llvm::reverse(CallStack)) {
+        // Stop at the kernel body: it is marked by
+        // annotateHierarchicalParallelismAPICalls, and nothing above it is
+        // work-group scope.
+        if (Caller == KernelBody || Caller == SYCLKernel)
+          break;
+        // An already-marked function (e.g. leaf, from an earlier path) may have
+        // callers on this path that still need marking, so keep walking.
+        if (Caller->hasAttr<SYCLScopeAttr>())
+          continue;
+        Caller->addAttr(SYCLScopeAttr::CreateImplicit(
+            Ctx, SYCLScopeAttr::Level::WorkGroup));
         addScopeAttrToLocalVars(Parent.SemaSYCLRef, *Caller);
       }
     }
