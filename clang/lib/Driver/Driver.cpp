@@ -4135,9 +4135,11 @@ static bool hasOffloadSections(Compilation &C, const StringRef &File,
 }
 
 /// Return true if \p File is an object created with -fsycl-link. Such an
-/// object is a regular host object holding wrapped SYCL device images, which
-/// the clang-offload-wrapper places in sections named like bundles (e.g.
-/// sycl-spir64), but it has no host bundle. When linking a final host image,
+/// object is a regular host object holding wrapped SYCL device images. The
+/// clang-offload-wrapper places the images in sections named like bundles
+/// (e.g. __CLANG_OFFLOAD_BUNDLE__sycl-spir64), so clang-offload-bundler -list
+/// reports them as bundle IDs (e.g. sycl-spir64), but it reports no host bundle
+/// ID, unlike for a fat object. When linking a final host image,
 /// it must be passed to the host linker as is: unbundling it would drop the
 /// host code that registers the images and send the final device images back
 /// through the device link.

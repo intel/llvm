@@ -38,7 +38,7 @@
 // RUN:       --implicit-check-not='"-input={{.*}}_prelinked.o" {{.*}}"-unbundle"'
 // CHECK-LINK: clang-offload-bundler{{.*}} "-input={{.*}}_fat.o" {{.*}}"-unbundle"
 // CHECK-LINK: clang-offload-wrapper
-// CHECK-LINK: ld{{.*}} "{{.*}}_prelinked.o"
+// CHECK-LINK: "{{.*}}ld{{(.exe)?}}" {{.*}}"{{.*}}_prelinked.o"
 
 /// -fsycl-link still consumes the device images of a pre-linked input.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
