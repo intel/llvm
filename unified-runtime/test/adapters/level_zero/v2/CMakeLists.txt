@@ -69,4 +69,5 @@ else()
     add_l0_v2_kernels_test(deferred_kernel
         deferred_kernel.cpp
     )
+    add_l0_loader_kernels_test(barrier_optimization barrier_optimization.cpp)
 endif()
