@@ -879,6 +879,11 @@ private:
   /// error is emitted only once per driver invocation.
   mutable bool OffloadBundlerNotFoundDiagnosed = false;
 
+  /// Offload sections reported by clang-offload-bundler -list for each input
+  /// file, so that each file is inspected only once per driver invocation.
+  mutable llvm::StringMap<llvm::SmallVector<std::string, 4>>
+      OffloadSectionsCache;
+
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -976,6 +981,13 @@ public:
   /// not be found in \p Dir while inspecting \p FileName.  Only the first
   /// occurrence is reported.
   void diagnoseOffloadBundlerNotFound(StringRef Dir, StringRef FileName) const;
+
+  /// getOffloadSectionsCache - Get the cache of offload sections reported by
+  /// clang-offload-bundler -list for each input file.
+  llvm::StringMap<llvm::SmallVector<std::string, 4>> &
+  getOffloadSectionsCache() const {
+    return OffloadSectionsCache;
+  }
 
   /// SYCLDeviceTraitMacroArg - Add the given macro to the vector of args to be
   /// added to the device compilation step.

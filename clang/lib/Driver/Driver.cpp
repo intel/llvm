@@ -4038,8 +4038,8 @@ void Driver::diagnoseOffloadBundlerNotFound(StringRef Dir,
   Diag(diag::err_drv_offload_bundler_not_found) << Dir << FileName;
 }
 
-static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
-                                                      const StringRef &File) {
+static SmallVector<std::string, 4> listOffloadSections(Compilation &C,
+                                                       const StringRef &File) {
   // Do not do the check if the file doesn't exist
   if (!llvm::sys::fs::exists(File))
     return {};
@@ -4106,6 +4106,18 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
     return {};
 
   return Sections;
+}
+
+/// Return the offload sections of \p File as reported by
+/// clang-offload-bundler -list. The result is cached, so the bundler is run at
+/// most once per file even though several places in the driver need it.
+static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
+                                                      StringRef File) {
+  auto [It, Inserted] =
+      C.getDriver().getOffloadSectionsCache().try_emplace(File);
+  if (Inserted)
+    It->second = listOffloadSections(C, File);
+  return It->second;
 }
 
 static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
