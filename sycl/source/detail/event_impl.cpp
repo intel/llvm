@@ -652,6 +652,12 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
+bool event_impl::isHeldInRuntime() {
+  if (isHost())
+    return !isCompleted();
+  return getCommand() != nullptr && !isEnqueued();
+}
+
 void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
   for (auto &Event : MPreparedDepsEvents) {
     Event->cleanupDependencyEvents();
