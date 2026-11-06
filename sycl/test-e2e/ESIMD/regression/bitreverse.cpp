@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: run-mode && !(windows && gpu-intel-gen12)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/22789
+// UNSUPPORTED: windows && gpu-intel-gen12
+// UNSUPPORTED-INTENDED: There is a separate version of this test for Win Gen12.
+// REQUIRES-INTEL-DRIVER: lin: 40430
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
