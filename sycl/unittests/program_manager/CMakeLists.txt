@@ -21,3 +21,4 @@ endif()
 
 add_subdirectory(arg_mask)
 add_subdirectory(DynamicLinking)
+add_subdirectory(CompileTargetSelection)

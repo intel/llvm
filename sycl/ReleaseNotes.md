@@ -12,6 +12,11 @@
 
 ## Improvements and bugfixes
 
+### Clang Driver
+
+- Fixed `-fsycl-link` with static archive inputs in the old offload model.
+  intel/llvm#23421
+
 ### Component A
 
 - Improved handling of ... intel/llvm#pr

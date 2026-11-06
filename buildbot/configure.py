@@ -124,6 +124,9 @@ def do_configure(args, passthrough_args):
     if args.shared_libs:
         llvm_build_shared_libs = "ON"
 
+    if args.build_lld:
+        llvm_enable_projects += ";lld"
+
     if args.use_lld:
         llvm_enable_lld = "ON"
 
@@ -426,6 +429,7 @@ def main():
     )
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
     parser.add_argument("--use-libcxx", action="store_true", help="build with libcxx")
+    parser.add_argument("--build-lld", action="store_true", help="build lld")
     parser.add_argument(
         "--use-lld", action="store_true", help="Use LLD linker for build"
     )

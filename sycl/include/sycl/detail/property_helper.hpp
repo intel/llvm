@@ -61,7 +61,8 @@ enum PropWithDataKind {
   AccPropBufferLocation = 5,
   QueueComputeIndex = 6,
   GraphNodeDependencies = 7,
-  PropWithDataKindSize = 8
+  QueuePriority = 8,
+  PropWithDataKindSize = 9
 };
 
 // Base class for dataless properties, needed to check that the type of an

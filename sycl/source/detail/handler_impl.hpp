@@ -192,9 +192,6 @@ public:
 
   /// Storage for lambda/function when using HostTask
   std::shared_ptr<detail::HostTask> MHostTask;
-  /// The list of valid SYCL events that need to complete
-  /// before barrier command can be executed
-  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
   /// True if MCodeLoc is sycl entry point code location
   bool MIsTopCodeLoc = true;

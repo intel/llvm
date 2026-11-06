@@ -116,12 +116,13 @@ if (UR_UMF_REQUIRED)
   else()
     set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-    # commit 19ce12f5f40213a612828e32a3b1d1b857222312
+    # commit e8fd1d8431ce3c23f4b7d51711ffae9fb1966495
     # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Thu Sep 10 10:11:36 2026 +0200
-    #     Add address space support and tests for overlap errors
-
-    set(UMF_TAG v1.3.0-dev2)
+    # Date:   Wed Oct 7 16:05:01 2026 +0200
+    # Use FetchContent for HWLOC sources (#1615)
+    #
+    # Note: This is 'v1.3.0-dev3-1'
+    set(UMF_TAG e8fd1d8431ce3c23f4b7d51711ffae9fb1966495)
 
     if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
       message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -148,8 +149,9 @@ if(UR_ENABLE_LATENCY_HISTOGRAM)
   if(hdr_histogram_FOUND)
     set(hdr_histogram_SOURCE_DIR "${hdr_histogram_DIR}")
   else()
-    set(HDR_HISTOGRAM_BUILD_STATIC CACHE INTERNAL ON "")
-    set(HDR_HISTOGRAM_BUILD_SHARED CACHE INTERNAL OFF "")
+    set(HDR_HISTOGRAM_BUILD_STATIC ON CACHE INTERNAL "")
+    set(HDR_HISTOGRAM_BUILD_SHARED OFF CACHE INTERNAL "")
+    set(HDR_HISTOGRAM_BUILD_PROGRAMS OFF CACHE INTERNAL "")
 
     include(FetchContent)
     FetchContent_Declare(hdr_histogram

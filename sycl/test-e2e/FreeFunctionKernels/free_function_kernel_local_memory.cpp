@@ -7,6 +7,8 @@
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // This test verifies that we can compile, run and get correct results when
 // using a free function kernel that allocates shared local memory in a kernel

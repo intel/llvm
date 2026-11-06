@@ -29,13 +29,18 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   UR_CALL(getMsanInterceptor()->insertContext(Context, CI));
   for (uint32_t i = 0; i < numDevices; ++i) {
     auto hDevice = phDevices[i];
-    std::shared_ptr<DeviceInfo> DI;
-    UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
-    DI->Type = GetDeviceType(Context, hDevice);
-    if (DI->Type == DeviceType::UNKNOWN) {
+    // Reject unsupported devices before registering them: the interceptor
+    // teardown expects every device it knows about to have shadow memory.
+    auto Type = GetDeviceType(Context, hDevice);
+    if (Type == DeviceType::UNKNOWN) {
       UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
+    UR_CALL(CheckDeviceBackendSupported(hDevice, Type));
+
+    std::shared_ptr<DeviceInfo> DI;
+    UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
+    DI->Type = Type;
     UR_LOG_L(getContext()->logger, INFO,
              "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
              (void *)DI->Handle, ToString(DI->Type),

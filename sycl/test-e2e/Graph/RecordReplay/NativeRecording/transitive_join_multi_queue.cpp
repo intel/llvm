@@ -1,13 +1,10 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
-// REQUIRES: linux
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 // REQUIRES-INTEL-DRIVER: lin: 40074
-
-// TODO: add minimum Windows driver when available
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not} %}
 
 // Test for native recording that a queue forked from the primary queue can be
 // joined back transitively: Queue1 forks to Queue2 and Queue3, Queue3 joins

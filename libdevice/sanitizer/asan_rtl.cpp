@@ -151,11 +151,9 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
       return 0;
     }
 
-    // The size of SLM is 64KB on DG2
-    constexpr unsigned slm_size = 64 * 1024;
-
-    auto shadow_ptr = shadow_offset + ((wid * slm_size) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
+    auto shadow_ptr = shadow_offset +
+                      ((wid * ASAN_SLM_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (ASAN_SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
                if (shadow_ptr > shadow_offset_end) {
@@ -239,11 +237,9 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
       return 0;
     }
 
-    // The size of SLM is 128KB on PVC
-    constexpr unsigned SLM_SIZE = 128 * 1024;
-
-    uptr shadow_ptr = shadow_offset + ((wid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+    uptr shadow_ptr = shadow_offset +
+                      ((wid * ASAN_SLM_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (ASAN_SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
                if (shadow_ptr > shadow_offset_end) {

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "HIPUtility.h"
+#include "clang/Basic/TargetID.h"
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Options/Options.h"
@@ -37,27 +38,6 @@ using llvm::dyn_cast;
 namespace {
 const unsigned HIPCodeObjectAlign = 4096;
 } // namespace
-
-// Constructs a triple string for clang offload bundler.
-static std::string normalizeForBundler(const llvm::Triple &OrigT,
-                                       StringRef BoundArch) {
-  llvm::Triple T(OrigT);
-  bool HasTargetID = !BoundArch.empty();
-
-  // FIXME: Short-term hack. The HIP runtime hardcodes the legacy
-  // "amdgcn-amd-amdhsa--" prefix when parsing the target IDs embedded in the
-  // fatbin bundle, so force it.
-  if (HasTargetID && T.isAMDGCN()) {
-    return ("amdgcn-" + T.getVendorName() + "-" + T.getOSName() + "-" +
-            T.getEnvironmentName())
-        .str();
-  }
-
-  return HasTargetID ? (T.getArchName() + "-" + T.getVendorName() + "-" +
-                        T.getOSName() + "-" + T.getEnvironmentName())
-                           .str()
-                     : T.normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
-}
 
 // Collect undefined __hip_fatbin* and __hip_gpubin_handle* symbols from all
 // input object or archive files.

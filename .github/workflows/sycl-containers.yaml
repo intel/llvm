@@ -56,6 +56,11 @@ jobs:
             file: sle15sp4_build
             tag: latest
             build_args: ""
+          - name: Build Ubuntu 24.04 Docker image with CUDA 13.1
+            file: ubuntu2404_build
+            image_name: ubuntu2404_build_cuda13
+            tag: latest
+            build_args: "base_image=nvidia/cuda:13.1.0-devel-ubuntu24.04"
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -69,8 +74,8 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
+            ghcr.io/${{ github.repository }}/${{ matrix.image_name || matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.image_name || matrix.file }}:${{ matrix.tag }}
           build-args: ${{ matrix.build_args }}
 
   # Then build "Intel Drivers" images that depend on previous images.

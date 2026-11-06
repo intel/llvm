@@ -912,3 +912,53 @@ TEST_F(CommandGraphTest, BarrierWithInOrderCommands) {
               &*getSyclObjImpl(Barrier5));
   }
 }
+
+// A barrier which waits for an event of a recording queue switches its queue to
+// the recording state (transitive queue recording), the same as depends_on.
+template <typename SubmitBarrierT>
+static void checkBarrierWaitListTransitiveRecording(
+    sycl::queue &Queue,
+    experimental::command_graph<experimental::graph_state::modifiable> &Graph,
+    SubmitBarrierT SubmitBarrier) {
+  sycl::queue Queue2{Queue.get_context(), Queue.get_device()};
+
+  Graph.begin_recording(Queue);
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+
+  auto Barrier = SubmitBarrier(Queue2, Node1Graph);
+  ASSERT_EQ(Queue2.ext_oneapi_get_state(),
+            experimental::queue_state::recording);
+  Graph.end_recording();
+
+  // Check the graph structure
+  // (1)
+  //  |
+  // (B)
+  experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+  ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
+  for (experimental::detail::node_impl &Root : GraphImpl.roots()) {
+    ASSERT_EQ(GraphImpl.getEventForNode(Root).get(),
+              &*getSyclObjImpl(Node1Graph));
+    ASSERT_EQ(Root.MSuccessors.size(), 1lu);
+    experimental::detail::node_impl &BarrierNode = *Root.MSuccessors.front();
+    ASSERT_EQ(BarrierNode.MCGType, sycl::detail::CGType::Barrier);
+    ASSERT_EQ(GraphImpl.getEventForNode(BarrierNode).get(),
+              &*getSyclObjImpl(Barrier));
+  }
+}
+
+TEST_F(CommandGraphTest, HandlerBarrierWaitListTransitiveRecording) {
+  checkBarrierWaitListTransitiveRecording(
+      Queue, Graph, [](sycl::queue &Q, sycl::event E) {
+        return Q.submit(
+            [&](sycl::handler &cgh) { cgh.ext_oneapi_barrier({E}); });
+      });
+}
+
+TEST_F(CommandGraphTest, QueueBarrierWaitListTransitiveRecording) {
+  checkBarrierWaitListTransitiveRecording(
+      Queue, Graph, [](sycl::queue &Q, sycl::event E) {
+        return Q.ext_oneapi_submit_barrier({E});
+      });
+}

@@ -5,6 +5,12 @@
 // Linux fix tracked by GSD-12371, landed in driver 38362.
 // REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23693
+
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23695
+
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 
 // RUN: %{run} %t.out --type float --channels 1
@@ -167,8 +173,8 @@ int runTest(
   uint64_t syclSignalVal = 2;
 
   try {
-    // External semaphore ops require an in-order queue backed by immediate
-    // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::queue q{
         {sycl::property::queue::in_order{},
          sycl::ext::intel::property::queue::immediate_command_list{}}};

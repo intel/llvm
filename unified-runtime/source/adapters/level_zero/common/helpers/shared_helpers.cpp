@@ -320,6 +320,11 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
+template <>
+ze_structure_type_t
+getZeStructureType<ze_device_external_memory_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_EXTERNAL_MEMORY_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -368,18 +373,16 @@ ze_structure_type_t getZeStructureType<
   return ZE_STRUCTURE_TYPE_COMMAND_LIST_APPEND_PARAM_COOPERATIVE_DESC;
 }
 
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 template <>
-ze_structure_type_ext_t
-getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
-  return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
+ur_ze_structure_type_ext_t
+getZexStructureType<ur_ze_intel_device_block_array_exp_properties_t>() {
+  return UR_ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
-#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
 template <>
-ze_structure_type_ext_t
-getZexStructureType<ze_intel_xe_device_exp_properties_t>() {
-  return ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
+ur_ze_structure_type_ext_t
+getZexStructureType<ur_ze_intel_xe_device_exp_properties_t>() {
+  return UR_ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
 }
 template <>
 ze_structure_type_t
@@ -393,9 +396,18 @@ getZeStructureType<ze_pitched_alloc_2dimage_linear_pitch_exp_info_t>() {
   return ZE_STRUCTURE_TYPE_PITCHED_ALLOC_2DIMAGE_LINEAR_PITCH_EXP_INFO;
 }
 template <>
-ze_structure_type_ext_t
+ur_ze_structure_type_ext_t
 getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
+}
+template <>
+ur_ze_structure_type_ext_t getZexStructureType<ur_ze_queue_priority_desc_t>() {
+  return UR_ZE_STRUCTURE_TYPE_QUEUE_PRIORITY_DESC;
+}
+template <>
+ur_ze_structure_type_ext_t getZexStructureType<
+    ur_zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
+  return UR_ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

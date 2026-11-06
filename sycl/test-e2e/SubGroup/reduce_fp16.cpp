@@ -1,9 +1,6 @@
 // REQUIRES: aspect-fp16
 // REQUIRES: gpu
 
-// XFAIL: !arch-intel_gpu_mtl_h && windows && gpu-intel-gen12
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21533
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -1,12 +1,12 @@
 // REQUIRES: level_zero
 //
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20852
+// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
+// so the matching zeEventDestroy calls are reported as a negative leak there.
+// Ignore negative leaks on Windows until the loader is updated.
+// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
 //
 // RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
-//
-// CHECK-NOT: LEAK
+// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
 
 // Tests that additional resources required by discard_write reductions do not
 // leak.

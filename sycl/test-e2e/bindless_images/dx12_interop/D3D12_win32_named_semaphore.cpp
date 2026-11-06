@@ -3,6 +3,8 @@
 // REQUIRES: windows
 
 // REQUIRES-INTEL-DRIVER: lin: 40130
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} %link-directx -o %t.exe %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.exe
@@ -137,7 +139,8 @@ int main(int argc, char **argv) {
   executeAndWait(d3dCtx);
 
   try {
-    // Semaphore ops require an in-order queue with immediate CLs.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps{
         sycl::property::queue::in_order{},
         sycl::ext::intel::property::queue::immediate_command_list{}};

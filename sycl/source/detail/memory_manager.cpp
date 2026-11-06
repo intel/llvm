@@ -1104,7 +1104,7 @@ getOrBuildProgramForDeviceGlobal(queue_impl &Queue,
 
   // If there are no kernels using the device_global we cannot proceed.
   if (DeviceGlobalEntry->MImageIdentifiers.size() == 0)
-    throw sycl::exception(make_error_code(errc::invalid),
+    throw sycl::exception(make_error_code(errc::kernel_not_supported),
                           "No image exists with the device_global.");
 
   // Look for cached programs with the device_global.

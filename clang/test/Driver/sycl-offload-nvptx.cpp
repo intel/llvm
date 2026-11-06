@@ -41,7 +41,7 @@
 // CHK-ACTIONS-WIN: clang{{.*}} "--target=[[HOST_TARGET]]" "-c"
 
 /// Check phases w/out specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++17 \
+// RUN: %clangxx -ccc-print-phases -std=c++17 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: -resource-dir %{resource_dir} \
@@ -74,7 +74,7 @@
 // CHK-PHASES-NO-CC: 21: linker, {8, 20}, image, (host-sycl)
 //
 /// Check phases specifying a compute capability.
-// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++17 \
+// RUN: %clangxx -ccc-print-phases -std=c++17 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl --no-offloadlib \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN: -resource-dir %{resource_dir} \

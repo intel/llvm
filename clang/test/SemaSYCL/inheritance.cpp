@@ -89,8 +89,8 @@ int main() {
 // data members are copied from corresponding ParamVar
 // CHECK-NEXT: InitListExpr {{.*}} 'third_base'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *' lvalue .
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// CHECK-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg_d' '__wrapper_class'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>'
 

@@ -151,4 +151,22 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
     T *Ptr, uint32_t NumRows, uint32_t NumCols, unsigned int CacheLevel,
     __spv::MatrixLayout Layout, size_t Stride);
 
+template <typename TA, typename TB, typename TC, typename TAS, typename TBS,
+          std::size_t M, std::size_t K, std::size_t N, __spv::MatrixUse UA,
+          __spv::MatrixUse UB, __spv::MatrixUse UC, __spv::MatrixUse UAS,
+          __spv::MatrixUse UBS,
+          __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern __DPCPP_SYCL_EXTERNAL
+    __spv::__spirv_CooperativeMatrixKHR<TC, S, M, N, UC> *
+    __spirv_CooperativeMatrixMulAddScaledINTEL(
+        __spv::__spirv_CooperativeMatrixKHR<TA, S, M, K, UA> *A,
+        __spv::__spirv_CooperativeMatrixKHR<TB, S, K, N, UB> *B,
+        __spv::__spirv_CooperativeMatrixKHR<TC, S, M, N, UC> *C,
+        __spv::__spirv_CooperativeMatrixKHR<TAS, S, M, K / 32, UAS> *Ascale,
+        __spv::__spirv_CooperativeMatrixKHR<TBS, S, K / 32, N, UBS> *Bscale,
+        size_t Operands = 0);
+
 #endif
