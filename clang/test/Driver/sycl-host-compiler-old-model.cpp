@@ -86,6 +86,9 @@
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=EXTERNAL_HOST_COMPILER %s
 // EXTERNAL_HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_EXTERNAL_HOST_COMPILER__"
+// RUN: %clangxx -### -fsycl --no-offload-new-driver -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=NO_EXTERNAL_HOST_COMPILER %s
+// NO_EXTERNAL_HOST_COMPILER-NOT: "-D__SYCL_EXTERNAL_HOST_COMPILER__"
 
 /// Warning should not be emitted when using -fsycl-host-compiler when linking
 // RUN: touch %t.o
