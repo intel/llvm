@@ -94,54 +94,65 @@ SYCL_EXTERNAL auto TestAdd(vec<bool, 4> a, vec<bool, 4> b) { return a + b; }
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecINS0_6detail9half_impl4halfELi3EEES5_(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.189") align 8 captures(none) initializes((0, 8)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.189") align 8 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.189") align 8 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META58:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META61:![0-9]+]])
-// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x half>, ptr [[A]], align 8, !noalias [[META64:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META56:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META59:![0-9]+]])
+// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x half>, ptr [[A]], align 8, !noalias [[META62:![0-9]+]]
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I:%.*]] = shufflevector <4 x half> [[LOADVECN_I_I_I]], <4 x half> poison, <3 x i32> <i32 0, i32 1, i32 2>
-// CHECK-NEXT:    [[LOADVECN_I6_I_I:%.*]] = load <4 x half>, ptr [[B]], align 8, !noalias [[META64]]
+// CHECK-NEXT:    [[LOADVECN_I6_I_I:%.*]] = load <4 x half>, ptr [[B]], align 8, !noalias [[META62]]
 // CHECK-NEXT:    [[EXTRACTVEC_I7_I_I:%.*]] = shufflevector <4 x half> [[LOADVECN_I6_I_I]], <4 x half> poison, <3 x i32> <i32 0, i32 1, i32 2>
 // CHECK-NEXT:    [[ADD_I_I_I_I_I:%.*]] = fadd <3 x half> [[EXTRACTVEC_I_I_I]], [[EXTRACTVEC_I7_I_I]]
 // CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <3 x half> [[ADD_I_I_I_I_I]], <3 x half> <half undef, half poison, half poison>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-NEXT:    store <4 x half> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META65:![0-9]+]]
+// CHECK-NEXT:    store <4 x half> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META63:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.228") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.228") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.228") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.228") align 8 captures(none) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.228") align 8 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.228") align 8 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.228", align 8
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META68:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META71:![0-9]+]])
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I]]), !noalias [[META68]]
-// CHECK-NEXT:    store i64 0, ptr [[RES_I_I]], align 8, !noalias [[META74:![0-9]+]]
-// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
-// CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEES8__EXIT:%.*]]
-// CHECK:       for.body.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I11_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META75:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I]]) #[[ATTR6:[0-9]+]], !noalias [[META78:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I11_I_I]]) #[[ATTR6]], !noalias [[META78]]
-// CHECK-NEXT:    [[ADD_I_I_I_I:%.*]] = fadd float [[CALL_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I]]
-// CHECK-NEXT:    store float [[ADD_I_I_I_I]], ptr [[REF_TMP_I_I_I_I]], align 4, !tbaa [[TBAA81:![0-9]+]], !noalias [[META78]]
-// CHECK-NEXT:    [[CALL_I_I3_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I]]) #[[ATTR6]], !noalias [[META78]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META75]]
-// CHECK-NEXT:    [[ARRAYIDX_I12_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I]], ptr [[ARRAYIDX_I12_I_I]], align 2, !tbaa [[TBAA83:![0-9]+]], !noalias [[META74]]
-// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP85:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP_I_I_I_I_I:%.*]] = alloca float, align 4
+// CHECK-NEXT:    [[RES_I_I_I:%.*]] = alloca %"class.sycl::_V1::vec.228", align 8
+// CHECK-NEXT:    [[REF_TMP4_I_I:%.*]] = alloca %"class.sycl::_V1::vec.228", align 8
+// CHECK-NEXT:    [[REF_TMP5_I_I:%.*]] = alloca %"class.sycl::_V1::vec.228", align 8
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META66:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META69:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP4_I_I]]), !noalias [[META66]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP5_I_I]]), !noalias [[META66]]
+// CHECK-NEXT:    [[REF_TMP4_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP4_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[REF_TMP5_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP5_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[A]], align 8, !noalias [[META72:![0-9]+]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[REF_TMP4_I_I]], align 8, !noalias [[META72]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[B]], align 8, !noalias [[META72]]
+// CHECK-NEXT:    store i64 [[TMP1]], ptr [[REF_TMP5_I_I]], align 8, !noalias [[META72]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META73:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    store i64 0, ptr [[RES_I_I_I]], align 8, !noalias [[META76:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I:%.*]]
+// CHECK:       for.cond.i.i.i:
+// CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZN4SYCL3_V16DETAILPLERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEES8__EXIT:%.*]]
+// CHECK:       for.body.i.i.i:
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[REF_TMP4_ASCAST_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I12_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[REF_TMP5_ASCAST_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I_I_I_I]]), !noalias [[META77:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR6:[0-9]+]], !noalias [[META80:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I12_I_I_I]]) #[[ATTR6]], !noalias [[META80]]
+// CHECK-NEXT:    [[ADD_I_I_I_I_I:%.*]] = fadd float [[CALL_I_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I_I]]
+// CHECK-NEXT:    store float [[ADD_I_I_I_I_I]], ptr [[REF_TMP_I_I_I_I_I]], align 4, !tbaa [[TBAA83:![0-9]+]], !noalias [[META80]]
+// CHECK-NEXT:    [[CALL_I_I3_I_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META80]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I_I_I_I]]), !noalias [[META77]]
+// CHECK-NEXT:    [[ARRAYIDX_I13_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I_I]], ptr [[ARRAYIDX_I13_I_I_I]], align 2, !tbaa [[TBAA85:![0-9]+]], !noalias [[META76]]
+// CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i64 [[I_0_I_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP87:![0-9]+]]
 // CHECK:       _ZN4sycl3_V16detailplERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi3EEES8_.exit:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META74]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META74]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I]]), !noalias [[META68]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[RES_I_I_I]], align 8, !noalias [[META76]]
+// CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META76]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP4_I_I]]), !noalias [[META66]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP5_I_I]]), !noalias [[META66]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<ext::oneapi::bfloat16, 3> a,
@@ -152,15 +163,15 @@ SYCL_EXTERNAL auto TestAdd(vec<ext::oneapi::bfloat16, 3> a,
 /***************** Binary Logical Ops *******************/
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIiLi16EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.265") align 64 captures(none) initializes((0, 64)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.265") align 64 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.265") align 64 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.266") align 64 captures(none) initializes((0, 64)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.266") align 64 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.266") align 64 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META87:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META90:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i32>, ptr [[A]], align 64, !tbaa [[TBAA17]], !noalias [[META93:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i32>, ptr [[B]], align 64, !tbaa [[TBAA17]], !noalias [[META93]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META89:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META92:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i32>, ptr [[A]], align 64, !tbaa [[TBAA17]], !noalias [[META95:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i32>, ptr [[B]], align 64, !tbaa [[TBAA17]], !noalias [[META95]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp sgt <16 x i32> [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <16 x i1> [[CMP_I_I_I_I]] to <16 x i32>
-// CHECK-NEXT:    store <16 x i32> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 64, !alias.scope [[META93]]
+// CHECK-NEXT:    store <16 x i32> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 64, !alias.scope [[META95]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<int, 16> a, vec<int, 16> b) {
@@ -168,17 +179,17 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<int, 16> a, vec<int, 16> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecISt4byteLi3EEES3_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.305") align 4 captures(none) initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.342") align 4 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.342") align 4 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.306") align 4 captures(none) initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.343") align 4 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.343") align 4 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META94:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META97:![0-9]+]])
-// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x i8>, ptr [[A]], align 4, !noalias [[META100:![0-9]+]]
-// CHECK-NEXT:    [[LOADVECN_I5_I_I:%.*]] = load <4 x i8>, ptr [[B]], align 4, !noalias [[META100]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META96:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META99:![0-9]+]])
+// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x i8>, ptr [[A]], align 4, !noalias [[META102:![0-9]+]]
+// CHECK-NEXT:    [[LOADVECN_I5_I_I:%.*]] = load <4 x i8>, ptr [[B]], align 4, !noalias [[META102]]
 // CHECK-NEXT:    [[TMP0:%.*]] = icmp ugt <4 x i8> [[LOADVECN_I_I_I]], [[LOADVECN_I5_I_I]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = shufflevector <4 x i1> [[TMP0]], <4 x i1> poison, <3 x i32> <i32 0, i32 1, i32 2>
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <3 x i1> [[CMP_I_I_I_I]] to <3 x i8>
 // CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <3 x i8> [[SEXT_I_I_I_I]], <3 x i8> <i8 undef, i8 poison, i8 poison>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-NEXT:    store <4 x i8> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META101:![0-9]+]]
+// CHECK-NEXT:    store <4 x i8> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META103:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<std::byte, 3> a, vec<std::byte, 3> b) {
@@ -186,15 +197,15 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<std::byte, 3> a, vec<std::byte, 3> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIbLi2EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.383") align 2 captures(none) initializes((0, 2)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.420") align 2 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.420") align 2 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.384") align 2 captures(none) initializes((0, 2)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.421") align 2 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.421") align 2 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META104:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META107:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i8>, ptr [[A]], align 2, !tbaa [[TBAA17]], !noalias [[META110:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <2 x i8>, ptr [[B]], align 2, !tbaa [[TBAA17]], !noalias [[META110]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META106:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META109:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i8>, ptr [[A]], align 2, !tbaa [[TBAA17]], !noalias [[META112:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <2 x i8>, ptr [[B]], align 2, !tbaa [[TBAA17]], !noalias [[META112]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp sgt <2 x i8> [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <2 x i1> [[CMP_I_I_I_I]] to <2 x i8>
-// CHECK-NEXT:    store <2 x i8> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 2, !alias.scope [[META111:![0-9]+]]
+// CHECK-NEXT:    store <2 x i8> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 2, !alias.scope [[META113:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<bool, 2> a, vec<bool, 2> b) {
@@ -202,15 +213,15 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<bool, 2> a, vec<bool, 2> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.461") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.498") align 16 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.498") align 16 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.462") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.499") align 16 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.499") align 16 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META114:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META117:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META120:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <8 x half>, ptr [[B]], align 16, !tbaa [[TBAA17]], !noalias [[META120]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META116:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META119:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META122:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <8 x half>, ptr [[B]], align 16, !tbaa [[TBAA17]], !noalias [[META122]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = fcmp ogt <8 x half> [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <8 x i1> [[CMP_I_I_I_I]] to <8 x i16>
-// CHECK-NEXT:    store <8 x i16> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META120]]
+// CHECK-NEXT:    store <8 x i16> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META122]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
@@ -218,35 +229,46 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.539") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.576") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.576") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR1]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.540") align 8 captures(none) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.577") align 8 captures(none) [[A:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.577") align 8 captures(none) [[B:%.*]]) local_unnamed_addr #[[ATTR1]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.539", align 8
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META121:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META124:![0-9]+]])
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I]]), !noalias [[META121]]
-// CHECK-NEXT:    store i64 0, ptr [[RES_I_I]], align 8, !noalias [[META127:![0-9]+]]
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
-// CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI4EEES8__EXIT:%.*]]
-// CHECK:       for.body.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[B_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I]]) #[[ATTR6]], !noalias [[META127]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I13_I_I]]) #[[ATTR6]], !noalias [[META127]]
-// CHECK-NEXT:    [[CMP_I_I_I_I_I:%.*]] = fcmp ogt float [[CALL_I_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I_I]]
-// CHECK-NEXT:    [[CONV6_I_I:%.*]] = sext i1 [[CMP_I_I_I_I_I]] to i16
-// CHECK-NEXT:    [[ARRAYIDX_I14_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    store i16 [[CONV6_I_I]], ptr [[ARRAYIDX_I14_I_I]], align 2, !tbaa [[TBAA83]], !noalias [[META127]]
-// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP128:![0-9]+]]
+// CHECK-NEXT:    [[RES_I_I_I:%.*]] = alloca %"class.sycl::_V1::vec.540", align 8
+// CHECK-NEXT:    [[REF_TMP4_I_I:%.*]] = alloca %"class.sycl::_V1::vec.577", align 8
+// CHECK-NEXT:    [[REF_TMP5_I_I:%.*]] = alloca %"class.sycl::_V1::vec.577", align 8
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META123:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META126:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP4_I_I]]), !noalias [[META123]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP5_I_I]]), !noalias [[META123]]
+// CHECK-NEXT:    [[REF_TMP4_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP4_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[REF_TMP5_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP5_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[A]], align 8, !noalias [[META129:![0-9]+]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[REF_TMP4_I_I]], align 8, !noalias [[META129]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[B]], align 8, !noalias [[META129]]
+// CHECK-NEXT:    store i64 [[TMP1]], ptr [[REF_TMP5_I_I]], align 8, !noalias [[META129]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META130:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META129]]
+// CHECK-NEXT:    store i64 0, ptr [[RES_I_I_I]], align 8, !noalias [[META133:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I:%.*]]
+// CHECK:       for.cond.i.i.i:
+// CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZN4SYCL3_V16DETAILGTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI4EEES8__EXIT:%.*]]
+// CHECK:       for.body.i.i.i:
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[REF_TMP4_ASCAST_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I14_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[REF_TMP5_ASCAST_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR6]], !noalias [[META133]]
+// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I14_I_I_I]]) #[[ATTR6]], !noalias [[META133]]
+// CHECK-NEXT:    [[CMP_I_I_I_I_I_I:%.*]] = fcmp ogt float [[CALL_I_I_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I_I_I]]
+// CHECK-NEXT:    [[CONV7_I_I_I:%.*]] = sext i1 [[CMP_I_I_I_I_I_I]] to i16
+// CHECK-NEXT:    [[ARRAYIDX_I15_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    store i16 [[CONV7_I_I_I]], ptr [[ARRAYIDX_I15_I_I_I]], align 2, !tbaa [[TBAA85]], !noalias [[META133]]
+// CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i64 [[I_0_I_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP134:![0-9]+]]
 // CHECK:       _ZN4sycl3_V16detailgtERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi4EEES8_.exit:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META127]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META127]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I]]), !noalias [[META121]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[RES_I_I_I]], align 8, !noalias [[META133]]
+// CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META133]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META129]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP4_I_I]]), !noalias [[META123]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP5_I_I]]), !noalias [[META123]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<ext::oneapi::bfloat16, 4> a,
@@ -257,143 +279,153 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<ext::oneapi::bfloat16, 4> a,
 /********************** Unary Ops **********************/
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIiLi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.613") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.613") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.615") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.615") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META129:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META132:![0-9]+]])
-// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x i32>, ptr [[A]], align 16, !noalias [[META135:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META135:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META138:![0-9]+]])
+// CHECK-NEXT:    [[LOADVECN_I_I_I:%.*]] = load <4 x i32>, ptr [[A]], align 16, !noalias [[META141:![0-9]+]]
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I:%.*]] = shufflevector <4 x i32> [[LOADVECN_I_I_I]], <4 x i32> poison, <3 x i32> <i32 0, i32 1, i32 2>
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp eq <3 x i32> [[EXTRACTVEC_I_I_I]], zeroinitializer
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <3 x i1> [[CMP_I_I_I_I]] to <3 x i32>
 // CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <3 x i32> [[SEXT_I_I_I_I]], <3 x i32> <i32 undef, i32 poison, i32 poison>, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
-// CHECK-NEXT:    store <4 x i32> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META135]]
+// CHECK-NEXT:    store <4 x i32> [[EXTRACTVEC_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META141]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<int, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecIiLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.651") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.651") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.653") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.653") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META136:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META139:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i32>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META142:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META142:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META145:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i32>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META148:![0-9]+]]
 // CHECK-NEXT:    [[SUB_I_I_I_I:%.*]] = sub <4 x i32> zeroinitializer, [[TMP0]]
-// CHECK-NEXT:    store <4 x i32> [[SUB_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META142]]
+// CHECK-NEXT:    store <4 x i32> [[SUB_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META148]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestMinus(vec<int, 4> a) { return -a; }
 
 // Negation is not valid for std::byte. Therefore, using bitwise negation.
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestBitwiseNegationN4sycl3_V13vecISt4byteLi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.689") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.689") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.691") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.691") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META143:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META146:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META149:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META149:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META152:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META155:![0-9]+]]
 // CHECK-NEXT:    [[NOT_I_I_I_I:%.*]] = xor <16 x i8> [[TMP0]], splat (i8 -1)
-// CHECK-NEXT:    store <16 x i8> [[NOT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META149]]
+// CHECK-NEXT:    store <16 x i8> [[NOT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META155]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestBitwiseNegation(vec<std::byte, 16> a) { return ~a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIbLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.727") align 4 captures(none) initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.150") align 4 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.729") align 4 captures(none) initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.150") align 4 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META150:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META153:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A]], align 4, !tbaa [[TBAA17]], !noalias [[META156:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META156:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META159:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A]], align 4, !tbaa [[TBAA17]], !noalias [[META162:![0-9]+]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp eq <4 x i8> [[TMP0]], zeroinitializer
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <4 x i1> [[CMP_I_I_I_I]] to <4 x i8>
-// CHECK-NEXT:    store <4 x i8> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META157:![0-9]+]]
+// CHECK-NEXT:    store <4 x i8> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META163:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<bool, 4> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_6detail9half_impl4halfELi2EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.765") align 4 captures(none) initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.802") align 4 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.767") align 4 captures(none) initializes((0, 4)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.804") align 4 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META160:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META163:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x half>, ptr [[A]], align 4, !tbaa [[TBAA17]], !noalias [[META166:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META166:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META169:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x half>, ptr [[A]], align 4, !tbaa [[TBAA17]], !noalias [[META172:![0-9]+]]
 // CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = fcmp oeq <2 x half> [[TMP0]], zeroinitializer
 // CHECK-NEXT:    [[SEXT_I_I_I_I:%.*]] = sext <2 x i1> [[CMP_I_I_I_I]] to <2 x i16>
-// CHECK-NEXT:    store <2 x i16> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META167:![0-9]+]]
+// CHECK-NEXT:    store <2 x i16> [[SEXT_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META173:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<half, 2> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.498") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.498") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.499") align 16 captures(none) initializes((0, 16)) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.499") align 16 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR0]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META170:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META173:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META176:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META176:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META179:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 16, !tbaa [[TBAA17]], !noalias [[META182:![0-9]+]]
 // CHECK-NEXT:    [[FNEG_I_I_I_I:%.*]] = fneg <8 x half> [[TMP0]]
-// CHECK-NEXT:    store <8 x half> [[FNEG_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META176]]
+// CHECK-NEXT:    store <8 x half> [[FNEG_I_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META182]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.841") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.228") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.843") align 8 captures(none) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.228") align 8 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR1]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.841", align 8
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META177:![0-9]+]])
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META180:![0-9]+]])
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I]]), !noalias [[META177]]
-// CHECK-NEXT:    store i64 0, ptr [[RES_I_I]], align 8, !noalias [[META183:![0-9]+]]
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
-// CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEE_EXIT:%.*]]
-// CHECK:       for.body.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I]]) #[[ATTR6]], !noalias [[META183]]
-// CHECK-NEXT:    [[TOBOOL_I_I_I:%.*]] = fcmp oeq float [[CALL_I_I_I_I_I]], 0.000000e+00
-// CHECK-NEXT:    [[CONV2_I_I:%.*]] = sext i1 [[TOBOOL_I_I_I]] to i16
-// CHECK-NEXT:    [[ARRAYIDX_I8_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    store i16 [[CONV2_I_I]], ptr [[ARRAYIDX_I8_I_I]], align 2, !tbaa [[TBAA83]], !noalias [[META183]]
-// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP184:![0-9]+]]
+// CHECK-NEXT:    [[RES_I_I_I:%.*]] = alloca %"class.sycl::_V1::vec.843", align 8
+// CHECK-NEXT:    [[REF_TMP2_I_I:%.*]] = alloca %"class.sycl::_V1::vec.228", align 8
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META183:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META186:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META183]]
+// CHECK-NEXT:    [[REF_TMP2_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP2_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[A]], align 8, !noalias [[META189:![0-9]+]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr [[REF_TMP2_I_I]], align 8, !noalias [[META189]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META190:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META189]]
+// CHECK-NEXT:    store i64 0, ptr [[RES_I_I_I]], align 8, !noalias [[META193:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I:%.*]]
+// CHECK:       for.cond.i.i.i:
+// CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEE_EXIT:%.*]]
+// CHECK:       for.body.i.i.i:
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[REF_TMP2_ASCAST_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) dereferenceable_or_null(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR6]], !noalias [[META193]]
+// CHECK-NEXT:    [[CMP_I_I_I_I_I:%.*]] = fcmp oeq float [[CALL_I_I_I_I_I_I]], 0.000000e+00
+// CHECK-NEXT:    [[CONV3_I_I_I:%.*]] = sext i1 [[CMP_I_I_I_I_I]] to i16
+// CHECK-NEXT:    [[ARRAYIDX_I9_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    store i16 [[CONV3_I_I_I]], ptr [[ARRAYIDX_I9_I_I_I]], align 2, !tbaa [[TBAA85]], !noalias [[META193]]
+// CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i64 [[I_0_I_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP194:![0-9]+]]
 // CHECK:       _ZN4sycl3_V16detailntERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi3EEE.exit:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[RES_I_I]], align 8, !noalias [[META183]]
-// CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META183]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I]]), !noalias [[META177]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[RES_I_I_I]], align 8, !noalias [[META193]]
+// CHECK-NEXT:    store i64 [[TMP1]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META193]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META189]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META183]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<ext::oneapi::bfloat16, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.878") align 32 captures(none) [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.878") align 32 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] {{.*}}{
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nofree writable writeonly sret(%"class.sycl::_V1::vec.881") align 32 captures(none) [[AGG_RESULT:%.*]], ptr nofree noundef readonly byval(%"class.sycl::_V1::vec.881") align 32 captures(none) [[A:%.*]]) local_unnamed_addr #[[ATTR1]] {{.*}}{
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[RES_I_I:%.*]] = alloca %"class.sycl::_V1::vec.878", align 32
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I]]), !noalias [[META185:![0-9]+]]
-// CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr align 32 [[RES_I_I]], i8 0, i64 32, i1 false), !noalias [[META188:![0-9]+]]
-// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
-// CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I]], 16
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILNGERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI16EEE_EXIT:%.*]]
-// CHECK:       for.body.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[A_ASCAST]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META191:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I]]) #[[ATTR6]], !noalias [[META194:![0-9]+]]
-// CHECK-NEXT:    [[FNEG_I_I_I_I:%.*]] = fneg float [[CALL_I_I_I_I_I]]
-// CHECK-NEXT:    store float [[FNEG_I_I_I_I]], ptr [[REF_TMP_I_I_I_I]], align 4, !tbaa [[TBAA81]], !noalias [[META194]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I]]) #[[ATTR6]], !noalias [[META194]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META191]]
-// CHECK-NEXT:    [[ARRAYIDX_I6_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I]], i64 [[I_0_I_I]]
-// CHECK-NEXT:    store i16 [[CALL_I_I_I_I_I_I]], ptr [[ARRAYIDX_I6_I_I]], align 2, !tbaa [[TBAA83]], !noalias [[META188]]
-// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP197:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP_I_I_I_I_I:%.*]] = alloca float, align 4
+// CHECK-NEXT:    [[RES_I_I_I:%.*]] = alloca %"class.sycl::_V1::vec.881", align 32
+// CHECK-NEXT:    [[REF_TMP2_I_I:%.*]] = alloca %"class.sycl::_V1::vec.881", align 32
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META195:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP2_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP2_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 32 [[REF_TMP2_I_I]], ptr align 32 [[A]], i64 32, i1 false), !noalias [[META198:![0-9]+]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META198]]
+// CHECK-NEXT:    call void @llvm.memset.p0.i64(ptr align 32 [[RES_I_I_I]], i8 0, i64 32, i1 false), !noalias [[META201:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I:%.*]]
+// CHECK:       for.cond.i.i.i:
+// CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i64 [[I_0_I_I_I]], 16
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZN4SYCL3_V16DETAILNGERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI16EEE_EXIT:%.*]]
+// CHECK:       for.body.i.i.i:
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds nuw [2 x i8], ptr addrspace(4) [[REF_TMP2_ASCAST_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[REF_TMP_I_I_I_I_I]]), !noalias [[META204:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR6]], !noalias [[META207:![0-9]+]]
+// CHECK-NEXT:    [[FNEG_I_I_I_I_I:%.*]] = fneg float [[CALL_I_I_I_I_I_I]]
+// CHECK-NEXT:    store float [[FNEG_I_I_I_I_I]], ptr [[REF_TMP_I_I_I_I_I]], align 4, !tbaa [[TBAA83]], !noalias [[META207]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META207]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP_I_I_I_I_I]]), !noalias [[META204]]
+// CHECK-NEXT:    [[ARRAYIDX_I7_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[RES_I_I_I]], i64 [[I_0_I_I_I]]
+// CHECK-NEXT:    store i16 [[CALL_I_I_I_I_I_I_I]], ptr [[ARRAYIDX_I7_I_I_I]], align 2, !tbaa [[TBAA85]], !noalias [[META201]]
+// CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i64 [[I_0_I_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP210:![0-9]+]]
 // CHECK:       _ZN4sycl3_V16detailngERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi16EEE.exit:
-// CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 32 [[AGG_RESULT]], ptr align 32 [[RES_I_I]], i64 32, i1 false)
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I]]), !noalias [[META185]]
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 32 [[AGG_RESULT]], ptr align 32 [[RES_I_I_I]], i64 32, i1 false)
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[RES_I_I_I]]), !noalias [[META198]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META195]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestMinus(vec<ext::oneapi::bfloat16, 16> a) { return -a; }
