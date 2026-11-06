@@ -67,8 +67,9 @@ static cl::opt<bool, true> VerifyEach("verify-each",
                                       cl::desc("Verify after each transform"));
 
 PassMachinery::PassMachinery(LLVMContext &Ctx, TargetMachine *TM,
-                             bool VerifyEach, DebugLogging debugLogLevel)
-    : LLVMCtx(Ctx), TM(TM) {
+                             bool VerifyEach, DebugLogging debugLogLevel,
+                             IntrusiveRefCntPtr<vfs::FileSystem> FS)
+    : LLVMCtx(Ctx), TM(TM), FS(std::move(FS)) {
   llvm::PrintPassOptions PrintPassOpts;
   PrintPassOpts.Verbose = DebugPM == DebugLogging::Verbose;
   PrintPassOpts.SkipAnalyses = DebugPM == DebugLogging::Quiet;
@@ -81,7 +82,7 @@ PassMachinery::~PassMachinery() {}
 
 void PassMachinery::initializeStart(PipelineTuningOptions PTO) {
   const std::optional<PGOOptions> PGOOpt;
-  PB.emplace(TM, PTO, PGOOpt, &PIC);
+  PB.emplace(TM, PTO, PGOOpt, &PIC, FS);
 }
 
 void PassMachinery::registerPasses() {
