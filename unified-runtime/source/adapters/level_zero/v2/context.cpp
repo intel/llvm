@@ -110,6 +110,15 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
       defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {
+  bool relaxedLimits = false;
+  for (auto *device : getDevices()) {
+    relaxedLimits |= device->useRelaxedAllocationLimits();
+    maxHostAllocSize = std::max<uint64_t>(
+        maxHostAllocSize, device->ZeDeviceProperties->maxMemAllocSize);
+  }
+  if (relaxedLimits)
+    maxHostAllocSize = 0;
+
   UR_LOG(INFO, "UR context created with {} devices", numDevices);
 }
 

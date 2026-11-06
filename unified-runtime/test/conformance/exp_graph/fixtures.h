@@ -91,8 +91,9 @@ struct urGraphPopulatedExpTest : urGraphExpTest {
 
   void TearDown() override {
     if (deviceMem) {
-      ASSERT_SUCCESS(urUSMFree(context, deviceMem));
+      // Reset the data before freeing the allocation.
       resetData();
+      ASSERT_SUCCESS(urUSMFree(context, deviceMem));
     }
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphExpTest::TearDown());

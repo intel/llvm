@@ -49,5 +49,7 @@ int main() {
   for (size_t i = 0; i < N; i++) {
     assert(HostDataA[i] == (i >= 512 ? i : i * 2));
   }
+
+  free(PtrA, Queue);
   return 0;
 }

@@ -79,8 +79,8 @@ struct ur_usm_pool_handle_t_ : v2::ur_object_t {
   void cleanupPoolsForQueue(void *hQueue);
   size_t getTotalReservedSize();
   size_t getPeakReservedSize();
-  size_t getTotalUsedSize();
-  size_t getPeakUsedSize();
+  ur_result_t getTotalUsedSize(size_t &usedSize);
+  ur_result_t getPeakUsedSize(size_t &peakSize);
   void changeResidentDevice(ur_device_handle_t hDevice,
                             ur_device_handle_t peerDevice, bool isAdding);
 
@@ -89,14 +89,16 @@ struct ur_usm_pool_handle_t_ : v2::ur_object_t {
   ur::RefCount RefCount;
 
 private:
+  ur_result_t getProxyUsedSize(bool peak, size_t &size);
   ur_context_handle_t hContext;
   usm::pool_manager<usm::pool_descriptor, UsmPool> poolManager;
   AllocationStats allocStats;
 };
 
 struct UsmPool {
-  UsmPool(ur_usm_pool_handle_t urPool, umf::pool_unique_handle_t umfPool)
-      : urPool(urPool), umfPool(std::move(umfPool)),
+  UsmPool(ur_usm_pool_handle_t urPool, umf::pool_unique_handle_t umfPool,
+          bool isProxy)
+      : urPool(urPool), umfPool(std::move(umfPool)), isProxy(isProxy),
         asyncPool(
             [](::ur_event_handle_t hEvent) {
               return v2_cast(hEvent)->release();
@@ -106,6 +108,7 @@ struct UsmPool {
             }) {}
   ur_usm_pool_handle_t urPool;
   umf::pool_unique_handle_t umfPool;
+  bool isProxy;
   // 'asyncPool' needs to be declared after 'umfPool' so its destructor is
   // invoked first.
   EnqueuedPool asyncPool;
