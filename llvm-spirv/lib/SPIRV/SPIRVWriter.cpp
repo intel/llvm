@@ -4314,6 +4314,10 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::debugtrap:
   case Intrinsic::uadd_with_overflow:
   case Intrinsic::usub_with_overflow:
+  case Intrinsic::smulh:
+  case Intrinsic::umulh:
+  case Intrinsic::smul_fix:
+  case Intrinsic::umul_fix:
   case Intrinsic::arithmetic_fence:
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
@@ -5107,6 +5111,43 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       SatVal = BM->addSelectInst(IsNeg, IntMin, IntMax, BB);
     }
     return BM->addSelectInst(Overflow, SatVal, Shifted, BB);
+  }
+  case Intrinsic::smulh:
+  case Intrinsic::umulh:
+  case Intrinsic::smul_fix:
+  case Intrinsic::umul_fix: {
+    Type *ValTy = II->getType();
+    SPIRVType *Ty = transType(ValTy);
+    SPIRVValue *A = transValue(II->getArgOperand(0), BB);
+    SPIRVValue *B = transValue(II->getArgOperand(1), BB);
+    unsigned BitWidth = ValTy->getScalarSizeInBits();
+    bool IsMulH = IID == Intrinsic::smulh || IID == Intrinsic::umulh;
+    unsigned Scale =
+        IsMulH ? BitWidth
+               : cast<ConstantInt>(II->getArgOperand(2))->getZExtValue();
+    assert(Scale <= BitWidth && "Scale must not exceed the bit width");
+    if (BitWidth == 1)
+      return Scale == 0 ? BM->addBinaryInst(OpLogicalAnd, Ty, A, B, BB)
+                        : transValue(Constant::getNullValue(ValTy), BB);
+    if (Scale == 0)
+      return BM->addBinaryInst(OpIMul, Ty, A, B, BB);
+
+    // The result is bits [Scale, Scale + BitWidth) of the full product.
+    bool IsSigned = IID == Intrinsic::smulh || IID == Intrinsic::smul_fix;
+    Op MulOp = IsSigned ? OpSMulExtended : OpUMulExtended;
+    SPIRVValue *Mul = BM->addBinaryInst(
+        MulOp, transType(StructType::get(ValTy, ValTy)), A, B, BB);
+    SPIRVValue *Hi = BM->addCompositeExtractInst(Ty, Mul, {1}, BB);
+    if (Scale == BitWidth)
+      return Hi;
+    SPIRVValue *Lo = BM->addCompositeExtractInst(Ty, Mul, {0}, BB);
+    SPIRVValue *LoBits =
+        BM->addBinaryInst(OpShiftRightLogical, Ty, Lo,
+                          transValue(ConstantInt::get(ValTy, Scale), BB), BB);
+    SPIRVValue *HiBits = BM->addBinaryInst(
+        OpShiftLeftLogical, Ty, Hi,
+        transValue(ConstantInt::get(ValTy, BitWidth - Scale), BB), BB);
+    return BM->addBinaryInst(OpBitwiseOr, Ty, HiBits, LoBits, BB);
   }
   case Intrinsic::uadd_with_overflow: {
     return BM->addBinaryInst(OpIAddCarry, transType(II->getType()),
