@@ -64,6 +64,15 @@
 // CHECK-MULTI-TARGET: clang-linker-wrapper
 // CHECK-MULTI-TARGET-SAME: "--bitcode-library=amdgcn-amd-amdhsa={{.*}}devicelib-amdgcn-amd-amdhsa.bc" "--bitcode-library=nvptx64-nvidia-cuda={{.*}}devicelib-nvptx64-nvidia-cuda.bc"
 
+/// Check devicelib are also forwarded for SPIR targets, as a link-time
+/// fallback for old-model objects/archives.
+// RUN: %clang -### -fsycl --offload-new-driver -ccc-install-dir %S/Inputs/SYCL/bin \
+// RUN:   -fsycl-targets=spir64 \
+// RUN:   %s 2>&1 | FileCheck -check-prefix=CHECK-SPIR-BC %s
+// CHECK-SPIR-BC: clang-linker-wrapper
+// CHECK-SPIR-BC-SAME: "--bitcode-library=spir64-unknown-unknown={{.*}}libsycl-crt.bc"
+// CHECK-SPIR-BC-SAME: "--bitcode-library=spir64-unknown-unknown={{.*}}libsycl-cmath.bc"
+
 /// The device library location is resolved from the library being consumed.
 /// Inputs/SYCL matches the Linux install layout, with the libraries in
 /// lib/dpcpp-7/sycl. Make sure that location is found, rather than the

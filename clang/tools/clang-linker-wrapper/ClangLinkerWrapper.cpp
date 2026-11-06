@@ -1821,6 +1821,11 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
         LibTriple.getVendor() != Triple.getVendor() ||
         LibTriple.getOS() != Triple.getOS())
       continue;
+    // SPIR AOT variants (spir64_gen, spir64_x86_64, ...) share arch/vendor/OS
+    // and differ only in SubArch, unlike AMDGPU above, so enforce it here to
+    // avoid mixing libraries across SPIR variants (e.g. spir64 vs spir64_gen).
+    if (Triple.isSPIROrSPIRV() && LibTriple.getSubArch() != Triple.getSubArch())
+      continue;
 
     if (!llvm::sys::fs::exists(LibraryPath))
       return createStringError(inconvertibleErrorCode(),
