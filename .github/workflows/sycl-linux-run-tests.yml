@@ -307,17 +307,22 @@ jobs:
           fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/` + name + '.zip', Buffer.from(download.data));
     - name: Unzip artifact [workflow_run]
       if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'
+      env:
+        ARTIFACT: ${{ inputs.toolchain_artifact }}
       run: |
         pwd
         ls
-        unzip ${{ inputs.toolchain_artifact }}.zip
-        rm ${{ inputs.toolchain_artifact }}.zip
+        unzip "$ARTIFACT".zip
+        rm "$ARTIFACT".zip
     - name: Extract/Setup SYCL toolchain
       if: inputs.toolchain_artifact != ''
+      env:
+        ARTIFACT_FILENAME: ${{ inputs.toolchain_artifact_filename }}
+        DECOMPRESS_COMMAND: ${{ inputs.toolchain_decompress_command }}
       run: |
         mkdir toolchain
-        tar -I '${{ inputs.toolchain_decompress_command }}' -xf ${{ inputs.toolchain_artifact_filename }} -C toolchain
-        rm -f ${{ inputs.toolchain_artifact_filename }}
+        tar -I "$DECOMPRESS_COMMAND" -xf "$ARTIFACT_FILENAME" -C toolchain
+        rm -f "$ARTIFACT_FILENAME"
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - name: Download SYCL toolchain using release tag
