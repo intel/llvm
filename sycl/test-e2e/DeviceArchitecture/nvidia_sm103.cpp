@@ -4,7 +4,8 @@
 
 #include <cassert>
 #include <string>
-#include <sycl/detail/core.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 
 int main() {
   namespace syclex = sycl::ext::oneapi::experimental;
