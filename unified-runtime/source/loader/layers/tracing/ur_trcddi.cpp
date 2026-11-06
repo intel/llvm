@@ -10907,6 +10907,309 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreCreateExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] initial value of the semaphore
+    uint64_t initialValue,
+    /// [out][alloc] pointer to the handle of the semaphore object created
+    ur_exp_timeline_semaphore_handle_t *phSemaphore) {
+  auto pfnCreateExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnCreateExp;
+
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_timeline_semaphore_create_exp_params_t params = {&hContext, &initialValue,
+                                                      &phSemaphore};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_TIMELINE_SEMAPHORE_CREATE_EXP,
+                                 "urTimelineSemaphoreCreateExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urTimelineSemaphoreCreateExp\n");
+
+  ur_result_t result = pfnCreateExp(hContext, initialValue, phSemaphore);
+
+  getContext()->notify_end(UR_FUNCTION_TIMELINE_SEMAPHORE_CREATE_EXP,
+                           "urTimelineSemaphoreCreateExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_TIMELINE_SEMAPHORE_CREATE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urTimelineSemaphoreCreateExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreRetainExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreRetainExp(
+    /// [in][retain] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+  auto pfnRetainExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnRetainExp;
+
+  if (nullptr == pfnRetainExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_timeline_semaphore_retain_exp_params_t params = {&hSemaphore};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_TIMELINE_SEMAPHORE_RETAIN_EXP,
+                                 "urTimelineSemaphoreRetainExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urTimelineSemaphoreRetainExp\n");
+
+  ur_result_t result = pfnRetainExp(hSemaphore);
+
+  getContext()->notify_end(UR_FUNCTION_TIMELINE_SEMAPHORE_RETAIN_EXP,
+                           "urTimelineSemaphoreRetainExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_TIMELINE_SEMAPHORE_RETAIN_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urTimelineSemaphoreRetainExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreReleaseExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreReleaseExp(
+    /// [in][release] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+  auto pfnReleaseExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnReleaseExp;
+
+  if (nullptr == pfnReleaseExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_timeline_semaphore_release_exp_params_t params = {&hSemaphore};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_TIMELINE_SEMAPHORE_RELEASE_EXP,
+                                 "urTimelineSemaphoreReleaseExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urTimelineSemaphoreReleaseExp\n");
+
+  ur_result_t result = pfnReleaseExp(hSemaphore);
+
+  getContext()->notify_end(UR_FUNCTION_TIMELINE_SEMAPHORE_RELEASE_EXP,
+                           "urTimelineSemaphoreReleaseExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_TIMELINE_SEMAPHORE_RELEASE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urTimelineSemaphoreReleaseExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostWaitExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostWaitExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value) {
+  auto pfnHostWaitExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnHostWaitExp;
+
+  if (nullptr == pfnHostWaitExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_timeline_semaphore_host_wait_exp_params_t params = {&hSemaphore, &value};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_WAIT_EXP,
+                                 "urTimelineSemaphoreHostWaitExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urTimelineSemaphoreHostWaitExp\n");
+
+  ur_result_t result = pfnHostWaitExp(hSemaphore, value);
+
+  getContext()->notify_end(UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_WAIT_EXP,
+                           "urTimelineSemaphoreHostWaitExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_WAIT_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urTimelineSemaphoreHostWaitExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostSignalExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value) {
+  auto pfnHostSignalExp =
+      getContext()->urDdiTable.TimelineSemaphoreExp.pfnHostSignalExp;
+
+  if (nullptr == pfnHostSignalExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_timeline_semaphore_host_signal_exp_params_t params = {&hSemaphore, &value};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP,
+                                 "urTimelineSemaphoreHostSignalExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urTimelineSemaphoreHostSignalExp\n");
+
+  ur_result_t result = pfnHostSignalExp(hSemaphore, value);
+
+  getContext()->notify_end(UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP,
+                           "urTimelineSemaphoreHostSignalExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urTimelineSemaphoreHostSignalExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreSignalExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreSignalExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnTimelineSemaphoreSignalExp =
+      getContext()->urDdiTable.EnqueueExp.pfnTimelineSemaphoreSignalExp;
+
+  if (nullptr == pfnTimelineSemaphoreSignalExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_timeline_semaphore_signal_exp_params_t params = {
+      &hQueue,          &hSemaphore, &value, &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP,
+      "urEnqueueTimelineSemaphoreSignalExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueTimelineSemaphoreSignalExp\n");
+
+  ur_result_t result = pfnTimelineSemaphoreSignalExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP,
+                           "urEnqueueTimelineSemaphoreSignalExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urEnqueueTimelineSemaphoreSignalExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreWaitExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreWaitExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnTimelineSemaphoreWaitExp =
+      getContext()->urDdiTable.EnqueueExp.pfnTimelineSemaphoreWaitExp;
+
+  if (nullptr == pfnTimelineSemaphoreWaitExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_timeline_semaphore_wait_exp_params_t params = {
+      &hQueue,          &hSemaphore, &value, &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP,
+      "urEnqueueTimelineSemaphoreWaitExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urEnqueueTimelineSemaphoreWaitExp\n");
+
+  ur_result_t result = pfnTimelineSemaphoreWaitExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP,
+                           "urEnqueueTimelineSemaphoreWaitExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urEnqueueTimelineSemaphoreWaitExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphCreateExp
 __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
@@ -12037,6 +12340,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnNativeCommandExp = pDdiTable->pfnNativeCommandExp;
   pDdiTable->pfnNativeCommandExp = ur_tracing_layer::urEnqueueNativeCommandExp;
 
+  dditable.pfnTimelineSemaphoreSignalExp =
+      pDdiTable->pfnTimelineSemaphoreSignalExp;
+  pDdiTable->pfnTimelineSemaphoreSignalExp =
+      ur_tracing_layer::urEnqueueTimelineSemaphoreSignalExp;
+
+  dditable.pfnTimelineSemaphoreWaitExp = pDdiTable->pfnTimelineSemaphoreWaitExp;
+  pDdiTable->pfnTimelineSemaphoreWaitExp =
+      ur_tracing_layer::urEnqueueTimelineSemaphoreWaitExp;
+
   dditable.pfnGraphExp = pDdiTable->pfnGraphExp;
   pDdiTable->pfnGraphExp = ur_tracing_layer::urEnqueueGraphExp;
 
@@ -12785,6 +13097,52 @@ __urdlllocal ur_result_t UR_APICALL urGetSamplerProcAddrTable(
   return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TimelineSemaphoreExp
+/// table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_timeline_semaphore_exp_dditable_t *pDdiTable) {
+  auto &dditable =
+      ur_tracing_layer::getContext()->urDdiTable.TimelineSemaphoreExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnCreateExp = pDdiTable->pfnCreateExp;
+  pDdiTable->pfnCreateExp = ur_tracing_layer::urTimelineSemaphoreCreateExp;
+
+  dditable.pfnRetainExp = pDdiTable->pfnRetainExp;
+  pDdiTable->pfnRetainExp = ur_tracing_layer::urTimelineSemaphoreRetainExp;
+
+  dditable.pfnReleaseExp = pDdiTable->pfnReleaseExp;
+  pDdiTable->pfnReleaseExp = ur_tracing_layer::urTimelineSemaphoreReleaseExp;
+
+  dditable.pfnHostWaitExp = pDdiTable->pfnHostWaitExp;
+  pDdiTable->pfnHostWaitExp = ur_tracing_layer::urTimelineSemaphoreHostWaitExp;
+
+  dditable.pfnHostSignalExp = pDdiTable->pfnHostSignalExp;
+  pDdiTable->pfnHostSignalExp =
+      ur_tracing_layer::urTimelineSemaphoreHostSignalExp;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's USM table
 ///        with current process' addresses
 ///
@@ -13207,6 +13565,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetSamplerProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Sampler);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetTimelineSemaphoreExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->TimelineSemaphoreExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

@@ -212,6 +212,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_batched.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/timeline_semaphore.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.cpp
@@ -232,6 +233,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_out_of_order.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/timeline_semaphore.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm_p2p.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/ur_interface_loader_common_forwarders.hpp

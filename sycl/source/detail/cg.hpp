@@ -50,6 +50,7 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
+class timeline_semaphore_impl;
 
 /// Base class for all types of command groups.
 class CG {
@@ -574,6 +575,27 @@ public:
         MFreePtr(ptr) {}
 
   void *getPtr() const { return MFreePtr; }
+};
+
+/// "Timeline semaphore signal" and "Timeline semaphore wait" command group
+/// class. Holding the semaphore keeps it alive until the command is enqueued.
+class CGTimelineSemaphore : public CG {
+  std::shared_ptr<timeline_semaphore_impl> MSemaphore;
+  uint64_t MValue;
+
+public:
+  CGTimelineSemaphore(CGType Type,
+                      std::shared_ptr<timeline_semaphore_impl> Semaphore,
+                      uint64_t Value, CG::StorageInitHelper CGData,
+                      detail::code_location loc = {})
+      : CG(Type, std::move(CGData), std::move(loc)),
+        MSemaphore(std::move(Semaphore)), MValue(Value) {
+    assert(Type == CGType::TimelineSemaphoreSignal ||
+           Type == CGType::TimelineSemaphoreWait);
+  }
+
+  timeline_semaphore_impl &getSemaphore() const { return *MSemaphore; }
+  uint64_t getValue() const { return MValue; }
 };
 
 /// "Execute command-buffer" command group class.

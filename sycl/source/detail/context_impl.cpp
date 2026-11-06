@@ -617,6 +617,27 @@ bool context_impl::supportsIPCEvents() {
                            MIPCEventSupport, MIPCEventSupportMutex);
 }
 
+bool context_impl::supportsTimelineSemaphores() {
+  return allDevicesSupport(UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP,
+                           MTimelineSemaphoreSupport,
+                           MTimelineSemaphoreSupportMutex);
+}
+
+uint64_t context_impl::getTimelineSemaphoreMaxValue() {
+  std::call_once(MTimelineSemaphoreMaxValueFlag, [this]() {
+    for (device_impl *DevImpl : MDevices) {
+      uint64_t MaxValue = 0;
+      if (getAdapter().call_nocheck<UrApiKind::urDeviceGetInfo>(
+              DevImpl->getHandleRef(),
+              UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP, sizeof(MaxValue),
+              &MaxValue, nullptr) == UR_RESULT_SUCCESS)
+        MTimelineSemaphoreMaxValue =
+            std::min(MTimelineSemaphoreMaxValue, MaxValue);
+    }
+  });
+  return MTimelineSemaphoreMaxValue;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

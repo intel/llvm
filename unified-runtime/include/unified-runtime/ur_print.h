@@ -2998,6 +2998,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueNativeCommandExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_timeline_semaphore_signal_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintEnqueueTimelineSemaphoreSignalExpParams(
+    const struct ur_enqueue_timeline_semaphore_signal_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_timeline_semaphore_wait_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintEnqueueTimelineSemaphoreWaitExpParams(
+    const struct ur_enqueue_timeline_semaphore_wait_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_graph_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -4008,6 +4030,56 @@ urPrintMemoryExportFreeExportableMemoryExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL
 urPrintMemoryExportExportMemoryHandleExpParams(
     const struct ur_memory_export_export_memory_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_timeline_semaphore_create_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintTimelineSemaphoreCreateExpParams(
+    const struct ur_timeline_semaphore_create_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_timeline_semaphore_retain_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintTimelineSemaphoreRetainExpParams(
+    const struct ur_timeline_semaphore_retain_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_timeline_semaphore_release_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintTimelineSemaphoreReleaseExpParams(
+    const struct ur_timeline_semaphore_release_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_timeline_semaphore_host_wait_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintTimelineSemaphoreHostWaitExpParams(
+    const struct ur_timeline_semaphore_host_wait_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_timeline_semaphore_host_signal_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintTimelineSemaphoreHostSignalExpParams(
+    const struct ur_timeline_semaphore_host_signal_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
