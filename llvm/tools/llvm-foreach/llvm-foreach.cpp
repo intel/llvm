@@ -22,6 +22,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <list>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -125,17 +126,19 @@ static void error(std::error_code EC, const Twine &Prefix) {
     error(Prefix + ": " + EC.message());
 }
 
-// Poll all running jobs.
-// Try to find a finished job with a non-blocking wait.
-// If no job found then sleep and repeat.
-// If found one job, removes it from Jobs and returns its exit code..
+// Wait for a job to finish, remove it from Jobs, and return its exit code.
+// If only one job is running, llvm-foreach cannot start the next command
+// until it finishes, so wait for it to exit instead of polling it. If several
+// jobs are running, check them all without blocking so a finished job's slot
+// can be used immediately, even if another job is slow.
 static int waitForAnyJob(std::list<RunningJob> &Jobs) {
+  const std::optional<unsigned> SecondsToWait =
+      Jobs.size() == 1 ? std::nullopt : std::optional<unsigned>(0);
   while (true) {
     std::string ErrMsg;
     for (auto It = Jobs.begin(); It != Jobs.end(); ++It) {
-      // Non-blocking wait: returns Pid==0 if still running.
       sys::ProcessInfo WaitResult =
-          sys::Wait(It->Process, /*SecondsToWait=*/0, &ErrMsg);
+          sys::Wait(It->Process, SecondsToWait, &ErrMsg);
       if (WaitResult.Pid == 0)
         continue; // Job is in progress. Move on.
 
