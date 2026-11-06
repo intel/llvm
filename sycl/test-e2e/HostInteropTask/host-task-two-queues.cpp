@@ -72,9 +72,10 @@ void test() {
   Q1.wait_and_throw();
   Q2.wait_and_throw();
 
+  auto AccC = BufC.get_host_access(sycl::read_only);
   for (size_t I = 0; I < WIDTH; ++I)
     for (size_t J = 0; J < HEIGHT; ++J)
-      assert(DataC[I * HEIGHT + J] == (1 + 2 * 3 * NTIMES * 2));
+      assert(AccC[I][J] == (1 + 2 * 3 * NTIMES * 2));
 }
 
 int main(void) {

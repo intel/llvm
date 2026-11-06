@@ -24,7 +24,6 @@ int main() {
 
   int *dataA = malloc_host<int>(dataSize, Queue1);
   int *dataB = malloc_host<int>(dataSize, Queue1);
-  int *dataC = malloc_host<int>(dataSize, Queue1);
 
   bool ready = false;
   std::mutex host_task_mtx;
@@ -54,13 +53,17 @@ int main() {
 
   Queue2.wait();
 
+  int Error = 0;
   for (size_t i = 0; i != dataSize; ++i) {
     if (dataB[i] != i) {
       std::cout << "Result mismatches " << dataB[i] << " vs expected " << i
                 << " for index " << i << std::endl;
-      return 1;
+      Error = 1;
+      break;
     }
   }
 
-  return 0;
+  free(dataA, Queue1);
+  free(dataB, Queue1);
+  return Error;
 }
