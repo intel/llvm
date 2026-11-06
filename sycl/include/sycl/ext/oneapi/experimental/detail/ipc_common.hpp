@@ -45,7 +45,10 @@ inline bool operator!=(const enable_ipc &lhs, const enable_ipc &rhs) {
 #include <cstddef>
 #include <vector>
 
-#if __has_include(<span>)
+#if __has_include(<version>)
+#include <version> // defines __cpp_lib_span
+#endif
+#ifdef __cpp_lib_span
 #include <span>
 #endif
 
