@@ -235,11 +235,8 @@ void CodeGenFunction::EmitVarDecl(const VarDecl &D) {
   if (D.getType().getAddressSpace() == LangAS::opencl_local)
     return CGM.getOpenCLRuntime().EmitWorkGroupLocalVarDecl(*this, D);
 
-  SYCLScopeAttr *ScopeAttr = D.getAttr<SYCLScopeAttr>();
-  if (!ScopeAttr)
-    if (auto *RD = D.getType()->getAsCXXRecordDecl())
-      ScopeAttr = RD->getAttr<SYCLScopeAttr>();
-  if (ScopeAttr && ScopeAttr->isWorkGroup())
+  if (CGSYCLRuntime::getWorkGroupVarKind(D) !=
+      CGSYCLRuntime::WorkGroupVarKind::None)
     return CGM.getSYCLRuntime().emitWorkGroupLocalVarDecl(*this, D);
 
   assert(D.hasLocalStorage());
@@ -510,23 +507,26 @@ void CodeGenFunction::EmitWorkGroupScopeVarDecl(const VarDecl &D) {
 
   auto *GV = cast<llvm::GlobalVariable>(
       CGM.getStaticLocalDeclAddress(&D)->stripPointerCasts());
-  if (const auto *RD = D.getType()->getAsCXXRecordDecl();
-      RD && RD->hasAttr<SYCLScopeAttr>()) {
+  switch (CGSYCLRuntime::getWorkGroupVarKind(D)) {
+  case CGSYCLRuntime::WorkGroupVarKind::StaticLike:
     // The scope attribute is on the record so this variable has
     // work_group_static storage, zero-initialized like a static object.
     GV->setInitializer(CGM.EmitNullConstant(D.getType()));
-  } else if (D.hasAttr<SYCLScopeAttr>()) {
-    // PFWG local: shared by the work group but with automatic storage duration,
-    // so it is initialized and destroyed every time its scope is entered and
-    // exited.
-    AutoVarEmission Emission(D);
-    Emission.Addr = GetAddrOfLocalVar(&D);
-    EmitAutoVarInit(Emission);
-    EmitAutoVarCleanups(Emission);
-
+    break;
+  case CGSYCLRuntime::WorkGroupVarKind::HoistedAutomatic:
+    {
+      // PFWG local: shared by the work group but with automatic storage duration,
+      // so it is initialized and destroyed every time its scope is entered and
+      // exited.
+      AutoVarEmission Emission(D);
+      Emission.Addr = GetAddrOfLocalVar(&D);
+      EmitAutoVarInit(Emission);
+      EmitAutoVarCleanups(Emission);
+    }
     // The variable is initialized by stores, so it cannot be a constant.
     GV->setConstant(false);
-  } else {
+    break;
+  default:
     llvm_unreachable("This function should only be called with a work group "
                      "scoped variable");
   }
