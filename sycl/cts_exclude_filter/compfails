@@ -1,6 +1,2 @@
 # Please use "#" to add comments here.
 # Do not delete the file even if it's empty.
-
-# Still uses the pre-rename non-uniform groups API, fixed by
-# KhronosGroup/SYCL-CTS#1257.
-oneapi_non_uniform_groups
