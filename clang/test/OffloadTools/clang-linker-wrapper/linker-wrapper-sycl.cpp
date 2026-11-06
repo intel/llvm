@@ -540,3 +540,20 @@
 // RUN:   --linker-path=/usr/bin/ld %t_multi.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-MULTI %s
 // CHECK-WRAPPER-MULTI: llvm-link{{.*}} {{.*}}.amd.devicelib.bc
 // CHECK-WRAPPER-MULTI: llvm-link{{.*}} {{.*}}.nvptx.devicelib.bc {{.*}}.nvptx.libdummy.bc
+
+// Check that SPIR libraries are matched by SubArch, not just arch/vendor/OS.
+// RUN: %clang -cc1 %s -triple spir64-unknown-unknown -emit-llvm-bc -o %t.spir64.devicelib.bc
+// RUN: %clang -cc1 %s -triple spir64_gen-unknown-unknown -emit-llvm-bc -o %t.spir64_gen.devicelib.bc
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.spir64.devicelib.bc \
+// RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.spir64_gen.devicelib.bc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-JIT %s
+// CHECK-WRAPPER-SPIR64-JIT: llvm-link{{.*}} {{.*}}.spir64.devicelib.bc
+// CHECK-WRAPPER-SPIR64-JIT-NOT: spir64_gen.devicelib.bc
+
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.spir64.devicelib.bc \
+// RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.spir64_gen.devicelib.bc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-GEN %s
+// CHECK-WRAPPER-SPIR64-GEN: llvm-link{{.*}} {{.*}}.spir64_gen.devicelib.bc
+// CHECK-WRAPPER-SPIR64-GEN-NOT: {{[.]}}spir64.devicelib.bc
