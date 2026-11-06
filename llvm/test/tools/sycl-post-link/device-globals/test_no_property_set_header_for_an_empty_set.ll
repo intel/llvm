@@ -1,5 +1,7 @@
-; RUN: sycl-post-link -properties --device-globals -S < %s -o %t.files.table
-; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
+; RUN: rm -rf %t.dir
+; RUN: mkdir %t.dir
+; RUN: sycl-post-link -properties --device-globals -S < %s -o %t.dir/files.table
+; RUN: FileCheck %s -input-file=%t.dir/files_0.prop --check-prefix CHECK-PROP
 
 ; This test is intended to check that sycl-post-link doesn't add the header for
 ; the empty SYCL/device globals property set.
@@ -12,6 +14,12 @@ target triple = "spir64-unknown-unknown"
 %class.anon.0 = type { i8 }
 
 @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #0
+
+; Keep the module and the variable's use alive so post-link emits properties.
+define spir_kernel void @test_kernel(%class.anon.0 addrspace(4)* %this) {
+  call spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* %this)
+  ret void
+}
 
 define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #1 align 2 {
 entry:
