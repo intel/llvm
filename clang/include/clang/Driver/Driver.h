@@ -982,12 +982,10 @@ public:
   /// occurrence is reported.
   void diagnoseOffloadBundlerNotFound(StringRef Dir, StringRef FileName) const;
 
-  /// getOffloadSectionsCache - Get the cache of offload sections reported by
-  /// clang-offload-bundler -list for each input file.
-  llvm::StringMap<llvm::SmallVector<std::string, 4>> &
-  getOffloadSectionsCache() const {
-    return OffloadSectionsCache;
-  }
+  /// getOffloadSections - Get the offload sections of \p File as reported by
+  /// clang-offload-bundler -list. The bundler is run at most once per file.
+  llvm::SmallVector<std::string, 4> getOffloadSections(Compilation &C,
+                                                       StringRef File) const;
 
   /// SYCLDeviceTraitMacroArg - Add the given macro to the vector of args to be
   /// added to the device compilation step.

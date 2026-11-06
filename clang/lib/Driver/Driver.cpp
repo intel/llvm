@@ -4108,13 +4108,11 @@ static SmallVector<std::string, 4> listOffloadSections(Compilation &C,
   return Sections;
 }
 
-/// Return the offload sections of \p File as reported by
-/// clang-offload-bundler -list. The result is cached, so the bundler is run at
-/// most once per file even though several places in the driver need it.
-static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
-                                                      StringRef File) {
-  auto [It, Inserted] =
-      C.getDriver().getOffloadSectionsCache().try_emplace(File);
+// The result is cached, so the bundler is run at most once per file even
+// though several places in the driver need it.
+SmallVector<std::string, 4> Driver::getOffloadSections(Compilation &C,
+                                                       StringRef File) const {
+  auto [It, Inserted] = OffloadSectionsCache.try_emplace(File);
   if (Inserted)
     It->second = listOffloadSections(C, File);
   return It->second;
@@ -4142,7 +4140,8 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
 
 static bool hasOffloadSections(Compilation &C, const StringRef &File,
                                DerivedArgList &Args) {
-  SmallVector<std::string, 4> Sections(getOffloadSections(C, File));
+  SmallVector<std::string, 4> Sections(
+      C.getDriver().getOffloadSections(C, File));
   return !Sections.empty();
 }
 
@@ -4150,15 +4149,16 @@ static bool hasOffloadSections(Compilation &C, const StringRef &File,
 /// object is a regular host object holding wrapped SYCL device images. The
 /// clang-offload-wrapper places the images in sections named like bundles
 /// (e.g. __CLANG_OFFLOAD_BUNDLE__sycl-spir64), so clang-offload-bundler -list
-/// reports them as bundle IDs (e.g. sycl-spir64), but it reports no host bundle
-/// ID, unlike for a fat object. When linking a final host image,
-/// it must be passed to the host linker as is: unbundling it would drop the
-/// host code that registers the images and send the final device images back
+/// reports them as bundle IDs (e.g. sycl-spir64). Unlike for a fat object, it
+/// reports no host bundle ID. When linking a final host image, such an object
+/// must be passed to the host linker as is: unbundling it would drop the host
+/// code that registers the images and send the final device images back
 /// through the device link.
 static bool isSYCLLinkWrappedObject(Compilation &C, StringRef File) {
   if (isStaticArchiveFile(File) || !isObjectFile(File.str()))
     return false;
-  SmallVector<std::string, 4> Sections(getOffloadSections(C, File));
+  SmallVector<std::string, 4> Sections(
+      C.getDriver().getOffloadSections(C, File));
   return !Sections.empty() && llvm::all_of(Sections, [](StringRef S) {
     return S.starts_with("sycl-");
   });
@@ -6448,7 +6448,8 @@ class OffloadingActionBuilder final {
       // Gather all of the sections seen in the offload objects/archives
       SmallVector<std::string, 4> UniqueSections;
       for (StringRef OLArg : OffloadLibArgs) {
-        SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
+        SmallVector<std::string, 4> Sections(
+            C.getDriver().getOffloadSections(C, OLArg));
         for (auto &Section : Sections) {
           // We only care about sections that start with 'sycl-'.  Also remove
           // the prefix before adding it.
@@ -6564,7 +6565,8 @@ class OffloadingActionBuilder final {
     //   <aot_arch> values:  spir64_gen, spir64_x86_64
     SmallVector<std::string, 4> deviceBinarySections(Compilation &C,
                                                      const StringRef &Input) {
-      SmallVector<std::string, 4> Sections(getOffloadSections(C, Input));
+      SmallVector<std::string, 4> Sections(
+          C.getDriver().getOffloadSections(C, Input));
       SmallVector<std::string, 4> FinalDeviceSections;
       for (auto S : Sections) {
         SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_x86_64"};

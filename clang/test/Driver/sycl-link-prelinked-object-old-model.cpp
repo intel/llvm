@@ -15,9 +15,8 @@
 // RUN: llvm-objcopy --add-section=__CLANG_OFFLOAD_BUNDLE__sycl-spir64=%t_image.spv \
 // RUN:   %t_host.o %t_prelinked.o
 // RUN: clang-offload-bundler -type=o -input=%t_prelinked.o -list \
-// RUN:   | FileCheck %s -check-prefix=SECTIONS
+// RUN:   | FileCheck %s -check-prefix=SECTIONS --implicit-check-not=host-
 // SECTIONS: sycl-spir64
-// SECTIONS-NOT: host-
 
 /// Fat object from a regular -fsycl compilation.
 // RUN: echo "void bar(void) {}" > %t_fat.cpp
