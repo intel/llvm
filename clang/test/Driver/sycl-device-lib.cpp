@@ -37,6 +37,14 @@
 // SYCL_DEVICE_LIB_LINK_LIBC_LINUX: clang{{.*}} "-triple" "spir64-unknown-linux"
 // SYCL_DEVICE_LIB_LINK_LIBC_LINUX-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
 
+/// test that a spirv64 triple with a non-unknown vendor still links libc.bc
+/// from the spirv64-unknown-unknown directory.
+// RUN: %clangxx -fsycl -fsycl-targets=spirv64-intel-unknown --offload-new-driver %s -ccc-install-dir %{clang_install_dir} -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_LIBC_SPIRV_INTEL
+// SYCL_DEVICE_LIB_LINK_LIBC_SPIRV_INTEL-NOT: error:
+// SYCL_DEVICE_LIB_LINK_LIBC_SPIRV_INTEL: clang{{.*}} "-triple" "spirv64-intel-unknown"
+// SYCL_DEVICE_LIB_LINK_LIBC_SPIRV_INTEL-SAME: "-mlink-builtin-bitcode" "{{.*}}/lib/spirv64-unknown-unknown/libc.bc"
+
 /// ###########################################################################
 
 /// test behavior of disabling all device libraries
