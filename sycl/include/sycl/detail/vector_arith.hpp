@@ -309,13 +309,18 @@ template <typename Self> struct VecOperators {
     }
 #endif
 #endif
-    result_t<OpTy> res{};
-    for (size_t i = 0; i < N; ++i)
-      if constexpr (is_logical<OpTy>)
-        res[i] = Op(Args[i]...) ? -1 : 0;
-      else
-        res[i] = Op(Args[i]...);
-    return res;
+    // Operate on local copies of the operands so that each one is read from
+    // memory as a whole vector rather than element by element (e.g. bfloat16,
+    // whose element conversions take their operand by reference).
+    return [&](const auto &...Locals) {
+      result_t<OpTy> res{};
+      for (size_t i = 0; i < N; ++i)
+        if constexpr (is_logical<OpTy>)
+          res[i] = Op(Locals[i]...) ? -1 : 0;
+        else
+          res[i] = Op(Locals[i]...);
+      return res;
+    }(Self{Args}...);
   }
 
   // Uglier than possible due to
