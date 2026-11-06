@@ -50,5 +50,26 @@
 // CHECK-EMPTY-SPIR64: target triple = "spir64"
 // CHECK-EMPTY-SPIR64-NOT: @llvm.used
 
+//
+// Check that a host object with only the .tgtsym section added (as done for
+// -fsycl-host-only objects) provides the device dependencies, so the needed
+// device code survives llvm-link --only-needed.
+//
+// RUN: clang-offload-bundler -target-symbols-only -type=o -targets=host-%itanium_abi_triple,sycl-spir64 -input=%t.host -input=%t.spir64 -output=%t.symsonly
+// RUN: clang-offload-deps -targets=sycl-spir64 -outputs=%t.symsonly.deps.spir64 %t.symsonly
+// RUN: llvm-dis -o - %t.symsonly.deps.spir64 | FileCheck %s --check-prefixes=CHECK-DEPS-SPIR64 -DSPIRTriple=spir64
+// RUN: llvm-link --only-needed %t.symsonly.deps.spir64 %t.spir64 -S -o - | FileCheck %s --check-prefix=CHECK-LINK-NEEDED
+
+// CHECK-LINK-NEEDED-DAG: define {{.*}}void @foo()
+// CHECK-LINK-NEEDED-DAG: define {{.*}}void @bar()
+
+//
+// Without the .tgtsym section, no device code is pulled in.
+//
+// RUN: llvm-link --only-needed %t.empty.spir64 %t.spir64 -S -o - | FileCheck %s --check-prefix=CHECK-LINK-EMPTY
+
+// CHECK-LINK-EMPTY-NOT: define {{.*}}@foo()
+// CHECK-LINK-EMPTY-NOT: define {{.*}}@bar()
+
 void foo(void) {}
 void bar(void) {}
