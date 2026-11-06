@@ -88,6 +88,29 @@ bool isZeroGEP(const Value *V) {
   return GEPI && GEPI->hasAllZeroIndices();
 }
 
+Type *getAccessedType(const Value *V) {
+  if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
+    return GEPI->getSourceElementType();
+  return nullptr;
+}
+
+Type *getAddressResultElementType(const Value *V) {
+  if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
+    return GEPI->getResultElementType();
+  return nullptr;
+}
+
+const Value *getAddressBasePointer(const Value *V) {
+  if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
+    return GEPI->getPointerOperand();
+  return nullptr;
+}
+
+Value *getAddressBasePointer(Value *V) {
+  return const_cast<Value *>(
+      getAddressBasePointer(const_cast<const Value *>(V)));
+}
+
 Value *stripCasts(Value *V) {
   return const_cast<Value *>(stripCasts(const_cast<const Value *>(V)));
 }
@@ -128,7 +151,7 @@ const Value *stripCastsAndZeroGEPs(const Value *V) {
     if (isCast(V)) {
       V = cast<Operator>(V)->getOperand(0);
     } else if (isZeroGEP(V)) {
-      V = cast<GetElementPtrInst>(V)->getOperand(0);
+      V = getAddressBasePointer(V);
     }
     assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
   } while (Visited.insert(V).second);
