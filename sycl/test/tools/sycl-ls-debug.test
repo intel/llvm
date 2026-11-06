@@ -1,0 +1,63 @@
+REQUIRES: linux
+
+-- Check that '--debug' prints diagnostic information and that it is not
+-- printed without it.
+
+RUN: sycl-ls --debug > debug.out
+RUN: FileCheck --input-file debug.out --check-prefix CHECK-DEBUG %s
+CHECK-DEBUG-NOT: with '--debug' to get more details
+CHECK-DEBUG: strace can be used to diagnose any missing shared libraries.
+CHECK-DEBUG-NOT: default_selector_v
+CHECK-DEBUG-NOT: with '--debug' to get more details
+
+-- '--debug' enables the UR loader logs on stderr.
+RUN: env --unset=UR_LOG_LOADER sycl-ls --debug 2> debug_err.out
+RUN: FileCheck --input-file debug_err.out --check-prefix CHECK-DEBUG-LOG %s
+CHECK-DEBUG-LOG: adapters loaded
+
+-- '--verbose' and '--debug' are independent.
+RUN: sycl-ls --verbose --debug > verbose_debug.out
+RUN: FileCheck --input-file verbose_debug.out --check-prefix CHECK-VERBOSE-DEBUG %s
+CHECK-VERBOSE-DEBUG: Platforms:
+CHECK-VERBOSE-DEBUG: strace can be used to diagnose any missing shared libraries.
+CHECK-VERBOSE-DEBUG: default_selector_v
+CHECK-VERBOSE-DEBUG-NOT: with '--debug' to get more details
+
+RUN: sycl-ls --verbose > verbose.out
+RUN: FileCheck --input-file verbose.out --check-prefix CHECK-VERBOSE %s
+CHECK-VERBOSE-NOT: strace can be used
+CHECK-VERBOSE: default_selector_v
+CHECK-VERBOSE: Run with '--debug' to get more details
+
+RUN: sycl-ls > concise.out
+RUN: FileCheck --input-file concise.out --check-prefix CHECK-CONCISE %s
+CHECK-CONCISE-NOT: strace can be used
+CHECK-CONCISE-NOT: default_selector_v
+
+-- '--debug=all' is equivalent to '--debug'.
+RUN: sycl-ls --debug=all > debug_all.out
+RUN: diff debug.out debug_all.out
+
+-- '--debug=<backends>' restricts the backend-specific diagnostics.
+RUN: sycl-ls --debug=cuda > debug_cuda.out
+RUN: FileCheck --input-file debug_cuda.out --check-prefix CHECK-DEBUG-CUDA %s
+CHECK-DEBUG-CUDA-NOT: If you expect OpenCL devices
+CHECK-DEBUG-CUDA-NOT: If you expect Level Zero devices
+CHECK-DEBUG-CUDA-NOT: If you expect HIP devices
+CHECK-DEBUG-CUDA: strace can be used to diagnose any missing shared libraries.
+
+RUN: sycl-ls --debug=hip,cuda > debug_hip_cuda.out
+RUN: FileCheck --input-file debug_hip_cuda.out --check-prefix CHECK-DEBUG-HIP-CUDA %s
+CHECK-DEBUG-HIP-CUDA-NOT: If you expect OpenCL devices
+CHECK-DEBUG-HIP-CUDA-NOT: If you expect Level Zero devices
+CHECK-DEBUG-HIP-CUDA: strace can be used to diagnose any missing shared libraries.
+
+-- The UR loader logs are enabled regardless of the selected backends.
+RUN: env --unset=UR_LOG_LOADER sycl-ls --debug=native_cpu 2> debug_native_cpu_err.out
+RUN: FileCheck --input-file debug_native_cpu_err.out --check-prefix CHECK-DEBUG-LOG %s
+
+-- Unknown backends are rejected.
+RUN: not sycl-ls --debug=foo > debug_foo.out 2>&1
+RUN: FileCheck --input-file debug_foo.out --check-prefix CHECK-DEBUG-FOO %s
+CHECK-DEBUG-FOO: ERROR: Unknown backend 'foo' passed to --debug.
+CHECK-DEBUG-FOO: Usage: sycl-ls [--verbose] [--debug[=<backends>]] [--ignore-device-selectors]

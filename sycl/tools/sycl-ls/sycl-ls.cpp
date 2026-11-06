@@ -16,6 +16,13 @@
 // In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors.
 //
+// Independently, debug mode (enabled with --debug[=<backends>]) prints
+// diagnostic information to help find out why expected platforms or devices
+// are missing: it checks render group permissions, enables UR adapter loading
+// logs and suggests backend-specific tools for further investigation. The
+// diagnostics can be restricted to a comma-separated list of backends,
+// '--debug' alone is equivalent to '--debug=all'.
+//
 #include <sycl/sycl.hpp>
 
 #include <algorithm>
@@ -25,6 +32,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -104,6 +112,74 @@ std::string getGPUFamily(syclex::architecture Arch) {
 
 // Controls verbose output vs. concise.
 bool verbose;
+
+// Controls diagnostic for missing devices or platforms.
+bool debug;
+
+// Backends for which diagnostics are enabled when debug is set.
+std::set<backend> DebugBackends;
+
+// Per-backend debugging information.
+struct DebugBackendInfo {
+  // Name used on the command line.
+  std::string_view Name;
+  backend Backend;
+  // UR adapter logger environment variable.
+  const char *UrLogger;
+  // Hint printed when no devices were found for this backend, if any.
+  const char *Hint;
+};
+
+// Hints are printed in the order of this table.
+static constexpr DebugBackendInfo DebugBackendInfos[] = {
+    {"opencl", backend::opencl, "UR_LOG_OPENCL",
+     "If you expect OpenCL devices to be present, the clinfo tool and setting "
+     "OCL_ICD_ENABLE_TRACE=1 can be used to diagnose configuration issues "
+     "with OpenCL."},
+    {"cuda", backend::ext_oneapi_cuda, "UR_LOG_CUDA",
+     "If you expect CUDA devices to be present, the nvidia-smi tool can be "
+     "used to diagnose configuration issues with CUDA."},
+    {"hip", backend::ext_oneapi_hip, "UR_LOG_HIP",
+     "If you expect HIP devices to be present, the rocminfo or amd-smi tools "
+     "can be used to diagnose configuration issues with HIP."},
+    {"level_zero", backend::ext_oneapi_level_zero, "UR_LOG_LEVEL_ZERO",
+     "If you expect Level Zero devices to be present, setting "
+     "ZE_ENABLE_LOADER_DEBUG_TRACE=1 can be used to diagnose configuration "
+     "issues by the loader."},
+    {"native_cpu", backend::ext_oneapi_native_cpu, "UR_LOG_NATIVE_CPU",
+     nullptr},
+    {"offload", backend::ext_oneapi_offload, "UR_LOG_OFFLOAD", nullptr},
+};
+
+static bool isDebugEnabled(backend Backend) {
+  return DebugBackends.count(Backend) != 0;
+}
+
+// Parse a comma-separated list of backends passed to --debug=.
+// Returns false if the list contains an unknown backend.
+static bool parseDebugBackends(std::string_view List) {
+  while (true) {
+    size_t Pos = List.find(',');
+    std::string_view Name = List.substr(0, Pos);
+    if (Name == "all") {
+      for (const auto &Info : DebugBackendInfos)
+        DebugBackends.insert(Info.Backend);
+    } else {
+      auto It = std::find_if(
+          std::begin(DebugBackendInfos), std::end(DebugBackendInfos),
+          [&](const DebugBackendInfo &Info) { return Info.Name == Name; });
+      if (It == std::end(DebugBackendInfos)) {
+        std::cerr << "ERROR: Unknown backend '" << Name
+                  << "' passed to --debug." << std::endl;
+        return false;
+      }
+      DebugBackends.insert(It->Backend);
+    }
+    if (Pos == std::string_view::npos)
+      return true;
+    List.remove_prefix(Pos + 1);
+  }
+}
 
 // Controls whether to discard filter environment variables or not.
 bool DiscardFilters;
@@ -285,7 +361,8 @@ printSelectorChoice(const std::function<int(const device &)> &Selector,
 }
 
 static int printUsageAndExit() {
-  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]"
+  std::cout << "Usage: sycl-ls [--verbose] [--debug[=<backends>]] "
+               "[--ignore-device-selectors]"
             << std::endl;
   std::cout << "This program lists all devices and backends discovered by SYCL."
             << std::endl;
@@ -294,6 +371,13 @@ static int printUsageAndExit() {
       << "\t --verbose " << "\t Verbosely prints all the discovered platforms. "
       << "It also lists the device chosen by various SYCL device selectors."
       << std::endl;
+  std::cout << "\t --debug[=<backends>] "
+            << "\t Prints diagnostic information when loading devices and "
+            << "platforms. <backends> is a comma-separated list of backends to "
+            << "diagnose, among: ";
+  for (const auto &Info : DebugBackendInfos)
+    std::cout << Info.Name << ", ";
+  std::cout << "all. Defaults to all." << std::endl;
   std::cout
       << "\t --ignore-device-selectors "
       << "\t Lists all platforms available on the system irrespective "
@@ -429,6 +513,7 @@ static void checkRenderGroupPermission() {
 int main(int argc, char **argv) {
   if (argc == 1) {
     verbose = false;
+    debug = false;
     DiscardFilters = false;
   } else {
     // Parse CLI options.
@@ -437,12 +522,22 @@ int main(int argc, char **argv) {
         verbose = true;
       else if (argv[i] == "--ignore-device-selectors"sv)
         DiscardFilters = true;
-      else
+      else if (argv[i] == "--debug"sv) {
+        parseDebugBackends("all");
+        debug = true;
+      } else if (std::string_view(argv[i]).substr(0, 8) == "--debug="sv) {
+        if (!parseDebugBackends(std::string_view(argv[i]).substr(8)))
+          return printUsageAndExit();
+        debug = true;
+      } else
         return printUsageAndExit();
     }
   }
 
-  if (verbose)
+  // Render nodes are used by the Level Zero, OpenCL and HIP GPU drivers.
+  if (isDebugEnabled(backend::ext_oneapi_level_zero) ||
+      isDebugEnabled(backend::opencl) ||
+      isDebugEnabled(backend::ext_oneapi_hip))
     checkRenderGroupPermission();
 
   bool SuppressNumberPrinting = false;
@@ -465,20 +560,38 @@ int main(int argc, char **argv) {
     if (DiscardFilters && FilterEnvVars.size())
       unsetFilterEnvVars();
 
-    // In verbose mode, if UR logging has not already been enabled by the user,
-    // enable the printing of any errors related to adapter loading.
-    const char *ur_log_loader_var = std::getenv("UR_LOG_LOADER");
-    if (verbose && ur_log_loader_var == nullptr)
-      setenv("UR_LOG_LOADER", "level:info;output:stderr", 1);
+    // In debug mode, if UR logging has not already been enabled by the user,
+    // enable the printing of any errors related to adapter loading for the
+    // selected backends.
+    std::vector<const char *> SetLoggers;
+    auto EnableLogger = [&](const char *Logger) {
+      if (nullptr == std::getenv(Logger)) {
+        SetLoggers.push_back(Logger);
+        setenv(Logger, "level:info;output:stderr", 1);
+      }
+    };
+
+    if (debug) {
+      // Every adapter is loaded through the UR loader, so its logs are
+      // relevant to any selected backend.
+      EnableLogger("UR_LOG_LOADER");
+      for (const auto &Info : DebugBackendInfos)
+        if (isDebugEnabled(Info.Backend))
+          EnableLogger(Info.UrLogger);
+    }
 
     const auto &Platforms = platform::get_platforms();
 
-    if (verbose && ur_log_loader_var == nullptr) {
-      unsetenv("UR_LOG_LOADER");
-    } else if (Platforms.size() == 0) {
-      std::cout
-          << "No platforms found - run with '--verbose' to get more details."
-          << std::endl;
+    if (debug) {
+      for (const auto &Logger : SetLoggers) {
+        unsetenv(Logger);
+      }
+    }
+    if (Platforms.size() == 0) {
+      std::cout << "No platforms found";
+      if (!debug)
+        std::cout << " - run with '--debug' to get more details";
+      std::cout << "." << std::endl;
     }
 
     // Keep track of the number of devices per backend
@@ -536,27 +649,46 @@ int main(int argc, char **argv) {
           printDeviceInfo(Device, true, "        ");
         }
       }
-    } else {
+    }
+
+    if (debug) {
+      for (const auto &Info : DebugBackendInfos)
+        if (Info.Hint && isDebugEnabled(Info.Backend))
+          std::cout << Info.Hint << std::endl;
+#ifdef __linux__
+      std::cout
+          << "strace can be used to diagnose any missing shared libraries."
+          << std::endl;
+#endif
+    }
+
+    if (!verbose) {
       return EXIT_SUCCESS;
     }
 
     // Print the selectors choice in one-line always
     verbose = false;
 
-    // Print built-in device selectors choice
-    printSelectorChoice(default_selector_v, "default_selector_v      : ");
-    printSelectorChoice(accelerator_selector_v, "accelerator_selector_v  : ");
-    printSelectorChoice(cpu_selector_v, "cpu_selector_v          : ");
-    printSelectorChoice(gpu_selector_v, "gpu_selector_v          : ");
+    if (Platforms.size() > 0) {
+      // Print built-in device selectors choice
+      printSelectorChoice(default_selector_v, "default_selector_v      : ");
+      printSelectorChoice(accelerator_selector_v, "accelerator_selector_v  : ");
+      printSelectorChoice(cpu_selector_v, "cpu_selector_v          : ");
+      printSelectorChoice(gpu_selector_v, "gpu_selector_v          : ");
 
-    // Print trivial custom selectors choice
-    printSelectorChoice(custom_selector(info::device_type::gpu),
-                        "custom_selector(gpu)    : ");
-    printSelectorChoice(custom_selector(info::device_type::cpu),
-                        "custom_selector(cpu)    : ");
-    printSelectorChoice(custom_selector(info::device_type::accelerator),
-                        "custom_selector(acc)    : ");
+      // Print trivial custom selectors choice
+      printSelectorChoice(custom_selector(info::device_type::gpu),
+                          "custom_selector(gpu)    : ");
+      printSelectorChoice(custom_selector(info::device_type::cpu),
+                          "custom_selector(cpu)    : ");
+      printSelectorChoice(custom_selector(info::device_type::accelerator),
+                          "custom_selector(acc)    : ");
 
+      if (!debug)
+        std::cout << "\nRun with '--debug' to get more details if more "
+                     "devices/platforms are expected."
+                  << std::endl;
+    }
   } catch (sycl::exception &e) {
     std::cerr << "SYCL Exception encountered: " << e.what() << std::endl
               << std::endl;
