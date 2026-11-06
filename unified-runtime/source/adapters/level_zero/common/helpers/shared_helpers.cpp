@@ -289,6 +289,11 @@ ze_structure_type_t getZeStructureType<ze_device_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
 }
 template <>
+ze_structure_type_t
+getZeStructureType<ze_device_igca_target_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
 }
