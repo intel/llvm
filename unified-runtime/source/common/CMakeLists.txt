@@ -114,15 +114,14 @@ if (UR_UMF_REQUIRED)
     # Add an alias matching the FetchContent case
     add_library(umf::headers ALIAS umf::umf_headers)
   else()
-    set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
+    set(UMF_REPO "https://github.com/lukaszstolarczuk/unified-memory-framework.git")
 
-    # commit e8fd1d8431ce3c23f4b7d51711ffae9fb1966495
-    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Wed Oct 7 16:05:01 2026 +0200
-    # Use FetchContent for HWLOC sources (#1615)
-    #
-    # Note: This is 'v1.3.0-dev3-1'
-    set(UMF_TAG e8fd1d8431ce3c23f4b7d51711ffae9fb1966495)
+    # commit 3b4cfac5cdfbc5674d11c5a93ea458835f189563
+    # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Wed Nov 4 14:16:39 2026 +0100
+    # Merge pull request #1629 from lukaszstolarczuk/add-component-umf
+    # Assign all install rules to an explicit "umf" component
+    set(UMF_TAG v1.3.0-dev5)
 
     if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
       message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

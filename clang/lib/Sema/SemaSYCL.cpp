@@ -28,8 +28,11 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -5976,6 +5979,142 @@ void SemaSYCL::processFreeFunctionDeclaration(const FunctionDecl *FD) {
   // to handle the case where a definition is defined later.
   if (isFreeFunction(FD))
     FreeFunctionDeclarations.insert(FD->getCanonicalDecl());
+}
+
+bool SemaSYCL::isInIntegrationHeader(const Decl *D) {
+  const SourceManager &SM = SemaRef.getSourceManager();
+  if (!IntegrationHeaderFile) {
+    StringRef Path =
+        SemaRef.getPreprocessor().getPreprocessorOpts().IncludeHeader;
+    IntegrationHeaderFile = Path.empty()
+                                ? std::nullopt
+                                : SM.getFileManager().getOptionalFileRef(Path);
+  }
+  return *IntegrationHeaderFile &&
+         SM.getFileEntryRefForID(SM.getFileID(
+             SM.getExpansionLoc(D->getLocation()))) == *IntegrationHeaderFile;
+}
+
+// Whether D is a declaration in the application's code that ordinary name
+// lookup can find, which excludes block-scope and friend declarations.
+bool SemaSYCL::isVisibleApplicationDecl(const Decl *D) {
+  return !isInIntegrationHeader(D) && !D->isLocalExternDecl() &&
+         D->getFriendObjectKind() == Decl::FOK_None;
+}
+
+// The declaration that name lookup found for the callee of CE, or null if the
+// callee is not named directly.
+static const NamedDecl *getFoundCallee(const CallExpr *CE) {
+  const Expr *Callee = CE->getCallee()->IgnoreParenImpCasts();
+  while (const auto *UO = dyn_cast<UnaryOperator>(Callee)) {
+    if (UO->getOpcode() != UO_Deref && UO->getOpcode() != UO_AddrOf)
+      break;
+    Callee = UO->getSubExpr()->IgnoreParenImpCasts();
+  }
+  const auto *DRE = dyn_cast<DeclRefExpr>(Callee);
+  return DRE ? DRE->getFoundDecl() : nullptr;
+}
+
+// The operand of __builtin_sycl_resolve_kernel_function is an ordinary call,
+// already resolved; the builtin evaluates to a pointer to its callee.
+ExprResult SemaSYCL::BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall) {
+  if (TheCall->getNumArgs() != 1) {
+    Diag(TheCall->getBeginLoc(), diag::err_builtin_invalid_argument_count) << 1;
+    return ExprError();
+  }
+
+  Expr *KernelCall = TheCall->getArg(0);
+
+  // A call with type-dependent arguments is built without being checked and is
+  // checked when it is instantiated. A call that is only value-dependent has
+  // already selected its callee, so it is resolved here.
+  if (KernelCall->isTypeDependent()) {
+    TheCall->setType(getASTContext().DependentTy);
+    return TheCall;
+  }
+
+  // The failed call has already been diagnosed.
+  if (KernelCall->containsErrors())
+    return ExprError();
+
+  // Free function kernels are non-member functions called directly.
+  auto *CE = dyn_cast<CallExpr>(KernelCall->IgnoreParens());
+  FunctionDecl *ResolvedFn =
+      CE && !isa<CXXMemberCallExpr, CXXOperatorCallExpr>(CE)
+          ? CE->getDirectCallee()
+          : nullptr;
+  if (!ResolvedFn || isa<CXXMethodDecl>(ResolvedFn)) {
+    Diag(KernelCall->getBeginLoc(),
+         diag::err_sycl_resolve_kernel_function_not_a_call);
+    return ExprError();
+  }
+
+  // Selecting a deleted function was already diagnosed at the call.
+  if (ResolvedFn->isDeleted())
+    return ExprError();
+
+  // Checked only on the device side: on the host side the integration header
+  // forward declares the kernel without its properties.
+  SourceLocation Loc = CE->getCallee()->getBeginLoc();
+  if (getLangOpts().SYCLIsDevice && !isFreeFunction(ResolvedFn)) {
+    Diag(Loc, diag::err_sycl_resolve_kernel_function_not_free_function);
+    Diag(ResolvedFn->getLocation(), diag::note_declared_at);
+    return ExprError();
+  }
+
+  // On the host side the integration header forward declares every free
+  // function kernel ahead of the application's code, so the call may select a
+  // kernel that the device side cannot see here and the two sides would launch
+  // different kernels. That is the case if name lookup found the forward
+  // declaration, directly or through a using-declaration, unless the
+  // application declared the kernel before the integration header (e.g. in a
+  // header passed with -include; redeclarations are chained in parse order),
+  // or argument-dependent lookup, which the device side performs as well,
+  // finds an application declaration of the kernel.
+  if (getLangOpts().SYCLIsHost && !SemaRef.isSFINAEContext()) {
+    const NamedDecl *Found = getFoundCallee(CE);
+    if (!Found)
+      Found = ResolvedFn;
+    const Decl *Target = Found->getUnderlyingDecl();
+    if (isInIntegrationHeader(Target)) {
+      bool Visible = false;
+      for (const Decl *D = Target->getPreviousDecl(); D && !Visible;
+           D = D->getPreviousDecl())
+        Visible = isVisibleApplicationDecl(D);
+      // Argument-dependent lookup applies to a call through an unqualified,
+      // unparenthesized name.
+      const auto *Callee =
+          dyn_cast<DeclRefExpr>(CE->getCallee()->IgnoreImpCasts());
+      if (!Visible && Callee && !Callee->hasQualifier()) {
+        SmallVector<Expr *, 4> Args;
+        for (Expr *Arg : CE->arguments())
+          Args.push_back(Arg->IgnoreImpCasts());
+        ADLResult Functions;
+        SemaRef.ArgumentDependentLookup(ResolvedFn->getDeclName(),
+                                        CE->getExprLoc(), Args, Functions);
+        const Decl *Canonical = Target->getCanonicalDecl();
+        Visible = llvm::any_of(Functions, [&](const NamedDecl *D) {
+          return D->getCanonicalDecl() == Canonical &&
+                 isVisibleApplicationDecl(D);
+        });
+      }
+      if (!Visible) {
+        Diag(Loc, diag::err_sycl_resolve_kernel_function_declared_after)
+            << ResolvedFn << ResolvedFn->getType();
+        if (const auto *Shadow = dyn_cast<UsingShadowDecl>(Found))
+          Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl)
+              << 0;
+      }
+    }
+  }
+
+  QualType FnPtrTy = getASTContext().getPointerType(ResolvedFn->getType());
+  ExprResult FnRef = SemaRef.BuildDeclRefExpr(ResolvedFn, ResolvedFn->getType(),
+                                              VK_LValue, Loc);
+  if (FnRef.isInvalid())
+    return ExprError();
+  return SemaRef.ImpCastExprToType(FnRef.get(), FnPtrTy,
+                                   CK_FunctionToPointerDecay);
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
