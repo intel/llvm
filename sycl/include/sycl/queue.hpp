@@ -16,6 +16,7 @@
 #include <sycl/buffer.hpp>                    // for buffer
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
+#include <sycl/detail/defines.hpp>            // for __SYCL_STANDALONE_DEBUG
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/kernel_arg_view.hpp>    // for KernelArgView
@@ -225,6 +226,8 @@ struct in_order : detail::runtime_property<key::in_order> {
 } // namespace khr::property
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
+// Keep the full definition in every -g TU: the public ctors all delegate into
+// libsycl, so constructor homing would otherwise leave gdb a forward decl.
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
 /// A SYCL queue can be used to submit command groups to be executed by the SYCL
@@ -236,7 +239,8 @@ struct in_order : detail::runtime_property<key::in_order> {
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT queue
+    : public detail::OwnerLessBase<queue> {
   friend sycl::detail::ImplUtils;
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS

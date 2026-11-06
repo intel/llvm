@@ -1,5 +1,9 @@
 ; RUN: llvm-spirv %s --spirv-debug-info-version=nonsemantic-shader-100 -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
+; RUN: llvm-spirv %s --spirv-debug-info-version=nonsemantic-shader-100 -o %t.100.spv
+; RUN: spirv-val %t.100.spv
 ; RUN: llvm-spirv %s --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
+; RUN: llvm-spirv %s --spirv-debug-info-version=nonsemantic-shader-200 -o %t.200.spv
+; RUN: spirv-val %t.200.spv
 
 ; Test that DebugFunctionDefinition is inserted after OpVariable instructions.
 

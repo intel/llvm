@@ -5,16 +5,16 @@ description: "Repo-specific guidance for the sycl/ tree of this repo: the SYCL r
 
 # Working in `sycl/`
 
-Refer necessary guides for the task; Also apply the Common rules below.
+Read the guide for the task; also apply the Common rules below.
 
 | Task | Guide |
 |---|---|
 | Add, extend, fix or review a test (`sycl/test`, `sycl/test-e2e`, `sycl/unittests`) | `guides/testing.md` |
-| Review an extension specification (`sycl/doc/extensions`) | `guides/extension-specification-review.md` |
+| Write, update or review an extension specification (`sycl/doc/extensions`) | `guides/extension-specification.md` (plus `guides/extension-specification-properties.md` when the spec defines or accepts properties) |
 
 ## Common rules for changes in `sycl/`
 
-- Run clang-format on your changes before commiting.
+- Run clang-format on your changes before committing.
 - Comment only what the code does not make obvious; never restate the code.
 - Never write absolute paths or Intel-internal links into the repo. A JIRA id may appear as
   plain text (no link) only when the user explicitly asks for it.

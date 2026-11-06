@@ -234,6 +234,19 @@ class test_env:
         os.chdir(self.old_dir)
 
 
+def is_default_system_include_dir(path):
+    # Passing a default system include directory such as /usr/include with
+    # -isystem moves it ahead of the C++ standard library headers in the search
+    # order, which breaks their use of #include_next.
+    return os.path.normpath(path) == "/usr/include"
+
+
+def isystem_option(path):
+    if is_default_system_include_dir(path):
+        return ""
+    return " -isystem " + path
+
+
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 config.substitutions.append(("%sycl_static_libs_dir", config.sycl_device_libs_dir))
 if platform.system() == "Windows":
@@ -243,7 +256,7 @@ if platform.system() == "Windows":
     )
 elif platform.system() == "Linux":
     config.substitutions.append(("%obj_ext", ".o"))
-    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
+    config.substitutions.append(("%sycl_include", isystem_option(config.sycl_include)))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -646,10 +659,8 @@ else:
         (
             "%sycl_options",
             (" -lsycl9" if platform.system() == "Windows" else " -lsycl")
-            + " -isystem "
-            + config.sycl_include
-            + " -isystem "
-            + os.path.join(config.sycl_include, "sycl")
+            + isystem_option(config.sycl_include)
+            + isystem_option(os.path.join(config.sycl_include, "sycl"))
             + " -L"
             + config.sycl_libs_dir,
         )
@@ -775,7 +786,9 @@ for d in remove_level_zero_suffix(config.sycl_devices):
     if dev not in available_devices[be] and not "arch-" in dev:
         lit_config.error("Unsupported device {}".format(d))
 
-if "cuda:gpu" in config.sycl_devices:
+if "cuda:gpu" in config.sycl_devices or (
+    config.test_mode == "build-only" and "target-nvidia" in config.sycl_build_targets
+):
     if "CUDA_PATH" not in os.environ:
         if platform.system() == "Windows":
             cuda_root = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA"
@@ -836,7 +849,7 @@ if "cuda:gpu" in config.sycl_devices:
 
     # Detect CUDA version and add version-specific features for conditional test execution
     cuda_version_json = os.path.join(os.environ["CUDA_PATH"], "version.json")
-    if os.path.exists(cuda_version_json):
+    if config.test_mode != "build-only" and os.path.exists(cuda_version_json):
         try:
             with open(cuda_version_json, "r") as f:
                 version_data = json.load(f)
@@ -908,6 +921,7 @@ feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
+    ToolSubst("lld", command=FindTool("ld.lld"), unresolved="ignore"),
 ]
 
 tools = [
@@ -1301,7 +1315,7 @@ if amd_arch:
     )
 config.substitutions.append(("%amd_arch_options", amd_arch_flags))
 
-# Intel GPU AOT target(s), as a -fsycl-targets value. Uses the detected Intel
+# GPU AOT target(s), as a -fsycl-targets value. Uses the detected Intel
 # GPU architectures, or intel_gpu_dg2 if none are detected (e.g. build-only
 # mode). CI passes the architectures of its run-only runners.
 if not config.gpu_aot_target:
@@ -1316,15 +1330,15 @@ if not config.gpu_aot_target:
         lit_config.note(
             "No Intel GPU detected, defaulting the AOT target to intel_gpu_dg2"
         )
-lit_config.note("Intel GPU AOT target: {}".format(config.gpu_aot_target))
+lit_config.note("GPU AOT target: {}".format(config.gpu_aot_target))
 config.substitutions.append(("%{gpu_aot_target}", config.gpu_aot_target))
 
-# Extra backend options for Intel GPU AOT compilation, passed for each target in
+# Extra backend options for GPU AOT compilation, passed for each target in
 # gpu_aot_target. The device is selected by gpu_aot_target instead.
 if "-device" in config.gpu_aot_target_opts.split():
     lit_config.error(
         "gpu_aot_target_opts must not contain -device; use gpu_aot_target to "
-        "select the Intel GPU AOT target(s)"
+        "select the GPU AOT target(s)"
     )
 config.gpu_aot_backend_opts = ""
 if config.gpu_aot_target_opts:

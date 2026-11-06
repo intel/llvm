@@ -208,7 +208,7 @@ parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
 or via the ***LIT_OPTS*** environment variable.
 
 ***GPU_AOT_TARGET_OPTS*** - defines additional options passed to the AOT
-compilation of each Intel GPU target in GPU_AOT_TARGET (e.g. "-cl-opt-disable").
+compilation of each GPU target in GPU_AOT_TARGET (e.g. "-cl-opt-disable").
 It must not contain "-device"; use GPU_AOT_TARGET to select the targets.
 
 ***GPU_AOT_TARGET*** - defines the Intel GPU target(s) used for AOT compilation,
@@ -301,7 +301,7 @@ configure specific single test execution in the command line:
   compilation of each target in `gpu_aot_target`, for tests built with the
   `spir_gen` build target or `%aot_options`. It can be also set by CMake
   variable GPU_AOT_TARGET_OPTS. It must not contain "-device".
-* **gpu_aot_target** - defines the Intel GPU target(s) used for AOT
+* **gpu_aot_target** - defines the GPU target(s) used for AOT
   compilation, as a `-fsycl-targets` value. Tests use it via the
   `%{gpu_aot_target}` substitution. It can be also set by CMake variable
   GPU_AOT_TARGET. If not specified, the architectures of the detected Intel GPU
