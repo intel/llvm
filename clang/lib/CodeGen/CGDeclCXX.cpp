@@ -15,6 +15,7 @@
 #include "CGHLSLRuntime.h"
 #include "CGObjCRuntime.h"
 #include "CGOpenMPRuntime.h"
+#include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
@@ -79,11 +80,8 @@ static void EmitDeclDestroy(CodeGenFunction &CGF, const VarDecl &D,
   // their destructor at, and SYCL 2020 requires the destructors of device
   // copyable types to have no effect on the device, so don't register one.
   if (CGF.getLangOpts().SYCLIsDevice) {
-    const SYCLScopeAttr *Scope = D.getAttr<SYCLScopeAttr>();
-    if (!Scope)
-      if (const auto *RD = D.getType()->getAsCXXRecordDecl())
-        Scope = RD->getAttr<SYCLScopeAttr>();
-    if (Scope && Scope->isWorkGroup())
+    if (CGSYCLRuntime::getWorkGroupVarKind(D) !=
+        CGSYCLRuntime::WorkGroupVarKind::None)
       return;
   }
 
