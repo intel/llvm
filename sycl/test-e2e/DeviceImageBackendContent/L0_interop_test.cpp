@@ -60,10 +60,11 @@ int main() {
   auto ZeDevice = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(d);
 
   ze_result_t status;
+  // The spec promises native ISA on Level Zero, so load it as such.
   ze_module_desc_t moduleDesc = {
       ZE_STRUCTURE_TYPE_MODULE_DESC,
       nullptr,
-      ZE_MODULE_FORMAT_IL_SPIRV,
+      ZE_MODULE_FORMAT_NATIVE,
       bytes.size(),
       reinterpret_cast<unsigned char *>(bytes.data()),
       nullptr,

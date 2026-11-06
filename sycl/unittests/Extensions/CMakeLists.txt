@@ -29,6 +29,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   RegisterHostMemory.cpp
   ReusableEvents.cpp
   AsyncAlloc.cpp
+  DeviceImageBackendContent.cpp
 )
 
 add_subdirectory(BindlessImages)

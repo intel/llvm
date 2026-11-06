@@ -1772,6 +1772,7 @@ public:
   ur_native_handle_t getNative() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
+  ur_device_handle_t getRootDeviceHandle() const { return MRootDevice; }
 
   bool
   extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
