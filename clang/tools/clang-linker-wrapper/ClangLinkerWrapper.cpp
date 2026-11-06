@@ -930,7 +930,7 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
 getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
-                             const llvm::Triple Triple) {
+                             const llvm::Triple Triple, StringRef Arch) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
@@ -971,6 +971,17 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
       ",+SPV_INTEL_fp_max_error"
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
+  // Native 16-bit atomics (including bfloat16) are only known to be accepted
+  // by the CRI driver stack, so enable the required extensions for CRI AOT
+  // only.
+  static constexpr char CRIExtArg[] =
+      ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
+  if (Arch == "cri") {
+    // Function-local static: initialized once, thread-safe, outlives callers.
+    static const std::string Combined = std::string(ExtArg) + CRIExtArg;
+    TranslatorArgs.push_back(Combined.c_str());
+    return;
+  }
   TranslatorArgs.push_back(ExtArg);
 }
 
@@ -989,7 +1000,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getTripleBasedSPIRVTransOpts(CmdArgs, Triple);
+  getTripleBasedSPIRVTransOpts(CmdArgs, Triple,
+                               Args.getLastArgValue(OPT_arch_EQ));
   for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ))
     CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");

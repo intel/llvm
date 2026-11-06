@@ -11370,7 +11370,7 @@ static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
 // from sycl-jit/jit-compiler/lib/translation/SPIRVLLVMTranslation.cpp.
 static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          const llvm::opt::ArgList &TCArgs,
-                                         llvm::Triple Triple,
+                                         llvm::Triple Triple, StringRef Arch,
                                          ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -11412,6 +11412,12 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
 
+  // Native 16-bit atomics (including bfloat16) are only known to be accepted
+  // by the CRI driver stack, so enable the required extensions for CRI AOT
+  // only.
+  if (mapIntelGPUArchName(Arch) == "cri")
+    ExtArg += ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
+
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
 
@@ -11442,7 +11448,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
       llvm::Triple Triple = TC.getTriple();
-      getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, TranslatorArgs);
+      getTripleBasedSPIRVTransOpts(C, TCArgs, Triple,
+                                   JA.getOffloadingArch().ArchName,
+                                   TranslatorArgs);
       // Handle -Xspirv-translator
       TC.TranslateTargetOpt(
           Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
