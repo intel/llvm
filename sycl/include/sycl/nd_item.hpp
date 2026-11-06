@@ -71,7 +71,10 @@ public:
     size_t LinId = 0;
     id<Dimensions> Index = get_global_id();
     range<Dimensions> Extent = get_global_range();
+    // nd_item::get_offset() is deprecated.
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
     id<Dimensions> Offset = get_offset();
+    __SYCL_SUPPRESS_DEPRECATED_POP
     if (1 == Dimensions) {
       LinId = Index[0] - Offset[0];
     } else if (2 == Dimensions) {
@@ -198,11 +201,17 @@ public:
   }
 
   nd_range<Dimensions> get_nd_range() const noexcept {
+    // nd_item::get_offset() and the offset-taking nd_range constructor
+    // are deprecated.
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
     return nd_range<Dimensions>(get_global_range(), get_local_range(),
                                 get_offset());
+    __SYCL_SUPPRESS_DEPRECATED_POP
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // access::fence_space is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
   void barrier([[maybe_unused]] access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
@@ -237,6 +246,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements

@@ -142,12 +142,13 @@ template<class Container>
 
 */
 
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t, nullptr_t, ptrdiff_t
-#include <cstdint>     // for SIZE_MAX
-#include <iterator>    // for size, data, reverse_iterator
-#include <memory>      // for pointer_traits.
+#include <array>    // for array
+#include <cassert>  // for assert
+#include <cstddef>  // for size_t, nullptr_t, ptrdiff_t
+#include <cstdint>  // for SIZE_MAX
+#include <iterator> // for size, data, reverse_iterator
+#include <memory>   // for pointer_traits.
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <type_traits> // for enable_if_t, enable_if, remove_cv_t, false_type
 #include <utility>     // for declval
 
@@ -480,6 +481,8 @@ public:
     return reverse_iterator(begin());
   }
 
+  // sycl::byte is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
   __as_bytes() const noexcept {
     return span<const byte, _Extent * sizeof(element_type)>{
@@ -491,6 +494,7 @@ public:
     return span<byte, _Extent * sizeof(element_type)>{
         reinterpret_cast<byte *>(data()), size_bytes()};
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
 private:
   pointer __data;
@@ -694,6 +698,8 @@ public:
     return reverse_iterator(begin());
   }
 
+  // sycl::byte is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   _SYCL_SPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
   __as_bytes() const noexcept {
     return {reinterpret_cast<const byte *>(data()), size_bytes()};
@@ -703,6 +709,7 @@ public:
   __as_writable_bytes() const noexcept {
     return {reinterpret_cast<byte *>(data()), size_bytes()};
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
 private:
   pointer __data;

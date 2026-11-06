@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>     // for target, mode, place...
-#include <sycl/accessor.hpp>          // for AccessorBaseHost
-#include <sycl/backend_types.hpp>     // for backend, backend_re...
-#include <sycl/buffer.hpp>            // for buffer
-#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+#include <sycl/access/access.hpp>             // for target, mode, place...
+#include <sycl/accessor.hpp>                  // for AccessorBaseHost
+#include <sycl/backend_types.hpp>             // for backend, backend_re...
+#include <sycl/buffer.hpp>                    // for buffer
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/impl_utils.hpp>         // for getSyclObjImpl
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
 #include <sycl/ext/oneapi/experimental/graph.hpp>     // for command_graph
@@ -54,6 +55,8 @@ public:
   /// a backend graph object is available for interop.
   __SYCL_EXPORT bool ext_codeplay_has_graph() const noexcept;
 
+  // access::target::constant_buffer is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
@@ -84,6 +87,7 @@ public:
 #endif
   }
 
+  __SYCL_SUPPRESS_DEPRECATED_POP
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
