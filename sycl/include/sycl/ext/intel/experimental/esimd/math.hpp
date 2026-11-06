@@ -759,7 +759,7 @@ struct SrndPrecisionTypeStorage<
 template <>
 struct SrndPrecisionTypeStorage<
     sycl::ext::intel::esimd::xmx::dpas_argument_type::fp16> {
-  using StorageT = sycl::detail::half_impl::StorageT;
+  using StorageT = __ESIMD_DNS::__raw_t<sycl::half>;
 };
 
 /// srnd - perform stochastic rounding.
@@ -795,7 +795,7 @@ __ESIMD_API
                 "unsupported srnd type");
 
   if constexpr (is_bf8_fp32) {
-    using half_t = sycl::detail::half_impl::StorageT;
+    using half_t = __ESIMD_DNS::__raw_t<sycl::half>;
     // emulated sequence, uses convertion of fp32->hf
     __ESIMD_NS::simd<half_t, N> src0_hf = src0;
     __ESIMD_NS::simd<half_t, N> src1_hf = src1;

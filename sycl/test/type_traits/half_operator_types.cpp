@@ -61,6 +61,29 @@ template <typename T1> void logical_operator_helper() {
       is_same_v<decltype(declval<sycl::half>() >= declval<T1>()), bool>);
 }
 
+template <typename T1> void compound_operator_helper() {
+  static_assert(is_same_v<decltype(declval<sycl::half &>() += declval<T1>()),
+                          sycl::half &>);
+  static_assert(is_same_v<decltype(declval<sycl::half &>() -= declval<T1>()),
+                          sycl::half &>);
+  static_assert(is_same_v<decltype(declval<sycl::half &>() *= declval<T1>()),
+                          sycl::half &>);
+  static_assert(is_same_v<decltype(declval<sycl::half &>() /= declval<T1>()),
+                          sycl::half &>);
+}
+
+template <typename T1>
+void check_half_compound_operator_types(sycl::queue &Queue) {
+
+  // Test on host
+  compound_operator_helper<T1>();
+
+  // Test on device
+  Queue.submit([&](sycl::handler &cgh) {
+    cgh.single_task([=] { compound_operator_helper<T1>(); });
+  });
+}
+
 template <typename T1, typename T_rtn>
 void check_half_math_operator_types(sycl::queue &Queue) {
 
@@ -116,4 +139,11 @@ int main() {
   check_half_logical_operator_types<long>(Queue);
   check_half_logical_operator_types<long long>(Queue);
   check_half_logical_operator_types<sycl::ext::oneapi::bfloat16>(Queue);
+
+  check_half_compound_operator_types<sycl::half>(Queue);
+  check_half_compound_operator_types<float>(Queue);
+  check_half_compound_operator_types<double>(Queue);
+  check_half_compound_operator_types<int>(Queue);
+  // bfloat16 converts to both half and float.
+  check_half_compound_operator_types<sycl::ext::oneapi::bfloat16>(Queue);
 }

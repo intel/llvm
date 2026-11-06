@@ -21,11 +21,14 @@ inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // Standalone definitions to use w/o instantiating element_type_traits.
-using half_raw_type = sycl::detail::half_impl::StorageT;
 #ifdef __SYCL_DEVICE_ONLY__
+using half_raw_type = sycl::detail::half_impl::StorageT;
 // On device, _Float16 is native Cpp type, so it is the enclosing C++ type
 using half_enclosing_cpp_type = half_raw_type;
 #else
+// On host, raw vectors need a standard arithmetic element type, which _Float16
+// is not before C++23.
+using half_raw_type = uint16_t;
 using half_enclosing_cpp_type = float;
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -81,7 +84,7 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
 class WrapperElementTypeProxy {
 public:
   static ESIMD_INLINE half_raw_type bitcast_to_raw_scalar(sycl::half Val) {
-    return Val.Data;
+    return sycl::bit_cast<half_raw_type>(Val);
   }
 
   static ESIMD_INLINE sycl::half bitcast_to_wrapper_scalar(half_raw_type Val) {
