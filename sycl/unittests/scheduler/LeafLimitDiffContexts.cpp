@@ -105,8 +105,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
     AddLeafWithDeps(ExtQueue1);
   }
   // Adding extra command on different to exceed buffer limit
-  // The command #0 and command #8 must be on different queues to insert connect
-  // command
+  // The command #0 and the last command must be on different queues to insert
+  // connect command
   AddLeafWithDeps(ExtQueue2);
 
   // Check that the oldest leaf #0 has been removed from the leaf list

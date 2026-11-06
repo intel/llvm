@@ -27,8 +27,7 @@
 // Deprecated ZEX_counter_based_event extension, kept only as a fallback for
 // Level Zero drivers older than spec version 1.15, which don't support the
 // core zeEventCounterBasedCreate API yet.
-#include <level_zero/driver_experimental/zex_event.h>
-#include <level_zero/ze_intel_gpu.h>
+#include "../common/ze_intel_ext.hpp"
 
 namespace ur::level_zero::v2 {
 
@@ -37,7 +36,7 @@ namespace ur::level_zero::v2 {
 // older than Level Zero spec version 1.15.
 typedef ze_result_t (*zexCounterBasedEventCreate)(
     ze_context_handle_t hContext, ze_device_handle_t hDevice,
-    const zex_counter_based_event_desc_t *desc, ze_event_handle_t *phEvent);
+    const ur_zex_counter_based_event_desc_t *desc, ze_event_handle_t *phEvent);
 
 class provider_counter : public event_provider {
 public:

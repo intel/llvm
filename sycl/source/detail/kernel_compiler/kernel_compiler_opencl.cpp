@@ -72,8 +72,8 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 #ifdef __SYCL_RT_OS_WINDOWS
   // first the environment, if not compatible will move on to absolute path.
   static const std::vector<std::string_view> OclocPaths = {
-      "ocloc64.dll",
-      "C:\\Program Files (x86)\\Intel\\oneAPI\\ocloc\\latest\\ocloc64.dll"};
+      "ocloc64.dll", "C:\\Program Files "
+                     "(x86)\\Intel\\oneAPI\\ocloc\\latest\\bin\\ocloc64.dll"};
 #else
   static const std::vector<std::string_view> OclocPaths = {"libocloc.so"};
 #endif

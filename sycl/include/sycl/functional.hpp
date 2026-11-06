@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/known_op_traits.hpp> // for known_op_traits
+
 #include <functional>  // for logical_and, logical_or, bit_and, bit_or, bit...
 #include <type_traits> // for common_type
 #include <utility>     // for forward
@@ -58,6 +60,28 @@ template <> struct maximum<void> {
                : std::forward<T>(lhs);
   }
 };
+
+namespace detail {
+// Register the function objects recognized by sycl/known_identity.hpp. The
+// std:: ones cover the sycl::plus, sycl::multiplies and sycl::bit_* aliases;
+// std::logical_and/std::logical_or are recognized as a DPC++ extension.
+#define __SYCL_KNOWN_OP(OP, KIND)                                              \
+  template <typename T>                                                        \
+  struct known_op_traits<OP<T>>                                                \
+      : known_op_traits_base<known_op_kind::KIND, T> {};
+__SYCL_KNOWN_OP(std::plus, plus)
+__SYCL_KNOWN_OP(std::multiplies, multiplies)
+__SYCL_KNOWN_OP(std::bit_and, bit_and)
+__SYCL_KNOWN_OP(std::bit_or, bit_or)
+__SYCL_KNOWN_OP(std::bit_xor, bit_xor)
+__SYCL_KNOWN_OP(std::logical_and, logical_and)
+__SYCL_KNOWN_OP(std::logical_or, logical_or)
+__SYCL_KNOWN_OP(sycl::logical_and, logical_and)
+__SYCL_KNOWN_OP(sycl::logical_or, logical_or)
+__SYCL_KNOWN_OP(sycl::minimum, minimum)
+__SYCL_KNOWN_OP(sycl::maximum, maximum)
+#undef __SYCL_KNOWN_OP
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

@@ -327,7 +327,8 @@ set(sycl-compiler_deps
 set(crt_obj_deps wrapper.h device.h spirv_vars.h fallback-cstring.hpp ${sycl-compiler_deps})
 set(cmath_obj_deps
   device_math.h device.h fallback-cmath.hpp fallback-cmath-fp64.hpp
-  device_complex.h fallback-complex.hpp fallback-complex-fp64.hpp complex_wrapper.hpp ${sycl-compiler_deps})
+  device_complex.h fallback-complex.hpp fallback-complex-fp64.hpp complex_wrapper.hpp
+  sycl-headers ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
 set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
@@ -540,6 +541,7 @@ add_devicelibs(libsycl-native-bfloat16
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
+file(MAKE_DIRECTORY ${bc_binary_dir})
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
 set(imf_src_dir ${CMAKE_CURRENT_SOURCE_DIR})
 set(imf_fallback_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp imf_bf16.hpp

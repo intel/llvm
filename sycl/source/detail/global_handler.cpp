@@ -15,6 +15,7 @@
 #include <detail/config.hpp>
 #include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -24,6 +25,7 @@
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/spinlock.hpp>
 
+#include <thread>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -36,6 +38,11 @@ namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
+std::atomic<Scheduler *> GlobalHandler::MSchedulerPtr{nullptr};
+std::atomic<uint64_t> GlobalHandler::MSchedulerAccessState{0};
+#ifdef _WIN32
+std::atomic<bool> ProcessTerminating{false};
+#endif
 
 // forward decl
 void shutdown_early(bool);
@@ -122,7 +129,11 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
     prepareSchedulerToRelease(true);
+  stopSchedulerAccess();
+  MSchedulerPtr.store(nullptr, std::memory_order_release);
   MScheduler.Inst.reset(Scheduler);
+  MSchedulerPtr.store(Scheduler, std::memory_order_release);
+  MSchedulerAccessState.store(0, std::memory_order_release);
 }
 
 static void enableOnCrashStackPrinting() {
@@ -135,7 +146,9 @@ static void enableOnCrashStackPrinting() {
 }
 
 Scheduler &GlobalHandler::getScheduler() {
-  getOrCreate(MScheduler);
+  Scheduler &Sched = getOrCreate(MScheduler);
+  if (!MSchedulerPtr.load(std::memory_order_relaxed))
+    MSchedulerPtr.store(&Sched, std::memory_order_release);
   registerSchedulerUsage();
   // On Windows the registration of the signal handler before main function
   // (e.g. from DLLMain or from constructors of program scope objects) doesn't
@@ -144,10 +157,46 @@ Scheduler &GlobalHandler::getScheduler() {
   // 2) first call to getScheduler is likely to be done after main starts.
   // The same is done in getAdapters.
   enableOnCrashStackPrinting();
-  return *MScheduler.Inst;
+  return Sched;
 }
 
-bool GlobalHandler::isSchedulerAlive() const { return MScheduler.Inst.get(); }
+bool GlobalHandler::isSchedulerAlive() const {
+  return MSchedulerPtr.load(std::memory_order_acquire) != nullptr;
+}
+
+GlobalHandler::SchedulerAccess GlobalHandler::getSchedulerAccess() noexcept {
+  constexpr uint64_t Closed = uint64_t{1} << 63;
+  uint64_t State = MSchedulerAccessState.load(std::memory_order_relaxed);
+  while (!(State & Closed)) {
+    if (MSchedulerAccessState.compare_exchange_weak(
+            State, State + 1, std::memory_order_acquire,
+            std::memory_order_relaxed)) {
+      if (Scheduler *Sched = MSchedulerPtr.load(std::memory_order_acquire))
+        return SchedulerAccess(Sched);
+      releaseSchedulerAccess();
+      return SchedulerAccess();
+    }
+  }
+  return SchedulerAccess();
+}
+
+GlobalHandler::SchedulerAccess::~SchedulerAccess() {
+  if (MScheduler)
+    GlobalHandler::releaseSchedulerAccess();
+}
+
+void GlobalHandler::releaseSchedulerAccess() noexcept {
+  MSchedulerAccessState.fetch_sub(1, std::memory_order_release);
+}
+
+void GlobalHandler::stopSchedulerAccess(bool WaitForAccess) noexcept {
+  constexpr uint64_t Closed = uint64_t{1} << 63;
+  MSchedulerAccessState.fetch_or(Closed, std::memory_order_acq_rel);
+  if (!WaitForAccess)
+    return;
+  while ((MSchedulerAccessState.load(std::memory_order_acquire) & ~Closed) != 0)
+    std::this_thread::yield();
+}
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
   thread_local ObjectUsageCounter SchedulerCounter(ModifyCounter);
@@ -157,6 +206,15 @@ ProgramManager &GlobalHandler::getProgramManager() {
   static ProgramManager &PM = getOrCreate(MProgramManager);
   return PM;
 }
+
+#if SYCL_EXT_JIT_ENABLE
+jit_compiler &GlobalHandler::getJITCompiler() {
+  const LockGuard Lock{MJITCompiler.Lock};
+  if (!MJITCompiler.Inst)
+    MJITCompiler.Inst.reset(new jit_compiler());
+  return *MJITCompiler.Inst;
+}
+#endif
 
 std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
 GlobalHandler::getPlatformToDefaultContextCache() {
@@ -310,6 +368,37 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
+#if defined(_WIN32)
+bool GlobalHandler::winEarlyExitCheck(bool ProcessExiting = true) {
+  // In Windows ExitProcess all non host threads are forcibly terminated prior
+  // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
+  // threads being active. In such cases, making XPTI or backend calls at
+  // DLL_PROCESS_DETACH can lead to hangs or memory corruption. Because of this
+  // it is best to not unload the backend after thread destruction.
+#if defined(XPTI_ENABLE_INSTRUMENTATION)
+  if (xptiTraceEnabled())
+    return true;
+#endif
+  if (ProcessExiting) {
+    // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
+    // functionality on Windows so don't exit early for L0 platforms.
+    if (auto PlatformCache =
+            GlobalHandler::RTGlobalObjHandler->getPlatformCache();
+        !std::any_of(PlatformCache.begin(), PlatformCache.end(),
+                     [](const std::shared_ptr<platform_impl> &p) {
+                       return p->getBackend() == backend::ext_oneapi_level_zero;
+                     })) {
+
+      // If spawned threads using the Windows CRT are forcibly killed, this
+      // can prevent stdout buffer being flushed at the program end.
+      std::fflush(stdout);
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 // Note: this function can be called on Windows twice:
 //  1) when library is unloaded via FreeLibrary
 //  2) when process is being terminated
@@ -318,14 +407,20 @@ void shutdown_early(bool CanJoinThreads = true) {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
+#ifdef _WIN32
+  // Threads are terminated without unwinding during process shutdown, so
+  // scheduler-access guards held by those threads cannot be released.
+  if (CanJoinThreads)
+    ProcessTerminating.store(true, std::memory_order_release);
 #endif
 
   // Now that we are shutting down, we will no longer defer MemObj releases.
   GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
+
+#ifdef _WIN32
+  if (GlobalHandler::winEarlyExitCheck(CanJoinThreads))
+    return;
+#endif
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
@@ -373,16 +468,26 @@ void shutdown_late() {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
+#ifdef _WIN32
+  if (GlobalHandler::winEarlyExitCheck())
+    return;
 #endif
 
   // First, release resources, that may access adapters.
+  bool WaitForSchedulerAccess = true;
+#ifdef _WIN32
+  WaitForSchedulerAccess = !ProcessTerminating.load(std::memory_order_acquire);
+#endif
+  GlobalHandler::RTGlobalObjHandler->stopSchedulerAccess(
+      WaitForSchedulerAccess);
   GlobalHandler::RTGlobalObjHandler->MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::RTGlobalObjHandler->MSchedulerPtr.store(
+      nullptr, std::memory_order_release);
   GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
+
+  // The JIT compiler owns image tables referenced by the program manager.
+  GlobalHandler::RTGlobalObjHandler->MJITCompiler.Inst.reset(nullptr);
 
   // Clear the adapters and reset the instance if it was there.
   GlobalHandler::RTGlobalObjHandler->unloadAdapters();

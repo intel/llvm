@@ -36,7 +36,8 @@ namespace ur::level_zero::v2 {
 ur_queue_batched_t::ur_queue_batched_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
-    event_flags_t eventFlags, ur_queue_flags_t flags)
+    std::optional<int32_t> priorityLevel, event_flags_t eventFlags,
+    ur_queue_flags_t flags)
     : regularCmdListDesc(v2::command_list_desc_t{
           true /* isInOrder*/, ordinal /* Ordinal*/,
           true /* copyOffloadEnable*/, false /*isMutable*/}),
@@ -49,7 +50,8 @@ ur_queue_batched_t::ur_queue_batched_t(
           hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
-              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)
+              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
+              priorityLevel)
 
       ) {
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
@@ -841,17 +843,27 @@ ur_result_t ur_queue_batched_t::bindlessImagesWaitExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+
+  // Keep the external wait in a separate regular command list. Some drivers
+  // block the whole list at an external wait, including commands recorded
+  // before it, so submit any preceding work first.
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   markIssuedCommandInBatch(lockedBatch);
 
   UR_CALL(lockedBatch->getListManager().bindlessImagesWaitExternalSemaphoreExp(
       hSemaphore, hasWaitValue, waitValue, waitListView,
       getEvent(lockedBatch, phEvent)));
 
-  // External semaphore operations must not be deferred in a batch. Batching
-  // leaves the append sitting in the queue's open regular command list until
-  // some unrelated event flushes it, which means the external producer's
-  // signal cannot release a command list that was never submitted and can
-  // deadlock.
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Submit the external wait immediately so the external producer can release
+  // it without relying on a later operation to flush the batch.
   return renewBatchUnlocked(lockedBatch);
 }
 
@@ -863,6 +875,14 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
       wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
   auto lockedBatch = currentCmdLists.lock();
+
+  // Keep the external signal in a separate regular command list, ordered after
+  // all preceding work.
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
   markIssuedCommandInBatch(lockedBatch);
 
   UR_CALL(
@@ -870,10 +890,12 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
           hSemaphore, hasSignalValue, signalValue, waitListView,
           getEvent(lockedBatch, phEvent)));
 
-  // External semaphore operations must not be deferred in a batch. Batching
-  // leaves the append sitting in the queue's open regular command list until
-  // some unrelated event flushes it, which means the external consumer may
-  // never observe the signal.
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Submit the external signal immediately so the external consumer can
+  // observe it without relying on a later operation to flush the batch.
   return renewBatchUnlocked(lockedBatch);
 }
 

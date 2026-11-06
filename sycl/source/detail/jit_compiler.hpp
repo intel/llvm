@@ -54,10 +54,7 @@ public:
 
   bool isAvailable() { return Available; }
 
-  static jit_compiler &get_instance() {
-    static jit_compiler instance{};
-    return instance;
-  }
+  static jit_compiler &get_instance();
 
 private:
   jit_compiler();
@@ -66,6 +63,9 @@ private:
   jit_compiler(jit_compiler &&) = delete;
   jit_compiler &operator=(const jit_compiler &) = delete;
   jit_compiler &operator=(const jit_compiler &&) = delete;
+
+  friend class GlobalHandler;
+  friend struct std::default_delete<jit_compiler>;
 
   sycl_device_binaries
   createDeviceBinaries(const ::jit_compiler::RTCBundleInfo &BundleInfo,

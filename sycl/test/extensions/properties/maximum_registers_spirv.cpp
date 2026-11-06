@@ -23,6 +23,8 @@
 // CHECK-DAG: ExecutionMode [[#EsimdFreeFunctionAutomaticId]] [[NAMED_MAXIMUM_REGISTERS_INTEL]] [[AUTO_INTEL]]
 // CHECK-DAG: EntryPoint {{[0-9]+}} [[#SyclLambdaSpecifiedId:]] "{{.*}}runLambdaSYCL{{.*}}maximum_registers_key{{.*}}"
 // CHECK-DAG: ExecutionMode [[#SyclLambdaSpecifiedId]] [[MAXIMUM_REGISTERS_INTEL]] 256
+// CHECK-DAG: EntryPoint {{[0-9]+}} [[#SyclLambda192SpecifiedId:]] "{{.*}}runLambdaSYCL{{.*}}maximum_registers_key{{.*}}"
+// CHECK-DAG: ExecutionMode [[#SyclLambda192SpecifiedId]] [[MAXIMUM_REGISTERS_INTEL]] 192
 // CHECK-DAG: EntryPoint {{[0-9]+}} [[#SyclLambdaAutomaticId:]] "{{.*}}runLambdaSYCL{{.*}}maximum_registers_automatic_key{{.*}}"
 // CHECK-DAG: ExecutionMode [[#SyclLambdaAutomaticId]] [[NAMED_MAXIMUM_REGISTERS_INTEL]] [[AUTO_INTEL]]
 // CHECK-DAG: EntryPoint {{[0-9]+}} [[#EsimdLambdaSpecifiedId:]] "{{.*}}runLambdaESIMD{{.*}}maximum_registers_key{{.*}}"

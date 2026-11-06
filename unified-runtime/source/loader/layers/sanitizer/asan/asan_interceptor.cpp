@@ -931,9 +931,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
             Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
             LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, WARN,
-               "Failed to allocate shadow memory for local memory, "
-               "maybe the number of workgroup ({}) is too large",
-               NumWG);
+               "Failed to allocate shadow memory for local memory");
       UR_LOG_L(getContext()->logger, WARN,
                "Skip checking local memory of kernel <{}>",
                GetKernelName(Kernel));

@@ -42,14 +42,47 @@ TEST(BufferProps, ValidPropsMutex) {
   }
 }
 
+static ur_mem_flags_t MemBufferCreateFlags = 0;
+static ur_result_t redefinedMemBufferCreateBefore(void *pParams) {
+  auto params = *static_cast<ur_mem_buffer_create_params_t *>(pParams);
+  MemBufferCreateFlags = *params.pflags;
+  return UR_RESULT_SUCCESS;
+}
+
 TEST(BufferProps, ValidPropsPinnedHostMem) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                           &redefinedMemBufferCreateBefore);
+  MemBufferCreateFlags = 0;
+
+  sycl::buffer<int, 1> Buf(
+      1, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
+  ASSERT_TRUE(Buf.has_property<
+              sycl::ext::oneapi::property::buffer::use_pinned_host_memory>());
+
+  sycl::queue Q;
+  Q.submit([&](sycl::handler &CGH) {
+    auto Acc = Buf.get_access<sycl::access_mode::write>(CGH);
+    CGH.fill(Acc, 0);
+  });
+  Q.wait();
+  EXPECT_TRUE(MemBufferCreateFlags & UR_MEM_FLAG_ALLOC_HOST_POINTER);
+}
+
+TEST(BufferProps, PinnedHostMemWithHostPtr) {
   try {
+    int Data = 0;
     sycl::buffer<int, 1> Buf(
-        1, {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
-    // no explicit checks, we expect no exception to be thrown
-  } catch (...) {
-    FAIL();
+        &Data, 1,
+        {sycl::ext::oneapi::property::buffer::use_pinned_host_memory()});
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(),
+                 "The use_pinned_host_memory cannot be used with host pointer");
+    return;
   }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
 }
 
 TEST(BufferProps, SetAndQueryMatch) {

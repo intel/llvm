@@ -50,6 +50,18 @@ private:
 };
 } // namespace ext::intel::property::queue
 
+namespace ext::oneapi::property::queue {
+class priority : public sycl::detail::PropertyWithData<
+                     sycl::detail::PropWithDataKind::QueuePriority> {
+public:
+  priority(int priority_value) : value(priority_value) {}
+  int get_priority() const { return value; }
+
+private:
+  int value;
+};
+} // namespace ext::oneapi::property::queue
+
 // Queue property trait specializations.
 class queue;
 

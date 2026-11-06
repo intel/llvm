@@ -177,19 +177,19 @@ int main() {
 // Otherwise per-element initialization for address space modifications.
 // Initializer for ArrayOfPointers[0]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers[1]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
@@ -372,36 +372,36 @@ int main() {
 
 // Initializer for ArrayOfPointers_2D[0][0]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2][3]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[0][1]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2][3]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[0][2]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2][3]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 2
@@ -410,36 +410,36 @@ int main() {
 
 // Initializer for ArrayOfPointers_2D[1][0]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2][3]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[1][1]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2][3]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[1][2]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[3]' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *(*)[3]' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2][3]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 2
@@ -460,18 +460,18 @@ int main() {
 // GLOB-AS: InitListExpr {{.*}} 'int *[2]'
 // Initializer for ArrayOfPointers[0]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers[1]
 // GLOB-AS-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
-// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// GLOB-AS-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' <LValueToRValue>
+// GLOB-AS-NEXT: ArraySubscriptExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *' lvalue
+// GLOB-AS-NEXT: ImplicitCastExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int **' <ArrayToPointerDecay>
+// GLOB-AS-NEXT: MemberExpr {{.*}} '{{\[\[clang::sycl_global\]\]}} int *[2]' lvalue .
 // GLOB-AS-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
 // GLOB-AS-NEXT: IntegerLiteral {{.*}} 1

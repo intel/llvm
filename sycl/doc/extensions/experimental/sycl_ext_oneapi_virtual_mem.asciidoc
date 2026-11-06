@@ -408,12 +408,22 @@ must be the full range that was previously mapped (i.e. not a sub-range).
 `syclContext` must be the same as the context returned by the `get_context()`
 member function on the `physical_mem` the address range is currently mapped to.
 
+There must be no in-progress or enqueued commands on any device that access any
+address in the range specified by `ptr` and `numBytes` when this function is
+called. Calling this function while such commands exist results in undefined
+behavior.
+
 After this call, the full range will again be ready to be mapped through a call
 to `physical_mem::map()`.
 
 [_Note:_ Unmapping ranges that span multiple contiguous mapped ranges is not
 supported. Doing so will result in undefined behavior. This restriction may be
 lifted in the future. _{endnote}_]
+
+[_Note:_ This function is not guaranteed to wait for commands that access the
+range to complete. The application can meet the requirement above by, for
+example, calling `wait()` on the events returned by those commands, or on the
+queues to which they were submitted, before calling `unmap`. _{endnote}_]
 
 [_Note:_ The destructor for `physical_mem` will not unmap ranges mapped to it.
 As such, the user must call `unmap` on ranges mapped to `physical_mem` objects

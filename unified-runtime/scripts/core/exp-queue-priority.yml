@@ -1,0 +1,66 @@
+#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM
+# Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for queue priority levels"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support queue priority levels."
+name: $x_device_info_t
+etors:
+    - name: QUEUE_PRIORITY_SUPPORT_EXP
+      value: "0x20B0"
+      desc: |-
+            [$x_bool_t] returns true if the device supports creating queues
+            with $x_exp_queue_priority_properties_t.
+    - name: QUEUE_PRIORITY_HIGHEST_EXP
+      value: "0x20B1"
+      desc: |-
+            [int32_t][optional-query] returns the numerically lowest priority
+            value, which corresponds to the highest queue priority. It is
+            never greater than 0.
+    - name: QUEUE_PRIORITY_LOWEST_EXP
+      value: "0x20B2"
+      desc: |-
+            [int32_t][optional-query] returns the numerically highest priority
+            value, which corresponds to the lowest queue priority. It is never
+            less than 0.
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Queue priority creation properties"
+details:
+    - Specify these properties in $xQueueCreate via $x_queue_properties_t as
+      part of a `pNext` chain.
+    - Lower values indicate higher priority, 0 is the default priority.
+    - Values outside of the range reported by
+      $X_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP and
+      $X_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP are clamped to the nearest
+      supported value.
+    - Must not be combined with $X_QUEUE_FLAG_PRIORITY_LOW or
+      $X_QUEUE_FLAG_PRIORITY_HIGH.
+class: $xQueue
+name: $x_exp_queue_priority_properties_t
+base: $x_base_properties_t
+members:
+    - type: int32_t
+      name: priority
+      desc: "[in] priority of the queue."
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_QUEUE_PRIORITY_PROPERTIES
+      desc: $x_exp_queue_priority_properties_t
+      value: "0x9000"

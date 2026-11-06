@@ -959,7 +959,7 @@ umf_result_t L0MemoryProvider::ext_ctl(umf_ctl_query_source_t /*Source*/,
                                        va_list /*Args*/) {
   // We could skip this call for the Level Zero provider because it has no
   // initialization to perform after applying CTL defaults.
-  if (Name && std::string(Name) == "post_initialize") {
+  if (std::string(Name) == "post_initialize") {
     return UMF_RESULT_SUCCESS;
   }
 

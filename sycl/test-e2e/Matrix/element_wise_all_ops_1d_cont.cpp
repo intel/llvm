@@ -12,7 +12,7 @@
 // UNSUPPORTED: windows && gpu-intel-dg2
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17165
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Xspirv-translator=spir64 --spirv-ext=+SPV_EXT_float8,+SPV_INTEL_float4,+SPV_INTEL_int4,+SPV_INTEL_fp_conversions -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out
 
 #include "common.hpp"

@@ -16,6 +16,7 @@
 #include <sycl/buffer.hpp>                    // for buffer
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
+#include <sycl/detail/defines.hpp>            // for __SYCL_STANDALONE_DEBUG
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/kernel_arg_view.hpp>    // for KernelArgView
@@ -69,13 +70,24 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
+namespace ext::oneapi::experimental {
+class raw_kernel_arg;
+} // namespace ext::oneapi::experimental
+
 // Launches an already built `sycl::kernel` with an explicit argument list,
 // bypassing the handler and the command group object the same way
 // submit_kernel_direct_* does for kernel function objects.
+// A pointer and a count rather than a span, so that the span type the public
+// overloads use can change without an ABI break.
 void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
-    const kernel &Kernel, sycl::span<const detail::KernelArgView> Args,
+    const kernel &Kernel, const detail::KernelArgView *Args, size_t NumArgs,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+void __SYCL_EXPORT submit_kernel_obj_direct_without_event_impl(
+    const queue &Queue, const detail::nd_range_view &RangeView,
+    const kernel &Kernel, const ext::oneapi::experimental::raw_kernel_arg *Args,
+    size_t NumArgs, const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const detail::nd_range_view &RangeView,
@@ -214,6 +226,8 @@ struct in_order : detail::runtime_property<key::in_order> {
 } // namespace khr::property
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
+// Keep the full definition in every -g TU: the public ctors all delegate into
+// libsycl, so constructor homing would otherwise leave gdb a forward decl.
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
 /// A SYCL queue can be used to submit command groups to be executed by the SYCL
@@ -225,7 +239,8 @@ struct in_order : detail::runtime_property<key::in_order> {
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT queue
+    : public detail::OwnerLessBase<queue> {
   friend sycl::detail::ImplUtils;
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
@@ -234,8 +249,7 @@ class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
   // the constructors' default template arguments.
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForQueue =
-      khr::is_property_for_v<PropertyOrList, queue> ||
-      khr::is_property_list_for_v<PropertyOrList, queue>;
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList, queue>;
 
   template <typename PropertyOrList>
   static property_list khrToPropertyList(const PropertyOrList &Props) {

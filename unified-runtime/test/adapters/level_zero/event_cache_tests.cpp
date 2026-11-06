@@ -60,8 +60,8 @@ struct urEventCacheTest : uur::urContextTestWithParam<FlagsTupleType> {
 
     flags = combineFlags(getParam());
 
-    ur_queue_properties_t props;
-    props.flags = flags;
+    ur_queue_properties_t props = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+                                   flags};
     ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
     ASSERT_NE(queue, nullptr);
 

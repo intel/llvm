@@ -16,6 +16,14 @@ sys.path.append(f"{os.path.dirname(__file__)}/../")
 from utils.workdir_version import INTERNAL_WORKDIR_VERSION
 
 VERBOSE_LOGS = False
+# LLVM install prefix providing liboffload, passed as --offload-prefix to
+# every case. OFFLOAD (ol) tests are skipped when it's not set.
+OFFLOAD_PREFIX = os.environ.get("OFFLOAD_PREFIX")
+
+
+def skipIfNoOffload(test):
+    return unittest.skipUnless(OFFLOAD_PREFIX, "OFFLOAD_PREFIX is not set")(test)
+
 
 DataJson = namedtuple("DataJson", ["runs", "metadata", "tags", "names"])
 DataJsonRun = namedtuple("DataJsonRun", ["name", "results"])
@@ -186,7 +194,8 @@ class TestE2E(unittest.TestCase):
         expected_in_output: str = None,
     ):
         print(f"\n  [checkCase] filter='{caseName}$'")
-        return_proc = self.app.run_main("--filter", caseName + "$")
+        offload_args = ["--offload-prefix", OFFLOAD_PREFIX] if OFFLOAD_PREFIX else []
+        return_proc = self.app.run_main("--filter", caseName + "$", *offload_args)
         if return_proc.returncode != 0:
             print("  [checkCase] FAILED.")
         self.assertEqual(return_proc.returncode, 0, "Subprocess did not exit cleanly")
@@ -220,6 +229,64 @@ class TestE2E(unittest.TestCase):
             "api_overhead_benchmark_l0 SubmitKernel out of order with measure completion",
             "SubmitKernel out of order with completion using events",
             {"L0", "latency", "micro", "submit"},
+        )
+
+    def test_queue_memcpy_sycl(self):
+        self._checkCase(
+            "memory_benchmark_sycl QueueMemcpy from Device to Device, size 1024",
+            "QueueMemcpy from Device to Device, size 1024",
+            {"memory", "latency", "SYCL", "micro"},
+        )
+
+    def test_usm_memory_allocation_ur(self):
+        self._checkCase(
+            "api_overhead_benchmark_ur UsmMemoryAllocation usmMemoryPlacement:Device size:256 measureMode:Both",
+            "UsmMemoryAllocation",
+            {"UR", "micro", "latency", "memory"},
+            "--test=UsmMemoryAllocation.*--strategy=sync",
+        )
+
+    def test_usm_fill_immediate_l0(self):
+        self._checkCase(
+            "memory_benchmark_l0 UsmFillImmediate, placement Device, size 4096, patternSize 4",
+            "UsmFillImmediate Device, small fill",
+            {"memory", "latency", "L0", "micro"},
+        )
+
+    @skipIfNoOffload
+    def test_submit_kernel_ol(self):
+        self._checkCase(
+            "api_overhead_benchmark_ol SubmitKernel in order with measure completion",
+            "SubmitKernel in order with completion using events",
+            {"OFFLOAD", "latency", "micro", "submit"},
+            "api_overhead_benchmark_ol --test=SubmitKernel.*--Ioq=1",
+        )
+
+    @skipIfNoOffload
+    def test_queue_in_order_memcpy_ol(self):
+        self._checkCase(
+            "memory_benchmark_ol QueueInOrderMemcpy from Device to Device, size 1024",
+            "QueueInOrderMemcpy from Device to Device, size 1024",
+            {"memory", "latency", "OFFLOAD", "micro"},
+            "memory_benchmark_ol --test=QueueInOrderMemcpy",
+        )
+
+    @skipIfNoOffload
+    def test_usm_memory_allocation_ol(self):
+        self._checkCase(
+            "api_overhead_benchmark_ol UsmMemoryAllocation usmMemoryPlacement:Device size:256 measureMode:Both",
+            "UsmMemoryAllocation",
+            {"OFFLOAD", "micro", "latency", "memory"},
+            "api_overhead_benchmark_ol --test=UsmMemoryAllocation.*--strategy=sync",
+        )
+
+    @skipIfNoOffload
+    def test_usm_fill_immediate_ol(self):
+        self._checkCase(
+            "memory_benchmark_ol UsmFillImmediate, placement Device, size 4096, patternSize 4",
+            "UsmFillImmediate Device, small fill",
+            {"memory", "latency", "OFFLOAD", "micro"},
+            "memory_benchmark_ol --test=UsmFillImmediate",
         )
 
     def test_torch_l0(self):

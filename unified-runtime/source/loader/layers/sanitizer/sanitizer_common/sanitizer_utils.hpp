@@ -69,6 +69,13 @@ std::vector<ur_device_handle_t> GetDevices(ur_context_handle_t Context);
 std::vector<ur_device_handle_t> GetDevices(ur_program_handle_t Program);
 DeviceType GetDeviceType(ur_context_handle_t Context,
                          ur_device_handle_t Device);
+ur_backend_t GetDeviceBackend(ur_device_handle_t Device);
+// Checks that the device sanitizers can set up shadow memory for Device,
+// logging a diagnostic and returning UR_RESULT_ERROR_UNSUPPORTED_FEATURE if
+// not. Only the Level Zero adapter implements the virtual memory API that the
+// GPU shadow needs; CPU devices are supported on any backend.
+ur_result_t CheckDeviceBackendSupported(ur_device_handle_t Device,
+                                        DeviceType Type);
 ur_device_handle_t GetParentDevice(ur_device_handle_t Device);
 bool GetDeviceUSMCapability(ur_device_handle_t Device,
                             ur_device_info_t Feature);

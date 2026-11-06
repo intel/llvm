@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 
 // RUN: %{build} -o %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s

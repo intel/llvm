@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 // REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out

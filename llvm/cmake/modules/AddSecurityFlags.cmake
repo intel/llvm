@@ -1,3 +1,81 @@
+# Security hardening flags based on the Intel Secure Coding Standards for C/C++
+# compilers. Enabled with -DEXTRA_SECURITY_FLAGS=default|sanitize and applied to
+# the whole LLVM build through the global CMAKE_<LANG>_FLAGS and
+# CMAKE_<TYPE>_LINKER_FLAGS.
+#
+# Notation used below:
+#
+#   GCC, Clang, icpx - compilers with GCC-style command line: GCC, Clang
+#                      (including clang-cl) and icpx on Linux.
+#   icx              - Intel compiler on Windows (cl-style command line).
+#   MSVC             - Microsoft cl.exe.
+#
+# Added in both "default" and "sanitize" modes:
+#
+#   Control Flow Integrity (all builds):
+#     GCC, Clang, icpx: -fcf-protection=full
+#     icx:              /Qcf-protection:full
+#     MSVC:             /guard:cf; linker /LTCG /CETCOMPAT
+#
+#   Format String Defense:
+#     GCC, Clang, icpx: -Wformat -Wformat-security (all builds);
+#                       -Werror=format-security (Release)
+#     icx:              /Wformat /Wformat-security (all builds)
+#     MSVC:             nothing
+#
+#   Inexecutable Stack:
+#     GCC, Clang, icpx: linker -z noexecstack (Release)
+#     icx, MSVC:        nothing
+#
+#   Position Independent Code (all builds):
+#     GCC, Clang, icpx: -fPIC
+#     MSVC:             /Gy
+#     icx:              nothing
+#
+#   Position Independent Execution:
+#     All compilers:    CMAKE_POSITION_INDEPENDENT_CODE must be ON, otherwise
+#                       configuration fails; CMake then adds -fPIE/-pie for
+#                       executables where supported.
+#     MSVC:             linker /DYNAMICBASE (all builds), /NXCOMPAT (Release)
+#
+#   Stack Protection:
+#     GCC, Clang, icpx: -fstack-protector (Debug);
+#                       -fstack-protector-strong -fstack-clash-protection
+#                       (Release)
+#     MSVC:             /GS (all builds)
+#     icx:              nothing
+#
+#   Pre-processor Macros (all compilers, non-Windows hosts only):
+#     -D_FORTIFY_SOURCE=3 (=2 for GCC < 12) in all builds except Debug and
+#     LLVM_USE_SANITIZER builds.
+#     -D_GLIBCXX_ASSERTIONS in all builds if LLVM_ENABLE_ASSERTIONS is ON.
+#   Read-only Relocation (all compilers, Unix hosts only, Release):
+#     linker -z relro -z now
+#
+# Added only in "sanitize" mode (all builds):
+#   Clang (including clang-cl): -fsanitize=cfi (compile and link)
+#   Other compilers:            nothing, "sanitize" is the same as "default".
+#     The previous "-fcf-protection=full -mcet" here was dead code: -mcet was
+#     removed in GCC 9 and never existed in Clang or icx, so the support checks
+#     always rejected it. CET is already requested by -fcf-protection=full /
+#     /Qcf-protection:full above.
+#
+# Recommended by the standard, but not added here:
+#   -Wall -Wextra -Wimplicit-fallthrough (GCC, Clang, icpx), /W4 (MSVC):
+#     already added by HandleLLVMOptions (LLVM_ENABLE_WARNINGS=ON by default),
+#     followed by -Wno-* / -wd* suppressions. This file is included after them,
+#     so re-adding the flags here would re-enable the suppressed warnings for
+#     Clang, icpx and MSVC and break the -Werror build.
+#   -Wconversion (GCC, Clang, icpx): hundreds of warnings in the codebase, the
+#     build fails under -Werror.
+#   /Wall (icx), /sdl and /analyze (MSVC): the codebase does not build cleanly
+#     with them under /WX, which --ci-defaults enables.
+#   Spectre mitigations: -mfunction-return=thunk -mindirect-branch=thunk
+#     -mindirect-branch-register (GCC), -mretpoline (Clang, icpx), /mretpoline
+#     /Qspectre (icx, MSVC): significant performance impact.
+#   -Wl,-z,nodlopen (GCC, Clang, icpx): UR adapters and sycl-jit are loaded
+#     with dlopen.
+
 macro(add_compile_option_ext flag name)
   cmake_parse_arguments(ARG "" "" "" ${ARGN})
   set(CHECK_STRING "${flag}")
@@ -49,20 +127,33 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
   set(is_msvc TRUE)
 endif()
 
+# Compilers with GCC-style command line: gcc, clang, icpx on Linux.
+set(is_gnu_like FALSE)
+if(is_gcc
+   OR is_clang
+   OR (is_icpx AND NOT MSVC))
+  set(is_gnu_like TRUE)
+endif()
+
+# Intel compiler with cl-style command line: icx on Windows.
+set(is_icx_cl FALSE)
+if(is_icpx AND MSVC)
+  set(is_icx_cl TRUE)
+endif()
+
+set(is_release FALSE)
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+  set(is_release TRUE)
+endif()
+
 macro(append_common_extra_security_flags)
-  # Compiler Warnings and Error Detection
-  # Note: warning flags (-Wall, -Wextra, -Wconversion, -Wimplicit-fallthrough,
-  # /Wall, /W4) are intentionally not added here. In intel/llvm we build both
-  # linux and win with --ci-defaults, which also enables -Werror or /WX, and the
-  # codebase does not build cleanly with these warnings turned into errors.
-  # For the same reason MSVC /sdl and /analyze are not added below.
+  # Compiler Warnings and Error Detection: not added here, see the summary at the
+  # top of the file.
 
   # Control Flow Integrity
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
+  if(is_gnu_like)
     add_compile_option_ext("-fcf-protection=full" FCFPROTECTION)
-  elseif(is_icpx)
+  elseif(is_icx_cl)
     add_compile_option_ext("/Qcf-protection:full" FCFPROTECTION)
   elseif(is_msvc)
     add_link_option_ext("/LTCG" LTCG CMAKE_EXE_LINKER_FLAGS
@@ -73,39 +164,26 @@ macro(append_common_extra_security_flags)
   endif()
 
   # Format String Defense
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
+  if(is_gnu_like)
     add_compile_option_ext("-Wformat" WFORMAT)
     add_compile_option_ext("-Wformat-security" WFORMATSECURITY)
-  elseif(is_icpx)
+    if(is_release)
+      add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
+    endif()
+  elseif(is_icx_cl)
     add_compile_option_ext("/Wformat" WFORMAT)
     add_compile_option_ext("/Wformat-security" WFORMATSECURITY)
   endif()
 
-  if(CMAKE_BUILD_TYPE MATCHES "Release")
-    if(is_gcc
-       OR is_clang
-       OR (is_icpx AND MSVC))
-      add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
-    endif()
-  endif()
-
   # Inexecutable Stack
-  if(CMAKE_BUILD_TYPE MATCHES "Release")
-    if(is_gcc
-       OR is_clang
-       OR (is_icpx AND MSVC))
-      add_link_option_ext(
-        "-Wl,-z,noexecstack" NOEXECSTACK CMAKE_EXE_LINKER_FLAGS
-        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
-    endif()
+  if(is_gnu_like AND is_release)
+    add_link_option_ext(
+      "-Wl,-z,noexecstack" NOEXECSTACK CMAKE_EXE_LINKER_FLAGS
+      CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 
   # Position Independent Code
-  if(is_gcc
-     OR is_clang
-     OR (is_icpx AND MSVC))
+  if(is_gnu_like)
     add_compile_option_ext("-fPIC" FPIC)
   elseif(is_msvc)
     add_compile_option_ext("/Gy" GY)
@@ -124,28 +202,22 @@ macro(append_common_extra_security_flags)
   if(is_msvc)
     add_link_option_ext("/DYNAMICBASE" DYNAMICBASE CMAKE_EXE_LINKER_FLAGS
                         CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
-  endif()
-
-  if(CMAKE_BUILD_TYPE MATCHES "Release")
-    if(is_msvc)
+    if(is_release)
       add_link_option_ext("/NXCOMPAT" NXCOMPAT CMAKE_EXE_LINKER_FLAGS
                           CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
   endif()
 
   # Stack Protection
-  if(is_msvc)
-    add_compile_option_ext("/GS" GS)
-  elseif(
-    is_gcc
-    OR is_clang
-    OR (is_icpx AND MSVC))
+  if(is_gnu_like)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
       add_compile_option_ext("-fstack-protector" FSTACKPROTECTOR)
-    elseif(CMAKE_BUILD_TYPE MATCHES "Release")
+    elseif(is_release)
       add_compile_option_ext("-fstack-protector-strong" FSTACKPROTECTORSTRONG)
       add_compile_option_ext("-fstack-clash-protection" FSTACKCLASHPROTECTION)
     endif()
+  elseif(is_msvc)
+    add_compile_option_ext("/GS" GS)
   endif()
 
   # Fortify Source (strongly recommended):
@@ -185,14 +257,11 @@ macro(append_common_extra_security_flags)
       add_definitions(-D_GLIBCXX_ASSERTIONS)
     endif()
 
-    # Full Relocation Read Only
-    if(CMAKE_BUILD_TYPE MATCHES "Release")
+    if(is_release)
+      # Full Relocation Read Only
       add_link_option_ext("-Wl,-z,relro" ZRELRO CMAKE_EXE_LINKER_FLAGS
                           CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
-    endif()
-
-    # Immediate Binding (Bindnow)
-    if(CMAKE_BUILD_TYPE MATCHES "Release")
+      # Immediate Binding (Bindnow)
       add_link_option_ext("-Wl,-z,now" ZNOW CMAKE_EXE_LINKER_FLAGS
                           CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
@@ -206,7 +275,7 @@ if(EXTRA_SECURITY_FLAGS)
     append_common_extra_security_flags()
   elseif(EXTRA_SECURITY_FLAGS STREQUAL "sanitize")
     append_common_extra_security_flags()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    if(is_clang)
       add_compile_option_ext("-fsanitize=cfi" FSANITIZE_CFI)
       add_link_option_ext(
         "-fsanitize=cfi" FSANITIZE_CFI_LINK CMAKE_EXE_LINKER_FLAGS
@@ -217,13 +286,6 @@ if(EXTRA_SECURITY_FLAGS)
       # add_link_option_ext("-fsanitize=safe-stack" FSANITIZE_SAFESTACK_LINK
       # CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
       # CMAKE_SHARED_LINKER_FLAGS)
-    else()
-      add_compile_option_ext("-fcf-protection=full -mcet" FCF_PROTECTION)
-      # need to align compile and link option set, link now is set
-      # unconditionally
-      add_link_option_ext(
-        "-fcf-protection=full -mcet" FCF_PROTECTION_LINK CMAKE_EXE_LINKER_FLAGS
-        CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
     endif()
   else()
     message(
