@@ -26,6 +26,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -295,11 +296,11 @@ bool hasDoubleType(const Instruction &I) {
   }
 
   // Opaque pointer arguments may hide types of pointer arguments until elements
-  // inside the types are accessed through a GEP instruction. However, this will
-  // not be caught by the operands check above, so we must extract the
-  // information directly from the GEP.
-  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
-    if (hasDoubleType(GEPI->getSourceElementType()))
+  // inside the types are accessed through a GEP-like instruction. However, this
+  // will not be caught by the operands check above, so we must extract the
+  // information directly from the GEP-like.
+  if (auto *Ty = sycl::utils::getAccessedType(&I))
+    if (hasDoubleType(Ty))
       return true;
 
   return false;
@@ -332,11 +333,11 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   }
 
   // Opaque pointer arguments may hide types of pointer arguments until elements
-  // inside the types are accessed through a GEP instruction. However, this will
-  // not be caught by the operands check above, so we must extract the
-  // information directly from the GEP.
-  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
-    AddAspectsFromType(GEPI->getSourceElementType());
+  // inside the types are accessed through a GEP-like instruction. However, this
+  // will not be caught by the operands check above, so we must extract the
+  // information directly from the GEP-like.
+  if (auto *Ty = sycl::utils::getAccessedType(&I))
+    AddAspectsFromType(Ty);
 
   if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {
     for (const MDOperand &MDOp : InstApsects->operands()) {

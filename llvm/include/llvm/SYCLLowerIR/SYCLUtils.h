@@ -77,6 +77,20 @@ bool isCast(const Value *V);
 /// Tells if this value is a GEP instructions with all zero indices.
 bool isZeroGEP(const Value *V);
 
+/// Returns the type an address computation indexes into: the GEP source
+/// element type or other GEP-like instructions. Returns nullptr for anything
+/// else.
+Type *getAccessedType(const Value *V);
+
+/// Returns the type of the object the resulting address points to: the GEP
+/// result element type or other GEP-like instructions. Returns nullptr for
+/// anything else.
+Type *getAddressResultElementType(const Value *V);
+
+/// Returns the base pointer of a GEP or GEP-like instructions, or nullptr.
+const Value *getAddressBasePointer(const Value *V);
+Value *getAddressBasePointer(Value *V);
+
 /// Climbs up the use-def chain of given value until a value which is not a
 /// bit cast or address space cast is met.
 const Value *stripCasts(const Value *V);
