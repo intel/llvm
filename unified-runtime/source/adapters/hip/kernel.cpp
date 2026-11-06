@@ -156,14 +156,24 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
-    ur_kernel_handle_t hKernel, ur_device_handle_t /*hDevice*/,
-    uint32_t workDim, const size_t *pLocalWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
+    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
+    uint32_t *pGroupCountRet) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pLocalWorkSize, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pGroupCountRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  ur_kernel_launch_properties_flags_t LaunchCapabilities = 0;
+  ur_result_t Result =
+      urDeviceGetInfo(hDevice, UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES,
+                      sizeof(LaunchCapabilities), &LaunchCapabilities, nullptr);
+  if (Result != UR_RESULT_SUCCESS)
+    return Result;
+  if (!(LaunchCapabilities & UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE))
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   size_t localWorkSize = pLocalWorkSize[0];
   localWorkSize *= (workDim >= 2 ? pLocalWorkSize[1] : 1);

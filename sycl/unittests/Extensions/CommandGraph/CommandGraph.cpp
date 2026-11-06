@@ -12,18 +12,30 @@
 class Kernel1;
 class Kernel2;
 class Kernel3;
+class RootSyncKernel;
 MOCK_INTEGRATION_HEADER(Kernel1)
 MOCK_INTEGRATION_HEADER(Kernel2)
 MOCK_INTEGRATION_HEADER(Kernel3)
-static sycl::unittest::MockDeviceImage CommandGraphImgs[3] = {
+MOCK_INTEGRATION_HEADER(RootSyncKernel)
+static sycl::unittest::MockDeviceImage CommandGraphImgs[4] = {
     sycl::unittest::generateDefaultImage({"Kernel1"}),
     sycl::unittest::generateDefaultImage({"Kernel2"}),
-    sycl::unittest::generateDefaultImage({"Kernel3"})};
-static sycl::unittest::MockDeviceImageArray<3> CommandGraphImgArray{
+    sycl::unittest::generateDefaultImage({"Kernel3"}),
+    sycl::unittest::generateDefaultImage({"RootSyncKernel"})};
+static sycl::unittest::MockDeviceImageArray<4> CommandGraphImgArray{
     CommandGraphImgs};
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+
+struct RootSyncKernelFunctor {
+  void operator()(sycl::nd_item<1>) const {}
+
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+  }
+};
 
 // Helper function for testing weak_object and owner_less for different graph
 // types
@@ -112,6 +124,22 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_EQ(getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node3)->MPredecessors.size(), 2lu);
   ASSERT_TRUE(getSyclObjImpl(Node4)->MPredecessors.empty());
+}
+
+TEST_F(CommandGraphTest, RootSyncKernelIsRejected) {
+  Graph.add([&](sycl::handler &CGH) {
+    CGH.parallel_for<RootSyncKernel>(
+        sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}},
+        RootSyncKernelFunctor{});
+  });
+
+  try {
+    Graph.finalize();
+    FAIL() << "Finalizing a graph with a cooperative kernel should throw.";
+  } catch (const sycl::exception &Exception) {
+    EXPECT_EQ(Exception.code(),
+              sycl::make_error_code(sycl::errc::feature_not_supported));
+  }
 }
 
 TEST_F(CommandGraphTest, Finalize) {
