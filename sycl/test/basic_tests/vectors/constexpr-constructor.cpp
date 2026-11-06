@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
-// RUN: %clangxx -fsycl -fsyntax-only -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -Wno-deprecated-declarations %s
 
 #include <sycl/sycl.hpp>
 

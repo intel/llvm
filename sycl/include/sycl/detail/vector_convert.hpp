@@ -883,7 +883,6 @@ using ConvertBoolAndByteT =
 template <typename DataT, int NumElements>
 template <typename convertT, rounding_mode roundingMode>
 vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
-#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
   auto getValue = [this](int Index) {
     using RetType = typename std::conditional_t<
         detail::is_byte_v<DataT>, int8_t,
@@ -911,7 +910,6 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
 #endif
       return static_cast<RetType>(this->m_Data[Index]);
   };
-#endif
   using T = detail::ConvertBoolAndByteT<DataT>;
   using R = detail::ConvertBoolAndByteT<convertT>;
   using bfloat16 = sycl::ext::oneapi::bfloat16;

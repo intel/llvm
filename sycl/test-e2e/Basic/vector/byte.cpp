@@ -1,9 +1,6 @@
 // RUN: %{build} %cxx_std_optionc++17 -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 %cxx_std_optionc++17 -o %t2.out
-// RUN: %{run} %t2.out
-
 //==---------- vector_byte.cpp - SYCL vec<> for std::byte test -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -179,36 +176,6 @@ int main() {
       auto SwizByte2Neg = ~SwizByte2B;
       assert(SwizByte2Neg[0] == ~SwizByte2B[0]);
     }
-
-#if __SYCL_USE_LIBSYCL8_VEC_IMPL
-    {
-      // std::byte is not an arithmetic type and it only supports the following
-      // overloads of >> and << operators.
-      //
-      // 1 template <class IntegerType>
-      //   constexpr std::byte operator<<( std::byte b, IntegerType shift )
-      //   noexcept;
-      // 2 template <class IntegerType>
-      //   constexpr std::byte operator>>( std::byte b, IntegerType shift )
-      //   noexcept;
-      auto VecByte3Shift = VecByte3A << 3;
-      assert(VecByte3Shift[0] == VecByte3A[0] << 3 &&
-             VecByte3Shift[1] == VecByte3A[1] << 3 &&
-             VecByte3Shift[2] == VecByte3A[2] << 3);
-
-      VecByte3Shift = VecByte3A >> 1;
-      assert(VecByte3Shift[0] == VecByte3A[0] >> 1 &&
-             VecByte3Shift[1] == VecByte3A[1] >> 1 &&
-             VecByte3Shift[2] == VecByte3A[2] >> 1);
-
-      auto SwizByte2Shift = VecByte4A.lo();
-      using VecType = sycl::vec<std::byte, 2>;
-      auto SwizShiftRight = (VecType)(SwizByte2Shift >> 3);
-      auto SwizShiftLeft = (VecType)(SwizByte2Shift << 3);
-      assert(SwizShiftRight[0] == SwizByte2Shift[0] >> 3 &&
-             SwizShiftLeft[1] == SwizByte2Shift[1] << 3);
-    }
-#endif
   }
 
   return 0;

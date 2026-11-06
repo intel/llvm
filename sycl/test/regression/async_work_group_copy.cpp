@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %clangxx -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -fsycl -fsyntax-only %s
 
 // Test checks for that no compile errors occur for
 // builtin async_work_group_copy
