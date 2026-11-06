@@ -1412,8 +1412,8 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
       hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
       nullptr));
-  auto DI = getTsanInterceptor()->getDeviceInfo(hDevice);
-  DI->insertAllocInfo(TsanAllocInfo{reinterpret_cast<uptr>(*ppMem), MemSize});
+  UR_CALL(getTsanInterceptor()->registerMemory(
+      hContext, hDevice, reinterpret_cast<uptr>(*ppMem), MemSize));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1427,17 +1427,47 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
   UR_LOG_L(getContext()->logger, DEBUG, "==== urIPCCloseMemHandleExp");
 
   UR_CALL(getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp(hContext, pMem));
+  UR_CALL(getTsanInterceptor()->unregisterMemory(hContext,
+                                                 reinterpret_cast<uptr>(pMem)));
 
-  auto CI = getTsanInterceptor()->getContextInfo(hContext);
-  auto Addr = reinterpret_cast<uptr>(pMem);
-  for (const auto &Device : CI->DeviceList) {
-    auto DI = getTsanInterceptor()->getDeviceInfo(Device);
-    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
-    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
-                           [&](auto &P) { return P.AllocBegin == Addr; });
-    if (It != DI->AllocInfos.end())
-      DI->AllocInfos.erase(It);
-  }
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAllocRegisterExp");
+
+  UR_CALL(getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp(
+      hContext, pHostMem, size, pProperties));
+  UR_CALL(getTsanInterceptor()->registerMemory(
+      hContext, nullptr, reinterpret_cast<uptr>(pHostMem), size));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocUnregisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in][release] Pointer to the registered host memory range.
+    void *pHostMem) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAllocUnregisterExp");
+
+  UR_CALL(getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp(hContext,
+                                                                    pHostMem));
+  UR_CALL(getTsanInterceptor()->unregisterMemory(
+      hContext, reinterpret_cast<uptr>(pHostMem)));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1708,6 +1738,25 @@ ur_result_t urGetIPCExpProcAddrTable(
   return result;
 }
 
+/// @brief Exported function for filling application's USMExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetUSMExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_usm_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_sanitizer_layer::tsan::urUSMHostAllocRegisterExp;
+  pDdiTable->pfnHostAllocUnregisterExp =
+      ur_sanitizer_layer::tsan::urUSMHostAllocUnregisterExp;
+
+  return result;
+}
+
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
@@ -1768,6 +1817,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result =
         ur_sanitizer_layer::tsan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::tsan::urGetUSMExpProcAddrTable(&dditable->USMExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {
