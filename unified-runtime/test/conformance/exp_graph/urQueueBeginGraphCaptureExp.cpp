@@ -45,12 +45,21 @@ struct urQueueBeginGraphCaptureExpCapturingTest : uur::urGraphSupportedExpTest {
     if (graph) {
       EXPECT_SUCCESS(urGraphDestroyExp(graph));
     }
+    // A rejected enqueue may still have recorded a command that references
+    // these buffers, so free them only after the graph is gone.
+    for (void *ptr : {hostSrc, hostDst}) {
+      if (ptr) {
+        EXPECT_SUCCESS(urUSMFree(context, ptr));
+      }
+    }
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpTest::TearDown());
   }
 
   uur::raii::Event capturedEvent = nullptr;
   ur_exp_graph_handle_t graph = nullptr;
+  void *hostSrc = nullptr;
+  void *hostDst = nullptr;
 };
 
 UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
@@ -90,17 +99,12 @@ TEST_P(urQueueBeginGraphCaptureExpCapturingTest, InvalidBlockingEnqueue) {
   }
 
   constexpr size_t size = 64;
-  void *src = nullptr;
-  void *dst = nullptr;
-  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &src));
-  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &dst));
+  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &hostSrc));
+  ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &hostDst));
 
-  ur_result_t result =
-      urEnqueueUSMMemcpy(queue, true, dst, src, size, 0, nullptr, nullptr);
-
-  ASSERT_SUCCESS(urUSMFree(context, src));
-  ASSERT_SUCCESS(urUSMFree(context, dst));
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED, result);
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED,
+                   urEnqueueUSMMemcpy(queue, true, hostDst, hostSrc, size, 0,
+                                      nullptr, nullptr));
 }
 
 using urQueueBeginGraphCaptureExpMultiQueueTest =

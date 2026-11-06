@@ -83,8 +83,9 @@ TEST_P(urQueueEndGraphCaptureExpTest, InvalidCaptureAlreadyEnded) {
   ur_exp_graph_handle_t capturedGraph = nullptr;
   ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &capturedGraph));
 
+  ur_exp_graph_handle_t secondGraph = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING,
-                   urQueueEndGraphCaptureExp(queue, &capturedGraph));
+                   urQueueEndGraphCaptureExp(queue, &secondGraph));
 }
 
 using urQueueEndGraphCaptureExpMultiQueueTest =
