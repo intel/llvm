@@ -34,7 +34,8 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
               hDevice->ZeDevice,
               {true, ordinal, true /* always enable copy offload */},
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
-              priorityLevel)),
+              priorityLevel),
+          true),
       flags(flags),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)) {}
@@ -44,7 +45,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     raii::command_list_unique_handle commandListHandle,
     event_flags_t eventFlags, ur_queue_flags_t flags)
     : hContext(hContext), hDevice(hDevice),
-      commandListManager(hContext, hDevice, std::move(commandListHandle)),
+      commandListManager(hContext, hDevice, std::move(commandListHandle), true),
       flags(flags),
       eventPool(hContext->getEventPoolCache(PoolCacheType::Immediate)
                     .borrow(hDevice->Id.value(), eventFlags)) {}
