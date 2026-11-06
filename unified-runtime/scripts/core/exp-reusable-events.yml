@@ -35,6 +35,12 @@ etors:
       desc: >
             Event captures UR_PROFILING_INFO_COMMAND_START and
             UR_PROFILING_INFO_COMMAND_END timestamps when signalled.
+    - name: FORCE_EVENT_CREATION
+      value: "$X_BIT(2)"
+      desc: >
+            A new native event is created instead of reusing one previously
+            released to the adapter's event pool. Once released, the event may
+            still be returned to the pool.
 
 --- #--------------------------------------------------------------------------
 type: struct

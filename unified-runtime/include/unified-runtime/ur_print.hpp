@@ -13753,6 +13753,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_EXP_EVENT_FLAG_IPC_EXP:
     os << "UR_EXP_EVENT_FLAG_IPC_EXP";
     break;
+  case UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION:
+    os << "UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -13789,6 +13792,17 @@ inline ur_result_t printFlag<ur_exp_event_flag_t>(std::ostream &os,
       first = false;
     }
     os << UR_EXP_EVENT_FLAG_IPC_EXP;
+  }
+
+  if ((val & UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION) ==
+      (uint32_t)UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION) {
+    val ^= (uint32_t)UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
