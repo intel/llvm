@@ -1,0 +1,488 @@
+= sycl_ext_oneapi_programmatic_dependencies
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 13 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_programmatic_serialization`.
+The application must check that the device has this aspect before submitting a
+kernel using any of the APIs in this extension.
+If the application fails to do this, the implementation throws an exception as
+specified below.
+
+
+== Overview
+
+This extension provides a way to enqueue a dependent kernel such that the
+prolog of the dependent kernel overlaps with the epilog of its predecessor
+kernel (called the primary kernel from now on).
+This is useful in cases where the dependent kernel does some initial work that
+does not need the results that are computed by the primary kernel.
+This extension can also be used to hide the launch latency of the dependent
+kernel by overlapping this launch with the execution of the primary kernel.
+
+The simplified code snippet below helps illustrate the flow.
+The first call to `nd_launch` enqueues the primary kernel, and the second call
+enqueues the dependent kernel.
+Once all sub-groups in the primary kernel call `programmatic_trigger`, the
+depend kernel may start executing.
+Each work-item in the dependent kernel must call `programmatic_wait`, which
+blocks execution until the primary kernel completes.
+Once these calls unblock, each work-item in the dependent kernel can use
+data that was written to memory from the primary kernel.
+
+[source,c++]
+----
+syclex::nd_launch(q, ndr, [=](sycl::nd_item<1> it) {
+  // main body of primary kernel
+  syclex::programmatic_trigger();
+  // epilog of primary kernel
+  // potentially overlapped with the dependent kernel prolog ...
+});
+
+syclex::nd_launch(q, ndr, [=](sycl::nd_item<1> it) {
+  // ... prolog of dependent kernel
+  //     potentially overlapped with the epilog of primary kernel
+  syclex::programmatic_wait();
+  // use results from primary kernel
+});
+----
+
+Some details are not shown here for brevity.
+For example, there are kernel launch properties which specify the dependency
+relationship between the kernels.
+These details are described more thoroughly below, and there are more detailed
+examples toward the end of this document.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_PROGRAMMATIC_DEPENDENCIES` to one of the values defined in the
+table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New aspect
+
+This extension adds a new aspect which applications can use to query whether a
+device supports programmatic dependencies.
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  ext_oneapi_programmatic_serialization
+
+  // ...
+};
+
+}
+----
+
+'''
+
+`*ext_oneapi_programmatic_serialization*`
+
+Indicates that the device supports programmatic serialization as described in
+this extension.
+
+'''
+
+=== New functions for programmatic kernel dependencies
+
+This extension adds two new functions which can be called in device code to
+implement programmatic dependencies between a primary kernel and its dependent
+kernel(s).
+
+In the current version of this extension, there is only one type of programmatic
+dependency called "programmatic serialization", but other forms of programmatic
+dependencies might be added in future versions of this extension.
+The functions defined in this section are expected to work with all forms of
+programmatic dependencies.
+Although programmatic serialization involves one primary kernel and one
+dependent kernel, other forms of programmatic dependencies might involve one
+primary kernel and multiple dependent kernels.
+
+The primary kernel (the kernel triggering the dependency) calls
+`programmatic_trigger` and the dependent kernels (the kernels waiting on the
+dependency) call `programmatic_wait`.
+Once each sub-group in the primary kernel calls `programmatic_trigger`, the
+implementation may start executing the dependent kernels.
+Each work-item in the dependent kernels must call `programmatic_wait`, which
+causes the work-item to block until the primary kernel completes.
+As a result, code that follows the call to `programmatic_trigger` in the
+primary kernel (the primary kernel's epilog) may overlap execution with the code
+in the dependent kernels that precede their calls to `programmatic_wait` (the
+dependent kernels' prolog).
+Although this overlap is possible, there is no guarantee that the epilog and
+prologs overlap in this manner.
+
+It is not necessary for every sub-group in the primary kernel to call
+`programmatic_trigger`.
+If a sub-group does not call this function, an implicit call is made after all
+work-items in the sub-group complete.
+
+As noted earlier, future versions of this extension may support several types of
+programmatic dependencies.
+The specific type of dependency is determine by the properties used to launch
+the primary and dependent kernels.
+These properties are described later.
+
+'''
+
+`*programmatic_trigger*`
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void programmatic_trigger();
+
+}
+----
+
+_Preconditions_: The function is called from device code.
+
+_Effects:_ Informs the implementation that the calling sub-group is ready for
+the dependent kernels to start executing.
+If a sub-group does not call this function before all its work-items complete,
+it behaves as though an implicit call is made just after they complete.
+
+_Remarks:_ A sub-group may call this function multiple times, but only the first
+call has any effect.
+Subsequent calls by the same sub-group are ignored.
+
+A kernel may call this function even when there are no dependent kernels.
+When this happens, the call has no effect.
+
+This function is an optional kernel feature as defined by section 5.7 of the
+core SYCL specification.
+If a kernel's static call tree contains a call to this function and the
+application submits the kernel to a device that does not have
+`aspect::ext_oneapi_programmatic_serialization`, the implementation throws a
+synchronous `exception` with the error code `errc::kernel_not_supported` from
+the kernel invocation command.
+
+[_Note:_ Calls to this function do not "synchronize with" the start of the
+dependent kernel in the formal {cpp} definition of that term.
+As a result, memory writes that are sequenced before this call are *not*
+guaranteed to be visible in the dependent kernel.
+However, the application can make these writes visible by using a "release"
+memory fence at `memory_scope::device` or `memory_scope::system` that is
+sequenced before the call to `programmatic_trigger`.
+(Assuming, of course, that the device supports this memory fence scope.)
+See also the synchronization guarantees for `programmatic_wait`.
+_{endnote}_]
+
+'''
+
+`*programmatic_wait*`
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void programmatic_wait();
+
+}
+----
+
+_Preconditions_: The function is called from device code.
+
+_Effects:_ Blocks the calling work-item until the primary kernel completes.
+
+_Synchronization:_ The completion of the primary kernel strongly happens before
+the return from the call to this function.
+
+_Remarks:_ A kernel may call this function even if it is launched without any
+properties that enable programmatic dependencies.
+When this happens, calls to `programmatic_wait` have no effect.
+
+This function is an optional kernel feature as defined by section 5.7 of the
+core SYCL specification.
+If a kernel's static call tree contains a call to this function and the
+application submits the kernel to a device that does not have
+`aspect::ext_oneapi_programmatic_serialization`, the implementation throws a
+synchronous `exception` with the error code `errc::kernel_not_supported` from
+the kernel invocation command.
+
+'''
+
+=== Programmatic serialization
+
+One type of programmatic dependency is called "programmatic serialization".
+This type of dependency can only be used when two kernels are submitted
+consecutively to the same in-order queue.
+The first kernel is the primary kernel and the second is the dependent kernel.
+When programmatic serialization is used, the dependent kernel may launch even
+before the primary kernel completes, and the two kernels synchronize via the
+`programmatic_trigger` and `programmatic_wait` calls.
+
+In order to use this type of programmatic dependency, the primary kernel does
+not need to be launched with any special property.
+However, the dependent kernel must be launched with the
+`programmatic_serialization` property set to `true`.
+
+This property is defined as follows:
+
+'''
+
+`*programmatic_serialization*`
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct programmatic_serialization {
+  constexpr programmatic_serialization() : value{true} {}
+  constexpr explicit programmatic_serialization(bool v) : value{v} {}
+  bool value;
+};
+using programmatic_serialization_key = programmatic_serialization;
+
+}
+----
+
+When a kernel is launched with this property and the value is `true`, it becomes
+the secondary kernel in a programmatic serialization dependency as described
+above.
+A kernel launched with this property and the value `false` behaves as though it
+was launched without the property.
+
+If a kernel is launched with this property and the value `true` on a device that
+does not have `aspect::ext_oneapi_programmatic_serialization`, the launch
+function throws a synchronous `exception` with the `errc::feature_not_supported`
+error code.
+
+If a kernel is launched with this property and the value `true` on an
+out-of-order queue, the launch function throws a synchronous `exception` with
+the `errc::invalid` error code.
+
+'''
+
+=== Interaction with other dependencies
+
+Kernels that use programmatic dependencies may also have regular event
+dependencies (e.g. specified via `handler::depends_on`).
+In such a case, the kernel is not launched until after its regular dependencies
+are satisfied.
+Once the kernel is launched, calls to `programmatic_wait` behave as described
+above.
+
+
+== Examples
+
+=== Programmatic serialization
+
+A simple example that demonstrates programmatic serialization of two kernels
+submitted to an in-order queue.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t GLOBAL = 1024;
+static constexpr size_t LOCAL = 16;
+
+
+int main() {
+  sycl::queue q{sycl::property::queue::in_order{}};
+  sycl::nd_range<1> ndr{GLOBAL, LOCAL};
+
+  // Launch the first kernel in the programmatic serialization pair.
+  // Each sub-group calls "programmatic_trigger" once it is ready for the second
+  // kernel to begin execution.
+  syclex::nd_launch(q, ndr, [=](sycl::nd_item<1> it) {
+    // main body of first kernel
+    syclex::programmatic_trigger();
+    // potentially overlapped with second kernel ...
+  });
+
+  // Launch the second kernel in the programmatic serialization pair.
+  // Each work-item calls "programmatic_wait" to wait for the first kernel to
+  // complete and for data it has written to be visible.
+  syclex::launch_config cfg{ndr,
+                            syclex::properties{syclex::programmatic_serialization{}}};
+  syclex::nd_launch(q, cfg, [=](sycl::nd_item<1> it) {
+    // ... potentially overlapped with first kernel
+    syclex::programmatic_wait();
+    // use results from first kernel
+  });
+}
+----
+
+=== Programmatic serialization with free function kernel
+
+The same thing but with free function kernels.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t GLOBAL = 1024;
+static constexpr size_t LOCAL = 16;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+void primary(/*args*/) {
+  // main body of first kernel
+  syclex::programmatic_trigger();
+  // potentially overlapped with second kernel ...
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
+void dependent(/*args*/) {
+  // ... potentially overlapped with first kernel
+  syclex::programmatic_wait();
+  // use results from first kernel
+}
+
+int main() {
+  sycl::queue q{sycl::property::queue::in_order{}};
+  sycl::nd_range<1> ndr{GLOBAL, LOCAL};
+
+  // Launch the first kernel in the programmatic serialization pair.
+  syclex::nd_launch(q, ndr, syclex::kernel_function<primary>, /*args*/);
+
+  // Launch the second kernel in the programmatic serialization pair.
+  syclex::launch_config cfg{ndr,
+                            syclex::properties{syclex::programmatic_serialization{}}};
+  syclex::nd_launch(q, cfg, syclex::kernel_function<dependent>, /*args*/);
+}
+----
+
+
+== Issues
+
+* I know the Level Zero team suggested that `programmatic_serialization` should
+  be the default whenever the kernel's static call tree contains a call to
+  `programmatic_wait`, and we should instead add a property that disables this
+  feature.
+  I decided not to do this for several reasons:
++
+--
+** CUDA has an opt-in property, and I think it's desirable to be similar to CUDA
+   in order to make code migration easier.
+** I don't think it's a good idea to assume that IGC can build the complete
+   static call tree for each kernel.
+   We are planning to add support for function pointers and virtual function
+   calls, and in these cases it will not be possible to build a static call tree
+   unless we add some additional metadata into the SPIR-V / PISA module which
+   indicates the potential target(s) of each indirect call site.
+   Note that it is not sufficient for IGC to determine whether the SPIR-V / PISA
+   _module_ contains a call to `programmatic_wait` because the module may
+   contain several kernels.
+   Therefore, IGC would need to determine the complete static call tree for a
+   kernel in order to determine whether it "contains" a call to
+   `programmatic_wait`.
+** CUDA has two types of programmatic launch:
+   `cudaLaunchAttributeProgrammaticStreamSerialization` and
+   `cudaLaunchAttributeProgrammaticEvent`.
+   This extension only provides an equivalent of the first one, but I think we
+   should be prepared to extend this extension in the future to provide an
+   equivalent of `cudaLaunchAttributeProgrammaticEvent` too.
+   If we do that, we will need an opt-in property for this type of programmatic
+   launch.
+   It would be weird if "programmatic serialization" was opt-out but
+   "programmatic event" was opt-in.
+   Therefore, I think we should structure "programmatic serialization" as opt-in
+   now in order to retain consistency with a possible future "programmatic
+   event" launch.
+--
++
+This does not preclude Level Zero from implementing a limited form of
+programmatic serialization by default if we think this is desirable.
+If we decide to do this, it could work as follows.
+If the user launches a kernel *without* the `programmatic_serialization`
+property, Level Zero could still launch the kernel before its predecessor
+kernel completes.
+In this case, Level Zero would behave as though there was an implicit call
+to `programmatic_wait` by each work-item immediately before the work-item
+executes any of the user's code.
+As a result, the launch latency of the kernel would still be overlapped with
+the execution of the predecessor kernel.
+
+* What should be the behavior of `programmatic_wait` when there is no
+  primary kernel?
+  Logically, I think this should be allowed, and the call should have no effect.
+  Is that hard to implement?
+
+* How do these APIs interact with graphs?
