@@ -72,6 +72,16 @@
 // RUN:  | FileCheck -check-prefix=IMPLY-NO-SYCL-UNNAMED-LAMBDA %s
 // IMPLY-NO-SYCL-UNNAMED-LAMBDA: clang{{.*}} "-fno-sycl-unnamed-lambda"
 
+/// -fsycl-host-compiler tells the device compilation that the host compiler is
+/// external, so that features needing host compiler support are disabled on
+/// both sides.
+// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=EXTERNAL_HOST_COMPILER %s
+// EXTERNAL_HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_EXTERNAL_HOST_COMPILER__"
+// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=NO_EXTERNAL_HOST_COMPILER %s
+// NO_EXTERNAL_HOST_COMPILER-NOT: "-D__SYCL_EXTERNAL_HOST_COMPILER__"
+
 // Zc:__cplusplus, Zc:__cplusplus- check.
 // RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
 // RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
