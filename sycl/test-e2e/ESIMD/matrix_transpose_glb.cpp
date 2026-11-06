@@ -53,7 +53,9 @@ bool checkResult(const int *M, unsigned N) {
 
 // This represents the register file that kernels operate on.
 // The max size we need is for 3 16x16 matrices
-ESIMD_PRIVATE ESIMD_REGISTER(192) simd<int, 3 * 32 * 8> GRF;
+// Keep it above the kernel argument payload, which may extend past byte 192 on
+// some targets (e.g. CRI) and would otherwise be overwritten.
+ESIMD_PRIVATE ESIMD_REGISTER(384) simd<int, 3 * 32 * 8> GRF;
 
 // The basic idea of vecotrizing transposition can be illustrated by
 // transposing a 2 x 2 matrix as follows:
