@@ -10,7 +10,7 @@
 /// Create a stand-in for an -fsycl-link output: a host object with a SYCL
 /// device image section and no host bundle.
 // RUN: echo "void foo(void) {}" > %t_host.cpp
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -c %t_host.cpp -o %t_host.o
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -c %t_host.cpp -o %t_host.o
 // RUN: echo "dummy device image" > %t_image.spv
 // RUN: llvm-objcopy --add-section=__CLANG_OFFLOAD_BUNDLE__sycl-spir64=%t_image.spv \
 // RUN:   %t_host.o %t_prelinked.o
@@ -21,18 +21,18 @@
 
 /// Fat object from a regular -fsycl compilation.
 // RUN: echo "void bar(void) {}" > %t_fat.cpp
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:   -c %t_fat.cpp -o %t_fat.o
 
 /// Only the fat object goes through the device link; the pre-linked object is
 /// passed to the host linker unchanged, for executables and shared libraries.
 /// File names are matched instead of full paths, as -### escapes backslashes
 /// in Windows paths.
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:   %t_prelinked.o %t_fat.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-LINK \
 // RUN:       --implicit-check-not='"-input={{.*}}_prelinked.o" {{.*}}"-unbundle"'
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:   -shared %t_prelinked.o %t_fat.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-LINK \
 // RUN:       --implicit-check-not='"-input={{.*}}_prelinked.o" {{.*}}"-unbundle"'
@@ -41,7 +41,7 @@
 // CHECK-LINK: ld{{.*}} "{{.*}}_prelinked.o"
 
 /// -fsycl-link still consumes the device images of a pre-linked input.
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:   -fsycl-link %t_prelinked.o %t_fat.o -o %t_out.o -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=CHECK-SYCL-LINK
 // CHECK-SYCL-LINK: clang-offload-bundler{{.*}} "-input={{.*}}_prelinked.o" {{.*}}"-unbundle"
