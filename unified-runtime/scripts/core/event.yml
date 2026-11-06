@@ -224,6 +224,10 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED:
+      - "An event in `phEventWaitList` is signaled by a command recorded by an active graph capture."
+    - $X_RESULT_ERROR_GRAPH_INTERNAL_EVENT:
+      - "An event in `phEventWaitList` is signaled by a command recorded into a graph whose capture has ended."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to an event handle. Increment the event object's reference count."

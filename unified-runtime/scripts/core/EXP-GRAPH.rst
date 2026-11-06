@@ -53,6 +53,32 @@ Functions
    * ${x}QueueGetGraphExp
    * ${x}EnqueueGraphExp
 
+Error Codes
+--------------------------------------------------------------------------------
+
+The following result codes report misuse of graph capture. See
+${x}QueueBeginGraphCaptureExp for the rules that apply while a queue is in graph
+capture mode.
+
+* ${X}_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED - an operation that is not
+  supported during graph capture was called. This includes operations that
+  synchronize the host with recorded work, such as ${x}QueueFinish,
+  ${x}EventWait or a blocking enqueue.
+* ${X}_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT - a command enqueued to a queue
+  that is already capturing waited on an event recorded by a different, still
+  active, graph capture.
+* ${X}_RESULT_ERROR_GRAPH_INTERNAL_EVENT - an event recorded into a graph was
+  used outside of that graph after the capture ended, or a command recorded
+  into a graph waited on an event signaled outside of it.
+* ${X}_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING - ${x}QueueEndGraphCaptureExp was
+  called on a queue that is not in graph capture mode.
+* ${X}_RESULT_ERROR_GRAPH_UNJOINED_FORKS - ${x}QueueEndGraphCaptureExp was called
+  while a forked queue was not joined back. The capture still ends and the
+  recorded graph is still returned, but it is invalid.
+* ${X}_RESULT_ERROR_INVALID_GRAPH - an invalid graph, such as one whose capture
+  ended with ${X}_RESULT_ERROR_GRAPH_UNJOINED_FORKS, was passed to
+  ${x}GraphInstantiateGraphExp or ${x}GraphIsEmptyExp.
+
 Changelog
 --------------------------------------------------------------------------------
 
@@ -79,6 +105,12 @@ Changelog
 +-----------+---------------------------------------------+
 | 1.5       | Add ${x}GraphGetIdExp to retrieve a         |
 |           | process-unique identifier for a graph.      |
++-----------+---------------------------------------------+
+| 1.6       | Document when graph capture error codes are |
+|           | returned.                                   |
++-----------+---------------------------------------------+
+| 1.7       | ${x}QueueEndGraphCaptureExp returns the     |
+|           | recorded graph on unjoined forks.           |
 +-----------+---------------------------------------------+
 
 Support
