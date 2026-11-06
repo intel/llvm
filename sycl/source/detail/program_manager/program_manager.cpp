@@ -3100,7 +3100,7 @@ bool doesDevSupportDeviceRequirements(const device_impl &Dev,
   return !checkDevSupportDeviceRequirements(Dev, Img).has_value();
 }
 
-static std::string getAspectNameStr(sycl::aspect AspectNum) {
+std::string getAspectNameStr(sycl::aspect AspectNum) {
 #define __SYCL_ASPECT(ASPECT, ID)                                              \
   case aspect::ASPECT:                                                         \
     return #ASPECT;
@@ -3391,13 +3391,17 @@ checkDevSupportDeviceRequirements(const device_impl &Dev,
                      RTDeviceBinaryImage::PropertyRange::ConstIterator>{PropIt};
   };
 
-  auto AspectsPropIt = getPropIt("aspects");
+  auto AspectsPropIt = getPropIt(__SYCL_DEVICE_REQUIREMENTS_ASPECTS);
   auto JointMatrixPropIt = getPropIt("joint_matrix");
   auto JointMatrixMadPropIt = getPropIt("joint_matrix_mad");
-  auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
-  auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
-  auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
-  auto WorkGroupNumDim = getPropIt("work_group_num_dim");
+  auto ReqdWGSizeUint32TPropIt =
+      getPropIt(__SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE);
+  auto ReqdWGSizeUint64TPropIt =
+      getPropIt(__SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE_UINT64);
+  auto ReqdSubGroupSizePropIt =
+      getPropIt(__SYCL_DEVICE_REQUIREMENTS_REQD_SUB_GROUP_SIZE);
+  auto WorkGroupNumDim =
+      getPropIt(__SYCL_DEVICE_REQUIREMENTS_WORK_GROUP_NUM_DIM);
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
