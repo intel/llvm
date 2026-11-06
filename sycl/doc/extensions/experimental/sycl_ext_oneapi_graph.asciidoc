@@ -2496,6 +2496,15 @@ e.g. directly to a queue without returning an event.
 link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
 can be used with SYCL Graphs.
 
+==== sycl_ext_oneapi_forward_progress
+
+The forward progress properties defined by
+link:../experimental/sycl_ext_oneapi_forward_progress.asciidoc[sycl_ext_oneapi_forward_progress]
+are supported in graph nodes only when using
+<<native-recording, native recording>>. Finalizing a graph containing a kernel
+using these properties without native recording throws a synchronous exception
+with error code `errc::feature_not_supported`.
+
 ==== sycl_ext_oneapi_kernel_compiler_spirv
 
 The kernels loaded using
@@ -2551,6 +2560,15 @@ The graph record and replay behavior of the event operations defined by
 link:../experimental/sycl_ext_oneapi_reusable_events.asciidoc[
 sycl_ext_oneapi_reusable_events] is described in
 <<reusable-events, Reusable Events>>.
+
+==== sycl_ext_oneapi_root_group
+
+The `use_root_sync` property defined by
+link:../experimental/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
+is supported in graph nodes only when using
+<<native-recording, native recording>>. Finalizing a graph containing a kernel
+using this property without native recording throws a synchronous exception
+with error code `errc::feature_not_supported`.
 
 ==== sycl_ext_oneapi_work_group_memory
 
