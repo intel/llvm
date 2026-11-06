@@ -11,6 +11,7 @@
 #include <unified-runtime/ur_api.h>
 
 #include <atomic>
+#include <mutex>
 #include <unordered_map>
 
 #include "common/ur_ref_count.hpp"
@@ -41,6 +42,13 @@ struct ur_program_handle_t_ : ur::hip::handle_base {
       KernelReqdWorkGroupSizeMD;
   std::unordered_map<std::string, uint32_t> KernelReqdSubGroupSizeMD;
 
+  struct FunctionLocalMemInfo {
+    int StaticSize{-1};
+    bool MaxDynamicSizeSet{false};
+  };
+  std::mutex FunctionLocalMemMutex;
+  std::unordered_map<hipFunction_t, FunctionLocalMemInfo> FunctionLocalMem;
+
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
   char ErrorLog[MAX_LOG_SIZE], InfoLog[MAX_LOG_SIZE];
@@ -66,6 +74,7 @@ struct ur_program_handle_t_ : ur::hip::handle_base {
 
   ur_result_t buildProgram(const char *BuildOptions);
   ur_result_t finalizeRelocatable();
+  void prepareFunctionLocalMemory(hipFunction_t Function, uint32_t DynamicSize);
   ur_context_handle_t getContext() const { return Context; };
   ur_device_handle_t getDevice() const { return Device; };
 
