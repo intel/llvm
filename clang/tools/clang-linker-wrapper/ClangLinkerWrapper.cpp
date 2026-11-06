@@ -3685,9 +3685,9 @@ getDeviceInput(const ArgList &Args) {
   for (StringRef Arg : Args.getAllArgValues(OPT_should_extract))
     ShouldExtract.insert(Saver.save(Arg));
 
-  // When no other input provides SYCL device code, such as when all SYCL
-  // objects are created with -fsycl-host-only, SYCL device code from archives
-  // is extracted. Device code of other offload kinds does not affect this.
+  // When no other input provides SYCL device code, such as when SYCL sources
+  // are compiled with -fsycl-host-only, SYCL device code from archives is
+  // extracted. Device code of other offload kinds does not affect this.
   bool ExtractSYCLFromArchives =
       llvm::none_of(InputFiles, [](const auto &Entry) {
         return llvm::any_of(Entry.second, [](const OffloadFile &File) {

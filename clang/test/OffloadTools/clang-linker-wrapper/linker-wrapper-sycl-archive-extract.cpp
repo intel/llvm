@@ -37,6 +37,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-OMP %s
 // CHK-OMP-DAG: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx90a
 // CHK-OMP-DAG: sycl-post-link
+// CHK-OMP-DAG: offload-wrapper: output:
 
 /// Host only objects without archives: no device link.
 // RUN: clang-linker-wrapper --dry-run --linker-path=/usr/bin/ld -o /dev/null %t_host.o 2>&1 \
