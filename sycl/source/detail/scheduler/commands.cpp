@@ -2847,6 +2847,17 @@ ur_result_t enqueueImpCommandBufferKernel(
   return Res;
 }
 
+static std::string rangeToString(const std::array<size_t, 3> &Arr,
+                                 size_t Dims) {
+  std::string S = "{";
+  for (size_t I = 0; I < Dims; ++I) {
+    if (I > 0)
+      S += ", ";
+    S += std::to_string(Arr[I]);
+  }
+  return S + "}";
+}
+
 void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
@@ -2856,6 +2867,22 @@ void enqueueImpKernel(
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage, void *KernelFuncPtr) {
+  // Ensure the global range is evenly divisible by the local range.
+  // Don't rely on the driver as it may support uneven work group sizes.
+  if (NDRDesc.LocalSize[0] != 0) {
+    for (size_t I = 0; I < NDRDesc.Dims; ++I) {
+      if (NDRDesc.LocalSize[I] != 0 &&
+          NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0) {
+        throw sycl::exception(
+            sycl::make_error_code(sycl::errc::nd_range),
+            "Global work size " +
+                rangeToString(NDRDesc.GlobalSize, NDRDesc.Dims) +
+                " is not evenly divisible by local work-group size " +
+                rangeToString(NDRDesc.LocalSize, NDRDesc.Dims));
+      }
+    }
+  }
+
   // Run OpenCL kernel
   context_impl &ContextImpl = Queue.getContextImpl();
   device_impl &DeviceImpl = Queue.getDeviceImpl();
