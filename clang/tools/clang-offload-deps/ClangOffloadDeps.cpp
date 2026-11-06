@@ -22,13 +22,14 @@
 
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/OffloadBundler.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/TargetParser/Triple.h"
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
@@ -70,6 +71,21 @@ static std::string ToolPath;
 
 static void reportError(Error E) {
   logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
+}
+
+/// Check whether the symbols of the SYCL bundle entry \p CodeObject are needed
+/// by the SYCL \p Target, which it does not match exactly, using the same
+/// compatibility check as unbundling: SYCL device code without a target ID
+/// (-fsycl-targets=spir64_gen) is compatible with any target ID of the same
+/// triple, and the other way around.
+static bool isCompatibleSYCLTarget(StringRef CodeObject, StringRef Target) {
+  // Other kinds are only matched exactly.
+  if (!CodeObject.starts_with("sycl-") || !Target.starts_with("sycl-"))
+    return false;
+  static const clang::OffloadBundlerConfig BundlerConfig;
+  return clang::isCodeObjectCompatible(
+      clang::OffloadTargetInfo(CodeObject, BundlerConfig),
+      clang::OffloadTargetInfo(Target, BundlerConfig));
 }
 
 int main(int argc, const char **argv) {
@@ -145,6 +161,18 @@ int main(int argc, const char **argv) {
       reportError(NameOrErr.takeError());
       return 1;
     }
+    // The format of the symbol is [offload type][triple].[symbol name], so
+    // if the triple we're parsing contains a '.', simple parsing of the symbol
+    // format will fail. We don't allow offloading to any triple that contains a
+    // '.', and this tool is only used for the old offload model, so just error.
+    StringRef ID = *NameOrErr;
+    if (ID.consume_front("__CLANG_OFFLOAD_BUNDLE__") &&
+        ID.starts_with("sycl-") && ID.contains('.')) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "unsupported SYCL bundle entry ID '" + ID +
+                                        "', '.' is not allowed"));
+      return 1;
+    }
     if (*NameOrErr != SYMBOLS_SECTION_NAME)
       continue;
 
@@ -163,11 +191,16 @@ int main(int argc, const char **argv) {
 
       // TODO: Consider storing Targets and Kinds in a single map-like struct,
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
+      // SYCL bundle entry IDs have no '.' (checked above), so the symbol name
+      // of a SYCL entry starts after the first '.'.
+      auto [CodeObject, Name] = Symbol.take_front(Len).split('.');
       for (const std::string &Target : Targets) {
         std::string Prefix = Target + ".";
         if (Symbol.starts_with(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
+        else if (!Name.empty() && isCompatibleSYCLTarget(CodeObject, Target))
+          Target2Symbols[Target].insert(Name);
       }
 
       Symbol = Symbol.drop_front(Len + 1u);
