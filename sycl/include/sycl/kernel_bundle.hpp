@@ -35,10 +35,10 @@
 #include <functional> // for function
 #include <iterator>   // for distance
 #include <memory>     // for shared_ptr, operator==, hash
-// MSVC STL warns (STL4038) when <span> is included before C++20, and it
-// reports the language mode in _MSVC_LANG rather than __cplusplus.
-#if __has_include(<span>) &&                                                  \
-    (__cplusplus >= 202002L || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L))
+#if __has_include(<version>)
+#include <version> // defines __cpp_lib_span
+#endif
+#ifdef __cpp_lib_span
 #include <span>
 #endif
 #include <string>      // for string

@@ -1,0 +1,1 @@
+#error "<span> must not be included in C++17 mode"
