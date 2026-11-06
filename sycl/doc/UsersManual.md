@@ -126,6 +126,7 @@ and not recommended to use in production environment.
     * amd_gpu_gfx940 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx941 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx942 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx950 - AMD GCN GFX9 (CDNA4) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture

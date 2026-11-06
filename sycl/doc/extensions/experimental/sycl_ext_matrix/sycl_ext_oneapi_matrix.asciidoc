@@ -986,7 +986,10 @@ enum class matrix_type {
   uint8,
   uint16,
   uint32,
-  uint64
+  uint64,
+  fp8_e4m3,
+  fp8_e5m2,
+  fp4_e2m1
 };
 struct combination {
   size_t max_msize;
@@ -1356,14 +1359,17 @@ https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictio
 ==== AMD Matrix Cores Supported Combinations
 The complete set of matrix data types and dimensions that are supported by
 the `ext_oneapi_hip` backend are represented in the following
-table. In this architecture's implementation, A and B matrices must have the same type. 
-Similarly, C and D matrices must share the same type.
+tables. In this architecture's implementation, A and B matrices must have the
+same type, except for the 8-bit and 4-bit floating-point types on GFX950
+described below. C and D matrices must share the same type.
 
-IMPORTANT: The supported instructions may be run on GFX90A (MI200, MI210, MI250 and MI250X GPUs)
-architecture. When compiling for the `ext_oneapi_hip` backend the 
-target arch backend flag, `-fsycl-targets=amd_gpu_gfx90a`, must
-be used. An attempt to run the compiled code on an unsupported architecture will throw an error. 
+When compiling for the `ext_oneapi_hip` backend the target architecture must
+be specified, e.g. `-fsycl-targets=amd_gpu_gfx90a`,
+`-fsycl-targets=amd_gpu_gfx942` or `-fsycl-targets=amd_gpu_gfx950`. An attempt
+to run the compiled code on an unsupported architecture will throw an error.
 
+The following combinations are supported on GFX90A (MI200, MI210, MI250 and
+MI250X GPUs), `-fsycl-targets=amd_gpu_gfx90a`:
 
 [frame="none",options="header"]
 |======================
@@ -1380,6 +1386,80 @@ be used. An attempt to run the compiled code on an unsupported architecture will
 .1+|`matrix_type::fp64`  .1+| `matrix_type::fp64`
 |16 |16 |4
 |======================
+
+The following combinations are supported on GFX940, GFX941 and GFX942 (MI300
+GPUs), `-fsycl-targets=amd_gpu_gfx940`, `amd_gpu_gfx941` or `amd_gpu_gfx942`:
+
+[frame="none",options="header"]
+|======================
+| A and B type | C and D type | M | N | K
+.2+| `matrix_type::fp16`  .2+| `matrix_type::fp32`
+|32 |32 |8
+|16 |16 |16
+.2+| `matrix_type::fp32`  .2+| `matrix_type::fp32`
+|32 |32 |2
+|16 |16 |4
+.2+| `matrix_type::sint8`  .2+| `matrix_type::sint32`
+|32 |32 |16
+|16 |16 |32
+.2+|`matrix_type::bf16`  .2+|`matrix_type::fp32`
+|32 |32 |8
+|16 |16 |16
+.1+|`matrix_type::fp64`  .1+| `matrix_type::fp64`
+|16 |16 |4
+|======================
+
+The following combinations are supported on GFX950 (MI350 and MI355X GPUs),
+`-fsycl-targets=amd_gpu_gfx950`. The A and B types `fp8_e4m3`, `fp8_e5m2` and
+`fp4_e2m1` correspond to the `fp8_e4m3_x<1>`, `fp8_e5m2_x<1>` and
+`fp4_e2m1_x<1>` types of the `sycl_ext_oneapi_fp8` and `sycl_ext_oneapi_fp4`
+extensions. For these types, A and B may have different types, in any
+combination listed in the table.
+
+[frame="none",options="header"]
+|======================
+| A type | B type | C and D type | M | N | K
+.4+| `matrix_type::fp16` .4+| `matrix_type::fp16` .4+| `matrix_type::fp32`
+|32 |32 |8
+|16 |16 |16
+|32 |32 |16
+|16 |16 |32
+.2+| `matrix_type::fp32` .2+| `matrix_type::fp32` .2+| `matrix_type::fp32`
+|32 |32 |2
+|16 |16 |4
+.4+| `matrix_type::sint8` .4+| `matrix_type::sint8` .4+| `matrix_type::sint32`
+|32 |32 |16
+|16 |16 |32
+|32 |32 |32
+|16 |16 |64
+.4+|`matrix_type::bf16` .4+|`matrix_type::bf16` .4+|`matrix_type::fp32`
+|32 |32 |8
+|16 |16 |16
+|32 |32 |16
+|16 |16 |32
+.1+|`matrix_type::fp64` .1+|`matrix_type::fp64` .1+| `matrix_type::fp64`
+|16 |16 |4
+.4+| `matrix_type::fp8_e4m3` or `matrix_type::fp8_e5m2`
+.4+| `matrix_type::fp8_e4m3` or `matrix_type::fp8_e5m2`
+.4+| `matrix_type::fp32`
+|32 |32 |16
+|16 |16 |32
+|32 |32 |64
+|16 |16 |128
+.2+| `matrix_type::fp8_e4m3`, `matrix_type::fp8_e5m2` or
+`matrix_type::fp4_e2m1`
+.2+| `matrix_type::fp8_e4m3`, `matrix_type::fp8_e5m2` or
+`matrix_type::fp4_e2m1`
+.2+| `matrix_type::fp32`
+|32 |32 |64
+|16 |16 |128
+|======================
+
+NOTE: GFX950 interprets FP8 data in the OCP E4M3 and E5M2 formats used by the
+`sycl_ext_oneapi_fp8` extension. The FP8 matrix instructions of GFX940, GFX941
+and GFX942 use the E4M3FNUZ and E5M2FNUZ formats instead, which have a
+different exponent bias and a different NaN encoding, and no infinity, so the
+`fp8_e4m3` and `fp8_e5m2` types are not supported on those architectures.
 
 === Revision History
 

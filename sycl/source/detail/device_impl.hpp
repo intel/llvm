@@ -1946,6 +1946,7 @@ public:
             {"gfx940", oneapi_exp_arch::amd_gpu_gfx940},
             {"gfx941", oneapi_exp_arch::amd_gpu_gfx941},
             {"gfx942", oneapi_exp_arch::amd_gpu_gfx942},
+            {"gfx950", oneapi_exp_arch::amd_gpu_gfx950},
             {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
             {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
             {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
@@ -2346,7 +2347,85 @@ public:
           {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
            matrix_type::fp64, matrix_type::fp64},
       };
-    else if (backend::ext_oneapi_cuda == CurrentBackend) {
+    else if ((architecture::amd_gpu_gfx940 == DeviceArch) ||
+             (architecture::amd_gpu_gfx941 == DeviceArch) ||
+             (architecture::amd_gpu_gfx942 == DeviceArch))
+      return {
+          {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 2, matrix_type::fp32, matrix_type::fp32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp32, matrix_type::fp32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64},
+      };
+    else if (architecture::amd_gpu_gfx950 == DeviceArch) {
+      // CDNA4 keeps every CDNA3 MFMA shape used by joint_matrix and adds
+      // double-K fp16/bf16/int8 shapes plus OCP FP8 (E4M3/E5M2) and FP4 (E2M1)
+      // inputs. The small-float MFMAs accept any mix of the A and B formats.
+      std::vector<combination> Combinations = {
+          {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 32, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 2, matrix_type::fp32, matrix_type::fp32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp32, matrix_type::fp32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 32, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 64, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 32, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64},
+      };
+      constexpr matrix_type FP8Types[] = {matrix_type::fp8_e4m3,
+                                          matrix_type::fp8_e5m2};
+      constexpr matrix_type F8F4Types[] = {
+          matrix_type::fp8_e4m3, matrix_type::fp8_e5m2, matrix_type::fp4_e2m1};
+      for (matrix_type AType : FP8Types)
+        for (matrix_type BType : FP8Types) {
+          Combinations.push_back({0, 0, 0, 32, 32, 16, AType, BType,
+                                  matrix_type::fp32, matrix_type::fp32});
+          Combinations.push_back({0, 0, 0, 16, 16, 32, AType, BType,
+                                  matrix_type::fp32, matrix_type::fp32});
+        }
+      for (matrix_type AType : F8F4Types)
+        for (matrix_type BType : F8F4Types) {
+          Combinations.push_back({0, 0, 0, 32, 32, 64, AType, BType,
+                                  matrix_type::fp32, matrix_type::fp32});
+          Combinations.push_back({0, 0, 0, 16, 16, 128, AType, BType,
+                                  matrix_type::fp32, matrix_type::fp32});
+        }
+      return Combinations;
+    } else if (backend::ext_oneapi_cuda == CurrentBackend) {
       // TODO: Tho following can be simplified when comparison of
       // architectures using < and > will be implemented
       using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
