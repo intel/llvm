@@ -102,7 +102,18 @@ if(WIN32 AND UR_STATIC_LOADER)
   set(UR_XPTI_TARGET xpti)
 endif()
 
+# Upstream LLVM gives all LLVM_EXTERNAL_PROJECTS installs a default component
+# named after the project (here: "sycl"). UR's fetched dependencies (UMF, L0
+# loader, ...) install files without an explicit COMPONENT, so they would
+# silently join the deployed "sycl" component and leak into the toolchain.
+# Keep such projects in the never-deployed "Unspecified" component instead;
+# UR's own install rules all set an explicit COMPONENT and are unaffected.
+set(_ur_saved_default_component "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}")
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "Unspecified")
+
 add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
+
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "${_ur_saved_default_component}")
 
 # Restore original flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
