@@ -1,15 +1,10 @@
 // REQUIRES: level_zero
 
-// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
-// so the matching zeEventDestroy calls are reported as a negative leak there.
-// Ignore negative leaks on Windows until the loader is updated.
-// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
-
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
-// RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
-// RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
-// RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
+// RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --implicit-check-not=LEAK
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
