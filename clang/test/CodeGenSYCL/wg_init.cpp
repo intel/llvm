@@ -16,7 +16,7 @@ template <typename T> struct __SYCL_TYPE(private_memory) private_memory {
 };
 } // namespace sycl
 
-struct [[__sycl_detail__::wg_scope]] WG {
+struct [[__sycl_detail__::wg_scope]] WGS {
   int I;
 };
 
@@ -27,12 +27,12 @@ int main() {
         range<1>{1}, range<1>{1}, [=](group<1> G) {
           int WG_VAR = 10;
           private_memory<int> WI_VAR;
-          WG WG_CLASS_VAR;
+          WGS WGS_CLASS_VAR;
         });
   });
   return 0;
 }
 
 // CHECK-DAG: @{{.*}}WG_VAR = internal addrspace(3) global {{.*}} undef, {{.*}}
-// CHECK-DAG: @{{.*}}WG_CLASS_VAR = internal addrspace(3) global %struct.WG undef, {{.*}}
+// CHECK-DAG: @{{.*}}WGS_CLASS_VAR = internal addrspace(3) global %struct.WGS zeroinitializer, {{.*}}
 // CHECK: %WI_VAR = alloca %"struct.sycl::private_memory"{{.*}}, !work_item_scope

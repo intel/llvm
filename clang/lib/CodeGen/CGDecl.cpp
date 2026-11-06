@@ -370,29 +370,6 @@ llvm::Constant *CodeGenModule::getOrCreateStaticVarDecl(
 llvm::GlobalVariable *
 CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
                                                llvm::GlobalVariable *GV) {
-  // Only hierarchical parallelism work-group locals are handled here. They are
-  // automatic variables, so their initializer runs as a store each time the
-  // declaration is reached. StaticLike variables (e.g. work_group_static)
-  // behave as if they had static storage duration and keep the normal static
-  // initialization below, including zero initialization.
-  if (getLangOpts().SYCLIsDevice &&
-      CGSYCLRuntime::getWorkGroupVarKind(D) ==
-          CGSYCLRuntime::WorkGroupVarKind::HoistedAutomatic) {
-    // In SYCL device code globals which represent WG shared local variables
-    // 1) (TODO) must have initializer emitted even if it is constant, because
-    //    LLVM->SPIRV translation does not generate optional initializer for
-    //    WG shared local variables.
-    // 2) must not use guarded init because
-    //   a) guarded init uses exceptions not supported in SYCL device code
-    //   b) initialization is already safe because it happens in WG scope -
-    //      once per WG - by specification, and this will be/ enforced in
-    //       SYCL-specific Clang lowering (LowerWGScope.cpp) after CG.
-    EmitCXXGlobalVarDeclInit(D, GV, /*PerformInit*/ true);
-    // Remove const-ness, otherwise the initializer (a store into the
-    // variable) won't have effect in SPIRV due to "Constant" decoration.
-    GV->setConstant(false);
-    return GV;
-  }
   ConstantEmitter emitter(*this);
   llvm::Constant *Init = emitter.tryEmitForInitializer(D);
 
@@ -443,7 +420,8 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
 }
 
 void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
-                                      llvm::GlobalValue::LinkageTypes Linkage) {
+                                        llvm::GlobalValue::LinkageTypes Linkage,
+                                        bool EmitInit) {
   // Check to see if we already have a global variable for this
   // declaration.  This can happen when double-emitting function
   // bodies, e.g. with complete and base constructors.
@@ -474,7 +452,7 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   bool isCudaSharedVar = getLangOpts().CUDA && getLangOpts().CUDAIsDevice &&
                          D.hasAttr<CUDASharedAttr>();
   // If this value has an initializer, emit it.
-  if (D.getInit() && !isCudaSharedVar) {
+  if (EmitInit && D.getInit() && !isCudaSharedVar) {
     ApplyAtomGroup Grp(getDebugInfo());
     var = AddInitializerToStaticVarDecl(D, var);
   }
@@ -521,6 +499,36 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (DI && CGM.getCodeGenOpts().hasReducedDebugInfo()) {
     DI->setLocation(D.getLocation());
     DI->EmitGlobalVariable(var, &D);
+  }
+}
+
+void CodeGenFunction::EmitWorkGroupScopeVarDecl(const VarDecl &D) {
+  EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage, /*EmitInit=*/false);
+
+  auto *GV = cast<llvm::GlobalVariable>(
+      CGM.getStaticLocalDeclAddress(&D)->stripPointerCasts());
+  switch (CGSYCLRuntime::getWorkGroupVarKind(D)) {
+  case CGSYCLRuntime::WorkGroupVarKind::StaticLike:
+    // The scope attribute is on the record so this variable has
+    // work_group_static storage, zero-initialized like a static object.
+    GV->setInitializer(CGM.EmitNullConstant(D.getType()));
+    break;
+  case CGSYCLRuntime::WorkGroupVarKind::HoistedAutomatic:
+    {
+      // PFWG local: shared by the work group but with automatic storage duration,
+      // so it is initialized and destroyed every time its scope is entered and
+      // exited.
+      AutoVarEmission Emission(D);
+      Emission.Addr = GetAddrOfLocalVar(&D);
+      EmitAutoVarInit(Emission);
+      EmitAutoVarCleanups(Emission);
+    }
+    // The variable is initialized by stores, so it cannot be a constant.
+    GV->setConstant(false);
+    break;
+  default:
+    llvm_unreachable("This function should only be called with a work group "
+                     "scoped variable");
   }
 }
 
