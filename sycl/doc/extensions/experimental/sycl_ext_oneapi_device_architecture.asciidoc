@@ -629,6 +629,14 @@ nvidia_gpu_sm_90a
 |-
 |NVIDIA Hopper architecture.
 
+a|
+[source]
+----
+nvidia_gpu_sm_103
+----
+|-
+|NVIDIA Blackwell architecture (SM 10.3).
+
 3+^|*AMD GPU family*
 
 a|
