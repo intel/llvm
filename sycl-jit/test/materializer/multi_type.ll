@@ -24,8 +24,8 @@ target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 ; For CHECK-MATERIALIZER-CSE expect literal store only.
 
 ;CHECK-MATERIALIZER: @SpecConsBlob___test_kernel_0 = weak_odr addrspace(4) constant i32
-;CHECK-MATERIALIZER: @SpecConsBlob___test_kernel_1 = weak_odr addrspace(4) constant %"struct.std::array"
-;CHECK-MATERIALIZER: @SpecConsBlob___test_kernel_2 = weak_odr addrspace(4) constant [2 x i32]
+;CHECK-MATERIALIZER: @SpecConsBlob___test_kernel_1 = weak_odr addrspace(4) constant [2 x i32]
+;CHECK-MATERIALIZER: @SpecConsBlob___test_kernel_2 = weak_odr addrspace(4) constant %"struct.std::array"
 
 %"struct.std::array" = type { [5 x %struct.ThreePrimitives] }
 %struct.ThreePrimitives = type <{ double, i64, half }>
@@ -45,12 +45,12 @@ entry:
 
   %gep2 = getelementptr i8, ptr %0, i32 4
   %bc2 = bitcast ptr %gep2 to ptr
-  ;CHECK-MATERIALIZER: load [2 x i32], ptr addrspace(4) @SpecConsBlob___test_kernel_2
+  ;CHECK-MATERIALIZER: load [2 x i32], ptr addrspace(4) @SpecConsBlob___test_kernel_1
   %load2 = load [2 x i32], ptr %bc2, align 4
   %extract1 = extractvalue [2 x i32] %load2, 0
   %extract2 = extractvalue [2 x i32] %load2, 1
 
-  ;CHECK-MATERIALIZER: load %"struct.std::array", ptr addrspace(4) @SpecConsBlob___test_kernel_1, align 1
+  ;CHECK-MATERIALIZER: load %"struct.std::array", ptr addrspace(4) @SpecConsBlob___test_kernel_2, align 1
   %gep3 = getelementptr i8, ptr %0, i32 18
   %bc3 = bitcast ptr %gep3 to ptr
   %load3 = load %"struct.std::array", ptr %bc3, align 1

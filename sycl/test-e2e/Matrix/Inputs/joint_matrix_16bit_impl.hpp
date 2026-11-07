@@ -100,8 +100,23 @@ void test() {
   TResult D[MATRIX_M][MATRIX_N];
   TResult DRef[MATRIX_M][MATRIX_N];
 
-  matrix_rand<Tab>(MATRIX_M, MATRIX_K, (Tab *)A, Tab(1));
-  matrix_rand<Tab>(MATRIX_K / VF, MATRIX_N * VF, (Tab *)B, Tab(1));
+  // A bfloat16 C or D is rounded after every DPAS while the reference rounds
+  // once, and with only 8 significant bits the difference can exceed the
+  // tolerance. Integer inputs keep every partial sum exactly representable, so
+  // the result does not depend on where the rounding happens.
+  constexpr bool bf16_acc =
+      std::is_same_v<TAcc, bfloat16> || std::is_same_v<TResult, bfloat16>;
+  if constexpr (!bf16_acc) {
+    matrix_rand<Tab>(MATRIX_M, MATRIX_K, (Tab *)A, Tab(1));
+    matrix_rand<Tab>(MATRIX_K / VF, MATRIX_N * VF, (Tab *)B, Tab(1));
+  } else {
+    std::mt19937 gen(0);
+    std::uniform_int_distribution<int> dist(-1, 1);
+    matrix_fill(MATRIX_M, MATRIX_K, (Tab *)A,
+                [&](int, int) { return Tab(dist(gen)); });
+    matrix_fill(MATRIX_K / VF, MATRIX_N * VF, (Tab *)B,
+                [&](int, int) { return Tab(dist(gen)); });
+  }
 
   matrix_fill(MATRIX_M, MATRIX_N, (TAcc *)C, TAcc(1));
   matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(1));
@@ -116,7 +131,8 @@ void test() {
                   B_layout, VF>(MD, MC, MA, MB);
   matrix_multiply_ref<Tab, Tab, TResult, VF>(
       (Tab *)A, (Tab *)B, (TResult *)DRef, MATRIX_M, MATRIX_N, MATRIX_K / VF);
-  assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)D, (TResult *)DRef));
+  assert((matrix_compare<TResult, TResult, bf16_acc>(
+      MATRIX_M, MATRIX_N, (TResult *)D, (TResult *)DRef)));
 }
 
 template <typename TLow, typename THigh, size_t TM, size_t TN, size_t TK,
