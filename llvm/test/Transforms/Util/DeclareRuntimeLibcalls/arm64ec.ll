@@ -4,7 +4,8 @@
 ; can sneak in between two checked declarations.
 ; RUN: opt -S -passes=declare-runtime-libcalls -mtriple=arm64ec-pc-windows-msvc < %s | sed '/^$/d;/^; Function Attrs:/d' | FileCheck -check-prefix=CHECK %s
 
-; CHECK: declare void @"#_Unwind_Resume"(ptr)
+; CHECK: @__security_cookie = external global ptr
+; CHECK-NEXT: declare void @"#_Unwind_Resume"(ptr)
 ; CHECK-NEXT: declare i128 @"#__aarch64_cas16_acq"(i128, i128, ptr)
 ; CHECK-NEXT: declare i128 @"#__aarch64_cas16_acq_rel"(i128, i128, ptr)
 ; CHECK-NEXT: declare i128 @"#__aarch64_cas16_rel"(i128, i128, ptr)
@@ -172,7 +173,7 @@
 ; CHECK-NEXT: declare void @"#__atomic_store_2"(ptr, i16 zeroext, i32)
 ; CHECK-NEXT: declare void @"#__atomic_store_4"(ptr, i32, i32)
 ; CHECK-NEXT: declare void @"#__atomic_store_8"(ptr, i64, i32)
-; CHECK-NEXT: declare void @"#__chkstk_arm64ec"(...)
+; CHECK-NEXT: declare void @"#__chkstk_arm64ec"()
 ; CHECK-NEXT: declare void @"#__clear_cache"(ptr, ptr)
 ; CHECK-NEXT: declare i32 @"#__clzdi2"(i64)
 ; CHECK-NEXT: declare i32 @"#__clzsi2"(i32)
@@ -510,4 +511,3 @@
 ; CHECK-NEXT: declare float @"#tgammaf"(float)
 ; CHECK-NEXT: declare double @"#trunc"(double)
 ; CHECK-NEXT: declare float @"#truncf"(float)
-; CHECK-NEXT: declare void @__security_cookie(...)
