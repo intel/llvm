@@ -359,6 +359,13 @@ public:
   // Dynamically links images in executable state.
   void dynamicLink(device_images_range Imgs);
 
+  // Links a mix of static-linkable and dynamic-link-only images (see
+  // needsDynamicLink) via link() and dynamicLink() respectively. Shared
+  // by kernel_bundle::link() and getBuiltURProgram(..., KernelName, ...).
+  std::vector<device_image_plain>
+  linkDeviceImages(std::vector<device_image_plain> Imgs, devices_range Devs,
+                   const property_list &PropList);
+
   // Produces new device image by converting input device image to the
   // executable state. AllowUnresolvedSymbols defers cross-image
   // SYCL_EXTERNAL resolution to a subsequent dynamicLink() call; used for
@@ -406,6 +413,13 @@ public:
   // "is this image native AOT?" should use this helper to keep the answer
   // in one place.
   static bool isAOTBinaryTarget(const char *DeviceTargetSpec);
+
+  // True when BinImage cannot go through urProgramLinkExp and must
+  // instead be routed through urProgramDynamicLinkExp. Currently covers
+  // native AOT binaries (see isAOTBinaryTarget) on backends that support
+  // dynamic linking (currently only Level Zero).
+  static bool needsDynamicLink(const RTDeviceBinaryImage *BinImage,
+                               backend Backend);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
@@ -482,6 +496,17 @@ protected:
   /// Access must be guarded by the MNativeProgramsMutex mutex.
   std::unordered_map<ur_program_handle_t, DynRTDeviceBinaryImageUPtr>
       m_MergedImages;
+
+  /// Keeps dynamic-link peer programs (see needsDynamicLink) alive for
+  /// programs built on demand by kernel name, since urProgramDynamicLinkExp
+  /// links modules in place rather than merging. Only the UR program handles
+  /// are kept (not the owning device_image_plain), so this holds no reference
+  /// to the context and is safe to release at any time, including after
+  /// the originating context has been torn down.
+  /// Guarded by MNativeProgramsMutex.
+  std::unordered_map<ur_program_handle_t,
+                     std::vector<Managed<ur_program_handle_t>>>
+      m_DynamicLinkPeerImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
