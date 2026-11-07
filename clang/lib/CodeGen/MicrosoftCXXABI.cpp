@@ -1199,10 +1199,13 @@ bool MicrosoftCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
 
   if (isIndirectReturn) {
     CharUnits Align = CGM.getContext().getTypeAlignInChars(FI.getReturnType());
+    // Records that cannot be copied must be constructed in place, so their
+    // sret AS always comes from the target hook.
     LangAS SRetAS = CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
-    unsigned AS = CGM.getCodeGenOpts().UseAllocaASForSrets
-                                ? CGM.getDataLayout().getAllocaAddrSpace()
-                                : CGM.getContext().getTargetAddressSpace(SRetAS);
+    unsigned AS =
+        CGM.getCodeGenOpts().UseAllocaASForSrets && RD->canPassInRegisters()
+            ? CGM.getDataLayout().getAllocaAddrSpace()
+            : CGM.getContext().getTargetAddressSpace(SRetAS);
     FI.getReturnInfo() =
         ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AS, /*ByVal=*/false);
 
