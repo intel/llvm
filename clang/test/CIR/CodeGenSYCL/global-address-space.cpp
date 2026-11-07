@@ -32,9 +32,9 @@ extern const int i;
 // LLVM-DAG: @gs = external addrspace(1) constant ptr addrspace(4), align 8
 // LLVM-DAG: @i = external addrspace(1) constant i32, align 4
 // LLVM-DAG: @_ZZ18static_const_localvE3foo = internal addrspace(1) constant i32 66, align 4
-// LLVM-CIR-DAG: @.str = private addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
-// LLVM-CIR-DAG: @.str.1 = private addrspace(1) constant [21 x i8] c"Another hello world!\00", align 1
-// LLVM-CIR-DAG: @.str.2 = private addrspace(1) constant [24 x i8] c"Yet another Hello world\00", align 1
+// LLVM-CIR-DAG: @.str = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
+// LLVM-CIR-DAG: @.str.1 = private unnamed_addr addrspace(1) constant [21 x i8] c"Another hello world!\00", align 1
+// LLVM-CIR-DAG: @.str.2 = private unnamed_addr addrspace(1) constant [24 x i8] c"Yet another Hello world\00", align 1
 // OGCG-DAG: @.str = private unnamed_addr addrspace(1) constant [14 x i8] c"Hello, world!\00", align 1
 // OGCG-DAG: @.str.1 = private unnamed_addr addrspace(1) constant [21 x i8] c"Another hello world!\00", align 1
 // OGCG-DAG: @.str.2 = private unnamed_addr addrspace(1) constant [24 x i8] c"Yet another Hello world\00", align 1

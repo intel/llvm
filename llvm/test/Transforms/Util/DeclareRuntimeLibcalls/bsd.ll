@@ -8,6 +8,7 @@
 
 ; LINUX: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; LINUX-NEXT: @__stack_chk_guard = external global ptr
+; LINUX-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; LINUX-NEXT: declare void @_Unwind_Resume(ptr)
 ; LINUX-NEXT: declare double @__adddf3(double, double)
 ; LINUX-NEXT: declare float @__addsf3(float, float)
@@ -79,6 +80,9 @@
 ; LINUX-NEXT: declare i32 @__clzdi2(i64)
 ; LINUX-NEXT: declare i32 @__clzsi2(i32)
 ; LINUX-NEXT: declare i32 @__clzti2(i128)
+; LINUX-NEXT: declare i32 @__ctzdi2(i64)
+; LINUX-NEXT: declare i32 @__ctzsi2(i32)
+; LINUX-NEXT: declare i32 @__ctzti2(i128)
 ; LINUX-NEXT: declare void @__cxa_end_cleanup()
 ; LINUX-NEXT: declare double @__divdf3(double, double)
 ; LINUX-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)
@@ -553,6 +557,7 @@
 
 ; FREEBSD: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; FREEBSD-NEXT: @__stack_chk_guard = external global ptr
+; FREEBSD-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; FREEBSD-NEXT: declare void @_Unwind_Resume(ptr)
 ; FREEBSD-NEXT: declare double @__adddf3(double, double)
 ; FREEBSD-NEXT: declare float @__addsf3(float, float)
@@ -624,6 +629,9 @@
 ; FREEBSD-NEXT: declare i32 @__clzdi2(i64)
 ; FREEBSD-NEXT: declare i32 @__clzsi2(i32)
 ; FREEBSD-NEXT: declare i32 @__clzti2(i128)
+; FREEBSD-NEXT: declare i32 @__ctzdi2(i64)
+; FREEBSD-NEXT: declare i32 @__ctzsi2(i32)
+; FREEBSD-NEXT: declare i32 @__ctzti2(i128)
 ; FREEBSD-NEXT: declare void @__cxa_end_cleanup()
 ; FREEBSD-NEXT: declare double @__divdf3(double, double)
 ; FREEBSD-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)
@@ -1045,6 +1053,7 @@
 
 ; OPENBSD: @__guard_local = external global ptr
 ; OPENBSD-NEXT: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
+; OPENBSD-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; OPENBSD-NEXT: declare void @_Unwind_Resume(ptr)
 ; OPENBSD-NEXT: declare double @__adddf3(double, double)
 ; OPENBSD-NEXT: declare float @__addsf3(float, float)
@@ -1116,6 +1125,9 @@
 ; OPENBSD-NEXT: declare i32 @__clzdi2(i64)
 ; OPENBSD-NEXT: declare i32 @__clzsi2(i32)
 ; OPENBSD-NEXT: declare i32 @__clzti2(i128)
+; OPENBSD-NEXT: declare i32 @__ctzdi2(i64)
+; OPENBSD-NEXT: declare i32 @__ctzsi2(i32)
+; OPENBSD-NEXT: declare i32 @__ctzti2(i128)
 ; OPENBSD-NEXT: declare void @__cxa_end_cleanup()
 ; OPENBSD-NEXT: declare double @__divdf3(double, double)
 ; OPENBSD-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)
