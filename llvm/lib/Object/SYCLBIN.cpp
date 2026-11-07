@@ -117,7 +117,7 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
         // TODO: Determine type from the input.
         IRMMetadata.add(
             llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
-            /*SPIR-V*/ 0);
+            static_cast<uint32_t>(SYCLBIN::IRModuleType::SPIRV));
         IRMMetadata.add(
             llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
             "target", MD.TargetTriple.str());
