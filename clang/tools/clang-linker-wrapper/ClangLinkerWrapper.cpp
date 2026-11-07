@@ -2583,6 +2583,47 @@ Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   return *TempFileOrErr;
 }
 
+static std::unique_ptr<Module> createHostWrapperModule(LLVMContext &C,
+                                                       const ArgList &Args) {
+  auto M = std::make_unique<Module>("offload.wrapper.module", C);
+  Triple HostTriple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  M->setTargetTriple(HostTriple);
+  M->setDataLayout(HostTriple.computeDataLayout());
+  return M;
+}
+
+static Expected<StringRef> emitWrapperObject(Module &M, const ArgList &Args,
+                                             OffloadKind Kind) {
+  if (Args.hasArg(OPT_print_wrapped_module))
+    errs() << M;
+  if (Args.hasArg(OPT_save_temps)) {
+    int FD = -1;
+    auto TempFileOrErr = createOutputFile(
+        ExecutableName + "." + getOffloadKindName(Kind) + ".image.wrapper",
+        "bc");
+    if (!TempFileOrErr)
+      return TempFileOrErr.takeError();
+    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
+      return errorCodeToError(EC);
+    llvm::raw_fd_ostream OS(FD, true);
+    WriteBitcodeToFile(M, OS);
+  }
+  if (DryRun)
+    return createOutputFile(ExecutableName + "." + getOffloadKindName(Kind) +
+                                ".image.wrapper",
+                            "o");
+  return compileModule(M, Kind);
+}
+
+/// Emit the host object required by device pre-linking when there are no device
+/// inputs, without requiring a device triple or introducing runtime references.
+static Expected<StringRef> emitEmptySYCLWrapperObject(const ArgList &Args) {
+  LLVMContext C;
+  auto M = createHostWrapperModule(C, Args);
+  return emitWrapperObject(*M, Args, OFK_SYCL);
+}
+
 /// Performs the wrapping stage with individual tool invocations for verbose
 /// printing.
 Expected<StringRef>
@@ -2661,11 +2702,8 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
         ArrayRef<char>(Buffer->getBufferStart(), Buffer->getBufferSize()));
 
   LLVMContext Context;
-  Module M("offload.wrapper.module", Context);
-  Triple TheTriple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  M.setTargetTriple(TheTriple);
-  M.setDataLayout(TheTriple.computeDataLayout());
+  auto WrapperModule = createHostWrapperModule(Context, Args);
+  Module &M = *WrapperModule;
 
   switch (Kind) {
   case OFK_OpenMP:
@@ -2698,25 +2736,7 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
                              " wrapping is not supported");
   }
 
-  if (Args.hasArg(OPT_print_wrapped_module))
-    errs() << M;
-  if (Args.hasArg(OPT_save_temps)) {
-    int FD = -1;
-    auto TempFileOrErr = createOutputFile(
-        ExecutableName + "." + getOffloadKindName(Kind) + ".image.wrapper",
-        "bc");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
-    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
-      return errorCodeToError(EC);
-    llvm::raw_fd_ostream OS(FD, true);
-    WriteBitcodeToFile(M, OS);
-  }
-
-  auto FileOrErr = compileModule(M, Kind);
-  if (!FileOrErr)
-    return FileOrErr.takeError();
-  return *FileOrErr;
+  return emitWrapperObject(M, Args, Kind);
 }
 
 /// Perform the OpenMP bundling with 'llvm-offload-binary' in verbose mode.
@@ -3155,6 +3175,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           return SYCLImagesOrErr.takeError();
 
         std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+        // Keep the SYCL group even if post-link removed every image so the
+        // fatbin-only path below can emit the container needed by the host.
+        auto &SYCLImages = Images[OFK_SYCL];
         for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
           OffloadingImage TheImage{};
           TheImage.TheImageKind =
@@ -3168,7 +3191,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                                           SYCLImageStringSaver);
           TheImage.Image = std::move(SYCLImage.Image);
 
-          Images[OFK_SYCL].emplace_back(std::move(TheImage));
+          SYCLImages.emplace_back(std::move(TheImage));
         }
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -3279,6 +3302,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       return A.TheOffloadKind < B.TheOffloadKind;
     });
     if (Kind == OFK_SYCL) {
+      // Keep a valid container when post-link removes all device images.
+      if (Input.empty()) {
+        offloading::SYCLImage EmptyImage(MemoryBuffer::getMemBuffer(""),
+                                         util::PropertySetRegistry(), "");
+        OffloadingImage &TheImage = Input.emplace_back();
+        TheImage.TheImageKind = IMG_Object;
+        TheImage.TheOffloadKind = OFK_SYCL;
+        offloading::addSYCLImageStrings(EmptyImage, TheImage.StringData,
+                                        SYCLImageStringSaver);
+        TheImage.Image = std::move(EmptyImage.Image);
+      }
       // Package all post-link images into a single offload container.
       SmallString<0> Buffer = OffloadBinary::write(Input);
       auto FOBOrErr = FileOutputBuffer::create(ExecutableName, Buffer.size());
@@ -3896,6 +3930,12 @@ int main(int Argc, char **Argv) {
       if (Args.hasArg(OPT_sycl_device_link)) {
         // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
+        if (FilesOrErr->empty()) {
+          auto OutputFile = emitEmptySYCLWrapperObject(Args);
+          if (!OutputFile)
+            reportError(OutputFile.takeError());
+          FilesOrErr->push_back(*OutputFile);
+        }
         if (FilesOrErr->size() != 1)
           reportError(createStringError(
               "Expect single output from the device linker."));
