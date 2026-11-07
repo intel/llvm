@@ -3545,6 +3545,8 @@ ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED
+///         + `hQueue` is in graph capture mode.
 ur_result_t UR_APICALL urQueueFinish(
     /// [in] handle of the queue to be finished.
     ur_queue_handle_t hQueue) {
@@ -3692,6 +3694,12 @@ ur_result_t UR_APICALL urEventGetProfilingInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED
+///         + An event in `phEventWaitList` is signaled by a command recorded by
+///         an active graph capture.
+///     - ::UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT
+///         + An event in `phEventWaitList` is signaled by a command recorded
+///         into a graph whose capture has ended.
 ur_result_t UR_APICALL urEventWait(
     /// [in] number of events in the event list
     uint32_t numEvents,
@@ -9927,6 +9935,33 @@ ur_result_t UR_APICALL urGraphCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin graph capture on the specified queue.
 ///
+/// @details
+///     - While a queue is in graph capture mode, commands enqueued to it are
+///       recorded into the graph instead of being submitted for execution.
+///     - Operations that synchronize the host with recorded work are not
+///       supported during graph capture and return
+///       ::UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED. This includes
+///       ::urQueueFinish on a capturing queue, ::urEventWait on an event
+///       signaled by a recorded command, and blocking enqueue operations.
+///     - If an event signaled by a recorded command is in the wait list of a
+///       command enqueued to a queue that is not capturing, that queue also
+///       enters graph capture mode. This is called a fork. Each fork must be
+///       joined before the capture is ended, by making a command enqueued to
+///       the queue on which the capture began wait on an event signaled by the
+///       last command enqueued to the forked queue.
+///     - A command enqueued to a queue that is already in graph capture mode
+///       returns ::UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT if it waits on
+///       an event signaled by a command recorded by a different, still active,
+///       graph capture.
+///     - Events signaled by recorded commands are internal to the graph. After
+///       the capture has ended, using them outside of the graph, for example
+///       waiting on them from a queue or from the host, returns
+///       ::UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT.
+///     - Depending on the driver, a command recorded into a graph that waits on
+///       an event signaled by a command that is not part of the same capture,
+///       for example a command submitted before the capture began, may also
+///       return ::UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -9944,6 +9979,10 @@ ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin capturing commands into an existing graph on the specified
 ///        queue.
+///
+/// @details
+///     - The same rules as for ::urQueueBeginGraphCaptureExp apply while the
+///       queue is in graph capture mode.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9965,6 +10004,10 @@ ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief End graph capture on the specified queue.
 ///
+/// @details
+///     - Graph capture is ended on `hQueue` and on all queues that were forked
+///       from it.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -9974,6 +10017,11 @@ ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING
+///         + `hQueue` is not in graph capture mode.
+///     - ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS
+///         + A queue forked from `hQueue` during the capture was not joined
+///         back before the capture was ended.
 ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [in] Handle of the queue on which to end graph capture.
     ur_queue_handle_t hQueue,
@@ -9997,6 +10045,12 @@ ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phExecGraph`
+///     - ::UR_RESULT_ERROR_INVALID_GRAPH
+///         + The capture of `hGraph` ended with
+///         ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS.
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + The capture of `hGraph` has not ended, because it was never
+///         started or is still active.
 ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
@@ -10137,6 +10191,8 @@ ur_result_t UR_APICALL urQueueGetGraphExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pResult`
 ///     - ::UR_RESULT_ERROR_INVALID_GRAPH
+///         + `hGraph` is invalid, for example because its capture ended with
+///         ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS.
 ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,
