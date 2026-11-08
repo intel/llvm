@@ -7,6 +7,7 @@
 ; RUN: opt -S -passes=declare-runtime-libcalls -mtriple=powerpc64-unknown-linux-gnu < %s | sed '/^$/d;/^; Function Attrs:/d' | FileCheck -check-prefix=LINUX %s
 
 ; AIX32: @__ssp_canary_word = external global ptr
+; AIX32-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; AIX32-NEXT: declare void @_Unwind_Resume(ptr)
 ; AIX32-NEXT: declare void @___bzero(ptr, i32)
 ; AIX32-NEXT: declare ptr @___memccpy(ptr, ptr, i32, i32)
@@ -84,6 +85,9 @@
 ; AIX32-NEXT: declare i32 @__clzdi2(i64)
 ; AIX32-NEXT: declare i32 @__clzsi2(i32)
 ; AIX32-NEXT: declare i32 @__clzti2(i128)
+; AIX32-NEXT: declare i32 @__ctzdi2(i64)
+; AIX32-NEXT: declare i32 @__ctzsi2(i32)
+; AIX32-NEXT: declare i32 @__ctzti2(i128)
 ; AIX32-NEXT: declare void @__cxa_end_cleanup()
 ; AIX32-NEXT: declare double @__divdf3(double, double)
 ; AIX32-NEXT: declare i64 @__divdi3(i64, i64)
@@ -559,6 +563,7 @@
 ; AIX32-NEXT: attributes [[SQRT_ATTRS]] = { nocallback nofree nosync nounwind willreturn memory(errnomem: write) }
 
 ; AIX64: @__ssp_canary_word = external global ptr
+; AIX64-NEXT: declare signext i32 @_Unwind_RaiseException(ptr)
 ; AIX64-NEXT: declare void @_Unwind_Resume(ptr)
 ; AIX64-NEXT: declare void @___bzero64(ptr, i64)
 ; AIX64-NEXT: declare ptr @___memccpy64(ptr, ptr, i32 signext, i64)
@@ -638,6 +643,9 @@
 ; AIX64-NEXT: declare signext i32 @__clzdi2(i64)
 ; AIX64-NEXT: declare signext i32 @__clzsi2(i32 zeroext)
 ; AIX64-NEXT: declare signext i32 @__clzti2(i128)
+; AIX64-NEXT: declare signext i32 @__ctzdi2(i64)
+; AIX64-NEXT: declare signext i32 @__ctzsi2(i32 zeroext)
+; AIX64-NEXT: declare signext i32 @__ctzti2(i128)
 ; AIX64-NEXT: declare void @__cxa_end_cleanup()
 ; AIX64-NEXT: declare double @__divdf3(double, double)
 ; AIX64-NEXT: declare i64 @__divdi3(i64, i64)
@@ -1115,6 +1123,7 @@
 ; AIX64-NEXT: attributes [[SQRT_ATTRS]] = { nocallback nofree nosync nounwind willreturn memory(errnomem: write) }
 
 ; LINUX: @__stack_chk_guard = external global ptr
+; LINUX-NEXT: declare signext i32 @_Unwind_RaiseException(ptr)
 ; LINUX-NEXT: declare void @_Unwind_Resume(ptr)
 ; LINUX-NEXT: declare double @__adddf3(double, double)
 ; LINUX-NEXT: declare fp128 @__addkf3(fp128, fp128)
@@ -1185,6 +1194,9 @@
 ; LINUX-NEXT: declare signext i32 @__clzdi2(i64)
 ; LINUX-NEXT: declare signext i32 @__clzsi2(i32 zeroext)
 ; LINUX-NEXT: declare signext i32 @__clzti2(i128)
+; LINUX-NEXT: declare signext i32 @__ctzdi2(i64)
+; LINUX-NEXT: declare signext i32 @__ctzsi2(i32 zeroext)
+; LINUX-NEXT: declare signext i32 @__ctzti2(i128)
 ; LINUX-NEXT: declare void @__cxa_end_cleanup()
 ; LINUX-NEXT: declare double @__divdf3(double, double)
 ; LINUX-NEXT: declare i64 @__divdi3(i64, i64)

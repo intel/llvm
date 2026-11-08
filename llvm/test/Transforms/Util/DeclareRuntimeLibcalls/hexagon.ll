@@ -7,6 +7,7 @@
 
 ; CHECK: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; CHECK-NEXT: @__stack_chk_guard = external global ptr
+; CHECK-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; CHECK-NEXT: declare void @_Unwind_Resume(ptr)
 ; CHECK-NEXT: declare double @__adddf3(double, double)
 ; CHECK-NEXT: declare float @__addsf3(float, float)
@@ -75,6 +76,9 @@
 ; CHECK-NEXT: declare i32 @__clzdi2(i64)
 ; CHECK-NEXT: declare i32 @__clzsi2(i32)
 ; CHECK-NEXT: declare i32 @__clzti2(i128)
+; CHECK-NEXT: declare i32 @__ctzdi2(i64)
+; CHECK-NEXT: declare i32 @__ctzsi2(i32)
+; CHECK-NEXT: declare i32 @__ctzti2(i128)
 ; CHECK-NEXT: declare void @__cxa_end_cleanup()
 ; CHECK-NEXT: declare double @__divdf3(double, double)
 ; CHECK-NEXT: declare i64 @__divdi3(i64, i64)
@@ -442,6 +446,7 @@
 
 ; LINUX: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; LINUX-NEXT: @__stack_chk_guard = external global ptr
+; LINUX-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; LINUX-NEXT: declare void @_Unwind_Resume(ptr)
 ; LINUX-NEXT: declare double @__adddf3(double, double)
 ; LINUX-NEXT: declare float @__addsf3(float, float)
@@ -510,6 +515,9 @@
 ; LINUX-NEXT: declare i32 @__clzdi2(i64)
 ; LINUX-NEXT: declare i32 @__clzsi2(i32)
 ; LINUX-NEXT: declare i32 @__clzti2(i128)
+; LINUX-NEXT: declare i32 @__ctzdi2(i64)
+; LINUX-NEXT: declare i32 @__ctzsi2(i32)
+; LINUX-NEXT: declare i32 @__ctzti2(i128)
 ; LINUX-NEXT: declare void @__cxa_end_cleanup()
 ; LINUX-NEXT: declare double @__divdf3(double, double)
 ; LINUX-NEXT: declare i64 @__divdi3(i64, i64)

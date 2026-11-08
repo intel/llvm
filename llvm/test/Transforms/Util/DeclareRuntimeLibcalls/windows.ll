@@ -9,6 +9,7 @@
 
 ; MSVC: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; MSVC-NEXT: @__security_cookie = external global ptr
+; MSVC-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; MSVC-NEXT: declare void @_Unwind_Resume(ptr)
 ; MSVC-NEXT: declare double @__adddf3(double, double)
 ; MSVC-NEXT: declare float @__addsf3(float, float)
@@ -81,6 +82,9 @@
 ; MSVC-NEXT: declare i32 @__clzdi2(i64)
 ; MSVC-NEXT: declare i32 @__clzsi2(i32)
 ; MSVC-NEXT: declare i32 @__clzti2(<2 x i64>)
+; MSVC-NEXT: declare i32 @__ctzdi2(i64)
+; MSVC-NEXT: declare i32 @__ctzsi2(i32)
+; MSVC-NEXT: declare i32 @__ctzti2(<2 x i64>)
 ; MSVC-NEXT: declare void @__cxa_end_cleanup()
 ; MSVC-NEXT: declare double @__divdf3(double, double)
 ; MSVC-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)
@@ -440,6 +444,7 @@
 
 ; MINGW: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; MINGW-NEXT: @__stack_chk_guard = external global ptr
+; MINGW-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; MINGW-NEXT: declare void @_Unwind_Resume(ptr)
 ; MINGW-NEXT: declare void @___chkstk_ms()
 ; MINGW-NEXT: declare double @__adddf3(double, double)
@@ -512,6 +517,9 @@
 ; MINGW-NEXT: declare i32 @__clzdi2(i64)
 ; MINGW-NEXT: declare i32 @__clzsi2(i32)
 ; MINGW-NEXT: declare i32 @__clzti2(<2 x i64>)
+; MINGW-NEXT: declare i32 @__ctzdi2(i64)
+; MINGW-NEXT: declare i32 @__ctzsi2(i32)
+; MINGW-NEXT: declare i32 @__ctzti2(<2 x i64>)
 ; MINGW-NEXT: declare void @__cxa_end_cleanup()
 ; MINGW-NEXT: declare double @__divdf3(double, double)
 ; MINGW-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)
@@ -983,6 +991,7 @@
 
 ; CYGWIN: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; CYGWIN-NEXT: @__stack_chk_guard = external global ptr
+; CYGWIN-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; CYGWIN-NEXT: declare void @_Unwind_Resume(ptr)
 ; CYGWIN-NEXT: declare void @___chkstk_ms()
 ; CYGWIN-NEXT: declare double @__adddf3(double, double)
@@ -1055,6 +1064,9 @@
 ; CYGWIN-NEXT: declare i32 @__clzdi2(i64)
 ; CYGWIN-NEXT: declare i32 @__clzsi2(i32)
 ; CYGWIN-NEXT: declare i32 @__clzti2(<2 x i64>)
+; CYGWIN-NEXT: declare i32 @__ctzdi2(i64)
+; CYGWIN-NEXT: declare i32 @__ctzsi2(i32)
+; CYGWIN-NEXT: declare i32 @__ctzti2(<2 x i64>)
 ; CYGWIN-NEXT: declare void @__cxa_end_cleanup()
 ; CYGWIN-NEXT: declare double @__divdf3(double, double)
 ; CYGWIN-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)
@@ -1476,6 +1488,7 @@
 
 ; UEFI: @__safestack_unsafe_stack_ptr = external thread_local(initialexec) global ptr
 ; UEFI-NEXT: @__stack_chk_guard = external global ptr
+; UEFI-NEXT: declare i32 @_Unwind_RaiseException(ptr)
 ; UEFI-NEXT: declare void @_Unwind_Resume(ptr)
 ; UEFI-NEXT: declare double @__adddf3(double, double)
 ; UEFI-NEXT: declare float @__addsf3(float, float)
@@ -1548,6 +1561,9 @@
 ; UEFI-NEXT: declare i32 @__clzdi2(i64)
 ; UEFI-NEXT: declare i32 @__clzsi2(i32)
 ; UEFI-NEXT: declare i32 @__clzti2(<2 x i64>)
+; UEFI-NEXT: declare i32 @__ctzdi2(i64)
+; UEFI-NEXT: declare i32 @__ctzsi2(i32)
+; UEFI-NEXT: declare i32 @__ctzti2(<2 x i64>)
 ; UEFI-NEXT: declare void @__cxa_end_cleanup()
 ; UEFI-NEXT: declare double @__divdf3(double, double)
 ; UEFI-NEXT: declare signext i16 @__divhi3(i16 signext, i16 signext)

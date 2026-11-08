@@ -534,7 +534,7 @@ optMain(int argc, char **argv,
     // Pass "help" as CPU for -mtune=help
     std::string SkipModuleCPU = (TuneCPUStr == "help" ? "help" : CPUStr);
     TargetOptions Options =
-        codegen::InitTargetOptionsFromCodeGenFlags(TheTriple);
+        codegen::getTargetOptions(Context.getLibraryOptions(), TheTriple);
     // Create the target machine just to print the help info. Use unique_ptr
     // to avoid a memory leak.
     std::unique_ptr<TargetMachine> TM(TheTarget->createTargetMachine(
@@ -572,7 +572,8 @@ optMain(int argc, char **argv,
 
   codegen::MaybeEnableStatistics();
 
-  StringRef ABIName = mc::getABIName(); // FIXME: Handle module flag.
+  StringRef ABIName =
+      mc::getABIName(Context.getLibraryOptions()); // FIXME: Handle module flag.
 
   // Load the input module...
   auto SetDataLayout = [&](StringRef IRTriple,
@@ -727,7 +728,7 @@ optMain(int argc, char **argv,
   const TargetOptions *Options = TM ? &TM->Options : &CodeGenFlagsOptions;
   if (!TM) {
     CodeGenFlagsOptions =
-        codegen::InitTargetOptionsFromCodeGenFlags(ModuleTriple);
+        codegen::getTargetOptions(Context.getLibraryOptions(), ModuleTriple);
   }
 
   // Override function attributes based on CPUStr, TuneCPUStr, FeaturesStr, and
