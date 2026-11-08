@@ -20,11 +20,6 @@
 #endif
 #endif // __clang__
 
-// See vec::DataType definitions for more details.
-#ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
-#endif
-
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif

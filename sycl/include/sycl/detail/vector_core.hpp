@@ -108,30 +108,10 @@ template <typename DataT, int NumElements> class vec_base {
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   //
-  // In intel/llvm#14130 we incorrectly used std::array as an underlying storage
-  // for vec data. The problem with std::array is that it comes from the C++
-  // STL headers which we do not control and they may use something that is
-  // illegal in SYCL device code. One of specific examples is use of debug
-  // assertions in MSVC's STL implementation.
-  //
-  // The better approach is to use plain C++ array, but the problem here is that
-  // C++ specification does not provide any guarantees about the memory layout
-  // of std::array and therefore directly switching to it would technically be
-  // an ABI-break, even though the practical chances of encountering the issue
-  // are low.
-  //
-  // Plain array is used by default. Defining
-  // __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE to 0 restores the old behavior of
-  // using plain array only if its size and alignment match those of std::array.
-  using DataType = std::conditional_t<
-#if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-      true,
-#else
-      sizeof(std::array<DataT, AdjustedNum>) == sizeof(DataT[AdjustedNum]) &&
-          alignof(std::array<DataT, AdjustedNum>) ==
-              alignof(DataT[AdjustedNum]),
-#endif
-      DataT[AdjustedNum], std::array<DataT, AdjustedNum>>;
+  // Plain C++ array is used instead of std::array, because STL headers may use
+  // something that is illegal in SYCL device code (e.g. debug assertions in
+  // MSVC's STL implementation).
+  using DataType = DataT[AdjustedNum];
 
   // To allow testing of private methods
   template <typename T1, int T2> friend class detail::vec_base_test;
@@ -221,14 +201,7 @@ public:
 };
 
 template <typename DataT> class vec_base<DataT, 1> {
-  using DataType = std::conditional_t<
-#if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-      true,
-#else
-      sizeof(std::array<DataT, 1>) == sizeof(DataT[1]) &&
-          alignof(std::array<DataT, 1>) == alignof(DataT[1]),
-#endif
-      DataT[1], std::array<DataT, 1>>;
+  using DataType = DataT[1];
 
 protected:
   static constexpr size_t alignment =
