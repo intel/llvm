@@ -96,7 +96,6 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMachineCycleInfoWrapperPassPass(Registry);
   initializeMachineDominatorTreeWrapperPassPass(Registry);
   initializeMachineFunctionPrinterPassPass(Registry);
-  initializeMachineFunctionSplitterPass(Registry);
   initializeMachineLateInstrsCleanupLegacyPass(Registry);
   initializeMachineLICMPass(Registry);
   initializeMachineLoopInfoWrapperPassPass(Registry);
@@ -143,6 +142,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeRemoveRedundantDebugValuesLegacyPass(Registry);
   initializeRenameIndependentSubregsLegacyPass(Registry);
   initializeReplaceWithVeclibLegacyPass(Registry);
+  initializeSSAMachineSchedulerLegacyPass(Registry);
   initializeSafeStackLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
   initializeShadowStackGCLoweringPass(Registry);

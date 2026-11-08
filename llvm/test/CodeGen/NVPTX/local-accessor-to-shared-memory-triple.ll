@@ -2,7 +2,7 @@
 ; `nvptx64-nvidia-cuda` triple.
 ; RUN: llc -mtriple=nvptx64-nvidia-cuda < %s | FileCheck --check-prefix=CHECK-VALID %s
 ; RUN: llc -mtriple=nvptx64-nvidia-nvcl < %s | FileCheck --check-prefix=CHECK-INVALID %s
-; CHECK-VALID: .param .u32 _ZTS14example_kernel_param_0
+; CHECK-VALID: .param .b32 _ZTS14example_kernel_param_0
 ; CHECK-INVALID: .param .u64 .ptr .shared .align 1 _ZTS14example_kernel_param_0
 
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"

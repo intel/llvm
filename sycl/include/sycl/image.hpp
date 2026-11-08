@@ -754,8 +754,8 @@ private:
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForImage =
-      khr::is_property_for_v<PropertyOrList, unsampled_image> ||
-      khr::is_property_list_for_v<PropertyOrList, unsampled_image>;
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList,
+                                                       unsampled_image>;
 #endif
 
 public:
@@ -1168,8 +1168,8 @@ private:
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForImage =
-      khr::is_property_for_v<PropertyOrList, sampled_image> ||
-      khr::is_property_list_for_v<PropertyOrList, sampled_image>;
+      khr::property::detail::is_property_or_list_for_v<PropertyOrList,
+                                                       sampled_image>;
 #endif
 
 public:

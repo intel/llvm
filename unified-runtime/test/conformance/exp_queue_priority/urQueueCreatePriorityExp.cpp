@@ -109,6 +109,26 @@ TEST_P(urQueueCreatePriorityExpTest, SuccessWithQueueIndex) {
   UUR_RETURN_ON_FATAL_FAILURE(checkQueue(queue));
 }
 
+TEST_P(urQueueCreatePriorityExpTest, FlagsHaveNoPriorityFlags) {
+  for (int32_t priority : {lowest, 0, highest}) {
+    uur::raii::Queue queue;
+    ASSERT_SUCCESS(createQueue(priority, 0, queue.ptr()));
+    ur_queue_flags_t flags = 0;
+    ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_FLAGS, sizeof(flags),
+                                  &flags, nullptr));
+    ASSERT_EQ(
+        flags & (UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH), 0u);
+
+    // The queried flags can be combined with the priority again.
+    ur_exp_queue_priority_properties_t priorityProps{
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, priority};
+    ur_queue_properties_t props{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                &priorityProps, flags};
+    uur::raii::Queue sameQueue;
+    ASSERT_SUCCESS(urQueueCreate(context, device, &props, sameQueue.ptr()));
+  }
+}
+
 TEST_P(urQueueCreatePriorityExpTest, InvalidWithPriorityFlags) {
   for (ur_queue_flags_t flag :
        {UR_QUEUE_FLAG_PRIORITY_LOW, UR_QUEUE_FLAG_PRIORITY_HIGH}) {

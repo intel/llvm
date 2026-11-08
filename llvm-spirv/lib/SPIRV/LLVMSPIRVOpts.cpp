@@ -44,10 +44,71 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/IR/IntrinsicInst.h>
+#include <llvm/Support/AMDGPUAddrSpace.h>
+#include <llvm/TargetParser/Triple.h>
 #include <optional>
 
 using namespace llvm;
 using namespace SPIRV;
+
+namespace {
+// AddrSpaceMap is a positional std::array; Map is indexed by SPIRAS_*.
+struct TargetAddrSpaceMapping {
+  Triple::ArchType Arch;
+  AddrSpaceMap Map;
+  // Pinned so getFunctionProgramAddrSpace() does not fall back to the private
+  // AS and emit a spurious -P<n> in the datalayout.
+  uint32_t ProgramAS;
+};
+
+constexpr TargetAddrSpaceMapping BuiltinAddrSpaceMaps[] = {
+    {Triple::amdgpu,
+     {
+         AMDGPUAS::PRIVATE_ADDRESS,  // SPIRAS_Private
+         AMDGPUAS::GLOBAL_ADDRESS,   // SPIRAS_Global
+         AMDGPUAS::CONSTANT_ADDRESS, // SPIRAS_Constant
+         AMDGPUAS::LOCAL_ADDRESS,    // SPIRAS_Local
+         AMDGPUAS::FLAT_ADDRESS,     // SPIRAS_Generic
+         AMDGPUAS::GLOBAL_ADDRESS,   // SPIRAS_GlobalDevice
+         AMDGPUAS::GLOBAL_ADDRESS,   // SPIRAS_GlobalHost
+         // Keep identity (7, 8). For AMDGPU these are the buffer fat/resource
+         // pointers. Globals in these address spaces are rejected by the
+         // backend, so any StorageClassInput variable fails
+         // codegen under an AMDGPU triple. Kept for parity with the ROCm map
+         // (see
+         // https://github.com/ROCm/SPIRV-LLVM-Translator/blob/f8f6c81b476a33cf06b2e73c493eb8c99f5306af/lib/SPIRV/OCLUtil.h#L508)
+         AMDGPUAS::BUFFER_FAT_POINTER, // SPIRAS_Input
+         AMDGPUAS::BUFFER_RESOURCE,    // SPIRAS_Output
+         // SPIRAS_CodeSectionINTEL and BUFFER_STRIDED_POINTER share ID (9).
+         // Leaving SPIRAS_CodeSectionINTEL unmapped would land function
+         // pointers on a strided buffer pointer, which is incorrect. Land them
+         // on FLAT instead.
+         AMDGPUAS::FLAT_ADDRESS, // SPIRAS_CodeSectionINTEL
+     },
+     AMDGPUAS::FLAT_ADDRESS},
+};
+} // namespace
+
+bool TranslatorOpts::deriveTargetAddrSpaces() {
+  // An already-installed map wins: an explicit --spirv-addrspace-map, or a
+  // prior derivation.
+  if (getAddrSpaceMap())
+    return true;
+  Triple TT(Triple::normalize(getSPIRVTargetTriple()));
+  for (const auto &Entry : BuiltinAddrSpaceMaps) {
+    if (TT.getArch() != Entry.Arch)
+      continue;
+    setAddrSpaceMap(Entry.Map);
+    // An explicit --spirv-function-program-addrspace wins.
+    if (!FunctionProgramAS.has_value())
+      setFunctionProgramAddrSpace(Entry.ProgramAS);
+    return true;
+  }
+  // SPIR/SPIRV: default is correct. Any other valid target lacking a map: error
+  // rather than emit SPIR numbering under it. UnknownArch is explicitly allowed
+  // here because it will error out later with a better, more explicit error.
+  return TT.isSPIR() || TT.isSPIRV() || TT.getArch() == Triple::UnknownArch;
+}
 
 void TranslatorOpts::enableAllExtensions() {
 #define EXT(X) ExtStatusMap[ExtensionID::X] = true;

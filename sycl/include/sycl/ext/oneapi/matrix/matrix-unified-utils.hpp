@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <cstddef>                      // size_t
 #include <optional>                     // std::optional
 #include <string_view>                  // std::string_view
 #include <sycl/__spirv/spirv_types.hpp> // __spv namespace
@@ -19,9 +20,21 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+// The matrix interfaces only ever name the 4-bit and 8-bit floating point types
+// as template arguments, so forward declarations are enough here. Including
+// <sycl/ext/oneapi/experimental/float_4bit/types.hpp> and its 8-bit counterpart
+// instead would pull both extensions into the transitive closure of
+// <sycl/sycl.hpp>, which they are deliberately not part of: code that uses
+// fp4/fp8 includes those headers explicitly.
+template <size_t N> class fp4_e2m1_x;
+template <size_t N> class fp8_e4m3_x;
+template <size_t N> class fp8_e5m2_x;
+template <size_t N> class fp8_e8m0_x;
+
 namespace matrix {
 
-enum class use { a, b, accumulator };
+enum class use { a, b, accumulator, scale };
 
 enum class layout {
   row_major = 0,
@@ -49,6 +62,7 @@ constexpr UseToUseStringPair UseToUseStringMap[] = {
     {ext::oneapi::experimental::matrix::use::a, "use::a"},
     {ext::oneapi::experimental::matrix::use::b, "use::b"},
     {ext::oneapi::experimental::matrix::use::accumulator, "use::accumulator"},
+    {ext::oneapi::experimental::matrix::use::scale, "use::scale"},
 };
 
 constexpr const char *
@@ -85,6 +99,11 @@ extern "C" constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
+template <typename T> struct is_fp4_e2m1 : std::false_type {};
+template <size_t N>
+struct is_fp4_e2m1<sycl::ext::oneapi::experimental::fp4_e2m1_x<N>>
+    : std::true_type {};
+
 template <typename Ta, typename Tb, typename Tc, typename Td>
 constexpr uint32_t CalculateMatrixOperand() {
   uint32_t returnValue = 0x00;
@@ -104,6 +123,44 @@ constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_signed<Tb>::value)
     returnValue += static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tc, float>::value)
+    returnValue += static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixABFloat8ComponentsINTEL) +
+                   static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixBBFloat8ComponentsINTEL);
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tc, float>::value)
+    returnValue += static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixABFloat8ComponentsINTEL) +
+                   static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixBHFloat8ComponentsINTEL);
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e5m2_x<1>>::value &&
+      std::is_same<Tc, float>::value)
+    returnValue += static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixAHFloat8ComponentsINTEL) +
+                   static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixBBFloat8ComponentsINTEL);
+  if constexpr (
+      std::is_same<Ta, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tb, sycl::ext::oneapi::experimental::fp8_e4m3_x<1>>::value &&
+      std::is_same<Tc, float>::value)
+    returnValue += static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixAHFloat8ComponentsINTEL) +
+                   static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixBHFloat8ComponentsINTEL);
+  if constexpr (sycl::detail::is_fp4_e2m1<Ta>::value &&
+                sycl::detail::is_fp4_e2m1<Tb>::value)
+    returnValue += static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixAFP4S1E2M1ComponentsINTEL) +
+                   static_cast<uint32_t>(
+                       __spv::MatrixOperands::MatrixBFP4S1E2M1ComponentsINTEL);
   return returnValue;
 }
 

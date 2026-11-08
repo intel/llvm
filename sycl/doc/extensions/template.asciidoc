@@ -88,7 +88,7 @@ _Use this if the extension becomes "deprecated":_
 
 This extension has been deprecated.  Although it is still supported in {dpcpp},
 we expect that the interfaces defined in this specification will be removed in
-an upcoming {dpcpp} release.  *Shipping software products should stop using
+the next major {dpcpp} release.  *Shipping software products should stop using
 APIs defined in this specification and use an alternative instead.*
 
 _Use this if the extension becomes "removed":_

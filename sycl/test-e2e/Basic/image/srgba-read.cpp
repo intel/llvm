@@ -4,7 +4,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
-// XFAIL: spirv-backend
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160589
 
 #include <iostream>

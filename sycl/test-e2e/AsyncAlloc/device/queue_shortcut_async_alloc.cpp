@@ -1,8 +1,8 @@
-// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
-// so the matching zeEventDestroy calls are reported as a negative leak there.
-// Ignore negative leaks on Windows until the loader is updated:
+// TODO: Older L0 loaders do not count zeEventCounterBasedCreate, so the
+// matching zeEventDestroy calls are reported as a negative leak on Linux and
+// Windows. Ignore negative leaks until the loaders are updated:
 // https://github.com/oneapi-src/level-zero/issues/512
-// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
+// DEFINE: %{leak_check_not} = "LEAK = {{[^-]}}"
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

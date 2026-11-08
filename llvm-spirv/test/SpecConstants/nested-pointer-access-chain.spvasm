@@ -1,0 +1,34 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+; The second access chain advances one byte from array[1] to array[2].
+; Use its i8 element type rather than the underlying global's [4 x i8] type.
+; CHECK: @result = addrspace(1) global ptr addrspace(1) getelementptr (i8, ptr addrspace(1)
+; CHECK-SAME: getelementptr inbounds (i8, ptr addrspace(1) @array, i64 1), i64 1)
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int8
+               OpCapability Int64
+               OpMemoryModel Physical64 OpenCL
+               OpDecorate %array LinkageAttributes "array" Export
+               OpDecorate %result LinkageAttributes "result" Export
+         %u8 = OpTypeInt 8 0
+        %u64 = OpTypeInt 64 0
+       %zero = OpConstant %u64 0
+        %one = OpConstant %u64 1
+       %four = OpConstant %u64 4
+        %arr = OpTypeArray %u8 %four
+       %parr = OpTypePointer CrossWorkgroup %arr
+      %pbyte = OpTypePointer CrossWorkgroup %u8
+     %ppbyte = OpTypePointer CrossWorkgroup %pbyte
+    %nullarr = OpConstantNull %arr
+      %array = OpVariable %parr CrossWorkgroup %nullarr
+      %first = OpSpecConstantOp %pbyte InBoundsPtrAccessChain %array %zero %one
+       %next = OpSpecConstantOp %pbyte PtrAccessChain %first %one
+     %result = OpVariable %ppbyte CrossWorkgroup %next

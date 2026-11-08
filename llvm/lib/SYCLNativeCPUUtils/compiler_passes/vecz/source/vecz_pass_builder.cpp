@@ -149,7 +149,7 @@ void VeczPassMachinery::addClassToPassNames() {
 void VeczPassMachinery::registerPassCallbacks() {
   // Add a backwards-compatible way of supporting simplifycfg, which used
   // to be called simplify-cfg before LLVM 12.
-  PB.registerPipelineParsingCallback(
+  PB->registerPipelineParsingCallback(
       [](StringRef Name, ModulePassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
 #define MODULE_PASS(NAME, CREATE_PASS)                                         \

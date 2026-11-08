@@ -48,7 +48,7 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "test")
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(
-    ["PATH", "OCL_ICD_FILENAMES", "SYCL_DEVICE_ALLOWLIST", "SYCL_CONFIG_FILE_NAME"]
+    ["OCL_ICD_FILENAMES", "SYCL_DEVICE_ALLOWLIST", "SYCL_CONFIG_FILE_NAME"]
 )
 
 config.substitutions.append(("%python", '"%s"' % (sys.executable)))
@@ -129,6 +129,14 @@ config.substitutions.append(("%test_include_path", config.test_include_path))
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, "llvm-symbolizer")
 llvm_config.with_environment("LLVM_SYMBOLIZER_PATH", llvm_symbolizer)
 
+
+def is_default_system_include_dir(path):
+    # Passing a default system include directory such as /usr/include with
+    # -isystem moves it ahead of the C++ standard library headers in the search
+    # order, which breaks their use of #include_next.
+    return os.path.normpath(path) == "/usr/include"
+
+
 sycl_host_only_options = "-std=c++17 -Xclang -fsycl-is-host"
 for include_dir in [
     config.sycl_include,
@@ -136,7 +144,7 @@ for include_dir in [
     config.opencl_include_dir,
     config.sycl_include + "/sycl/",
 ]:
-    if include_dir:
+    if include_dir and not is_default_system_include_dir(include_dir):
         sycl_host_only_options += " -isystem %s" % include_dir
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 

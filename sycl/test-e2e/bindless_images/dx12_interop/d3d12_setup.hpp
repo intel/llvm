@@ -148,10 +148,10 @@ struct D3D12ImageResources {
 // ---------------------------------------------------------
 // D3D12 LIFECYCLE MANAGEMENT
 // ---------------------------------------------------------
-inline D3D12Context createD3D12Context() {
+inline D3D12Context createD3D12Context(IDXGIAdapter *adapter = nullptr) {
   D3D12Context ctx;
 
-  ThrowIfFailed(D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_11_0,
+  ThrowIfFailed(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0,
                                   IID_PPV_ARGS(&ctx.device)),
                 "Failed to create D3D12 Device");
 

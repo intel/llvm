@@ -1,2 +1,7 @@
 # Please use "#" to add comments here.
 # Do not delete the file even if it's empty.
+
+# Submits a single_task with a 10M-iteration serial loop to keep the queue
+# busy, which is long enough on slower GPUs for the driver to reset the device:
+# the test then fails with UR_RESULT_ERROR_DEVICE_LOST.
+oneapi_queue_empty

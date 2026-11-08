@@ -1,0 +1,40 @@
+// Stands in for the integration header, which forward declares every free
+// function kernel of the translation unit ahead of the application's code.
+#pragma once
+
+void before(int *p, double v);
+void late(int *p, double v);
+void late(int *p, float v);
+template <typename T> void late_tmpl(int *p, T v);
+void dep(int *p, double v);
+void dep(int *p, float v);
+template <typename T> void ffk(int *p, T v);
+template <> void ffk<int>(int *p, int v);
+template <typename T> void spec_after_use(int *p, T v);
+template <> void spec_after_use<int>(int *p, int v);
+template <typename T> void overload_after_use(int *p, T v);
+void overload_after_use(int *p, double *v);
+template <typename T> void template_after_use(int *p, T v);
+template <typename T> void template_after_use(int *p, T *v);
+namespace ns {
+void via_using(int *p, double v);
+void via_using(int *p, float v);
+} // namespace ns
+void block_scope(int *p, double v);
+void block_scope(int *p, float v);
+namespace adl {
+struct S;
+void adl_kernel(S *p);
+} // namespace adl
+namespace ns2 {
+struct T;
+void same_ns_kernel(T *p);
+void no_adl_kernel(int *p, double v);
+void no_adl_kernel(int *p, float v);
+void qualified_kernel(int *p, double v);
+void qualified_kernel(int *p, float v);
+} // namespace ns2
+void from_include(int *p, double v);
+void from_include(int *p, float v);
+void sfinae_kernel(int *p, double v);
+void sfinae_kernel(int *p, float v);

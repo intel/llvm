@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_intel_device_info_luid
 // REQUIRES: gpu, target-nvidia, cuda_dev_kit, windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out

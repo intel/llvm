@@ -5,9 +5,11 @@
 /// compiler-rt builtins library (libclang_rt.builtins.bc).
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 // RUN: touch %t1.cpp
 // RUN: touch %t2.cpp
-// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -resource-dir=%{resource_dir} %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
 
 // CHECK: 2: input, "{{.*}}1.cpp", c++, (device-sycl)
 // CHECK: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)

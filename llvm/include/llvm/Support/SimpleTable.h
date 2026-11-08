@@ -30,6 +30,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 
+#include <cassert>
 #include <list>
 #include <map>
 #include <memory>
@@ -129,8 +130,14 @@ public:
 
   int getColumnId(StringRef ColName) const;
 
-  Row &operator[](int I) { return Rows[I]; }
-  const Row &operator[](int I) const { return Rows[I]; }
+  Row &operator[](int I) {
+    assert(I >= 0 && I < getNumRows() && "row index out of bounds");
+    return Rows[I];
+  }
+  const Row &operator[](int I) const {
+    assert(I >= 0 && I < getNumRows() && "row index out of bounds");
+    return Rows[I];
+  }
 
   // Merge another table into this table
   Error merge(const SimpleTable &Other);

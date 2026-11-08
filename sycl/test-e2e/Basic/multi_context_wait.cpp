@@ -3,6 +3,8 @@
 
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20828
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

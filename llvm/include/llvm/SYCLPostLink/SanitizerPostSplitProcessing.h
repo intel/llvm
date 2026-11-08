@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // Post split sanitizer processing inserts a per-module sentinel kernel used by
-// sanitizer runtimes (ASan, MSan, TSan) to uniquely identify a device image.
+// sanitizer runtimes (ASan, MSan, TSan) to uniquely identify a device image,
+// and zeroes out the sanitizer kernel metadata of kernels from other images.
 //===----------------------------------------------------------------------===//
 #ifndef LLVM_SYCLPOSTLINK_SANITIZERPOSTSPLITPROCESSING_H
 #define LLVM_SYCLPOSTLINK_SANITIZERPOSTSPLITPROCESSING_H
@@ -23,6 +24,9 @@ namespace sycl_post_link {
 /// (e.g. __AsanKernelMetadata_<id>). The sentinel kernel lets the sanitizer
 /// runtime discover each image's metadata globals by enumerating kernel names,
 /// so per-module metadata can be associated with the correct image at runtime.
+/// Also zeroes out the entries of the sanitizer kernel metadata globals that
+/// describe kernels which aren't defined in the module, keeping the number of
+/// entries so that the globals have the same size in every device image.
 /// Returns true if any module was modified.
 bool handleSanitizers(
     llvm::SmallVectorImpl<std::unique_ptr<module_split::ModuleDesc>> &MDs);

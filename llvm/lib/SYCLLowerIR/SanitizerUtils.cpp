@@ -33,6 +33,17 @@ bool isModuleUsingTsan(const Module &M) {
   });
 }
 
+std::optional<StringRef>
+getSanitizerKernelMetadataModuleID(const GlobalVariable &GV) {
+  StringRef Name = GV.getName();
+  for (StringRef Prefix :
+       {ASAN_KERNEL_METADATA_PREFIX, MSAN_KERNEL_METADATA_PREFIX,
+        TSAN_KERNEL_METADATA_PREFIX})
+    if (Name.consume_front(Prefix))
+      return Name;
+  return std::nullopt;
+}
+
 } // namespace utils
 } // namespace sycl
 } // namespace llvm

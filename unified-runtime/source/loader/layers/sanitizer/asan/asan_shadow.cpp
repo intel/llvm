@@ -97,10 +97,8 @@ ur_result_t ShadowMemoryGPU::Setup() {
   // error when user uses multiple contexts. Therefore, we just create one
   // shadow memory here.
   const size_t ShadowSize = GetShadowSize();
-  // To reserve very large amount of GPU virtual memroy, the pStart param
-  // should be beyond the SVM range, so that GFX driver will automatically
-  // switch to reservation on the GPU heap.
-  const void *StartAddress = (void *)(0x100'0000'0000'0000ULL);
+  // The pStart param is a device-specific hint, see GetStartAddress()
+  const void *StartAddress = (void *)GetStartAddress();
   // TODO: Protect Bad Zone
   auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
       Context, StartAddress, ShadowSize, (void **)&ShadowBegin);

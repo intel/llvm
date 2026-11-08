@@ -28,7 +28,7 @@
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/StringSaver.h"
-#include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Support/VirtualFileSystemFwd.h"
 
 #include <map>
 #include <set>
@@ -37,9 +37,6 @@
 
 namespace llvm {
 class Triple;
-namespace vfs {
-class FileSystem;
-}
 namespace cl {
 class ExpansionContext;
 }
@@ -344,7 +341,6 @@ public:
   //       modes. Fold this functionality into Types::getCompilationPhases and
   //       handleArguments.
   phases::ID getFinalPhase(const llvm::opt::DerivedArgList &DAL,
-                           llvm::ArrayRef<InputTy>,
                            llvm::opt::Arg **FinalPhaseArg = nullptr) const;
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
   executeProgram(llvm::ArrayRef<llvm::StringRef> Args) const;
@@ -883,6 +879,11 @@ private:
   /// error is emitted only once per driver invocation.
   mutable bool OffloadBundlerNotFoundDiagnosed = false;
 
+  /// Offload sections reported by clang-offload-bundler -list for each input
+  /// file, so that each file is inspected only once per driver invocation.
+  mutable llvm::StringMap<llvm::SmallVector<std::string, 4>>
+      OffloadSectionsCache;
+
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -980,6 +981,11 @@ public:
   /// not be found in \p Dir while inspecting \p FileName.  Only the first
   /// occurrence is reported.
   void diagnoseOffloadBundlerNotFound(StringRef Dir, StringRef FileName) const;
+
+  /// getOffloadSections - Get the offload sections of \p File as reported by
+  /// clang-offload-bundler -list. The bundler is run at most once per file.
+  llvm::SmallVector<std::string, 4> getOffloadSections(Compilation &C,
+                                                       StringRef File) const;
 
   /// SYCLDeviceTraitMacroArg - Add the given macro to the vector of args to be
   /// added to the device compilation step.

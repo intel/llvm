@@ -2,14 +2,14 @@
 ; (even with the SPV_KHR_untyped_pointers extension enabled).
 
 ; RUN: llvm-spirv %s -spirv-text -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED
 ; RUN: llvm-spirv %s -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %s -spirv-text -o %t.txt --spirv-ext=+SPV_KHR_untyped_pointers
-; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED
 ; RUN: llvm-spirv %s -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
 ; RUNx: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -35,10 +35,14 @@
 ; CHECK-SPIRV: FunctionParameter [[#PtrTy7]] [[#ParamBar:]]
 ; With untyped extension enabled addrspacecast is done to untyped pointer type in addrspace 8.
 ; CHECK-SPIRV: PtrCastToGeneric [[#]] [[#Cast:]] [[#ParamBar]]
-; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[#FunBaz]] [[#Cast]]
+; CHECK-SPIRV-TYPED: FunctionCall [[#]] [[#]] [[#FunBaz]] [[#Cast]]
+; CHECK-SPIRV-UNTYPED: Bitcast [[#PtrTy8]] [[#CastBC:]] [[#Cast]]
+; CHECK-SPIRV-UNTYPED: FunctionCall [[#]] [[#]] [[#FunBaz]] [[#CastBC]]
 
 ; CHECK-LLVM: call spir_func void @boo(ptr sret(%struct.Example) align 8
-; CHECK-LLVM: call spir_func void @baz(ptr addrspace(4) sret(%struct.Example) %cast)
+; Under untyped pointers the sret argument round-trips through the Writer's
+; OpBitcast, so match either the addrspacecast result or the bitcast result.
+; CHECK-LLVM: call spir_func void @baz(ptr addrspace(4) sret(%struct.Example) %{{.*}})
 
 source_filename = "/app/example.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
