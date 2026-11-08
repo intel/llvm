@@ -20,6 +20,18 @@
 #endif
 #endif // __clang__
 
+// See vec::DataType definitions for more details.
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&                              \
+    !defined(__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE)
+// The removed legacy implementation (__SYCL_USE_LIBSYCL8_VEC_IMPL=1) used
+// std::array storage when its layout differs, keep that ABI for its users.
+#if defined(__SYCL_USE_LIBSYCL8_VEC_IMPL) && __SYCL_USE_LIBSYCL8_VEC_IMPL
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
+#else
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
+#endif
+#endif
+
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif

@@ -1,18 +1,48 @@
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=1
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=0
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -fpreview-breaking-changes -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=0
 // expected-no-diagnostics
 
 #include <sycl/vector.hpp>
 
 #include <type_traits>
 
+// Users of the removed legacy vec implementation must keep its ABI.
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&                              \
+    defined(__SYCL_USE_LIBSYCL8_VEC_IMPL)
+static_assert(!__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE);
+#endif
+
 namespace sycl {
 namespace detail {
 template <typename T, int N> class vec_base_test {
 public:
   static void do_check() {
+    constexpr bool uses_std_array =
+        std::is_same_v<typename sycl::vec<T, N>::DataType, std::array<T, N>>;
+    constexpr bool uses_plain_array =
+        std::is_same_v<typename sycl::vec<T, N>::DataType, T[N]>;
+
+    constexpr bool std_array_and_plain_array_have_the_same_layout =
+        sizeof(std::array<T, N>) == sizeof(T[N]) &&
+        alignof(std::array<T, N>) == alignof(T[N]);
+
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) ||                               \
+    __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
+    static_assert(uses_plain_array,
+                  "We must use plain array regardless of "
+                  "layout, because user is opted-in for a potential ABI-break");
+#else
+    static_assert(std_array_and_plain_array_have_the_same_layout ==
+                      uses_plain_array,
+                  "If layouts are the same, we must use safer plain array "
+                  "instead of std::array, or vice versa");
     static_assert(
-        std::is_same_v<typename sycl::vec<T, N>::DataType, T[N]>,
-        "vec must use plain array as storage, regardless of std::array layout");
+        !std_array_and_plain_array_have_the_same_layout == uses_std_array,
+        "If layouts are not the same, we must use std::array to preserve ABI");
+#endif
   }
 };
 } // namespace detail
