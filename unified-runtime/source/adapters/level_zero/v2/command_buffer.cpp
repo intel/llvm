@@ -267,7 +267,11 @@ ur_result_t urCommandBufferCreateExp(
   v2::command_list_desc_t listDesc;
   listDesc.IsInOrder = commandBufferDesc->isInOrder;
   listDesc.Ordinal = queueGroupOrdinal;
-  listDesc.CopyOffloadEnable = true;
+  // Copy offload corrupts DG2 2D region copies.
+  listDesc.CopyOffloadEnable = !device->isDG2();
+  if (!listDesc.CopyOffloadEnable) {
+    UR_LOG(INFO, "Copy offload disabled for DG2.");
+  }
   listDesc.Mutable = commandBufferDesc->isUpdatable;
   v2::raii::command_list_unique_handle zeCommandList =
       context->getCommandListCache().getRegularCommandList(device->ZeDevice,
