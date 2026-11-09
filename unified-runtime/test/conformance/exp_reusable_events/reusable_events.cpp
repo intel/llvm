@@ -43,11 +43,11 @@ TEST_P(urEventCreateExpTest, SuccessWithProfilingFlag) {
   ASSERT_NE(*event.ptr(), nullptr);
 }
 
-TEST_P(urEventCreateExpTest, SuccessWithForceEventCreationFlag) {
+TEST_P(urEventCreateExpTest, SuccessWithUnpooledFlag) {
   ur_exp_event_desc_t desc = {
       UR_STRUCTURE_TYPE_EXP_EVENT_DESC,
       nullptr,
-      UR_EXP_EVENT_FLAG_FORCE_EVENT_CREATION,
+      UR_EXP_EVENT_FLAG_UNPOOLED,
   };
 
   uur::raii::Event event{};
