@@ -26,6 +26,7 @@
 namespace jit_compiler {
 struct RTCDevImgInfo;
 struct RTCBundleInfo;
+struct SPIRVKernelInfo;
 template <typename T> class DynArray;
 using JITEnvVar = DynArray<char>;
 enum class BinaryFormat : uint32_t;
@@ -51,6 +52,11 @@ public:
       ::jit_compiler::BinaryFormat Format);
 
   void destroyDeviceBinaries(sycl_device_binaries Binaries);
+
+  // Returns the argument sizes of the kernels in the SPIR-V module, or
+  // an empty array if they cannot be determined.
+  ::jit_compiler::DynArray<::jit_compiler::SPIRVKernelInfo>
+  getSPIRVKernelInfo(const std::vector<uint8_t> &SPIRVBinary);
 
   bool isAvailable() { return Available; }
 
@@ -91,12 +97,16 @@ private:
   using DestroyBinaryFuncT = decltype(::jit_compiler::destroyBinary) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
+  using GetSPIRVKernelInfoFuncT =
+      decltype(::jit_compiler::getSPIRVKernelInfo) *;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
   CalculateHashFuncT CalculateHashHandle = nullptr;
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   DestroyBinaryFuncT DestroyBinaryHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
+  // Optional: argument sizes are not validated if the entry point is missing.
+  GetSPIRVKernelInfoFuncT GetSPIRVKernelInfoHandle = nullptr;
   static std::function<void(void *)> CustomDeleterForLibHandle;
   std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryHandle;
 #endif // SYCL_EXT_JIT_ENABLE

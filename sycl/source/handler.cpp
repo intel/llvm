@@ -964,6 +964,33 @@ void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
+
+  // The signature of kernels built from SPIR-V or OpenCL C at runtime is not
+  // visible to the compiler, so set_arg cannot convert values to the parameter
+  // type. Backends may silently accept a mismatched size and launch the kernel
+  // with partially uninitialized arguments, so diagnose it here.
+  const std::vector<size_t> *ExpectedSizes = MKernel->tryGetKernelArgSizes();
+  if (!ExpectedSizes)
+    return;
+  for (const detail::ArgDesc &Arg : impl->MKernelData.getArgs()) {
+    // Values and USM pointers are checked; local memory has no data pointer.
+    const bool HasSize =
+        Arg.MType == detail::kernel_param_kind_t::kind_pointer ||
+        (Arg.MType == detail::kernel_param_kind_t::kind_std_layout && Arg.MPtr);
+    if (!HasSize || Arg.MIndex < 0 ||
+        static_cast<size_t>(Arg.MIndex) >= ExpectedSizes->size())
+      continue;
+    const size_t Expected = (*ExpectedSizes)[Arg.MIndex];
+    if (Expected != 0 && Expected != static_cast<size_t>(Arg.MSize))
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Size mismatch for argument " + std::to_string(Arg.MIndex) +
+              " of kernel '" + std::string{MKernel->getName()} +
+              "': the kernel expects " + std::to_string(Expected) +
+              " bytes but " + std::to_string(Arg.MSize) +
+              " bytes were provided. Make sure the type of the value passed "
+              "to set_arg matches the type of the kernel parameter.");
+  }
 }
 
 void handler::extractFreeFunctionArgsAndReqs() {

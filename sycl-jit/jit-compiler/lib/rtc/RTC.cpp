@@ -21,7 +21,16 @@
 
 #include <clang/Options/Options.h>
 
+#include <algorithm>
 #include <chrono>
+#include <cstring>
+#include <unordered_map>
+#include <unordered_set>
+
+#ifdef SYCL_JIT_HAVE_SPIRV_TOOLS
+#include <spirv-tools/libspirv.h>
+#include <spirv/unified1/spirv.h>
+#endif
 
 using namespace jit_compiler;
 
@@ -161,4 +170,184 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
 
 JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
   JITContext::getInstance().destroyBinary(Address);
+}
+
+#ifdef SYCL_JIT_HAVE_SPIRV_TOOLS
+namespace {
+// Computes argument sizes following the OpenCL C layout rules that
+// SPIR-V kernels are compiled with. Types whose layout is not certain are not
+// recorded, so parameters of such types get size 0 and are not validated.
+struct KernelArgSizeCollector {
+  struct Layout {
+    uint64_t Size, Align;
+    bool IsPointer = false;
+    uint32_t Pointee = 0;
+    uint32_t StorageClass = 0;
+  };
+  uint64_t PointerSize = 0;
+  bool Unsupported = false;
+  std::unordered_map<uint32_t, std::string> EntryPoints;
+  std::unordered_set<uint32_t> ByValParams;
+  // Packed structs and types with explicit offsets or strides.
+  std::unordered_set<uint32_t> NonNaturalLayout;
+  std::unordered_map<uint32_t, uint64_t> Constants;
+  std::unordered_map<uint32_t, Layout> Types;
+  std::vector<std::pair<std::string, std::vector<uint64_t>>> Kernels;
+  bool InKernel = false;
+
+  const Layout *find(uint32_t Id) const {
+    auto It = Types.find(Id);
+    return It == Types.end() ? nullptr : &It->second;
+  }
+
+  uint64_t paramSize(uint32_t TypeId, uint32_t ParamId) const {
+    const Layout *Ty = find(TypeId);
+    if (Ty && Ty->IsPointer) {
+      // USM pointers are passed for CrossWorkgroup pointers.
+      if (!ByValParams.count(ParamId))
+        return Ty->StorageClass == SpvStorageClassCrossWorkgroup ? Ty->Size : 0;
+      const Layout *Pointee = find(Ty->Pointee);
+      return Pointee ? Pointee->Size : 0;
+    }
+    return Ty ? Ty->Size : 0;
+  }
+
+  // SPIRV-Tools has validated the length and operand grammar of the
+  // instruction, so all operands required by its opcode are present.
+  void handle(const spv_parsed_instruction_t &I) {
+    const uint32_t *Op = I.words + 1;
+    const size_t NumOps = I.num_words - 1u;
+    if (I.opcode != SpvOpFunctionParameter)
+      InKernel = false;
+
+    switch (I.opcode) {
+    case SpvOpMemoryModel:
+      PointerSize = Op[0] == SpvAddressingModelPhysical64   ? 8
+                    : Op[0] == SpvAddressingModelPhysical32 ? 4
+                                                            : 0;
+      break;
+    case SpvOpEntryPoint:
+      if (Op[0] == SpvExecutionModelKernel)
+        EntryPoints[Op[1]] = reinterpret_cast<const char *>(Op + 2);
+      break;
+    case SpvOpDecorate:
+      if (Op[1] == SpvDecorationFuncParamAttr && NumOps > 2 &&
+          Op[2] == SpvFunctionParameterAttributeByVal)
+        ByValParams.insert(Op[0]);
+      else if (Op[1] == SpvDecorationCPacked ||
+               Op[1] == SpvDecorationArrayStride)
+        NonNaturalLayout.insert(Op[0]);
+      break;
+    case SpvOpMemberDecorate:
+      if (Op[2] == SpvDecorationOffset)
+        NonNaturalLayout.insert(Op[0]);
+      break;
+    case SpvOpGroupDecorate:
+    case SpvOpGroupMemberDecorate:
+      Unsupported = true;
+      break;
+    case SpvOpTypeInt:
+    case SpvOpTypeFloat:
+      // Odd widths (arbitrary precision integers) have no host-side layout.
+      if (Op[1] % 8 == 0 && (Op[1] / 8 & (Op[1] / 8 - 1)) == 0)
+        Types[Op[0]] = {Op[1] / 8u, Op[1] / 8u};
+      break;
+    case SpvOpTypeVector:
+      // 3-element vectors are laid out like 4-element ones.
+      if (const Layout *Elem = find(Op[1])) {
+        const uint64_t Size = Elem->Size * (Op[2] == 3 ? 4 : Op[2]);
+        Types[Op[0]] = {Size, Size};
+      }
+      break;
+    case SpvOpTypeArray: {
+      const Layout *Elem = find(Op[1]);
+      auto Length = Constants.find(Op[2]);
+      if (Elem && Length != Constants.end() && !NonNaturalLayout.count(Op[0]))
+        Types[Op[0]] = {Elem->Size * Length->second, Elem->Align};
+      break;
+    }
+    case SpvOpTypeStruct: {
+      if (NumOps < 2 || NonNaturalLayout.count(Op[0]))
+        break;
+      Layout Struct{0, 1};
+      for (size_t M = 1; M < NumOps; ++M) {
+        const Layout *Member = find(Op[M]);
+        if (!Member)
+          return;
+        Struct.Size =
+            (Struct.Size + Member->Align - 1) / Member->Align * Member->Align +
+            Member->Size;
+        Struct.Align = std::max(Struct.Align, Member->Align);
+      }
+      Struct.Size =
+          (Struct.Size + Struct.Align - 1) / Struct.Align * Struct.Align;
+      Types[Op[0]] = Struct;
+      break;
+    }
+    case SpvOpTypeForwardPointer:
+    case SpvOpTypePointer:
+    case SpvOpTypeUntypedPointerKHR:
+      if (PointerSize)
+        Types[Op[0]] = {PointerSize, PointerSize, true,
+                        I.opcode == SpvOpTypePointer ? Op[2] : 0, Op[1]};
+      break;
+    case SpvOpConstant:
+      // Only integer constants are needed, as array lengths.
+      if (find(I.type_id))
+        Constants[I.result_id] =
+            NumOps > 3 ? Op[2] | uint64_t{Op[3]} << 32 : Op[2];
+      break;
+    case SpvOpFunction:
+      if (auto It = EntryPoints.find(I.result_id); It != EntryPoints.end()) {
+        Kernels.emplace_back(It->second, std::vector<uint64_t>{});
+        InKernel = true;
+      }
+      break;
+    case SpvOpFunctionParameter:
+      if (InKernel)
+        Kernels.back().second.push_back(paramSize(I.type_id, I.result_id));
+      break;
+    default:
+      break;
+    }
+  }
+};
+} // namespace
+#endif // SYCL_JIT_HAVE_SPIRV_TOOLS
+
+JIT_EXPORT_SYMBOL DynArray<SPIRVKernelInfo>
+getSPIRVKernelInfo([[maybe_unused]] View<uint8_t> SPIRVBinary) {
+#ifdef SYCL_JIT_HAVE_SPIRV_TOOLS
+  if (SPIRVBinary.size() % sizeof(uint32_t) != 0)
+    return {};
+  // spvBinaryParse needs aligned words.
+  std::vector<uint32_t> Words(SPIRVBinary.size() / sizeof(uint32_t));
+  std::memcpy(Words.data(), SPIRVBinary.begin(), SPIRVBinary.size());
+
+  KernelArgSizeCollector Collector;
+  spv_context Context = spvContextCreate(SPV_ENV_UNIVERSAL_1_6);
+  spv_diagnostic Diagnostic = nullptr;
+  const spv_result_t Status = spvBinaryParse(
+      Context, &Collector, Words.data(), Words.size(), /*parse_header=*/nullptr,
+      [](void *Collector, const spv_parsed_instruction_t *I) {
+        static_cast<KernelArgSizeCollector *>(Collector)->handle(*I);
+        return SPV_SUCCESS;
+      },
+      &Diagnostic);
+  spvDiagnosticDestroy(Diagnostic);
+  spvContextDestroy(Context);
+  if (Status != SPV_SUCCESS || Collector.Unsupported)
+    return {};
+
+  DynArray<SPIRVKernelInfo> Result{Collector.Kernels.size()};
+  SPIRVKernelInfo *Info = Result.begin();
+  for (const auto &[Name, ArgSizes] : Collector.Kernels) {
+    Info->Name = std::string_view{Name};
+    Info->ArgSizes = DynArray<uint64_t>{ArgSizes.begin(), ArgSizes.end()};
+    ++Info;
+  }
+  return Result;
+#else
+  return {};
+#endif
 }

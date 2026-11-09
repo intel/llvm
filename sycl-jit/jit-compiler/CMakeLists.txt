@@ -244,6 +244,50 @@ target_include_directories(sycl-jit
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
+# getSPIRVKernelInfo uses the SPIRV-Tools binary parser. Without it, the SYCL
+# runtime does not validate set_arg sizes of runtime-compiled SPIR-V kernels.
+option(SYCL_JIT_ENABLE_SPIRV_TOOLS
+  "Use SPIRV-Tools to validate argument sizes of runtime-compiled SPIR-V" ON)
+if(SYCL_JIT_ENABLE_SPIRV_TOOLS AND CMAKE_VERSION VERSION_LESS 3.22.1)
+  message(STATUS "sycl-jit: SPIRV-Tools requires CMake 3.22.1 or newer; "
+                 "SPIR-V kernel argument size validation is disabled")
+elseif(SYCL_JIT_ENABLE_SPIRV_TOOLS)
+  include(FetchContent)
+  # The SPIRV-Headers revision is the one this SPIRV-Tools release expects.
+  set(SYCL_JIT_SPIRV_TOOLS_TAG "vulkan-sdk-1.4.363.0")
+  set(SYCL_JIT_SPIRV_HEADERS_REV "496543121ce6419f23d6fa5d7194ba66c36212d2")
+
+  # A non-existent SOURCE_SUBDIR keeps the headers from being added as a project,
+  # whose SPIRV-Headers target would clash with the one from llvm-spirv.
+  FetchContent_Declare(sycl_jit_spirv_headers
+    GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers.git
+    GIT_TAG ${SYCL_JIT_SPIRV_HEADERS_REV}
+    SOURCE_SUBDIR no-cmake-project
+  )
+  FetchContent_MakeAvailable(sycl_jit_spirv_headers)
+
+  set(SPIRV-Headers_SOURCE_DIR ${sycl_jit_spirv_headers_SOURCE_DIR})
+  set(SPIRV_SKIP_EXECUTABLES ON)
+  set(SPIRV_SKIP_TESTS ON)
+  set(SPIRV_WERROR OFF)
+  set(SPIRV_TOOLS_BUILD_STATIC ON)
+  set(SKIP_SPIRV_TOOLS_INSTALL ON)
+  FetchContent_Declare(sycl_jit_spirv_tools
+    GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools.git
+    GIT_TAG ${SYCL_JIT_SPIRV_TOOLS_TAG}
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_MakeAvailable(sycl_jit_spirv_tools)
+  set_property(DIRECTORY ${sycl_jit_spirv_tools_SOURCE_DIR}
+    PROPERTY EXCLUDE_FROM_ALL TRUE)
+
+  target_link_libraries(sycl-jit PRIVATE SPIRV-Tools-static)
+  target_include_directories(sycl-jit SYSTEM PRIVATE
+    ${sycl_jit_spirv_tools_SOURCE_DIR}/include
+    ${sycl_jit_spirv_headers_SOURCE_DIR}/include)
+  target_compile_definitions(sycl-jit PRIVATE SYCL_JIT_HAVE_SPIRV_TOOLS)
+endif()
+
 find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit

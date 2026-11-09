@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_image_impl.hpp>
+#if SYCL_EXT_JIT_ENABLE
+#include <detail/jit_compiler.hpp>
+#endif
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
@@ -62,6 +65,20 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
   return std::make_shared<kernel_impl>(
       std::move(UrKernel), *detail::getSyclObjImpl(Context), shared_from_this(),
       OwnerBundle, ArgMask, UrProgram, /*CacheMutex=*/nullptr);
+}
+
+KernelNameToArgSizesMap device_image_impl::getKernelArgSizes(
+    [[maybe_unused]] const std::vector<uint8_t> &SPIRV) {
+  KernelNameToArgSizesMap ArgSizes;
+#if SYCL_EXT_JIT_ENABLE
+  jit_compiler &JIT = jit_compiler::get_instance();
+  if (!SPIRV.empty() && JIT.isAvailable())
+    for (const ::jit_compiler::SPIRVKernelInfo &Kernel :
+         JIT.getSPIRVKernelInfo(SPIRV))
+      ArgSizes[Kernel.Name.c_str()] = {Kernel.ArgSizes.begin(),
+                                       Kernel.ArgSizes.end()};
+#endif
+  return ArgSizes;
 }
 
 } // namespace detail

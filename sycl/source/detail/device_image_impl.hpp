@@ -158,6 +158,8 @@ using MangledKernelNameMapT = std::map<std::string, std::string, std::less<>>;
 using KernelNameSetT = std::set<std::string, std::less<>>;
 using KernelNameToArgMaskMap =
     std::map<std::string, KernelArgMask, std::less<>>;
+using KernelNameToArgSizesMap =
+    std::map<std::string, std::vector<size_t>, std::less<>>;
 
 // Information unique to images compiled at runtime through the
 // ext_oneapi_kernel_compiler extension.
@@ -354,11 +356,12 @@ public:
   device_image_impl(const context &Context, devices_range Devices,
                     bundle_state State, Managed<ur_program_handle_t> &&Program,
                     syclex::source_language Lang, KernelNameSetT &&KernelNames,
-                    private_tag)
+                    KernelNameToArgSizesMap &&ArgSizes, private_tag)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
         MContext(Context), MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(State), MProgram(std::move(Program)),
         MKernelNames{std::move(KernelNames)},
+        MKernelArgSizes{std::move(ArgSizes)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
@@ -719,6 +722,15 @@ public:
     return MEliminatedKernelArgMasks;
   }
 
+  // Returns the expected argument sizes of the named kernel if known,
+  // i.e. if this image was built from SPIR-V or OpenCL C source and its SPIR-V
+  // module could be inspected. Returns nullptr otherwise.
+  const std::vector<size_t> *
+  tryGetKernelArgSizes(std::string_view KernelName) const {
+    auto It = MKernelArgSizes.find(KernelName);
+    return It == MKernelArgSizes.end() ? nullptr : &It->second;
+  }
+
   bool isNonSYCLSourceBased() const noexcept {
     return (getOriginMask() & ImageOriginKernelCompiler) &&
            !isFromSourceLanguage(syclex::source_language::sycl);
@@ -799,8 +811,11 @@ public:
 
     adapter_impl &Adapter = ContextImpl.getAdapter();
 
+    // Empty for programs fetched from the persistent cache, as their SPIR-V is
+    // not available. Argument sizes are then not validated.
+    std::vector<uint8_t> SPIRV;
     if (!FetchedFromCache)
-      UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
+      UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr, SPIRV);
 
     std::string XsFlags = extractXsFlags(BuildOptions, MRTCBinInfo->MLanguage);
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
@@ -811,6 +826,10 @@ public:
           ContextImpl.getHandleRef(), UrProgram, XsFlags.c_str());
     }
     Adapter.checkUrResult<errc::build>(Res);
+
+    // Only inspect modules the backend accepted, so malformed SPIR-V is
+    // reported as a build error rather than reaching the inspection code.
+    KernelNameToArgSizesMap ArgSizes = getKernelArgSizes(SPIRV);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
@@ -832,7 +851,8 @@ public:
     return std::vector<std::shared_ptr<device_image_impl>>{
         device_image_impl::create(MContext, Devices, bundle_state::executable,
                                   std::move(UrProgram), MRTCBinInfo->MLanguage,
-                                  std::move(KernelNameSet))};
+                                  std::move(KernelNameSet),
+                                  std::move(ArgSizes))};
   }
 
   std::vector<std::shared_ptr<device_image_impl>> compileFromSource(
@@ -1366,13 +1386,19 @@ private:
     return Result;
   }
 
+  // Returns the argument sizes of the kernels in a SPIR-V module, as
+  // far as sycl-jit can determine them.
+  static KernelNameToArgSizesMap
+  getKernelArgSizes(const std::vector<uint8_t> &SPIRV);
+
   Managed<ur_program_handle_t>
   createProgramFromSource(devices_range Devices,
                           const std::vector<sycl::detail::string_view> &Options,
-                          std::string *LogPtr) const {
+                          std::string *LogPtr,
+                          std::vector<uint8_t> &OutSPIRV) const {
     sycl::detail::context_impl &ContextImpl = *getSyclObjImpl(MContext);
     adapter_impl &Adapter = ContextImpl.getAdapter();
-    const auto spirv = [&]() -> std::vector<uint8_t> {
+    auto spirv = [&]() -> std::vector<uint8_t> {
       switch (MRTCBinInfo->MLanguage) {
       case syclex::source_language::opencl: {
         // if successful, the log is empty. if failed, throws an error with
@@ -1415,6 +1441,7 @@ private:
           sycl::make_error_code(errc::invalid),
           "urProgramCreateWithIL resulted in a null program handle.");
 
+    OutSPIRV = std::move(spirv);
     return UrProgram;
   }
 
@@ -1455,6 +1482,11 @@ private:
   // Map for storing kernel argument masks for kernels. This is currently only
   // used for images created from SYCLBIN.
   KernelNameToArgMaskMap MEliminatedKernelArgMasks;
+
+  // Expected argument sizes, recovered from the SPIR-V module of
+  // images built from SPIR-V or OpenCL C source. Used to validate set_arg
+  // sizes.
+  KernelNameToArgSizesMap MKernelArgSizes;
 
   // A mutex for sycnhronizing access to spec constants blob. Mutable because
   // needs to be locked in the const method for getting spec constant value.
