@@ -57,8 +57,19 @@ def main_test_summary(command: str) -> int:
         parser = LITLogParser(lines)
 
         if command == "extract-errors":
-            for line in parser.extract_error_details():
-                print(line, end="")
+            details = parser.extract_error_details()
+            if details:
+                for line in details:
+                    print(line, end="")
+            else:
+                print(
+                    "::error::Test run failed, but no FAIL/TIMEOUT entries were "
+                    "found in the log (lit likely failed before running any "
+                    "tests, e.g. during site configuration). Dumping the full "
+                    "log for diagnosis:"
+                )
+                for line in lines:
+                    print(line, end="")
 
         elif command == "filter-log":
             for line in filter_log_for_display(lines):
