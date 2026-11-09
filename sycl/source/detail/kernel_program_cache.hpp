@@ -686,9 +686,7 @@ public:
     }
   }
 
-  /// Clears cache state.
-  ///
-  /// This member function should only be used in unit tests.
+  /// Clears cache state during out-of-memory recovery and in unit tests.
   void reset() {
     std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
@@ -811,6 +809,8 @@ public:
   }
 
   void removeAllRelatedEntries(uint32_t ImageId) {
+    // Keep the lock order consistent with evictPrograms() and reset().
+    auto LockedEvictionList = acquireEvictionList();
     auto LockedCache = acquireCachedPrograms();
     ProgramCache &ProgCache = LockedCache.get();
 
@@ -822,13 +822,12 @@ public:
 
     auto Key = (*It).second;
     removeProgramByKey(Key, ProgCache);
-    {
-      auto LockedEvictionList = acquireEvictionList();
-      LockedEvictionList.get().erase(Key);
-    }
+    LockedEvictionList.get().erase(Key);
   }
 
 private:
+  // MProgramEvictionListMutex must be acquired before MProgramCacheMutex when
+  // both mutexes are needed.
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
 

@@ -4038,8 +4038,8 @@ void Driver::diagnoseOffloadBundlerNotFound(StringRef Dir,
   Diag(diag::err_drv_offload_bundler_not_found) << Dir << FileName;
 }
 
-static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
-                                                      const StringRef &File) {
+static SmallVector<std::string, 4> listOffloadSections(Compilation &C,
+                                                       const StringRef &File) {
   // Do not do the check if the file doesn't exist
   if (!llvm::sys::fs::exists(File))
     return {};
@@ -4108,6 +4108,16 @@ static SmallVector<std::string, 4> getOffloadSections(Compilation &C,
   return Sections;
 }
 
+// The result is cached, so the bundler is run at most once per file even
+// though several places in the driver need it.
+SmallVector<std::string, 4> Driver::getOffloadSections(Compilation &C,
+                                                       StringRef File) const {
+  auto [It, Inserted] = OffloadSectionsCache.try_emplace(File);
+  if (Inserted)
+    It->second = listOffloadSections(C, File);
+  return It->second;
+}
+
 static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   // Do not do the check if the file doesn't exist
   if (!llvm::sys::fs::exists(File))
@@ -4130,8 +4140,28 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
 
 static bool hasOffloadSections(Compilation &C, const StringRef &File,
                                DerivedArgList &Args) {
-  SmallVector<std::string, 4> Sections(getOffloadSections(C, File));
+  SmallVector<std::string, 4> Sections(
+      C.getDriver().getOffloadSections(C, File));
   return !Sections.empty();
+}
+
+/// Return true if \p File is an object created with -fsycl-link. Such an
+/// object is a regular host object holding wrapped SYCL device images. The
+/// clang-offload-wrapper places the images in sections named like bundles
+/// (e.g. __CLANG_OFFLOAD_BUNDLE__sycl-spir64), so clang-offload-bundler -list
+/// reports them as bundle IDs (e.g. sycl-spir64). Unlike for a fat object, it
+/// reports no host bundle ID. When linking a final host image, such an object
+/// must be passed to the host linker as is: unbundling it would drop the host
+/// code that registers the images and send the final device images back
+/// through the device link.
+static bool isSYCLLinkWrappedObject(Compilation &C, StringRef File) {
+  if (isStaticArchiveFile(File) || !isObjectFile(File.str()))
+    return false;
+  SmallVector<std::string, 4> Sections(
+      C.getDriver().getOffloadSections(C, File));
+  return !Sections.empty() && llvm::all_of(Sections, [](StringRef S) {
+    return S.starts_with("sycl-");
+  });
 }
 
 // Simple helper function for Linker options, where the option is valid if
@@ -5604,6 +5634,13 @@ class OffloadingActionBuilder final {
         if (IA->getType() == types::TY_Object && !isObjectFile(InputName))
           return ABRT_Inactive;
 
+        // Objects created with -fsycl-link already contain final, wrapped
+        // device images and are only consumed by the host link. -fsycl-link
+        // itself still consumes their device images.
+        if (!WrapDeviceOnlyBinary && IA->getType() == types::TY_Object &&
+            isSYCLLinkWrappedObject(C, InputName))
+          return ABRT_Inactive;
+
         for (auto &TargetInfo : SYCLTargetInfoList) {
           (void)TargetInfo;
           SYCLDeviceActions.push_back(
@@ -6411,7 +6448,8 @@ class OffloadingActionBuilder final {
       // Gather all of the sections seen in the offload objects/archives
       SmallVector<std::string, 4> UniqueSections;
       for (StringRef OLArg : OffloadLibArgs) {
-        SmallVector<std::string, 4> Sections(getOffloadSections(C, OLArg));
+        SmallVector<std::string, 4> Sections(
+            C.getDriver().getOffloadSections(C, OLArg));
         for (auto &Section : Sections) {
           // We only care about sections that start with 'sycl-'.  Also remove
           // the prefix before adding it.
@@ -6527,7 +6565,8 @@ class OffloadingActionBuilder final {
     //   <aot_arch> values:  spir64_gen, spir64_x86_64
     SmallVector<std::string, 4> deviceBinarySections(Compilation &C,
                                                      const StringRef &Input) {
-      SmallVector<std::string, 4> Sections(getOffloadSections(C, Input));
+      SmallVector<std::string, 4> Sections(
+          C.getDriver().getOffloadSections(C, Input));
       SmallVector<std::string, 4> FinalDeviceSections;
       for (auto S : Sections) {
         SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_x86_64"};
@@ -6935,12 +6974,22 @@ public:
     // unbundling action. The bundler tool has the logic to detect if an input
     // is a bundle or not and if the input is not a bundle it assumes it is a
     // host file. Therefore it is safe to create an unbundling action even if
-    // the input is not a bundle.
-    if (CanUseBundler && isa<InputAction>(HostAction) &&
+    // the input is not a bundle. The exception is an object created with
+    // -fsycl-link: it is not a bundle, but it has sections that look like
+    // device bundles, so it is passed to the host link as is (except when
+    // performing -fsycl-link, which consumes its device images).
+    bool ShouldUnbundle =
+        CanUseBundler && isa<InputAction>(HostAction) &&
         InputArg->getOption().getKind() == llvm::opt::Option::InputClass &&
         !InputArg->getOption().hasFlag(options::LinkerInput) &&
         (!types::isSrcFile(HostAction->getType()) ||
-         HostAction->getType() == types::TY_PP_HIP)) {
+         HostAction->getType() == types::TY_PP_HIP);
+    if (ShouldUnbundle && HostAction->getType() == types::TY_Object &&
+        C.hasOffloadToolChain<Action::OFK_SYCL>() &&
+        !Args.hasArg(options::OPT_fsycl_link_EQ) &&
+        isSYCLLinkWrappedObject(C, InputArg->getValue()))
+      ShouldUnbundle = false;
+    if (ShouldUnbundle) {
       ActionList HostActionList;
       Action *A(HostAction);
       bool HasSPIRTarget = false;
