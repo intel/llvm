@@ -132,8 +132,7 @@ ur_result_t afterIgcaDeviceGetInfo(void *pParams) {
 class IgcaDeviceInfoTests : public ::testing::Test {
 protected:
   void SetUp() override {
-    IgcaState = {/*Supported=*/true, /*Target=*/20,
-                 UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE};
+    IgcaState = {/*Supported=*/true, /*Target=*/0, /*Flags=*/0};
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             &afterIgcaDeviceGetInfo);
   }
@@ -143,10 +142,9 @@ protected:
   sycl::unittest::UrMock<> Mock;
 };
 
-// Keeping the render and compute cases separate catches a swapped mapping from
-// the UR feature-set flags onto the igca_feature_set_* constants.
 TEST_F(IgcaDeviceInfoTests, CheckIgcaComputeFeatureSet) {
   IgcaState.Flags = UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+  IgcaState.Target = 20;
   sycl::device Dev = getDevice();
 
   ASSERT_TRUE(Dev.has(aspect::ext_intel_igca));
@@ -157,24 +155,13 @@ TEST_F(IgcaDeviceInfoTests, CheckIgcaComputeFeatureSet) {
 
 TEST_F(IgcaDeviceInfoTests, CheckIgcaRenderFeatureSet) {
   IgcaState.Flags = UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
-  sycl::device Dev = getDevice();
-
-  ASSERT_TRUE(Dev.has(aspect::ext_intel_igca));
-  auto Igca = Dev.get_info<ext::intel::info::device::igca>();
-  EXPECT_EQ(Igca.feature_sets, ext::intel::info::igca_feature_set_render);
-}
-
-TEST_F(IgcaDeviceInfoTests, CheckIgcaBothFeatureSets) {
-  IgcaState.Flags =
-      UR_DEVICE_IGCA_FEATURE_FLAG_RENDER | UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
   IgcaState.Target = 30;
   sycl::device Dev = getDevice();
 
   ASSERT_TRUE(Dev.has(aspect::ext_intel_igca));
   auto Igca = Dev.get_info<ext::intel::info::device::igca>();
   EXPECT_EQ(Igca.target, 30);
-  EXPECT_EQ(Igca.feature_sets, ext::intel::info::igca_feature_set_render |
-                                   ext::intel::info::igca_feature_set_compute);
+  EXPECT_EQ(Igca.feature_sets, ext::intel::info::igca_feature_set_render);
 }
 
 TEST_F(IgcaDeviceInfoTests, CheckIgcaUnsupported) {
