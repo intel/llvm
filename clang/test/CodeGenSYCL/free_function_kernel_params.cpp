@@ -244,3 +244,28 @@ void ff_8(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 // CHECK-NEXT:  store ptr addrspace(4) %__arg__obj, ptr addrspace(4) %__arg__obj.addr.ascast, align 8
 // CHECK-NEXT:  %0 = load ptr addrspace(4), ptr addrspace(4) %__arg__obj.addr.ascast, align 8
 // CHECK-NEXT:  call spir_func void @{{.*}}annotated_ptr{{.*}}__init{{.*}}
+
+// Special type with a non-trivial destructor, like the device accessors. The
+// destructor of the object created in the kernel to pass to the free function
+// must be instantiated and defined, not just declared.
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(work_group_memory) SpecialWithDtor {
+public:
+  SpecialWithDtor() = default;
+  ~SpecialWithDtor() {}
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
+
+private:
+  __attribute((opencl_local)) DataT *Ptr;
+};
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(SpecialWithDtor<int> S) {
+}
+
+// CHECK: define dso_local spir_kernel void @{{.*}}__sycl_kernel_ff_9{{.*}}(ptr addrspace(3) noundef align 4 %__arg_Ptr)
+// CHECK: call spir_func void @{{.*}}SpecialWithDtor{{.*}}__init{{.*}}(ptr addrspace(4) {{.*}} %S.ascast, ptr addrspace(3) noundef %{{.*}})
+// CHECK: call spir_func void @[[DTOR:_ZN15SpecialWithDtorIiED1Ev]](ptr addrspace(4) {{.*}} %S.ascast)
+// CHECK: define linkonce_odr spir_func void @[[DTOR]](

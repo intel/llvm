@@ -638,6 +638,23 @@ public:
                                  access::target::image);
 #endif
   }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty as the spec states the destructor of an accessor must not have
+    // any effect
+  }
+#else
+  ~accessor() = default;
+#endif
+
+  // common reference semantics
+  accessor(const accessor &) noexcept = default;
+  accessor &operator=(const accessor &) noexcept = default;
+  accessor(accessor &&) noexcept = default;
+  accessor &operator=(accessor &&) noexcept = default;
+
 #ifdef __SYCL_DEVICE_ONLY__
 private:
   using OCLImageTy =
@@ -688,6 +705,21 @@ public:
             Image, Image.getElementSize()) {
     (void)propList;
   }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty
+  }
+#else
+  ~accessor() = default;
+#endif
+
+  // common reference semantics
+  accessor(const accessor &) noexcept = default;
+  accessor &operator=(const accessor &) noexcept = default;
+  accessor(accessor &&) noexcept = default;
+  accessor &operator=(accessor &&) noexcept = default;
 };
 
 /// Image array accessor.
@@ -749,6 +781,21 @@ public:
                                  access::target::image_array);
 #endif
   }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty
+  }
+#else
+  ~accessor() = default;
+#endif
+
+  // common reference semantics
+  accessor(const accessor &) noexcept = default;
+  accessor &operator=(const accessor &) noexcept = default;
+  accessor(accessor &&) noexcept = default;
+  accessor &operator=(accessor &&) noexcept = default;
 
   detail::__image_array_slice__<DataT, Dimensions, AccessMode, IsPlaceholder>
   operator[](size_t Index) const {
@@ -836,7 +883,15 @@ public:
 
   unsampled_image_accessor &operator=(unsampled_image_accessor &&Rhs) = default;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~unsampled_image_accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty as the spec states the destructor of an accessor must not
+    // have any effect
+  }
+#else
   ~unsampled_image_accessor() = default;
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
   bool operator==(const unsampled_image_accessor &Rhs) const;
@@ -975,7 +1030,15 @@ public:
   host_unsampled_image_accessor &
   operator=(host_unsampled_image_accessor &&Rhs) = default;
 
-  ~host_unsampled_image_accessor() = default;
+  ~host_unsampled_image_accessor()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      {
+          // User-declared so the type is not trivially copyable; intentionally
+          // empty
+      }
+#else
+      = default;
+#endif
 
   bool operator==(const host_unsampled_image_accessor &Rhs) const {
     return Rhs.impl == impl;
@@ -1125,7 +1188,15 @@ public:
 
   sampled_image_accessor &operator=(sampled_image_accessor &&Rhs) = default;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ~sampled_image_accessor() {
+    // User-declared so the type is not trivially copyable; intentionally
+    // empty as the spec states the destructor of an accessor must not
+    // have any effect
+  }
+#else
   ~sampled_image_accessor() = default;
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
   bool operator==(const sampled_image_accessor &Rhs) const;
@@ -1239,7 +1310,15 @@ public:
   host_sampled_image_accessor &
   operator=(host_sampled_image_accessor &&Rhs) = default;
 
-  ~host_sampled_image_accessor() = default;
+  ~host_sampled_image_accessor()
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+      {
+          // User-declared so the type is not trivially copyable; intentionally
+          // empty
+      }
+#else
+      = default;
+#endif
 
   bool operator==(const host_sampled_image_accessor &Rhs) const {
     return Rhs.impl == impl;
@@ -1288,6 +1367,22 @@ private:
       : base_class{Impl} {}
 };
 
+namespace detail {
+// Add specializations for SYCL accessor types to the is_sycl_accessor trait.
+// This is needed so that is_device_copyable<accessor> returns false, but
+// they can still be captured in a kernel.
+template <typename T> struct is_sycl_accessor;
+
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_sycl_accessor<unsampled_image_accessor<DataT, Dimensions, AccessMode,
+                                                 image_target::device>>
+    : std::true_type {};
+
+template <typename DataT, int Dimensions>
+struct is_sycl_accessor<
+    sampled_image_accessor<DataT, Dimensions, image_target::device>>
+    : std::true_type {};
+} // namespace detail
 } // namespace _V1
 } // namespace sycl
 
