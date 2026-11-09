@@ -8,7 +8,37 @@
 // RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.fat %s
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
-// RUN:   --dry-run -- -o /dev/null %t.o 2>&1 | FileCheck %s
+// RUN:   --dry-run -- -o /dev/null %t.o 2>&1 | FileCheck %s --implicit-check-not=SPV_KHR_bfloat16 --implicit-check-not=SPV_INTEL_16bit_atomics
+
+// RUN: llvm-offload-binary -o %t.cri.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=cri
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri.o \
+// RUN:   -fembed-offload-object=%t.cri.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// RUN: llvm-offload-binary -o %t.bmg.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=bmg_g31
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.bmg.o \
+// RUN:   -fembed-offload-object=%t.bmg.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.bmg.o 2>&1 | FileCheck %s --implicit-check-not=SPV_KHR_bfloat16 --implicit-check-not=SPV_INTEL_16bit_atomics
+
+// RUN: llvm-offload-binary -o %t.pvc.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=pvc
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.pvc.o \
+// RUN:   -fembed-offload-object=%t.pvc.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.pvc.o 2>&1 | FileCheck %s --implicit-check-not=SPV_KHR_bfloat16 --implicit-check-not=SPV_INTEL_16bit_atomics
+
+// RUN: llvm-offload-binary -o %t.cri-alias.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=intel_gpu_cri
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri-alias.o \
+// RUN:   -fembed-offload-object=%t.cri-alias.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri-alias.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// CRI: llvm-spirv{{.*}}-spirv-ext=-all{{.*}},+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics
 
 // CHECK: llvm-spirv{{.*}}-spirv-debug-info-version=nonsemantic-shader-200
 // CHECK-SAME:-spirv-ext=-all

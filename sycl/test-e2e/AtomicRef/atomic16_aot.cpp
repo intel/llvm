@@ -31,24 +31,28 @@ int main() {
   {
     sycl::buffer<sycl::half> HalfBuffer(&HalfValue, sycl::range<1>(1));
     sycl::buffer<sycl::ext::oneapi::bfloat16> BFloatBuffer(&BFloatValue,
-                                                       sycl::range<1>(1));
-    Queue.submit([&](sycl::handler &Handler) {
-      auto Half = HalfBuffer.get_access<sycl::access::mode::read_write>(Handler);
-      auto BFloat =
-          BFloatBuffer.get_access<sycl::access::mode::read_write>(Handler);
-      Handler.single_task<class Atomic16AOT>([=]() {
-        sycl::atomic_ref<sycl::half, sycl::memory_order::relaxed,
-                         sycl::memory_scope::device,
-                         sycl::access::address_space::global_space>
-            HalfAtomic(Half[0]);
-        sycl::atomic_ref<sycl::ext::oneapi::bfloat16, sycl::memory_order::relaxed,
-                         sycl::memory_scope::device,
-                         sycl::access::address_space::global_space>
-            BFloatAtomic(BFloat[0]);
-        HalfAtomic.fetch_add(sycl::half{3});
-        BFloatAtomic.fetch_add(sycl::ext::oneapi::bfloat16{4});
-      });
-    }).wait_and_throw();
+                                                           sycl::range<1>(1));
+    Queue
+        .submit([&](sycl::handler &Handler) {
+          auto Half =
+              HalfBuffer.get_access<sycl::access::mode::read_write>(Handler);
+          auto BFloat =
+              BFloatBuffer.get_access<sycl::access::mode::read_write>(Handler);
+          Handler.single_task<class Atomic16AOT>([=]() {
+            sycl::atomic_ref<sycl::half, sycl::memory_order::relaxed,
+                             sycl::memory_scope::device,
+                             sycl::access::address_space::global_space>
+                HalfAtomic(Half[0]);
+            sycl::atomic_ref<sycl::ext::oneapi::bfloat16,
+                             sycl::memory_order::relaxed,
+                             sycl::memory_scope::device,
+                             sycl::access::address_space::global_space>
+                BFloatAtomic(BFloat[0]);
+            HalfAtomic.fetch_add(sycl::half{3});
+            BFloatAtomic.fetch_add(sycl::ext::oneapi::bfloat16{4});
+          });
+        })
+        .wait_and_throw();
   }
   assert(static_cast<float>(HalfValue) == 4.0f);
   assert(static_cast<float>(BFloatValue) == 6.0f);

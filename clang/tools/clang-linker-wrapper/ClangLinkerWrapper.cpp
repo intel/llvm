@@ -974,7 +974,7 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
 
   static constexpr char CRIExtArg[] =
       ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
-  if (Arch == "cri") {
+  if (Arch == "cri" || Arch == "intel_gpu_cri") {
     // Function-local static: initialized once, thread-safe, outlives callers.
     static const std::string Combined = std::string(ExtArg) + CRIExtArg;
     TranslatorArgs.push_back(Combined.c_str());
