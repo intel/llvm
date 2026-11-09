@@ -22,9 +22,11 @@ void direct_usm(queue &Q) {
   auto p1 = malloc_shared(1024, Q);
   auto p2 = malloc_host(1024, Q);
   auto p3 = malloc_device(1024, Q);
-  // Host and Device allocations, pooled by default will be automatically freed
-  // Shared is not pooled by default, so it needs to be explicitly freed
+  // All allocations must be freed explicitly: pooling is disabled on some
+  // devices, so host and device allocations may not be cached until teardown.
   free(p1, Q.get_context());
+  free(p2, Q.get_context());
+  free(p3, Q.get_context());
 }
 
 template <typename T> class K;

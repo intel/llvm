@@ -68,5 +68,8 @@ int main() {
     assert(HostDataA[i] == i * NumKernelLoops * NumSubmitLoops);
     assert(HostDataB[i] == i * NumKernelLoops * NumSubmitLoops);
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
   return 0;
 }

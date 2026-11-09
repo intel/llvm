@@ -71,5 +71,6 @@ int main() {
     assert(check_value(i, HostData[i], HostOutputCompare[i], "HostData"));
   }
 
+  free(Ptr, Queue);
   return 0;
 }

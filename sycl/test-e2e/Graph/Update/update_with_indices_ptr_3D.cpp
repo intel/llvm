@@ -77,5 +77,8 @@ int main() {
     assert(HostDataA[i] == Ref);
     assert(HostDataB[i] == Ref);
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
   return 0;
 }

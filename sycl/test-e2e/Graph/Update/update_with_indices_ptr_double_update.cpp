@@ -70,5 +70,9 @@ int main() {
     // Check that PtrUnused was never actually used in a kernel
     assert(HostDataUnused[i] == 0);
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
+  free(PtrUnused, Queue);
   return 0;
 }
