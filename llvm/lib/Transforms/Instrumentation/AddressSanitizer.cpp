@@ -1161,6 +1161,33 @@ static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
   return StringGV;
 }
 
+// sycl-post-link reads the default values of specialization constants from the
+// initializers of the spec ids (sycl::specialization_id) passed to the spec
+// constant getters and "llvm.sycl.alloca", so these globals must keep their
+// original types.
+static void markSpecConstantIdsNoSanitize(Module &M) {
+  for (Function &F : M) {
+    // Keep in sync with SpecConstants.cpp
+    if (!F.isDeclaration() ||
+        (F.getIntrinsicID() != Intrinsic::sycl_alloca &&
+         !F.getName().starts_with(
+             "_Z37__sycl_getScalar2020SpecConstantValue") &&
+         !F.getName().starts_with(
+             "_Z40__sycl_getComposite2020SpecConstantValue")))
+      continue;
+    // The spec id follows the symbolic id, which may follow a 'sret' argument.
+    unsigned SpecIdArgNo = F.hasStructRetAttr() ? 2 : 1;
+    for (User *U : F.users()) {
+      auto *CI = dyn_cast<CallInst>(U);
+      if (!CI || CI->getCalledFunction() != &F || CI->arg_size() <= SpecIdArgNo)
+        continue;
+      if (auto *G = dyn_cast<GlobalVariable>(
+              CI->getArgOperand(SpecIdArgNo)->stripPointerCasts()))
+        G->setNoSanitizeMetadata();
+    }
+  }
+}
+
 // Append a new argument "__asan_launch" to user's spir_kernels
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
                                  bool HasESIMD) {
@@ -1418,6 +1445,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       GlobalStringMap.clear();
       return PreservedAnalyses::none();
     }
+
+    markSpecConstantIdsNoSanitize(M);
   }
 
   for (Function &F : M) {
