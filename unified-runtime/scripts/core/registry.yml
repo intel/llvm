@@ -760,7 +760,28 @@ etors:
 - name: GRAPH_GET_ID_EXP
   desc: Enumerator for $xGraphGetIdExp
   value: '326'
-max_id: '326'
+- name: TIMELINE_SEMAPHORE_CREATE_EXP
+  desc: Enumerator for $xTimelineSemaphoreCreateExp
+  value: '327'
+- name: TIMELINE_SEMAPHORE_RETAIN_EXP
+  desc: Enumerator for $xTimelineSemaphoreRetainExp
+  value: '328'
+- name: TIMELINE_SEMAPHORE_RELEASE_EXP
+  desc: Enumerator for $xTimelineSemaphoreReleaseExp
+  value: '329'
+- name: TIMELINE_SEMAPHORE_HOST_WAIT_EXP
+  desc: Enumerator for $xTimelineSemaphoreHostWaitExp
+  value: '330'
+- name: TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP
+  desc: Enumerator for $xTimelineSemaphoreHostSignalExp
+  value: '331'
+- name: ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP
+  desc: Enumerator for $xEnqueueTimelineSemaphoreSignalExp
+  value: '332'
+- name: ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP
+  desc: Enumerator for $xEnqueueTimelineSemaphoreWaitExp
+  value: '333'
+max_id: '333'
 ---
 type: enum
 desc: Defines structure types

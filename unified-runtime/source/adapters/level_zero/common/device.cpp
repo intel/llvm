@@ -2197,6 +2197,41 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
     Range = makeQueuePriorityRange(DriverLevels);
   };
 
+  ZeTimelineSemaphoreCaps.Compute = [this, ZeDevice](
+                                        ze_timeline_semaphore_caps &Caps) {
+    Caps = {false, 0};
+    // A signal writes the value with zexCommandListAppendWriteToMemory, and a
+    // wait uses a counter-based event over an external sync allocation.
+    if (!Platform->ZeMemoryOpsExt.Supported ||
+        !Platform->ZeCounterBasedEventsCoreApiSupported)
+      return;
+
+    // zeDeviceGetCounterBasedEventMaxValue is defined for counter-based events
+    // with externally managed storage, so a driver that implements it accepts
+    // the external sync allocation descriptor.
+    uint64_t MaxValue = 0;
+    if (ZE_CALL_NOCHECK(zeDeviceGetCounterBasedEventMaxValue,
+                        (ZeDevice, &MaxValue)) != ZE_RESULT_SUCCESS ||
+        MaxValue == 0)
+      return;
+
+    // The device event properties flag is not required, because the current
+    // compute-runtime does not fill in ze_device_event_properties_t.
+    ZeStruct<ze_device_event_properties_t> EventProperties;
+    ZeStruct<ze_device_properties_t> DeviceProperties;
+    DeviceProperties.pNext = &EventProperties;
+    if (ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &DeviceProperties)) ==
+            ZE_RESULT_SUCCESS &&
+        !(EventProperties.flags &
+          ZE_DEVICE_EVENT_PROPERTIES_FLAG_COUNTER_BASED_EXTERNAL_SYNC_ALLOCATION))
+      UR_LOG(DEBUG,
+             "Timeline semaphores: the driver does not report "
+             "counter-based events with an external sync allocation, "
+             "assuming support from zeDeviceGetCounterBasedEventMaxValue");
+
+    Caps = {true, MaxValue};
+  };
+
   ZeDeviceBlockArrayProperties.Compute =
       [ZeDevice](ZexStruct<ur_ze_intel_device_block_array_exp_properties_t>
                      &Properties) {

@@ -47,6 +47,9 @@ typedef struct ur_exp_graph_handle_t_ *ur_exp_graph_handle_t;
 struct ur_exp_executable_graph_handle_t_;
 typedef struct ur_exp_executable_graph_handle_t_
     *ur_exp_executable_graph_handle_t;
+struct ur_exp_timeline_semaphore_handle_t_;
+typedef struct ur_exp_timeline_semaphore_handle_t_
+    *ur_exp_timeline_semaphore_handle_t;
 
 // Cast from an opaque UR handle to the v2 concrete type. The loader only ever
 // reads offset 0 (ddi_table).
@@ -79,6 +82,9 @@ template <> struct v2_handle_traits<::ur_exp_graph_handle_t> {
 };
 template <> struct v2_handle_traits<::ur_exp_executable_graph_handle_t> {
   using type = ur_exp_executable_graph_handle_t_;
+};
+template <> struct v2_handle_traits<::ur_exp_timeline_semaphore_handle_t> {
+  using type = ur_exp_timeline_semaphore_handle_t_;
 };
 template <> struct v2_handle_traits<::ur_device_handle_t> {
   using type = ur::level_zero::ur_device_handle_t_;
@@ -118,6 +124,9 @@ template <> struct v2_opaque_handle_for<ur_exp_graph_handle_t_> {
 };
 template <> struct v2_opaque_handle_for<ur_exp_executable_graph_handle_t_> {
   using type = ::ur_exp_executable_graph_handle_t;
+};
+template <> struct v2_opaque_handle_for<ur_exp_timeline_semaphore_handle_t_> {
+  using type = ::ur_exp_timeline_semaphore_handle_t;
 };
 template <> struct v2_opaque_handle_for<ur::level_zero::ur_device_handle_t_> {
   using type = ::ur_device_handle_t;

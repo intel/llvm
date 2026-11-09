@@ -804,6 +804,10 @@ detail::EventImplPtr handler::finalize() {
     CommandGroup.reset(new detail::CG(detail::CGType::None,
                                       std::move(impl->CGData), MCodeLoc));
     break;
+  case detail::CGType::TimelineSemaphoreSignal:
+  case detail::CGType::TimelineSemaphoreWait:
+    // Timeline semaphore operations are submitted without a handler.
+    break;
   }
 
   if (!CommandGroup)

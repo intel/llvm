@@ -186,6 +186,13 @@ struct ur_command_list_manager {
       ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
       uint64_t signalValue, wait_list_view &waitListView,
       ur_event_handle_t phEvent);
+  ur_result_t appendTimelineSemaphoreSignalExp(
+      ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+      wait_list_view &waitListView, ur_event_handle_t phEvent);
+  ur_result_t
+  appendTimelineSemaphoreWaitExp(ur_exp_timeline_semaphore_handle_t hSemaphore,
+                                 uint64_t value, wait_list_view &waitListView,
+                                 ur_event_handle_t phEvent);
   ur_result_t appendCooperativeKernelLaunchExp(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -271,6 +278,10 @@ private:
 
   void recordSubmittedKernel(ur_kernel_handle_t hKernel);
 
+  // Keeps the semaphore alive until the queue is synchronized, so that pending
+  // operations can still access its memory and events.
+  void recordSubmittedSemaphore(ur_exp_timeline_semaphore_handle_t hSemaphore);
+
   ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
                                    ur_command_t commandType);
 
@@ -315,6 +326,7 @@ private:
   v2::raii::ur_device_handle_t hDevice;
 
   std::unordered_set<ur_kernel_handle_t> submittedKernels;
+  std::unordered_set<ur_exp_timeline_semaphore_handle_t> submittedSemaphores;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
 };

@@ -6207,6 +6207,162 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreCreateExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] initial value of the semaphore
+    uint64_t initialValue,
+    /// [out][alloc] pointer to the handle of the semaphore object created
+    ur_exp_timeline_semaphore_handle_t *phSemaphore) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnCreateExp = dditable->TimelineSemaphoreExp.pfnCreateExp;
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnCreateExp(hContext, initialValue, phSemaphore);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreRetainExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreRetainExp(
+    /// [in][retain] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSemaphore);
+
+  auto *pfnRetainExp = dditable->TimelineSemaphoreExp.pfnRetainExp;
+  if (nullptr == pfnRetainExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnRetainExp(hSemaphore);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreReleaseExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreReleaseExp(
+    /// [in][release] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSemaphore);
+
+  auto *pfnReleaseExp = dditable->TimelineSemaphoreExp.pfnReleaseExp;
+  if (nullptr == pfnReleaseExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnReleaseExp(hSemaphore);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostWaitExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostWaitExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSemaphore);
+
+  auto *pfnHostWaitExp = dditable->TimelineSemaphoreExp.pfnHostWaitExp;
+  if (nullptr == pfnHostWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnHostWaitExp(hSemaphore, value);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostSignalExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hSemaphore);
+
+  auto *pfnHostSignalExp = dditable->TimelineSemaphoreExp.pfnHostSignalExp;
+  if (nullptr == pfnHostSignalExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnHostSignalExp(hSemaphore, value);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreSignalExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreSignalExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnTimelineSemaphoreSignalExp =
+      dditable->EnqueueExp.pfnTimelineSemaphoreSignalExp;
+  if (nullptr == pfnTimelineSemaphoreSignalExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnTimelineSemaphoreSignalExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreWaitExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreWaitExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hQueue);
+
+  auto *pfnTimelineSemaphoreWaitExp =
+      dditable->EnqueueExp.pfnTimelineSemaphoreWaitExp;
+  if (nullptr == pfnTimelineSemaphoreWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnTimelineSemaphoreWaitExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphCreateExp
 __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
@@ -6965,6 +7121,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
       pDdiTable->pfnHostTaskExp = ur_loader::urEnqueueHostTaskExp;
       pDdiTable->pfnNativeCommandExp = ur_loader::urEnqueueNativeCommandExp;
+      pDdiTable->pfnTimelineSemaphoreSignalExp =
+          ur_loader::urEnqueueTimelineSemaphoreSignalExp;
+      pDdiTable->pfnTimelineSemaphoreWaitExp =
+          ur_loader::urEnqueueTimelineSemaphoreWaitExp;
       pDdiTable->pfnGraphExp = ur_loader::urEnqueueGraphExp;
     } else {
       // return pointers directly to platform's DDIs
@@ -7828,6 +7988,69 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Sampler;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TimelineSemaphoreExp
+/// table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_timeline_semaphore_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+
+    auto getTable =
+        reinterpret_cast<ur_pfnGetTimelineSemaphoreExpProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(),
+                "urGetTimelineSemaphoreExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus =
+        getTable(version, &platform.dditable.TimelineSemaphoreExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnCreateExp = ur_loader::urTimelineSemaphoreCreateExp;
+      pDdiTable->pfnRetainExp = ur_loader::urTimelineSemaphoreRetainExp;
+      pDdiTable->pfnReleaseExp = ur_loader::urTimelineSemaphoreReleaseExp;
+      pDdiTable->pfnHostWaitExp = ur_loader::urTimelineSemaphoreHostWaitExp;
+      pDdiTable->pfnHostSignalExp = ur_loader::urTimelineSemaphoreHostSignalExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable = ur_loader::getContext()
+                       ->platforms.front()
+                       .dditable.TimelineSemaphoreExp;
     }
   }
 

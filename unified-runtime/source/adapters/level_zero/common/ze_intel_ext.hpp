@@ -148,4 +148,24 @@ typedef struct _ur_zex_counter_based_event_desc_t {
                  ///< a wait action after the event is complete
 } ur_zex_counter_based_event_desc_t;
 
+///////////////////////////////////////////////////////////////////////////////
+// zexCommandListAppendWriteToMemory
+
+typedef uint32_t ur_zex_mem_action_scope_flags_t;
+typedef enum _ur_zex_mem_action_scope_flag_t {
+  UR_ZEX_MEM_ACTION_SCOPE_FLAG_SUBDEVICE = ZE_BIT(0),
+  UR_ZEX_MEM_ACTION_SCOPE_FLAG_DEVICE = ZE_BIT(1),
+  UR_ZEX_MEM_ACTION_SCOPE_FLAG_HOST = ZE_BIT(2),
+  UR_ZEX_MEM_ACTION_SCOPE_FLAG_FORCE_UINT32 = 0x7fffffff
+} ur_zex_mem_action_scope_flag_t;
+
+typedef struct _ur_zex_write_to_mem_desc_t {
+  ur_zex_mem_action_scope_flags_t
+      writeScope; ///< [in] scope of the caches to flush after the write
+} ur_zex_write_to_mem_desc_t;
+
+using ur_pfnZexCommandListAppendWriteToMemory_t = ze_result_t(ZE_APICALL *)(
+    ze_command_list_handle_t hCommandList, ur_zex_write_to_mem_desc_t *desc,
+    void *ptr, uint64_t data);
+
 } // namespace ur::level_zero

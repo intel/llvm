@@ -110,6 +110,7 @@ def Aspectext_oneapi_per_event_profiling : Aspect<"ext_oneapi_per_event_profilin
 def Aspectext_oneapi_ipc_event : Aspect<"ext_oneapi_ipc_event">;
 def Aspectext_intel_device_info_ip_version : Aspect<"ext_intel_device_info_ip_version">;
 def Aspectext_intel_igca : Aspect<"ext_intel_igca">;
+def Aspectext_oneapi_timeline_semaphore : Aspect<"ext_oneapi_timeline_semaphore">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -201,7 +202,8 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_per_event_profiling,
     Aspectext_oneapi_ipc_event,
     Aspectext_intel_device_info_ip_version,
-    Aspectext_intel_igca],
+    Aspectext_intel_igca,
+    Aspectext_oneapi_timeline_semaphore],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.

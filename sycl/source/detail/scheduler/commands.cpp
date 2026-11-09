@@ -22,6 +22,7 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/timeline_semaphore_impl.hpp>
 #include <detail/ur_utils.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/access/access.hpp>
@@ -1943,6 +1944,10 @@ static std::string_view cgTypeToString(detail::CGType Type) {
     return "semaphore signal";
   case detail::CGType::NativeHostTask:
     return "native host task";
+  case detail::CGType::TimelineSemaphoreSignal:
+    return "timeline semaphore signal";
+  case detail::CGType::TimelineSemaphoreWait:
+    return "timeline semaphore wait";
   default:
     return "unknown";
     break;
@@ -3906,6 +3911,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     SetEventHandleOrDiscard();
 
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::TimelineSemaphoreSignal:
+  case CGType::TimelineSemaphoreWait: {
+    assert(MQueue && "Timeline semaphore operations should have an associated "
+                     "queue");
+    auto *SemOp = static_cast<CGTimelineSemaphore *>(MCommandGroup.get());
+    if (auto Result = SemOp->getSemaphore().enqueue(
+            *MQueue, SemOp->getValue(),
+            SemOp->getType() == CGType::TimelineSemaphoreSignal, RawEvents,
+            Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
     return UR_RESULT_SUCCESS;
   }
   case CGType::AsyncAlloc: {

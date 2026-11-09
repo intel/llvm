@@ -803,6 +803,13 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeHostTaskExt.Supported =
       ZeHostTaskExt.zeCommandListAppendHostFunction != nullptr;
 
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zexCommandListAppendWriteToMemory",
+                   reinterpret_cast<void **>(
+                       &ZeMemoryOpsExt.zexCommandListAppendWriteToMemory)));
+  ZeMemoryOpsExt.Supported =
+      ZeMemoryOpsExt.zexCommandListAppendWriteToMemory != nullptr;
+
   // ZE_COMMAND_QUEUE_FLAG_COPY_OFFLOAD_HINT flag is support since L0 v1.14.0
   ZeCopyOffloadQueueFlagSupported =
       this->isDriverVersionNewerOrSimilar(1, 14, 0);

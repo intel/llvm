@@ -12,6 +12,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <detail/timeline_semaphore_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
@@ -749,6 +750,44 @@ void queue_impl::submit_async_free_direct(
                 /*InsertBarrierForInOrderCommand*/ false);
 }
 
+void queue_impl::submit_timeline_semaphore_direct(
+    const std::shared_ptr<timeline_semaphore_impl> &Semaphore, uint64_t Value,
+    bool IsSignal, const detail::code_location &CodeLoc) {
+  const CGType Type = IsSignal ? CGType::TimelineSemaphoreSignal
+                               : CGType::TimelineSemaphoreWait;
+
+  auto SubmitFunc = [&](detail::CG::StorageInitHelper &&CGData)
+      -> std::pair<EventImplPtr, bool> {
+    if (!detail::Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                            getContextImpl())) {
+      std::unique_ptr<detail::CG> CommandGroup(new detail::CGTimelineSemaphore(
+          Type, Semaphore, Value, std::move(CGData), CodeLoc));
+      return {detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                     *this, true),
+              /*SchedulerBypass*/ false};
+    }
+
+    std::vector<ur_event_handle_t> RawEvents;
+    if (CGData.MEvents.size() > 0)
+      RawEvents = detail::Command::getUrEvents(CGData.MEvents, this, false);
+
+    // An out-of-order queue tracks the operation as its last barrier, which
+    // needs an event.
+    const bool DiscardEvent = isInOrder();
+    ur_event_handle_t UREvent = nullptr;
+    getAdapter().checkUrResult(Semaphore->enqueue(
+        *this, Value, IsSignal, RawEvents, DiscardEvent ? nullptr : &UREvent));
+
+    return {DiscardEvent
+                ? nullptr
+                : makeEnqueuedEvent(UREvent, std::move(CGData.MEvents)),
+            /*SchedulerBypass*/ true};
+  };
+
+  submit_direct(/*CallerNeedsEvent*/ false, /*DepEvents*/ {}, SubmitFunc, Type,
+                /*InsertBarrierForInOrderCommand*/ false);
+}
+
 bool queue_impl::isNativeRecording() const {
   bool IsGraphCaptureEnabled = false;
   ur_result_t Result =
@@ -1154,6 +1193,11 @@ detail::EventImplPtr queue_impl::submit_direct(
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
 
+  // Timeline semaphore operations act as barriers on out-of-order queues.
+  const bool IsBarrier = Type == CGType::Barrier ||
+                         Type == CGType::TimelineSemaphoreSignal ||
+                         Type == CGType::TimelineSemaphoreWait;
+
   // Sync with the last event for in order queue
   EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (inOrder && LastEvent) {
@@ -1184,7 +1228,7 @@ detail::EventImplPtr queue_impl::submit_direct(
           MissedCleanupRequests.clear();
         });
 
-    if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+    if (IsBarrier && !Deps.UnenqueuedCmdEvents.empty()) {
       for (const EventImplPtr &Event : Deps.UnenqueuedCmdEvents) {
         CGData.MEvents.push_back(Event);
       }
@@ -1215,7 +1259,7 @@ detail::EventImplPtr queue_impl::submit_direct(
   // Barrier and un-enqueued commands synchronization for out or order queue.
   // The event must also be stored for future wait calls.
   if (!inOrder) {
-    if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+    if (IsBarrier || Type == CGType::BarrierWaitlist) {
       Deps.LastBarrier = EventImpl;
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventImpl->isEnqueued()) {

@@ -20,6 +20,7 @@ EXPORTS
 	urGetQueueProcAddrTable
 	urGetQueueExpProcAddrTable
 	urGetSamplerProcAddrTable
+	urGetTimelineSemaphoreExpProcAddrTable
 	urGetUSMProcAddrTable
 	urGetUSMExpProcAddrTable
 	urGetUsmP2PExpProcAddrTable

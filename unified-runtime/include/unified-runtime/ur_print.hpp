@@ -41,6 +41,8 @@ template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_timeline_semaphore_handle_t> : std::true_type {};
 template <> struct is_handle<ur_exp_graph_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_executable_graph_handle_t> : std::true_type {};
@@ -1445,6 +1447,27 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_GRAPH_GET_ID_EXP:
     os << "UR_FUNCTION_GRAPH_GET_ID_EXP";
+    break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_CREATE_EXP:
+    os << "UR_FUNCTION_TIMELINE_SEMAPHORE_CREATE_EXP";
+    break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_RETAIN_EXP:
+    os << "UR_FUNCTION_TIMELINE_SEMAPHORE_RETAIN_EXP";
+    break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_RELEASE_EXP:
+    os << "UR_FUNCTION_TIMELINE_SEMAPHORE_RELEASE_EXP";
+    break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_WAIT_EXP:
+    os << "UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_WAIT_EXP";
+    break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP:
+    os << "UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP:
+    os << "UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP:
+    os << "UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -3453,6 +3476,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_IPC_EVENT_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP:
+    os << "UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP";
     break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
@@ -5822,6 +5851,32 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
          << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP: {
+    const uint64_t *tptr = (const uint64_t *)ptr;
+    if (sizeof(uint64_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint64_t)
+         << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -10707,6 +10762,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
     break;
   case UR_COMMAND_HOST_TASK_EXP:
     os << "UR_COMMAND_HOST_TASK_EXP";
+    break;
+  case UR_COMMAND_TIMELINE_SEMAPHORE_SIGNAL_EXP:
+    os << "UR_COMMAND_TIMELINE_SEMAPHORE_SIGNAL_EXP";
+    break;
+  case UR_COMMAND_TIMELINE_SEMAPHORE_WAIT_EXP:
+    os << "UR_COMMAND_TIMELINE_SEMAPHORE_WAIT_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -19007,6 +19068,110 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_enqueue_timeline_semaphore_signal_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_timeline_semaphore_signal_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hSemaphore = ";
+
+  ur::details::printPtr(os, *(params->phSemaphore));
+
+  os << ", ";
+  os << ".value = ";
+
+  os << *(params->pvalue);
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_enqueue_timeline_semaphore_wait_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_timeline_semaphore_wait_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hSemaphore = ";
+
+  ur::details::printPtr(os, *(params->phSemaphore));
+
+  os << ", ";
+  os << ".value = ";
+
+  os << *(params->pvalue);
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_enqueue_graph_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -22701,6 +22866,109 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_timeline_semaphore_create_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_timeline_semaphore_create_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".initialValue = ";
+
+  os << *(params->pinitialValue);
+
+  os << ", ";
+  os << ".phSemaphore = ";
+
+  ur::details::printPtr(os, *(params->pphSemaphore));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_timeline_semaphore_retain_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_timeline_semaphore_retain_exp_params_t
+        *params) {
+
+  os << ".hSemaphore = ";
+
+  ur::details::printPtr(os, *(params->phSemaphore));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_timeline_semaphore_release_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_timeline_semaphore_release_exp_params_t
+        *params) {
+
+  os << ".hSemaphore = ";
+
+  ur::details::printPtr(os, *(params->phSemaphore));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_timeline_semaphore_host_wait_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_timeline_semaphore_host_wait_exp_params_t
+        *params) {
+
+  os << ".hSemaphore = ";
+
+  ur::details::printPtr(os, *(params->phSemaphore));
+
+  os << ", ";
+  os << ".value = ";
+
+  os << *(params->pvalue);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_timeline_semaphore_host_signal_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_timeline_semaphore_host_signal_exp_params_t
+        *params) {
+
+  os << ".hSemaphore = ";
+
+  ur::details::printPtr(os, *(params->phSemaphore));
+
+  os << ", ";
+  os << ".value = ";
+
+  os << *(params->pvalue);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_p2p_enable_peer_access_exp_params_t
 /// type
 /// @returns
@@ -23870,6 +24138,14 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP: {
     os << (const struct ur_enqueue_native_command_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_SIGNAL_EXP: {
+    os << (const struct ur_enqueue_timeline_semaphore_signal_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_TIMELINE_SEMAPHORE_WAIT_EXP: {
+    os << (const struct ur_enqueue_timeline_semaphore_wait_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_ENQUEUE_GRAPH_EXP: {
     os << (const struct ur_enqueue_graph_exp_params_t *)params;
   } break;
@@ -24198,6 +24474,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP: {
     os << (const struct ur_memory_export_export_memory_handle_exp_params_t *)
             params;
+  } break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_CREATE_EXP: {
+    os << (const struct ur_timeline_semaphore_create_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_RETAIN_EXP: {
+    os << (const struct ur_timeline_semaphore_retain_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_RELEASE_EXP: {
+    os << (const struct ur_timeline_semaphore_release_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_WAIT_EXP: {
+    os << (const struct ur_timeline_semaphore_host_wait_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_TIMELINE_SEMAPHORE_HOST_SIGNAL_EXP: {
+    os << (const struct ur_timeline_semaphore_host_signal_exp_params_t *)params;
   } break;
   case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
     os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;

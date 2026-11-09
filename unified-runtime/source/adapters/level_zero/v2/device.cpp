@@ -56,6 +56,13 @@ ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
         static_cast<ur_bool_t>(hDevice->Platform->ZeHostTaskExt.Supported));
   case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(true));
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP:
+    return ReturnValue(
+        static_cast<ur_bool_t>(hDevice->ZeTimelineSemaphoreCaps->Supported));
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP:
+    if (!hDevice->ZeTimelineSemaphoreCaps->Supported)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(hDevice->ZeTimelineSemaphoreCaps->MaxValue);
   case UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_HOST_ALLOC_REGISTER_SUPPORT_EXP:

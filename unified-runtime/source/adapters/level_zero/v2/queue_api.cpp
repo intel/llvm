@@ -503,6 +503,28 @@ ur_result_t urEnqueueNativeCommandExp(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urEnqueueTimelineSemaphoreSignalExp(
+    ::ur_queue_handle_t hQueue, ::ur_exp_timeline_semaphore_handle_t hSemaphore,
+    uint64_t value, uint32_t numEventsInWaitList,
+    const ::ur_event_handle_t *phEventWaitList,
+    ::ur_event_handle_t *phEvent) try {
+  return v2_cast(hQueue)->get().enqueueTimelineSemaphoreSignalExp(
+      v2_cast(hSemaphore), value, numEventsInWaitList, v2_cast(phEventWaitList),
+      v2_cast(phEvent));
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueTimelineSemaphoreWaitExp(
+    ::ur_queue_handle_t hQueue, ::ur_exp_timeline_semaphore_handle_t hSemaphore,
+    uint64_t value, uint32_t numEventsInWaitList,
+    const ::ur_event_handle_t *phEventWaitList,
+    ::ur_event_handle_t *phEvent) try {
+  return v2_cast(hQueue)->get().enqueueTimelineSemaphoreWaitExp(
+      v2_cast(hSemaphore), value, numEventsInWaitList, v2_cast(phEventWaitList),
+      v2_cast(phEvent));
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 ur_result_t urQueueBeginGraphCaptureExp(::ur_queue_handle_t hQueue) try {
   return v2_cast(hQueue)->get().queueBeginGraphCapteExp();
 } catch (...) {

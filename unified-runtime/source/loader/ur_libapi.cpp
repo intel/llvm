@@ -11388,6 +11388,304 @@ ur_result_t UR_APICALL urEventCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a timeline semaphore object.
+///
+/// @details
+///     - The semaphore holds a 64-bit value, which is set to `initialValue`.
+///     - The semaphore can be used with every device of `hContext`.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `initialValue` is greater than
+///         ::UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of
+///         `hContext`.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device of `hContext` does not support timeline semaphores.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urTimelineSemaphoreCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] initial value of the semaphore
+    uint64_t initialValue,
+    /// [out][alloc] pointer to the handle of the semaphore object created
+    ur_exp_timeline_semaphore_handle_t *phSemaphore) try {
+  auto pfnCreateExp =
+      ur_lib::getContext()->urDdiTable.TimelineSemaphoreExp.pfnCreateExp;
+  if (nullptr == pfnCreateExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnCreateExp(hContext, initialValue, phSemaphore);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to a timeline semaphore. Increment the semaphore
+///        object's reference count.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urTimelineSemaphoreRetainExp(
+    /// [in][retain] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) try {
+  auto pfnRetainExp =
+      ur_lib::getContext()->urDdiTable.TimelineSemaphoreExp.pfnRetainExp;
+  if (nullptr == pfnRetainExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnRetainExp(hSemaphore);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Decrement the semaphore object's reference count and delete the
+///        semaphore object if the reference count becomes zero.
+///
+/// @details
+///     - The semaphore may be released while signal or wait operations on it,
+///       enqueued with ::urEnqueueTimelineSemaphoreSignalExp or
+///       ::urEnqueueTimelineSemaphoreWaitExp, have not completed. The adapter
+///       keeps the resources these operations need alive until they complete.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urTimelineSemaphoreReleaseExp(
+    /// [in][release] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) try {
+  auto pfnReleaseExp =
+      ur_lib::getContext()->urDdiTable.TimelineSemaphoreExp.pfnReleaseExp;
+  if (nullptr == pfnReleaseExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnReleaseExp(hSemaphore);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Block the calling thread until the value of a timeline semaphore is
+///        greater than or equal to a target value.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `value` is greater than
+///         ::UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of
+///         the semaphore's context.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urTimelineSemaphoreHostWaitExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value) try {
+  auto pfnHostWaitExp =
+      ur_lib::getContext()->urDdiTable.TimelineSemaphoreExp.pfnHostWaitExp;
+  if (nullptr == pfnHostWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnHostWaitExp(hSemaphore, value);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the value of a timeline semaphore from the host.
+///
+/// @details
+///     - The store has release semantics: memory operations the calling thread
+///       performed before this call are visible to the commands that wait for
+///       `value`.
+///     - The behavior is undefined if `value` is not greater than the current
+///       value of the semaphore.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `value` is greater than
+///         ::UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of
+///         the semaphore's context.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urTimelineSemaphoreHostSignalExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value) try {
+  auto pfnHostSignalExp =
+      ur_lib::getContext()->urDdiTable.TimelineSemaphoreExp.pfnHostSignalExp;
+  if (nullptr == pfnHostSignalExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnHostSignalExp(hSemaphore, value);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command that sets the value of a timeline semaphore.
+///
+/// @details
+///     - The command executes after the events in `phEventWaitList` have
+///       completed and, on an in-order queue, after the commands previously
+///       enqueued to `hQueue`.
+///     - Memory operations of the commands that the signal depends on are
+///       visible to the commands that wait for `value`.
+///     - The command does not act as a barrier on an out-of-order queue.
+///     - The behavior is undefined if `value` is not greater than the value of
+///       the semaphore when the command executes.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `value` is greater than
+///         ::UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of
+///         the semaphore's context.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device of `hQueue` does not support timeline semaphores.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEnqueueTimelineSemaphoreSignalExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  auto pfnTimelineSemaphoreSignalExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnTimelineSemaphoreSignalExp;
+  if (nullptr == pfnTimelineSemaphoreSignalExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnTimelineSemaphoreSignalExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command that waits until the value of a timeline semaphore
+///        is greater than or equal to a target value.
+///
+/// @details
+///     - The command executes after the events in `phEventWaitList` have
+///       completed and, on an in-order queue, after the commands previously
+///       enqueued to `hQueue`.
+///     - The command completes when the value of the semaphore is greater than
+///       or equal to `value`. The signal that sets this value may be performed
+///       after this function returns.
+///     - The command does not act as a barrier on an out-of-order queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hSemaphore`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `value` is greater than
+///         ::UR_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of
+///         the semaphore's context.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device of `hQueue` does not support timeline semaphores.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urEnqueueTimelineSemaphoreWaitExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  auto pfnTimelineSemaphoreWaitExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnTimelineSemaphoreWaitExp;
+  if (nullptr == pfnTimelineSemaphoreWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnTimelineSemaphoreWaitExp(
+      hQueue, hSemaphore, value, numEventsInWaitList, phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a new record & replay graph instance explicitly.
 ///
 /// @returns

@@ -371,6 +371,7 @@ set(SYCL_COMMON_SOURCES
     "reusable_events.cpp"
     "sampler.cpp"
     "stream.cpp"
+    "timeline_semaphore.cpp"
     "virtual_mem.cpp"
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"

@@ -119,6 +119,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
+    result = urGetTimelineSemaphoreExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &urDdiTable.TimelineSemaphoreExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
     result = urGetUSMProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.USM);
   }
 
