@@ -8,6 +8,7 @@
  *
  */
 #include "backtrace.hpp"
+#include <cstdlib>
 #include <execinfo.h>
 
 namespace ur {
