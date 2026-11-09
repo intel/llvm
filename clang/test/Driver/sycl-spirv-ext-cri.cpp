@@ -1,6 +1,3 @@
-/// Check that SPV_KHR_bfloat16 and SPV_INTEL_16bit_atomics are enabled by
-/// default for CRI AOT only.
-
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:   -fsycl-targets=intel_gpu_cri %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHECK-CRI

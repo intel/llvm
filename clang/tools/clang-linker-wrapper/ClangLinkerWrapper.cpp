@@ -971,9 +971,7 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
       ",+SPV_INTEL_fp_max_error"
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
-  // Native 16-bit atomics (including bfloat16) are only known to be accepted
-  // by the CRI driver stack, so enable the required extensions for CRI AOT
-  // only.
+
   static constexpr char CRIExtArg[] =
       ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
   if (Arch == "cri") {
