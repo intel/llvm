@@ -98,4 +98,96 @@ TEST_F(DeviceInfoTests, CheckPowerLimits) {
   EXPECT_EQ(MaxPowerLimit, 150);
 }
 
+struct IgcaMockState {
+  bool Supported;
+  uint32_t Target;
+  ur_device_igca_feature_flags_t Flags;
+};
+
+IgcaMockState IgcaState;
+
+ur_result_t afterIgcaDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  const ur_device_info_t Name = *params.ppropName;
+  if (Name != UR_DEVICE_INFO_IGCA_TARGET &&
+      Name != UR_DEVICE_INFO_IGCA_FEATURE_SET)
+    return UR_RESULT_SUCCESS;
+
+  if (!IgcaState.Supported)
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+  if (*params.ppPropValue) {
+    if (Name == UR_DEVICE_INFO_IGCA_TARGET)
+      *reinterpret_cast<uint32_t *>(*params.ppPropValue) = IgcaState.Target;
+    else
+      *reinterpret_cast<ur_device_igca_feature_flags_t *>(*params.ppPropValue) =
+          IgcaState.Flags;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+// aspect::ext_intel_igca is cached per device_impl, so the mocked values must
+// be in place before the device is constructed. Hence the device is obtained in
+// the test body rather than in the fixture.
+class IgcaDeviceInfoTests : public ::testing::Test {
+protected:
+  void SetUp() override {
+    IgcaState = {/*Supported=*/true, /*Target=*/20,
+                 UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE};
+    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &afterIgcaDeviceGetInfo);
+  }
+
+  sycl::device getDevice() { return sycl::platform().get_devices()[0]; }
+
+  sycl::unittest::UrMock<> Mock;
+};
+
+// Keeping the render and compute cases separate catches a swapped mapping from
+// the UR feature-set flags onto the igca_feature_set_* constants.
+TEST_F(IgcaDeviceInfoTests, CheckIgcaComputeFeatureSet) {
+  IgcaState.Flags = UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+  sycl::device Dev = getDevice();
+
+  ASSERT_TRUE(Dev.has(aspect::ext_intel_igca));
+  auto Igca = Dev.get_info<ext::intel::info::device::igca>();
+  EXPECT_EQ(Igca.target, 20);
+  EXPECT_EQ(Igca.feature_sets, ext::intel::info::igca_feature_set_compute);
+}
+
+TEST_F(IgcaDeviceInfoTests, CheckIgcaRenderFeatureSet) {
+  IgcaState.Flags = UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+  sycl::device Dev = getDevice();
+
+  ASSERT_TRUE(Dev.has(aspect::ext_intel_igca));
+  auto Igca = Dev.get_info<ext::intel::info::device::igca>();
+  EXPECT_EQ(Igca.feature_sets, ext::intel::info::igca_feature_set_render);
+}
+
+TEST_F(IgcaDeviceInfoTests, CheckIgcaBothFeatureSets) {
+  IgcaState.Flags =
+      UR_DEVICE_IGCA_FEATURE_FLAG_RENDER | UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+  IgcaState.Target = 30;
+  sycl::device Dev = getDevice();
+
+  ASSERT_TRUE(Dev.has(aspect::ext_intel_igca));
+  auto Igca = Dev.get_info<ext::intel::info::device::igca>();
+  EXPECT_EQ(Igca.target, 30);
+  EXPECT_EQ(Igca.feature_sets, ext::intel::info::igca_feature_set_render |
+                                   ext::intel::info::igca_feature_set_compute);
+}
+
+TEST_F(IgcaDeviceInfoTests, CheckIgcaUnsupported) {
+  IgcaState.Supported = false;
+  sycl::device Dev = getDevice();
+
+  ASSERT_FALSE(Dev.has(aspect::ext_intel_igca));
+  try {
+    Dev.get_info<ext::intel::info::device::igca>();
+    FAIL() << "Expected an exception for a device without the IGCA aspect";
+  } catch (const sycl::exception &E) {
+    EXPECT_EQ(E.code(), make_error_code(errc::feature_not_supported));
+  }
+}
+
 } // namespace
