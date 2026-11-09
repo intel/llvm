@@ -289,11 +289,6 @@ ze_structure_type_t getZeStructureType<ze_device_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
 }
 template <>
-ze_structure_type_t
-getZeStructureType<ze_device_igca_target_ext_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES;
-}
-template <>
 ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
 }
@@ -380,6 +375,14 @@ getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
   return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+
+#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
+template <>
+ze_structure_type_ext_t
+getZexStructureType<ze_device_igca_target_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES;
+}
+#endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
 
 template <>
 ze_structure_type_ext_t

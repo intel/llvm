@@ -241,6 +241,7 @@ supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
 #endif
 }
 
+#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
 static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
   constexpr const char *ExtensionName = ZE_DEVICE_IGCA_TARGET_EXT_NAME;
   constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
@@ -249,6 +250,7 @@ static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
   return Extension != Platform->zeDriverExtensionMap.end() &&
          Extension->second >= MinVersion;
 }
+#endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
 
 static std::optional<uint64_t>
 getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
@@ -1643,6 +1645,10 @@ ur_result_t urDeviceGetInfo(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   case UR_DEVICE_INFO_IGCA_TARGET:
   case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
+#ifndef ZE_DEVICE_IGCA_TARGET_EXT_NAME
+    // Built against Level Zero headers without the IGCA target extension.
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+#else
     const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
     // A device implementing no IGCA feature set has no IGCA target, which is
     // also what is reported when the extension is unavailable.
@@ -1658,6 +1664,7 @@ ur_result_t urDeviceGetInfo(
     if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER)
       FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
     return ReturnValue(FeatureSets);
+#endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
   }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
@@ -2123,9 +2130,10 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                  ZeResult);
       };
 
+#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
   ZeDeviceIgcaTargetProperties.Compute =
       [ZeDevice, Platform = Platform](
-          ze_device_igca_target_ext_properties_t &Properties) {
+          ZexStruct<ze_device_igca_target_ext_properties_t> &Properties) {
         if (!supportsDeviceIgcaTargetExtension(Platform))
           return; // leave the target and the feature sets zero-initialized
         ZeStruct<ze_device_module_properties_t> P;
@@ -2138,6 +2146,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                  "properties, error code: {}",
                  ZeResult);
       };
+#endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
 
   ZeDeviceMemoryProperties.Compute =
       [ZeDevice](
