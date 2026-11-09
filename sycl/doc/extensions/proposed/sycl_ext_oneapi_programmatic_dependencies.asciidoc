@@ -303,6 +303,10 @@ not need to be launched with any special property.
 However, the dependent kernel must be launched with the
 `programmatic_serialization` property set to `true`.
 
+Kernels using programmatic serialization may be chained together.
+In this case, a single kernel may act as both the secondary kernel to its
+predecessor and as the primary kernel to it successor.
+
 This property is defined as follows:
 
 '''
