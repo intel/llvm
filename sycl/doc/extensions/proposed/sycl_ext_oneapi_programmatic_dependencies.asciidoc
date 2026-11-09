@@ -43,9 +43,9 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../../experimental/sycl_ext_oneapi_properties.asciidoc[
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
-* link:../../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions]
 
 
