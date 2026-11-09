@@ -6,6 +6,8 @@
 
 #include <sycl/vector.hpp>
 
+#include <cstring>
+
 template <typename T> void foo(T *dst, T *src, size_t count) {
   memcpy(dst, src, count * sizeof(T));
 }

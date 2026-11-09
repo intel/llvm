@@ -167,20 +167,11 @@ template <typename T, size_t N> struct get_elem_type_unqual<marray<T, N>> {
 template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
   using type = T;
 };
-#if __SYCL_USE_LIBSYCL8_VEC_IMPL
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                                      OperationCurrentT, Indexes...>> {
-  using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
-};
-#else
 template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 struct get_elem_type_unqual<detail::hide_swizzle_from_adl::Swizzle<
     IsConstVec, DataT, VecSize, Indexes...>> {
   using type = DataT;
 };
-#endif
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
