@@ -14093,13 +14093,19 @@ typedef enum ur_exp_event_flag_t {
   /// will later be obtained; it cannot be enabled after creation. Must not
   /// be combined with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING.
   UR_EXP_EVENT_FLAG_IPC_EXP = UR_BIT(1),
+  /// A new event is created instead of reusing one previously released to
+  /// the adapter's event pool, and it is destroyed when the event is
+  /// released instead of being returned to the pool. The event must not be
+  /// released while any graph or executable graph that waits on or signals
+  /// it still exists.
+  UR_EXP_EVENT_FLAG_UNPOOLED = UR_BIT(2),
   /// @cond
   UR_EXP_EVENT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_exp_event_flag_t;
 /// @brief Bit Mask for validating ur_exp_event_flags_t
-#define UR_EXP_EVENT_FLAGS_MASK 0xfffffffc
+#define UR_EXP_EVENT_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for creating reusable events.
