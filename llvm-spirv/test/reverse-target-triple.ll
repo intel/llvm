@@ -9,7 +9,7 @@
 
 ; Override to an AMDGCN triple.
 ; RUN: llvm-spirv -r --spirv-target-triple=amdgcn-amd-amdhsa %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-AMDGCN
-; CHECK-AMDGCN: target datalayout = "e-m:e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-{{.*}}-n32:64-S32-A5-G1-ni:7:8:9"
+; CHECK-AMDGCN: target datalayout = "e-m:e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-{{.*}}-n32:64-S32-A5-G1-ni:7:8:9{{(:[0-9]+)*}}"
 ; CHECK-AMDGCN: target triple = "amdgcn-amd-amdhsa"
 
 ; Override to NVPTX triple: no address space map, rejected.

@@ -1,6 +1,4 @@
 // REQUIRES: aspect-usm_device_allocations
-// XFAIL: windows && run-mode && cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // -- Test for using a kernel from a SYCLBIN with a dead argument.
 

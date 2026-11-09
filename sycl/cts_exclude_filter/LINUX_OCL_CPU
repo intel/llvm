@@ -1,2 +1,13 @@
 # Please use "#" to add comments here.
 # Do not delete the file even if it's empty.
+
+# Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit:
+# a cast to a non-matching address space returns the original pointer instead
+# of a null one. Same cause as the UNSUPPORTED markers on
+# sycl/test-e2e/AddressCast/*. See https://github.com/intel/llvm/issues/22224
+khr_dynamic_addrspace_cast
+
+# Scans over a non-uniform group are computed over the whole sub-group instead
+# of over the group's members, see
+# https://github.com/intel/llvm/issues/23769
+oneapi_non_uniform_groups

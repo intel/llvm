@@ -92,15 +92,22 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
   llvm_unreachable("unknown sycl scope");
 }
 
+CGSYCLRuntime::WorkGroupVarKind
+CGSYCLRuntime::getWorkGroupVarKind(const VarDecl &D) {
+  if (SYCLScopeAttr *Scope = D.getAttr<SYCLScopeAttr>())
+    return Scope->isWorkGroup() ? WorkGroupVarKind::HoistedAutomatic
+                                : WorkGroupVarKind::None;
+  if (auto *RD = D.getType()->getAsCXXRecordDecl())
+    if (SYCLScopeAttr *Scope = RD->getAttr<SYCLScopeAttr>())
+      return Scope->isWorkGroup() ? WorkGroupVarKind::StaticLike
+                                  : WorkGroupVarKind::None;
+  return WorkGroupVarKind::None;
+}
+
 void CGSYCLRuntime::emitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
                                               const VarDecl &D) {
-#ifndef NDEBUG
-  SYCLScopeAttr *Scope = D.getAttr<SYCLScopeAttr>();
-  if (!Scope)
-    if (auto *RD = D.getType()->getAsCXXRecordDecl())
-      Scope = RD->getAttr<SYCLScopeAttr>();
-  assert((Scope && Scope->isWorkGroup()) && "work group scope expected");
-#endif // NDEBUG
+  assert(getWorkGroupVarKind(D) != WorkGroupVarKind::None &&
+         "work group scope expected");
   // generate global variable in the address space selected by the clang CodeGen
   // (should be local)
   CGF.EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);

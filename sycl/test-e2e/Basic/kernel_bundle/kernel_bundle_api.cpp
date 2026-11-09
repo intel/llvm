@@ -9,8 +9,6 @@
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-// XFAIL: windows && run-mode && cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

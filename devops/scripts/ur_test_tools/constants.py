@@ -30,6 +30,7 @@ DEFAULT_LIT_JOBS = 50
 TEST_TYPE_ADAPTER_SPECIFIC = "adapter-specific"
 TEST_TYPE_CONFORMANCE = "conformance"
 TEST_TYPE_E2E = "e2e"
+TEST_TYPE_LOADER = "loader"
 
 # These tests cause timeouts on CI and are excluded from adapter-specific runs
 LIT_FILTER_OUT_ADAPTER_SPECIFIC = (

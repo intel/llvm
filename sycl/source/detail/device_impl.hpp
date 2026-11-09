@@ -1011,6 +1011,15 @@ public:
       return static_cast<size_t>(
           get_info_impl<UR_DEVICE_INFO_NUM_COMPUTE_UNITS>());
     }
+    CASE(ext::oneapi::info::device::priority_range) {
+      // Devices without priority levels only support the default priority.
+      if (!get_info_impl_nocheck<UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP>()
+               .value_or(false))
+        return std::array<int, 2>{0, 0};
+      return std::array<int, 2>{
+          get_info_impl<UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP>(),
+          get_info_impl<UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP>()};
+    }
 
     // ext::intel device traits (defined under sycl/ext/intel/info/device.hpp).
 

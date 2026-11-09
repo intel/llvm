@@ -10,8 +10,11 @@ target triple = "spir64-unknown-unknown"
 @1 = internal addrspace(1) global i32 0, align 4 ;nameless global
 
 ; CHECK: @dev_global = addrspace(1) global { { [4 x i32] }, [16 x i8] }
-; CHECK: @nameless_global 
-; CHECK: @nameless_global.1
-; CHECK: @__AsanDeviceGlobalMetadata_{{.*}} = local_unnamed_addr addrspace(1) global [1 x { i64, i64, i64 }] [{ i64, i64, i64 } { i64 16, i64 32, i64 ptrtoint (ptr addrspace(1) @dev_global to i64) }]
+; CHECK: @nameless_global = internal addrspace(1) global { i32, [28 x i8] } zeroinitializer, align 32
+; CHECK: @nameless_global.1 = internal addrspace(1) global { i32, [28 x i8] } zeroinitializer, align 32
+; CHECK: @__AsanDeviceGlobalMetadata_{{.*}} = local_unnamed_addr addrspace(1) global [3 x { i64, i64, i64 }]
+; CHECK-SAME: { i64 16, i64 32, i64 ptrtoint (ptr addrspace(1) @dev_global to i64) }
+; CHECK-SAME: { i64 4, i64 32, i64 ptrtoint (ptr addrspace(1) @nameless_global to i64) }
+; CHECK-SAME: { i64 4, i64 32, i64 ptrtoint (ptr addrspace(1) @nameless_global.1 to i64) }
 
 attributes #0 = { "sycl-device-global-size"="16" "sycl-device-image-scope" }

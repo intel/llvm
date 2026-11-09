@@ -2,7 +2,7 @@ name: 'Run LIT Tests'
 
 inputs:
   test_type:
-    description: 'Type of tests to run (adapter-specific, conformance or e2e)'
+    description: 'Type of tests to run (adapter-specific, conformance, e2e or loader)'
     required: true
   build_dir:
     required: false

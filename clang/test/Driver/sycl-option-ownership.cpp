@@ -1,7 +1,9 @@
 // Compiler-owned options are serialized once, during compilation. Link
 // orchestration interprets the full context but emits only linker options.
 
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
@@ -9,7 +11,7 @@
 // RUN:       --implicit-check-not=unused-command-line-argument
 
 // Compile-only invocations retain the same compiler options.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 -c \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
@@ -17,7 +19,7 @@
 // RUN:       --implicit-check-not=unused-command-line-argument
 
 // Mixed source/object links do not regenerate compiler options either.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -g -O0 -ftarget-register-alloc-mode=pvc:large \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
@@ -78,7 +80,7 @@
 // INVALID_GRF-NOT: error: unsupported argument 'pvc:invalid' to option '-ftarget-register-alloc-mode='
 
 // Defaults belong to compilation too (including PVC's default GRF setting).
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64 \
 // RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=LINK
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu \
@@ -93,7 +95,7 @@
 // AOT and multiple-target invocations use the same ownership rules. Full
 // interpretation still includes fp64 emulation, which is not in the generic
 // Clang compiler-option allowlist.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=spir64,intel_gpu_pvc \
 // RUN:   -g -O0 -fsycl-fp64-conv-emu \
 // RUN:   -foffload-fp32-prec-div -foffload-fp32-prec-sqrt -ftarget-compile-fast \
@@ -113,7 +115,7 @@
 // EXPLICIT-SAME: --jit-linker-options=-link-opt
 
 // Exporting symbols is a linker option, not a packaging option.
-// RUN: %clangxx --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:   --offload-new-driver -fsycl -fsycl-targets=intel_gpu_pvc \
 // RUN:   -ftarget-export-symbols -### %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=EXPORT

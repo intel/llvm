@@ -4,6 +4,10 @@
 // UNSUPPORTED: cuda-ge-13
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21806
 
+// Swapped values are sporadically wrong on Arc on Windows.
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22293
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: spirv-backend && gpu
@@ -19,6 +23,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <type_traits>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -403,8 +408,16 @@ template <typename T> void test() {
 }
 
 template <typename T> void test_ptr() {
+  // Only the pointer values are copied; the pointees are never accessed.
+  std::remove_pointer_t<T> values[2]{};
   T arr1[N][N];
   T arr2[N][N];
+  for (size_t i = 0; i < N; ++i) {
+    for (size_t j = 0; j < N; ++j) {
+      arr1[i][j] = &values[0];
+      arr2[i][j] = &values[1];
+    }
+  }
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {
       swap_scalar(arr1[i][j], arr2[i][j]);
@@ -427,5 +440,6 @@ int main() {
   if (q.get_device().has(sycl::aspect::fp16))
     test_ptr<sycl::half *>();
   test_ptr<float *>();
+  q.wait_and_throw();
   return 0;
 }

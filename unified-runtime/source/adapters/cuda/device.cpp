@@ -842,6 +842,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
   }
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    return ReturnValue(
+        static_cast<ur_bool_t>(getStreamPriorityRange().has_value()));
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    auto Range = getStreamPriorityRange();
+    if (!Range)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    return ReturnValue(propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP
+                           ? Range->second
+                           : Range->first);
+  }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     // On CUDA bindless images are supported.
     return ReturnValue(static_cast<ur_bool_t>(true));

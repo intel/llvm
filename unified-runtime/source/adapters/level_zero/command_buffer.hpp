@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <unified-runtime/ur_api.h>
 #include <ur/ur.hpp>
@@ -26,7 +27,7 @@ namespace ur::level_zero::v1 {
 
 struct command_buffer_profiling_t {
   ur_exp_command_buffer_sync_point_t NumEvents;
-  ze_kernel_timestamp_result_t *Timestamps;
+  std::unique_ptr<ze_kernel_timestamp_result_t[]> Timestamps;
 };
 
 struct ur_exp_command_buffer_handle_t_ : public ur_object_t {
