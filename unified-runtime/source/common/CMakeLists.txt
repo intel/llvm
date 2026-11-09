@@ -114,7 +114,7 @@ if (UR_UMF_REQUIRED)
     # Add an alias matching the FetchContent case
     add_library(umf::headers ALIAS umf::umf_headers)
   else()
-    set(UMF_REPO "https://github.com/lukaszstolarczuk/unified-memory-framework.git")
+    set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
     # commit 3b4cfac5cdfbc5674d11c5a93ea458835f189563
     # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
