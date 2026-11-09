@@ -2,6 +2,9 @@
 // RUN:   -fsycl-targets=intel_gpu_cri %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHECK-CRI
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
+// RUN:   -fsycl-targets=intel_gpu_35_11_0 %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=CHECK-CRI
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \
 // RUN:   -fsycl-targets=intel_gpu_bmg_g31 %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHECK-NON-CRI
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver \

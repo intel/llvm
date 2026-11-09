@@ -11412,7 +11412,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
 
-  if (mapIntelGPUArchName(Arch) == "cri")
+  if (llvm::offloading::isSYCLIntelGPUCRI(Arch))
     ExtArg += ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));

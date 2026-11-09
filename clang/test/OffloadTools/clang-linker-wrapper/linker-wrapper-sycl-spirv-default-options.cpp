@@ -38,6 +38,20 @@
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
 // RUN:   --dry-run -- -o /dev/null %t.cri-alias.o 2>&1 | FileCheck %s --check-prefix=CRI
 
+// RUN: llvm-offload-binary -o %t.cri-numeric.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=intel_gpu_35_11_0
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri-numeric.o \
+// RUN:   -fembed-offload-object=%t.cri-numeric.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri-numeric.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// RUN: llvm-offload-binary -o %t.cri-numeric-short.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=35_11_0
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri-numeric-short.o \
+// RUN:   -fembed-offload-object=%t.cri-numeric-short.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri-numeric-short.o 2>&1 | FileCheck %s --check-prefix=CRI
+
 // CRI: llvm-spirv{{.*}}-spirv-ext=-all{{.*}},+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics
 
 // CHECK: llvm-spirv{{.*}}-spirv-debug-info-version=nonsemantic-shader-200
