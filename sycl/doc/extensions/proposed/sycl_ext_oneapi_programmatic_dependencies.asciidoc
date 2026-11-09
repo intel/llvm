@@ -275,6 +275,9 @@ _Remarks:_ A kernel may call this function even if it is launched without any
 properties that enable programmatic dependencies.
 When this happens, calls to `programmatic_wait` have no effect.
 
+A kernel may call this function even when there is no primary kernel.
+When this happens, calls to `programmatic_wait` have no effect.
+
 This function is an optional kernel feature as defined by section 5.7 of the
 core SYCL specification.
 If a kernel's static call tree contains a call to this function and the
@@ -334,6 +337,13 @@ error code.
 If a kernel is launched with this property and the value `true` on an
 out-of-order queue, the launch function throws a synchronous `exception` with
 the `errc::invalid` error code.
+
+A kernel may be launched with this property and the value `true` even if the
+immediately preceding command in the queue is not a kernel, or if there is no
+immediately preceding command in the queue.
+In this case, the property has no effect.
+There is no primary kernel, and calls to `programmatic_wait` in this kernel
+have no effect.
 
 '''
 
@@ -479,10 +489,5 @@ to `programmatic_wait` by each work-item immediately before the work-item
 executes any of the user's code.
 As a result, the launch latency of the kernel would still be overlapped with
 the execution of the predecessor kernel.
-
-* What should be the behavior of `programmatic_wait` when there is no
-  primary kernel?
-  Logically, I think this should be allowed, and the call should have no effect.
-  Is that hard to implement?
 
 * How do these APIs interact with graphs?
