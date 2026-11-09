@@ -21,6 +21,7 @@
 using namespace sycl;
 
 int main() {
+  int Error = 0;
 
   {
     const int dataSize = 32;
@@ -31,7 +32,7 @@ int main() {
 
     queue Queue{property::queue::in_order()};
 
-    auto devicePtrA = malloc_device<int>(numBytes, Queue);
+    auto devicePtrA = malloc_device<int>(dataSize, Queue);
     Queue.memcpy(devicePtrA, &dataA, numBytes);
 
     Queue.submit([&](handler &cgh) {
@@ -41,7 +42,7 @@ int main() {
       cgh.parallel_for<class ordered_writer>(myRange, myKernel);
     });
 
-    auto devicePtrB = malloc_device<int>(numBytes, Queue);
+    auto devicePtrB = malloc_device<int>(dataSize, Queue);
     Queue.memcpy(devicePtrB, &dataB, numBytes);
 
     Queue.submit([&](handler &cgh) {
@@ -63,8 +64,9 @@ int main() {
       if (dataB[i] != i) {
         std::cout << "Result mismatches " << dataB[i] << " vs expected " << i
                   << " for index " << i << std::endl;
+        Error = 1;
       }
     }
   }
-  return 0;
+  return Error;
 }

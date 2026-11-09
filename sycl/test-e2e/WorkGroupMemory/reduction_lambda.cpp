@@ -57,8 +57,9 @@ void test_union(size_t SIZE, size_t WGSIZE) {
       buf[i].s = S<int>{i};
     else
       buf[i].m = M<int>{i};
-    expected = expected + (i % 2) ? buf[i].s.val : buf[i].m.val;
+    expected = expected + ((i % 2) ? buf[i].s.val : buf[i].m.val);
   }
+  assert(expected == static_cast<int>(WGSIZE * (WGSIZE - 1) / 2));
   nd_range ndr{{SIZE}, {WGSIZE}};
   q.submit([&](sycl::handler &cgh) {
      ext::oneapi::experimental::work_group_memory<U[]> mem{WGSIZE, cgh};
@@ -70,7 +71,7 @@ void test_union(size_t SIZE, size_t WGSIZE) {
        if (it.get_group().leader()) {
          result = 0;
          for (int i = 0; i < WGSIZE; ++i) {
-           result = result + (i % 2) ? mem[i].s.val : mem[i].m.val;
+           result = result + ((i % 2) ? mem[i].s.val : mem[i].m.val);
          }
          assert(result == expected);
        }
