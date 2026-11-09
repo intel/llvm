@@ -174,11 +174,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramBuildExp(ur_program_handle_t hProgram, uint32_t, ur_device_handle_t *,
                   ur_exp_program_flags_t, const char *pOptions) {
-  // Do nothing, program is built upon creation
-  if (pOptions && *pOptions) {
-    hProgram->Error = "Liboffload doesn't support link options";
-    return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
-  }
+  // Do nothing, program is built upon creation, so options (e.g. SYCL's -g)
+  // can't be applied. shortcut: all are ignored, reject any that start to matter.
+  (void)pOptions;
   hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
   return UR_RESULT_SUCCESS;
 }
