@@ -10,12 +10,14 @@
 #include "PassesOptions.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
+#include "llvm/Analysis/ModuleSummaryAnalysis.h"
 #include "llvm/Analysis/RuntimeLibcallInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/MachineFunctionAnalysisManager.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/StandardInstrumentations.h"
@@ -30,6 +32,7 @@ static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
                                       raw_pwrite_stream &OS,
                                       raw_pwrite_stream *DwoOS,
                                       CodeGenFileType CGFT, bool DisableVerify,
+                                      const ModuleSummaryIndex *MSI,
                                       bool DisableSimplifyLibCalls,
                                       const TargetLibraryInfoImpl *PresetTLII) {
   legacy::PassManager CodeGenPasses;
@@ -42,6 +45,8 @@ static Error runCodeGenPipelineLegacy(TargetMachine &TM, Module &M,
   if (DisableSimplifyLibCalls)
     TLII.disableAllFunctions();
   CodeGenPasses.add(new TargetLibraryInfoWrapperPass(TLII));
+  if (MSI)
+    CodeGenPasses.add(createImmutableModuleSummaryIndexWrapperPass(MSI));
 
   const TargetOptions &Options = TM.Options;
   CodeGenPasses.add(
@@ -58,6 +63,7 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
                                      raw_pwrite_stream &OS,
                                      raw_pwrite_stream *DwoOS,
                                      CodeGenFileType CGFT, bool DisableVerify,
+                                     const ModuleSummaryIndex *MSI,
                                      IntrusiveRefCntPtr<vfs::FileSystem> VFS,
                                      const TargetLibraryInfoImpl *PresetTLII) {
   ModulePassManager MPM;
@@ -77,6 +83,15 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
   // keeps the first registration for a given analysis and ignores later ones.
   if (PresetTLII)
     FAM.registerPass([&] { return TargetLibraryAnalysis(*PresetTLII); });
+
+  MAM.registerPass([&] { return MachineModuleAnalysis(MMI); });
+  if (MSI) {
+    MAM.registerPass(
+        [&]() { return ImmutableModuleSummaryIndexAnalysis(MSI); });
+    MPM.addPass(
+        RequireAnalysisPass<ImmutableModuleSummaryIndexAnalysis, Module>());
+  }
+
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -86,8 +101,6 @@ static Error runCodeGenPipelineNewPM(TargetMachine &TM, Module &M,
 
   StandardInstrumentations SI(M.getContext(), /*DebugLogging=*/false);
   SI.registerCallbacks(PIC, &MAM);
-
-  MAM.registerPass([&] { return MachineModuleAnalysis(MMI); });
 
   Error BuildPipelineError = TM.buildCodeGenPipeline(
       MPM, MAM, OS, DwoOS, CGFT, Opt, MMI.getContext(), &PIC);
@@ -102,14 +115,15 @@ Error llvm::runCodeGenPipeline(TargetMachine &TM, Module &M,
                                raw_pwrite_stream &OS, raw_pwrite_stream *DwoOS,
                                CodeGenFileType CGFT, bool DisableVerify,
                                bool DisableSimplifyLibCalls,
+                               const ModuleSummaryIndex *MSI,
                                IntrusiveRefCntPtr<vfs::FileSystem> VFS,
                                const TargetLibraryInfoImpl *TLII) {
   const PassesOptions &Opts = getPassesOptions(M.getContext());
   if (valueOr(Opts.force_new_pm_codegen, TM.shouldDefaultToNewPM())) {
-    return runCodeGenPipelineNewPM(TM, M, OS, DwoOS, CGFT, DisableVerify, VFS,
-                                   TLII);
+    return runCodeGenPipelineNewPM(TM, M, OS, DwoOS, CGFT, DisableVerify, MSI,
+                                   VFS, TLII);
   }
 
-  return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, DisableVerify,
+  return runCodeGenPipelineLegacy(TM, M, OS, DwoOS, CGFT, DisableVerify, MSI,
                                   DisableSimplifyLibCalls, TLII);
 }
