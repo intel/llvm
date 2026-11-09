@@ -201,7 +201,7 @@ work-items in the sub-group complete.
 
 As noted earlier, future versions of this extension may support several types of
 programmatic dependencies.
-The specific type of dependency is determine by the properties used to launch
+The specific type of dependency is determined by the properties used to launch
 the primary and dependent kernels.
 These properties are described later.
 
@@ -304,7 +304,7 @@ However, the dependent kernel must be launched with the
 `programmatic_serialization` property set to `true`.
 
 Kernels using programmatic serialization may be chained together.
-In this case, a single kernel may act as both the secondary kernel to its
+In this case, a single kernel may act as both the dependent kernel to its
 predecessor and as the primary kernel to it successor.
 
 This property is defined as follows:
@@ -328,7 +328,7 @@ using programmatic_serialization_key = programmatic_serialization;
 ----
 
 When a kernel is launched with this property and the value is `true`, it becomes
-the secondary kernel in a programmatic serialization dependency as described
+the dependent kernel in a programmatic serialization dependency as described
 above.
 A kernel launched with this property and the value `false` behaves as though it
 was launched without the property.
