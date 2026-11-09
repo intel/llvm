@@ -50,7 +50,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
         // getPtr may allocate mem if not already allocated
         const auto &Ptr = std::get<BufferMem>(URMemObj->Mem).getPtr(Device);
         UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
-        
+
         // https://docs.nvidia.com/cuda/cuda-driver-api/api-sync-behavior.html
         // "For transfers from pageable host memory to device memory, a stream
         // sync is performed before the copy is initiated. The function will
