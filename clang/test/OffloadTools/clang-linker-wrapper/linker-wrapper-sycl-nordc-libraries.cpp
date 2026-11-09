@@ -3,7 +3,8 @@
 // Each no-RDC user module must resolve device libraries without linking
 // independent translation units together.
 // RUN: %clang -c %s -o %t.o
-// RUN: llvm-offload-binary -o %t.pack --image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl --image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl
+// sycl-old-offload-model=1 marks these images as needing device-lib resolution here.
+// RUN: llvm-offload-binary -o %t.pack --image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,sycl-old-offload-model=1 --image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,sycl-old-offload-model=1
 // RUN: touch %t.lib.bc
 // RUN: clang-linker-wrapper --dry-run --emit-fatbin-only --no-sycl-rdc --bitcode-library=spir64-unknown-unknown=%t.lib.bc --linker-path=/usr/bin/ld %t.pack -o %t.fatbin 2>&1 | FileCheck %s --check-prefix=NORDC --implicit-check-not='llvm-link" --suppress-warnings'
 // NORDC: llvm-link" --only-needed --suppress-warnings {{.*}} [[LIB:.*\.lib\.bc]] -o [[FIRST:.*\.bc]]

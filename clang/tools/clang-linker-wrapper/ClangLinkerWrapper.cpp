@@ -262,6 +262,10 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   Image.TheOffloadKind = getOffloadKind(Kind);
   Image.StringData["triple"] = Triple;
   Image.StringData["arch"] = Arch;
+  // This helper is only used to wrap objects extracted via unbundling
+  // (sycl::extractBundledObjects), i.e. old-model device code. Tag it so
+  // later SPIR/SPIRV device-library resolution knows it's needed here.
+  Image.StringData["sycl-old-offload-model"] = "1";
   Image.Image = std::move(*ImageOrError);
 
   std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
@@ -1794,7 +1798,8 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
 /// \param Args Command line arguments for linking and wrapping device code
 /// \return Path to the final linked device file
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                                      const ArgList &Args) {
+                                      const ArgList &Args,
+                                      bool NeedsDeviceLibResolution) {
   // Non-RDC callers process one user module at a time. Only skip the user
   // module link; device-library resolution below is needed in both modes.
   assert((!Args.hasArg(OPT_no_sycl_rdc) || InputFiles.size() == 1) &&
@@ -1807,6 +1812,13 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 
   // Gather device library files from --bitcode-library option.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  // SPIR/SPIRV libraries are already linked in at compile time for new-model
+  // objects; only resolve them here as a link-time fallback for old-model
+  // objects (detected via unbundling, see getInputBitcodeLibrary). Other
+  // targets (NVPTX, AMD, NativeCPU) always need link-time resolution.
+  if (Triple.isSPIROrSPIRV() && !NeedsDeviceLibResolution)
+    return *LinkedFile;
+
   SmallVector<std::string, 16> DeviceLibFiles;
 
   // Collect bitcode libraries from --bitcode-library option
@@ -2379,7 +2391,8 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     ArrayRef<StringRef> InputModules, const ArgList &LinkerArgs,
     const std::pair<std::string, std::string> &CompileLinkOptions,
     ArrayRef<std::string> AOTDeviceArgs,
-    function_ref<void(StringRef)> WrappedOutputCallback) {
+    function_ref<void(StringRef)> WrappedOutputCallback,
+    bool NeedsDeviceLibResolution) {
   const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
 
   // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
@@ -2450,14 +2463,15 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     // for each one just as in the RDC pipeline.
     Modules = std::vector<StringRef>(InputModules.begin(), InputModules.end());
     for (StringRef &Module : Modules) {
-      auto LinkedFile = sycl::linkDevice({Module}, LinkerArgs);
+      auto LinkedFile =
+          sycl::linkDevice({Module}, LinkerArgs, NeedsDeviceLibResolution);
       if (!LinkedFile)
         return LinkedFile.takeError();
       Module = *LinkedFile;
     }
   } else {
     Expected<StringRef> OutputOrErr =
-        sycl::linkDevice(InputModules, LinkerArgs);
+        sycl::linkDevice(InputModules, LinkerArgs, NeedsDeviceLibResolution);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
 
@@ -3154,10 +3168,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         InputFiles.emplace_back(*FileNameOrErr);
       }
 
+      // Old-model objects are detected by having been unbundled rather than
+      // extracted from an embedded OffloadBinary (see getInputBitcodeLibrary).
+      // Only those need SPIR/SPIRV device libraries resolved here.
+      bool NeedsDeviceLibResolution = llvm::any_of(Input, [](const auto &File) {
+        return !File.getBinary()->getString("sycl-old-offload-model").empty();
+      });
+
       Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
-          sycl::runSYCLOffloadingPipeline(InputFiles, LinkerArgs,
-                                          CompileLinkOptions, AOTDeviceArgs,
-                                          AppendImageToWrapperOutput);
+          sycl::runSYCLOffloadingPipeline(
+              InputFiles, LinkerArgs, CompileLinkOptions, AOTDeviceArgs,
+              AppendImageToWrapperOutput, NeedsDeviceLibResolution);
       if (!ModulesOrErr)
         return ModulesOrErr.takeError();
 
