@@ -11412,9 +11412,6 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
 
-  // Native 16-bit atomics (including bfloat16) are only known to be accepted
-  // by the CRI driver stack, so enable the required extensions for CRI AOT
-  // only.
   if (mapIntelGPUArchName(Arch) == "cri")
     ExtArg += ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
 
