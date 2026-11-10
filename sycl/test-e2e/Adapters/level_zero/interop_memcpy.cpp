@@ -27,7 +27,7 @@ int main() {
   // Check that copy submission also works
   int *hostMem = (int *)malloc_host(sizeof(int), Q2);
   int *devMem = malloc_device<int>(1, Q2);
-  Q2.memcpy(hostMem, devMem, sizeof(int));
+  Q2.memcpy(hostMem, devMem, sizeof(int)).wait_and_throw();
 
   free(hostMem, Q2);
   free(devMem, Q2);
