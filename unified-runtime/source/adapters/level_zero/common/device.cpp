@@ -1994,12 +1994,23 @@ ur_device_handle_t_::useImmediateCommandLists() {
     // Disable immediate command lists for Intel MTL/ARL devices on Linux by
     // default due to driver limitations.
     if ((isIntelMTLDevice || isIntelARLDevice) && isLinux) {
+      UR_LOG(INFO, "Immediate command lists disabled (MTL/ARL on Linux).");
       return NotUsed;
     }
     if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
         isNewerThanIntelDG2()) {
+      UR_LOG(INFO,
+             "Immediate command lists enabled (isDG2OrNewer={}, "
+             "isDG2SupportedDriver={}, isPVC={}, isNewerThanIntelDG2={}).",
+             isDG2OrNewer, isDG2SupportedDriver, isPVC(),
+             isNewerThanIntelDG2());
       return PerQueue;
     } else {
+      UR_LOG(INFO,
+             "Immediate command lists disabled (isDG2OrNewer={}, "
+             "isDG2SupportedDriver={}, isPVC={}, isNewerThanIntelDG2={}).",
+             isDG2OrNewer, isDG2SupportedDriver, isPVC(),
+             isNewerThanIntelDG2());
       return NotUsed;
     }
   }
