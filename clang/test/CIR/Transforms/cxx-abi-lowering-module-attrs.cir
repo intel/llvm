@@ -35,7 +35,7 @@ module attributes {cir.opt_info = #cir.opt_info<level = 0, size = 1>} {
 // cir.triple with a known architecture that clang has no TargetInfo for.
 
 // expected-error @below {{cir-cxxabi-lowering requires a module with a supported 'cir.triple' attribute}}
-module attributes {cir.triple = "spir-unknown-linux"} {
+module attributes {cir.triple = "spirv64-unknown-linux"} {
   cir.func @unsupported_triple() {
     cir.return
   }
