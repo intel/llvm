@@ -196,8 +196,6 @@ this manner.
 
 '''
 
-`*programmatic_wait*`
-
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
@@ -253,8 +251,6 @@ predecessor and as the primary kernel to its successor.
 This property is defined as follows:
 
 '''
-
-`*programmatic_serialization*`
 
 [source,c++]
 ----
