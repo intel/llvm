@@ -18,10 +18,9 @@
 //
 // Independently, debug mode (enabled with --debug[=<backends>]) prints
 // diagnostic information to help find out why expected platforms or devices
-// are missing: it checks render group permissions, enables UR adapter loading
-// logs and suggests backend-specific tools for further investigation. The
-// diagnostics can be restricted to a comma-separated list of backends,
-// '--debug' alone is equivalent to '--debug=all'.
+// are missing: it checks render group permissions and enables UR adapter
+// loading logs. The diagnostics can be restricted to a comma-separated list of
+// backends, '--debug' alone is equivalent to '--debug=all'.
 //
 #include <sycl/sycl.hpp>
 
@@ -126,29 +125,15 @@ struct DebugBackendInfo {
   backend Backend;
   // UR adapter logger environment variable.
   const char *UrLogger;
-  // Hint printed when no devices were found for this backend, if any.
-  const char *Hint;
 };
 
-// Hints are printed in the order of this table.
 static constexpr DebugBackendInfo DebugBackendInfos[] = {
-    {"opencl", backend::opencl, "UR_LOG_OPENCL",
-     "If you expect OpenCL devices to be present, the clinfo tool and setting "
-     "OCL_ICD_ENABLE_TRACE=1 can be used to diagnose configuration issues "
-     "with OpenCL."},
-    {"cuda", backend::ext_oneapi_cuda, "UR_LOG_CUDA",
-     "If you expect CUDA devices to be present, the nvidia-smi tool can be "
-     "used to diagnose configuration issues with CUDA."},
-    {"hip", backend::ext_oneapi_hip, "UR_LOG_HIP",
-     "If you expect HIP devices to be present, the rocminfo or amd-smi tools "
-     "can be used to diagnose configuration issues with HIP."},
-    {"level_zero", backend::ext_oneapi_level_zero, "UR_LOG_LEVEL_ZERO",
-     "If you expect Level Zero devices to be present, setting "
-     "ZE_ENABLE_LOADER_DEBUG_TRACE=1 can be used to diagnose configuration "
-     "issues by the loader."},
-    {"native_cpu", backend::ext_oneapi_native_cpu, "UR_LOG_NATIVE_CPU",
-     nullptr},
-    {"offload", backend::ext_oneapi_offload, "UR_LOG_OFFLOAD", nullptr},
+    {"opencl", backend::opencl, "UR_LOG_OPENCL"},
+    {"cuda", backend::ext_oneapi_cuda, "UR_LOG_CUDA"},
+    {"hip", backend::ext_oneapi_hip, "UR_LOG_HIP"},
+    {"level_zero", backend::ext_oneapi_level_zero, "UR_LOG_LEVEL_ZERO"},
+    {"native_cpu", backend::ext_oneapi_native_cpu, "UR_LOG_NATIVE_CPU"},
+    {"offload", backend::ext_oneapi_offload, "UR_LOG_OFFLOAD"},
 };
 
 static bool isDebugEnabled(backend Backend) {
@@ -649,17 +634,6 @@ int main(int argc, char **argv) {
           printDeviceInfo(Device, true, "        ");
         }
       }
-    }
-
-    if (debug) {
-      for (const auto &Info : DebugBackendInfos)
-        if (Info.Hint && isDebugEnabled(Info.Backend))
-          std::cout << Info.Hint << std::endl;
-#ifdef __linux__
-      std::cout
-          << "strace can be used to diagnose any missing shared libraries."
-          << std::endl;
-#endif
     }
 
     if (!verbose) {
