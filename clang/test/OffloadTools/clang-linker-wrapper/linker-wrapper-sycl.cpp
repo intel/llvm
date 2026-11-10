@@ -334,7 +334,9 @@
 /// clang-linker-wrapper itself from -sycl-device-library-location= for
 /// old-model objects, without the driver enumerating them via
 /// --bitcode-library=.
-// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEFAULT-LIBS %s
+// RUN: mkdir -p %t.libdir
+// RUN: touch %t.libdir/libsycl-crt.bc %t.libdir/libsycl-cmath.bc %t.libdir/libsycl-imf.bc
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEFAULT-LIBS %s
 // CHK-CMDS-DEFAULT-LIBS: llvm-link{{.*}} --suppress-warnings
 // CHK-CMDS-DEFAULT-LIBS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc
 
