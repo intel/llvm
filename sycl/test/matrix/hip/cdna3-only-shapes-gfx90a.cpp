@@ -1,10 +1,14 @@
 // REQUIRES: hip
+// The fp32 and packed-int8 shapes below exist on gfx940/gfx941/gfx942/gfx950.
+// This test is the gfx90a rejection, so skip it when the lit arch is one of
+// those (amd_arch overrides the architecture of the RUN line).
+// UNSUPPORTED: hip-arch-gfx940 || hip-arch-gfx941 || hip-arch-gfx942 || hip-arch-gfx950
 // RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only \
 // RUN:   -fsycl-targets=amd_gpu_gfx90a %s 2>&1 | FileCheck %s
 
 // The fp32 (16x16x4, 32x32x2) and packed int8 (16x16x32, 32x32x16)
-// joint_matrix shapes are only lowered to MFMA on gfx942 and the pre-release
-// MI300 revisions gfx940 and gfx941. gfx90a must reject them at compile time.
+// joint_matrix shapes are lowered on CDNA3 (gfx940/gfx941/gfx942) and CDNA4
+// (gfx950). gfx90a must reject them at compile time.
 
 #include <sycl/sycl.hpp>
 

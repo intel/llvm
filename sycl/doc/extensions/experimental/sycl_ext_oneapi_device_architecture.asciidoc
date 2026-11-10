@@ -733,6 +733,14 @@ amd_gpu_gfx942
 a|
 [source]
 ----
+amd_gpu_gfx950
+----
+|-
+|AMD CDNA 4 architecture.
+
+a|
+[source]
+----
 amd_gpu_gfx1010
 amd_gpu_gfx1011
 amd_gpu_gfx1012

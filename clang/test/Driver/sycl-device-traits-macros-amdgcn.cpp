@@ -60,6 +60,9 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx942 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-AMDGCN-AMD-AMDHSA-DEVICE-TRIPLE
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx950 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-SYCL-AMDGCN-AMD-AMDHSA-DEVICE-TRIPLE
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1010 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-AMDGCN-AMD-AMDHSA-DEVICE-TRIPLE
@@ -172,6 +175,9 @@
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-AMDGCN-AMD-AMDHSA-OFFLOAD-ARCH
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx942 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK-SYCL-AMDGCN-AMD-AMDHSA-OFFLOAD-ARCH
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx950 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK-SYCL-AMDGCN-AMD-AMDHSA-OFFLOAD-ARCH
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx1010 \
