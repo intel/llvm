@@ -35,7 +35,7 @@ for.foo.end:                                          ; preds = %for.foo.cond1
   unreachable
 
 for.foo.end3:                                         ; preds = %for.foo.cond
-  ret i32 undef
+  ret i32 poison
 }
 
 ; CHECK-LABEL: define void @__vecz_v4_bar(
