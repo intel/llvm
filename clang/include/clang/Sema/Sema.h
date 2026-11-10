@@ -1472,6 +1472,17 @@ public:
   /// DeviceDeferredDiags.
   SemaDiagnosticBuilder::DeferredDiagnosticsType MaybeDeviceDeferredDiags;
 
+  /// An inverse call graph, mapping known-emitted functions to one of their
+  /// known-emitted callers (plus the location of the call).  It is populated
+  /// while emitting deferred diagnostics and is used to print call stack notes
+  /// for all offload languages.
+  ///
+  /// Functions that we can tell a priori must be emitted aren't added to this
+  /// map.
+  llvm::DenseMap</* Callee = */ CanonicalDeclPtr<const FunctionDecl>,
+                 /* Caller = */ FunctionDeclAndLoc>
+      DeviceKnownEmittedFns;
+
   /// CurContext - This is the current declaration context of parsing.
   DeclContext *CurContext;
 

@@ -1964,15 +1964,15 @@ bool Sema::hasUncompilableErrorOccurred() const {
 // Print notes showing how we can reach FD starting from an a priori
 // known-callable function.
 static void emitCallStackNotes(Sema &S, const FunctionDecl *FD) {
-  auto FnIt = S.CUDA().DeviceKnownEmittedFns.find(FD);
-  while (FnIt != S.CUDA().DeviceKnownEmittedFns.end()) {
+  auto FnIt = S.DeviceKnownEmittedFns.find(FD);
+  while (FnIt != S.DeviceKnownEmittedFns.end()) {
     // Respect error limit.
     if (S.Diags.hasFatalErrorOccurred())
       return;
     DiagnosticBuilder Builder(
         S.Diags.Report(FnIt->second.Loc, diag::note_called_by));
     Builder << FnIt->second.FD;
-    FnIt = S.CUDA().DeviceKnownEmittedFns.find(FnIt->second.FD);
+    FnIt = S.DeviceKnownEmittedFns.find(FnIt->second.FD);
   }
 }
 
@@ -2183,7 +2183,7 @@ public:
     if (Caller && S.LangOpts.SYCLIsDevice)
       S.SYCL().finalizeSYCLDelayedAnalysis(Caller, FD, Loc, RootReason);
     if (Caller)
-      S.CUDA().DeviceKnownEmittedFns[FD] = {Caller, Loc};
+      S.DeviceKnownEmittedFns[FD] = {Caller, Loc};
     // Always emit deferred diagnostics for the direct users. This does not
     // lead to explosion of diagnostics since each user is visited at most
     // twice.
@@ -2307,7 +2307,7 @@ void Sema::emitDeferredDiags() {
       // DeferredDiagnosticsEmitter::checkFunc), so when an organic device
       // caller exists the diagnostics are surfaced here with the usual
       // call-stack notes. See #197214.
-      if (CUDA().DeviceKnownEmittedFns.count(FD)) {
+      if (DeviceKnownEmittedFns.count(FD)) {
         bool HasWarningOrError = false;
         bool FirstDiag = true;
         for (DeviceDeferredDiagnostic &D : Pair.second) {
@@ -2331,7 +2331,7 @@ void Sema::emitDeferredDiags() {
         continue;
       }
 #else  // INTEL_CUSTOMIZATION
-      if (CUDA().DeviceKnownEmittedFns.count(FD))
+      if (DeviceKnownEmittedFns.count(FD))
         continue;
 #endif // INTEL_CUSTOMIZATION
       bool HasError =
