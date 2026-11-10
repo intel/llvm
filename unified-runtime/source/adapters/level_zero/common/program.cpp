@@ -389,9 +389,8 @@ ur_result_t urProgramLinkExp(
   auto hContext = common_cast(hContextOpque);
   auto phDevices = common_cast(phDevicesOpque);
   auto phPrograms = common_cast(phProgramsOpque);
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
+  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  *phProgram = nullptr;
   for (uint32_t i = 0; i < numDevices; i++) {
     UR_ASSERT(hContext->isValidDevice(phDevices[i]),
               UR_RESULT_ERROR_INVALID_DEVICE);
