@@ -9,15 +9,15 @@
 // REQUIRES: aspect-usm_host_allocations, aspect-usm_device_allocations
 // RUN: %{build} -o %t.out
 // TODO: revert this to a single RUN line once this is confirmed fixed on DG2.
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
-// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
+// RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out
 // RUN: env UR_LOG_LEVEL_ZERO=level:info %{run} %t.out %if gpu-intel-dg2 && level_zero_v2_adapter %{&& echo CI-VALIDATION-PASSED && false%}
 
 // UNSUPPORTED: hip
