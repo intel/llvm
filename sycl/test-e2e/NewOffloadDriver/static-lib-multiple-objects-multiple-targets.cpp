@@ -29,7 +29,7 @@
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t.jit.o %t.jit.pre.o %t.dg2.o %t.dg2.pre.o %t.bmg.o %t.bmg.pre.o
 
-// RUN: %clangxx -Wno-error=unused-command-line-argument -Xarch_host -fno-sanitize=all %sycl_include %cxx_std_optionc++17 -fPIC -c %s -o %t.main.o
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fno-sanitize=all %sycl_include %cxx_std_optionc++17 -fPIC -c %s -o %t.main.o
 // RUN: g++ %t.main.o %t.a -L%sycl_libs_dir -lsycl -Wl,-rpath,%sycl_libs_dir -o %t.exe
 // RUN: %{run} %t.exe
 
