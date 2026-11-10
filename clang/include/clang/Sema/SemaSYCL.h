@@ -285,6 +285,9 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
+  // The integration header file, once looked up.
+  std::optional<OptionalFileEntryRef> IntegrationHeaderFile;
+
   // A map that keeps track of all structs encountered with
   // special types inside. Relevant for free function kernels only.
   llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
@@ -391,6 +394,16 @@ public:
   void ProcessFreeFunction(FunctionDecl *FD);
   void finalizeFreeFunctionKernels();
 
+  /// Check a call to __builtin_sycl_resolve_kernel_function, whose argument is
+  /// a call to a SYCL free function kernel, and build a pointer to the selected
+  /// kernel.
+  ExprResult BuildSYCLResolveKernelFunctionCall(CallExpr *TheCall);
+  /// Whether \p D is the forward declaration in the integration header.
+  bool isInIntegrationHeader(const Decl *D);
+  /// Whether \p D is a declaration in the application's code that ordinary
+  /// name lookup can find.
+  bool isVisibleApplicationDecl(const Decl *D);
+
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
   ExprResult BuildSYCLBuiltinNumFieldsExpr(SourceLocation Loc,
@@ -427,9 +440,13 @@ public:
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
   bool isSYCLEsimdPrivateGlobal(VarDecl *VDecl) {
+    // The ESIMD headers spell the private address space with
+    // `__attribute__((opencl_private))`, which is not mapped onto
+    // LangAS::sycl_private, so both spellings have to be accepted here.
+    LangAS AS = VDecl->getType().getAddressSpace();
     return getLangOpts().SYCLIsDevice && VDecl->hasAttr<SYCLSimdAttr>() &&
            VDecl->hasGlobalStorage() &&
-           (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
+           (AS == LangAS::sycl_private || AS == LangAS::opencl_private);
   }
 
   template <typename AttrTy>

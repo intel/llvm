@@ -30,4 +30,4 @@ int main() {
     });
 }
 
-// CHECK: FunctionDecl {{.*}}usm_test{{.*}} 'void (__global int *, __global float *)  __attribute__((device_kernel))'
+// CHECK: FunctionDecl {{.*}}usm_test{{.*}} 'void ({{\[\[clang::sycl_global\]\]}} int *, {{\[\[clang::sycl_global\]\]}} float *)  __attribute__((device_kernel))'

@@ -454,6 +454,8 @@ struct BuiltinStruct {
   const bool IsConst : 1;
   // Function attribute __attribute__((convergent))
   const bool IsConv : 1;
+  // Function attribute speculatable
+  const bool IsSpeculatable : 1;
   // 0 if the function is not variadic.
   const bool IsVariadic : 1;
   // OpenCL extension(s) required for this overload.
@@ -664,6 +666,7 @@ void BuiltinNameEmitter::EmitBuiltinTable() {
          << (Overload.first->getValueAsBit("IsPure")) << ", "
          << (Overload.first->getValueAsBit("IsConst")) << ", "
          << (Overload.first->getValueAsBit("IsConv")) << ", "
+         << (Overload.first->getValueAsBit("IsSpeculatable")) << ", "
          << (Overload.first->getValueAsBit("IsVariadic")) << ", "
          << FunctionExtensionIndex[ExtName] << ", "
          << EncodeVersions(MinVersion, MaxVersion) << " },\n";
@@ -687,6 +690,8 @@ bool BuiltinNameEmitter::CanReuseSignature(
     if (Rec->getValueAsBit("IsPure") == Rec2->getValueAsBit("IsPure") &&
         Rec->getValueAsBit("IsConst") == Rec2->getValueAsBit("IsConst") &&
         Rec->getValueAsBit("IsConv") == Rec2->getValueAsBit("IsConv") &&
+        Rec->getValueAsBit("IsSpeculatable") ==
+            Rec2->getValueAsBit("IsSpeculatable") &&
         Rec->getValueAsBit("IsVariadic") == Rec2->getValueAsBit("IsVariadic") &&
         Rec->getValueAsDef("MinVersion")->getValueAsInt("ID") ==
             Rec2->getValueAsDef("MinVersion")->getValueAsInt("ID") &&

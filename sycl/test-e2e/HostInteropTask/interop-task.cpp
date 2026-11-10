@@ -50,6 +50,8 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
 
       RC = clWaitForEvents(1, &Event);
       assert(RC == CL_SUCCESS);
+      RC = clReleaseEvent(Event);
+      assert(RC == CL_SUCCESS);
 
       assert(Q.get_backend() == IH.get_backend() &&
              "interop_handle::get_backend() returned a wrong value");
@@ -166,8 +168,12 @@ void test3(queue &Q) {
     auto Func = [=](interop_handle IH) {
       std::vector<cl_event> Ev = get_native<backend::opencl>(Event);
 
-      int RC = clWaitForEvents(1, Ev.data());
+      int RC = clWaitForEvents(static_cast<cl_uint>(Ev.size()), Ev.data());
       assert(RC == CL_SUCCESS);
+      for (cl_event NativeEvent : Ev) {
+        RC = clReleaseEvent(NativeEvent);
+        assert(RC == CL_SUCCESS);
+      }
     };
     CGH.host_task(Func);
   });

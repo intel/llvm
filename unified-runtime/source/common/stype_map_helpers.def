@@ -198,3 +198,6 @@ struct stype_map<ur_exp_event_desc_t>
 template <>
 struct stype_map<ur_exp_event_sync_mode_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC> {};
+template <>
+struct stype_map<ur_exp_queue_priority_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES> {};

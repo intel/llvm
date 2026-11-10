@@ -54,6 +54,20 @@ public:
         MPropList(PropList) {
     verifyUSMAllocatorProperties(MPropList);
   }
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // sycl_khr_properties constructors.
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<
+                detail::KhrPropsForUsmKind<PropertyOrList, AllocKind>>>
+  usm_allocator(const context &Ctxt, const device &Dev, PropertyOrList)
+      : usm_allocator(Ctxt, Dev, property_list{}) {}
+
+  template <typename PropertyOrList,
+            typename = std::enable_if_t<
+                detail::KhrPropsForUsmKind<PropertyOrList, AllocKind>>>
+  usm_allocator(const queue &Q, PropertyOrList)
+      : usm_allocator(Q, property_list{}) {}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   usm_allocator(const usm_allocator &) = default;
   usm_allocator(usm_allocator &&) noexcept = default;
   usm_allocator &operator=(const usm_allocator &Other) {

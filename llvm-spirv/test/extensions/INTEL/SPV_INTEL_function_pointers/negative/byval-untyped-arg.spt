@@ -1,0 +1,37 @@
+; Check that the Reader throws error when a byval/sret argument of an indirect call
+; is an untyped pointer.
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: not llvm-spirv -r %t.spv 2>&1 | FileCheck %s
+
+; CHECK: FunctionPointerCallINTEL: type-attributed function arguments in an indirect call should always be a typed pointer argument for now
+
+119734787 65536 393230 13 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Int8
+2 Capability UntypedPointersKHR
+2 Capability FunctionPointersINTEL
+8 Extension "SPV_INTEL_function_pointers"
+8 Extension "SPV_KHR_untyped_pointers"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+4 Name 7 "helper"
+3 Name 8 "pp"
+3 Name 9 "fp"
+3 Name 11 "p"
+6 Decorate 7 LinkageAttributes "helper" Export
+5 Decorate 12 ArgumentAttributeINTEL 0 2
+4 TypeInt 3 8 0
+2 TypeVoid 2
+3 TypeUntypedPointerKHR 4 7
+5 TypeFunction 5 2 4 4
+5 Function 2 7 0 5
+3 FunctionParameter 4 8
+3 FunctionParameter 4 9
+2 Label 10
+4 Load 4 11 8
+5 FunctionPointerCallINTEL 2 12 9 11
+1 Return
+1 FunctionEnd

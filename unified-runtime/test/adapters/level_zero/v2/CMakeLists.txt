@@ -14,7 +14,6 @@ function(link_l0_v2_adapter_sources test)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${test}-test PRIVATE
@@ -57,6 +56,10 @@ add_l0_v2_devices_test(batched_queue
     batched_queue_test.cpp
 )
 
+add_l0_v2_devices_test(queue_priority
+    queue_priority_test.cpp
+)
+
 if(NOT UR_FOUND_DPCXX)
     # Tests that require kernels can't be used if we aren't generating
     # device binaries
@@ -66,4 +69,5 @@ else()
     add_l0_v2_kernels_test(deferred_kernel
         deferred_kernel.cpp
     )
+    add_l0_loader_kernels_test(barrier_optimization barrier_optimization.cpp)
 endif()

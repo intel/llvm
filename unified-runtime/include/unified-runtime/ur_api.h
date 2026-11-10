@@ -667,6 +667,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_EVENT_DESC = 0x8000,
   /// ::ur_exp_event_sync_mode_desc_t
   UR_STRUCTURE_TYPE_EXP_EVENT_SYNC_MODE_DESC = 0x8001,
+  /// ::ur_exp_queue_priority_properties_t
+  UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES = 0x9000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -971,12 +973,13 @@ typedef enum ur_result_t {
   UR_RESULT_ERROR_GRAPH_CAPTURE_INVALIDATED = 73,
   /// An operation failed because it would merge two graph capture sessions.
   UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT = 74,
-  /// The command list is not in graph capture mode.
+  /// The queue is not in graph capture mode.
   UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING = 75,
   /// The graph contains unjoined forks.
   UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS = 76,
-  /// An operation failed because it uses a graph-internal counter-based
-  /// event outside of the graph.
+  /// An operation failed because it uses an event that is internal to a
+  /// graph outside of that graph, or because a command recorded into a
+  /// graph waits on an event signaled outside of that graph.
   UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT = 77,
   /// Invalid Command-Buffer
   UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,
@@ -2450,6 +2453,10 @@ typedef enum ur_device_info_t {
   /// [::ur_device_igca_feature_flags_t][optional-query] return the IGCA
   /// feature sets the Intel GPU implements
   UR_DEVICE_INFO_IGCA_FEATURE_SET = 141,
+  /// [::ur_bool_t][optional-query] return true if the device supports
+  /// global and local atomic load, store, add, min and max on IEEE 754
+  /// half-precision (fp16) values
+  UR_DEVICE_INFO_FP16_ATOMIC = 142,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2587,6 +2594,17 @@ typedef enum ur_device_info_t {
   /// information for individual events without the whole queue being
   /// created with ::UR_QUEUE_FLAG_PROFILING_ENABLE.
   UR_DEVICE_INFO_PER_EVENT_PROFILING_SUPPORT_EXP = 0x20A0,
+  /// [::ur_bool_t] returns true if the device supports creating queues
+  /// with ::ur_exp_queue_priority_properties_t.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP = 0x20B0,
+  /// [int32_t][optional-query] returns the numerically lowest priority
+  /// value, which corresponds to the highest queue priority. It is
+  /// never greater than 0.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP = 0x20B1,
+  /// [int32_t][optional-query] returns the numerically highest priority
+  /// value, which corresponds to the lowest queue priority. It is never
+  /// less than 0.
+  UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP = 0x20B2,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -6657,6 +6675,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED
+///         + `hQueue` is in graph capture mode.
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
     /// [in] handle of the queue to be finished.
     ur_queue_handle_t hQueue);
@@ -6946,6 +6966,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED
+///         + An event in `phEventWaitList` is signaled by a command recorded by
+///         an active graph capture.
+///     - ::UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT
+///         + An event in `phEventWaitList` is signaled by a command recorded
+///         into a graph whose capture has ended.
 UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
     /// [in] number of events in the event list
     uint32_t numEvents,
@@ -11882,6 +11908,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for queue priority levels
+#if !defined(__GNUC__)
+#pragma region queue_priority_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue priority creation properties
+///
+/// @details
+///     - Specify these properties in ::urQueueCreate via
+///       ::ur_queue_properties_t as part of a `pNext` chain.
+///     - Lower values indicate higher priority, 0 is the default priority.
+///     - Values outside of the range reported by
+///       ::UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP and
+///       ::UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP are clamped to the nearest
+///       supported value.
+///     - Must not be combined with ::UR_QUEUE_FLAG_PRIORITY_LOW or
+///       ::UR_QUEUE_FLAG_PRIORITY_HIGH.
+typedef struct ur_exp_queue_priority_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] priority of the queue.
+  int32_t priority;
+
+} ur_exp_queue_priority_properties_t;
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for USM Context Memcpy
 #if !defined(__GNUC__)
 #pragma region usm_context_memcpy_(experimental)
@@ -14036,13 +14093,19 @@ typedef enum ur_exp_event_flag_t {
   /// will later be obtained; it cannot be enabled after creation. Must not
   /// be combined with ::UR_EXP_EVENT_FLAG_ENABLE_PROFILING.
   UR_EXP_EVENT_FLAG_IPC_EXP = UR_BIT(1),
+  /// A new event is created instead of reusing one previously released to
+  /// the adapter's event pool, and it is destroyed when the event is
+  /// released instead of being returned to the pool. The event must not be
+  /// released while any graph or executable graph that waits on or signals
+  /// it still exists.
+  UR_EXP_EVENT_FLAG_UNPOOLED = UR_BIT(2),
   /// @cond
   UR_EXP_EVENT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_exp_event_flag_t;
 /// @brief Bit Mask for validating ur_exp_event_flags_t
-#define UR_EXP_EVENT_FLAGS_MASK 0xfffffffc
+#define UR_EXP_EVENT_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for creating reusable events.
@@ -14169,6 +14232,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urGraphCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin graph capture on the specified queue.
 ///
+/// @details
+///     - While a queue is in graph capture mode, commands enqueued to it are
+///       recorded into the graph instead of being submitted for execution.
+///     - Operations that synchronize the host with recorded work are not
+///       supported during graph capture and return
+///       ::UR_RESULT_ERROR_GRAPH_CAPTURE_UNSUPPORTED. This includes
+///       ::urQueueFinish on a capturing queue, ::urEventWait on an event
+///       signaled by a recorded command, and blocking enqueue operations.
+///     - If an event signaled by a recorded command is in the wait list of a
+///       command enqueued to a queue that is not capturing, that queue also
+///       enters graph capture mode. This is called a fork. Each fork must be
+///       joined before the capture is ended, by making a command enqueued to
+///       the queue on which the capture began wait on an event signaled by the
+///       last command enqueued to the forked queue.
+///     - A command enqueued to a queue that is already in graph capture mode
+///       returns ::UR_RESULT_ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT if it waits on
+///       an event signaled by a command recorded by a different, still active,
+///       graph capture.
+///     - Events signaled by recorded commands are internal to the graph. After
+///       the capture has ended, using them outside of the graph, for example
+///       waiting on them from a queue or from the host, returns
+///       ::UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT.
+///     - Depending on the driver, a command recorded into a graph that waits on
+///       an event signaled by a command that is not part of the same capture,
+///       for example a command submitted before the capture began, may also
+///       return ::UR_RESULT_ERROR_GRAPH_INTERNAL_EVENT.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -14183,6 +14273,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginGraphCaptureExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Begin capturing commands into an existing graph on the specified
 ///        queue.
+///
+/// @details
+///     - The same rules as for ::urQueueBeginGraphCaptureExp apply while the
+///       queue is in graph capture mode.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -14201,6 +14295,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief End graph capture on the specified queue.
 ///
+/// @details
+///     - Graph capture is ended on `hQueue` and on all queues that were forked
+///       from it.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -14210,6 +14308,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phGraph`
+///     - ::UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING
+///         + `hQueue` is not in graph capture mode.
+///     - ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS
+///         + A queue forked from `hQueue` during the capture was not joined
+///         back before the capture was ended.
 UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
     /// [in] Handle of the queue on which to end graph capture.
     ur_queue_handle_t hQueue,
@@ -14230,6 +14333,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueEndGraphCaptureExp(
 ///         + `NULL == hGraph`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phExecGraph`
+///     - ::UR_RESULT_ERROR_INVALID_GRAPH
+///         + The capture of `hGraph` ended with
+///         ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS.
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + The capture of `hGraph` has not ended, because it was never
+///         started or is still active.
 UR_APIEXPORT ur_result_t UR_APICALL urGraphInstantiateGraphExp(
     /// [in] Handle of the recorded graph to instantiate.
     ur_exp_graph_handle_t hGraph,
@@ -14352,6 +14461,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetGraphExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pResult`
 ///     - ::UR_RESULT_ERROR_INVALID_GRAPH
+///         + `hGraph` is invalid, for example because its capture ended with
+///         ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS.
 UR_APIEXPORT ur_result_t UR_APICALL urGraphIsEmptyExp(
     /// [in] Handle of the graph to query.
     ur_exp_graph_handle_t hGraph,

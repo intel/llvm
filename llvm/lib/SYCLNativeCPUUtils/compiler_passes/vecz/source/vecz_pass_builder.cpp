@@ -51,7 +51,6 @@
 #include <llvm/Transforms/Utils/FixIrreducible.h>
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 #include <llvm/Transforms/Utils/Mem2Reg.h>
-#include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 
 #include <cassert>
 
@@ -75,6 +74,7 @@
 #include "transform/passes.h"
 #include "transform/scalarization_pass.h"
 #include "transform/ternary_transform_pass.h"
+#include "transform/unify_function_exit_nodes_pass.h"
 
 #define DEBUG_TYPE "vecz"
 using namespace llvm;
@@ -149,7 +149,7 @@ void VeczPassMachinery::addClassToPassNames() {
 void VeczPassMachinery::registerPassCallbacks() {
   // Add a backwards-compatible way of supporting simplifycfg, which used
   // to be called simplify-cfg before LLVM 12.
-  PB.registerPipelineParsingCallback(
+  PB->registerPipelineParsingCallback(
       [](StringRef Name, ModulePassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
 #define MODULE_PASS(NAME, CREATE_PASS)                                         \

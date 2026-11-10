@@ -11,15 +11,18 @@
 
 #include "level_zero/common.hpp"
 #include "level_zero/common/device.hpp"
+#include "level_zero/common/platform.hpp"
 
 #include "uur/fixtures.h"
 #include "uur/raii.h"
 #include "uur/utils.h"
 
 #include <gtest/gtest.h>
+#include <limits>
 #include <map>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 // The adapter types this test exercises live in `ur::level_zero::v2`; bring the
@@ -93,6 +96,45 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
     zeCommandListDestroy(regCmdList.release());
     zeCommandListDestroy(immCmdList.release());
   }
+}
+
+TEST_P(CommandListCacheTest, ImmediateCommandListsAreCachedPerPriorityLevel) {
+  if (!common_cast(device)->ZeQueuePriorityRange->HasLevels) {
+    GTEST_SKIP() << "Device has no priority levels.";
+  }
+
+  v2::supported_extensions_descriptor_t supportedExtensions(false, false,
+                                                            false);
+  v2::command_list_cache_t cache(v2::v2_cast(context)->getZeHandle(),
+                                 supportedExtensions);
+  auto zeDevice = common_cast(device)->ZeDevice;
+
+  v2::command_list_desc_t desc;
+  desc.IsInOrder = true;
+  desc.Ordinal = 0;
+  desc.CopyOffloadEnable = true;
+  ze_command_queue_mode_t Mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
+  ze_command_queue_priority_t Priority = ZE_COMMAND_QUEUE_PRIORITY_NORMAL;
+
+  const std::vector<std::optional<int32_t>> Levels = {std::nullopt, -1, 0, 1};
+  std::map<std::optional<int32_t>, ze_command_list_handle_t> CmdLists;
+  for (auto Level : Levels) {
+    auto CmdList = cache.getImmediateCommandList(zeDevice, desc, Mode, Priority,
+                                                 std::nullopt, Level);
+    ASSERT_NE(CmdList, nullptr);
+    CmdLists[Level] = CmdList.get();
+    // Returned to the cache on destruction.
+  }
+  ASSERT_EQ(cache.getNumImmediateCommandLists(), Levels.size());
+
+  // Each level must get back its own command list.
+  std::vector<v2::raii::command_list_unique_handle> Owners;
+  for (auto Level : Levels) {
+    Owners.emplace_back(cache.getImmediateCommandList(
+        zeDevice, desc, Mode, Priority, std::nullopt, Level));
+    ASSERT_EQ(Owners.back().get(), CmdLists[Level]);
+  }
+  ASSERT_EQ(cache.getNumImmediateCommandLists(), 0);
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
@@ -245,6 +287,101 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
       ASSERT_EQ(clCache.getNumRegularCommandLists(), 0);
     }
   }
+}
+
+TEST_P(CommandListCacheTest, OutOfRangePriorityLevelsAreClamped) {
+  const auto &Range = common_cast(device)->ZeQueuePriorityRange.get();
+  auto &clCache = v2::v2_cast(context)->getCommandListCache();
+  auto createQueue = [&](int32_t Priority, uur::raii::Queue &Queue) {
+    ur_exp_queue_priority_properties_t PriorityProps{
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, Priority};
+    ur_queue_properties_t QueueProps{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                     &PriorityProps,
+                                     UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+    ASSERT_EQ(urQueueCreate(context, device, &QueueProps, Queue.ptr()),
+              UR_RESULT_SUCCESS);
+  };
+
+  // A queue with an out-of-range priority returns its command lists to the
+  // cache, and a queue with the clamped priority must reuse all of them.
+  for (auto [OutOfRange, Clamped] :
+       {std::pair{std::numeric_limits<int32_t>::min(), Range.Highest},
+        std::pair{std::numeric_limits<int32_t>::max(), Range.Lowest}}) {
+    const size_t NumCached = clCache.getNumImmediateCommandLists();
+    {
+      uur::raii::Queue Queue;
+      ASSERT_NO_FATAL_FAILURE(createQueue(OutOfRange, Queue));
+    }
+    ASSERT_GT(clCache.getNumImmediateCommandLists(), NumCached);
+
+    uur::raii::Queue Queue;
+    ASSERT_NO_FATAL_FAILURE(createQueue(Clamped, Queue));
+    ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached);
+  }
+}
+
+TEST_P(CommandListCacheTest, LowestPriorityLevelUsesLowPriorityClass) {
+  auto hDevice = common_cast(device);
+  const auto &Range = hDevice->ZeQueuePriorityRange.get();
+  int32_t Lowest = 0;
+  ASSERT_SUCCESS(::urDeviceGetInfo(device,
+                                   UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP,
+                                   sizeof(Lowest), &Lowest, nullptr));
+  ASSERT_EQ(Lowest, Range.Lowest);
+
+  {
+    ur_exp_queue_priority_properties_t PriorityProps{
+        UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, Lowest};
+    ur_queue_properties_t QueueProps{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                     &PriorityProps,
+                                     UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+    uur::raii::Queue Queue;
+    ASSERT_SUCCESS(urQueueCreate(context, device, &QueueProps, Queue.ptr()));
+  }
+
+  // The queue's command list must have been created with the low priority
+  // class and without a priority level.
+  auto &clCache = v2::v2_cast(context)->getCommandListCache();
+  const size_t NumCached = clCache.getNumImmediateCommandLists();
+  v2::command_list_desc_t Desc;
+  Desc.IsInOrder = true;
+  using queue_group_type =
+      ur::level_zero::ur_device_handle_t_::queue_group_info_t::type;
+  Desc.Ordinal = hDevice->QueueGroup[queue_group_type::Compute].ZeOrdinal;
+  Desc.CopyOffloadEnable = true;
+  auto CmdList = clCache.getImmediateCommandList(
+      hDevice->ZeDevice, Desc, ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
+      ZE_COMMAND_QUEUE_PRIORITY_PRIORITY_LOW);
+  ASSERT_NE(CmdList, nullptr);
+  ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached - 1);
+}
+
+TEST_P(CommandListCacheTest, HighPriorityFlagUsesHighestPriorityLevel) {
+  const auto &Range = common_cast(device)->ZeQueuePriorityRange.get();
+  if (!Range.HasLevels || Range.Highest >= 0) {
+    GTEST_SKIP() << "Device has no priority level above the default one.";
+  }
+
+  auto &clCache = v2::v2_cast(context)->getCommandListCache();
+  const size_t NumCached = clCache.getNumImmediateCommandLists();
+  {
+    ur_queue_properties_t QueueProps{
+        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+        UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE | UR_QUEUE_FLAG_PRIORITY_HIGH};
+    uur::raii::Queue Queue;
+    ASSERT_SUCCESS(urQueueCreate(context, device, &QueueProps, Queue.ptr()));
+  }
+  ASSERT_GT(clCache.getNumImmediateCommandLists(), NumCached);
+
+  // A queue with the highest priority level must reuse all command lists.
+  ur_exp_queue_priority_properties_t PriorityProps{
+      UR_STRUCTURE_TYPE_EXP_QUEUE_PRIORITY_PROPERTIES, nullptr, Range.Highest};
+  ur_queue_properties_t QueueProps{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                   &PriorityProps,
+                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+  uur::raii::Queue Queue;
+  ASSERT_SUCCESS(urQueueCreate(context, device, &QueueProps, Queue.ptr()));
+  ASSERT_EQ(clCache.getNumImmediateCommandLists(), NumCached);
 }
 
 TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {

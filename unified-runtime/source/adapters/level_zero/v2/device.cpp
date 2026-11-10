@@ -82,6 +82,15 @@ ur_result_t urDeviceGetInfo(::ur_device_handle_t hDeviceOpque,
     return ReturnValue(false);
 #endif
   }
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_SUPPORT_EXP:
+    return ReturnValue(static_cast<ur_bool_t>(true));
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP:
+  case UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP: {
+    const auto &Range = hDevice->ZeQueuePriorityRange.get();
+    return ReturnValue(propName == UR_DEVICE_INFO_QUEUE_PRIORITY_HIGHEST_EXP
+                           ? Range.Highest
+                           : Range.Lowest);
+  }
   default:
     return ur::level_zero::urDeviceGetInfo(hDeviceOpque, propName, propSize,
                                            propValue, propSizeRet);

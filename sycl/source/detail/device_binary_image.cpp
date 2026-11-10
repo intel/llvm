@@ -753,7 +753,10 @@ void CompressedRTDeviceBinaryImage::Decompress() {
         reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
     Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
-    Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    if (auto Prop = getProperty(__SYCL_PROPERTY_ORIGINAL_FORMAT))
+      Bin->Format = static_cast<uint8_t>(DeviceBinaryProperty(Prop).asUint32());
+    else
+      Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
     Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 
     m_IsCompressed.store(false);

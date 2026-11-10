@@ -610,6 +610,23 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
 }
 } // namespace
 
+/// Spell an integer or vector-of-integer type the LLVM way for the helper name
+/// suffix: i32, v2i32.
+static std::string getAtomicWrapTypeSuffix(Type *Ty) {
+  std::string Suffix;
+  if (auto *VecTy = dyn_cast<FixedVectorType>(Ty))
+    Suffix = "v" + std::to_string(VecTy->getNumElements());
+  return Suffix + "i" +
+         std::to_string(Ty->getScalarType()->getIntegerBitWidth());
+}
+
+/// Neither AMDGPU nor the SPIR-V backend supports atomics wider than 64 bits,
+/// so an over-limit operand is left alone to reach the writer and be reported
+/// as unsupported rather than round-tripped through a helper.
+static bool isAtomicWrapSizeSupported(Module *M, Type *Ty) {
+  return M->getDataLayout().getTypeStoreSizeInBits(Ty) <= 64;
+}
+
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
@@ -796,6 +813,64 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           auto *V2 = Builder.CreateInsertValue(V1, Cmp, 1, Cmpxchg->getName());
           Cmpxchg->replaceAllUsesWith(V2);
           ToErase.push_back(Cmpxchg);
+        }
+        if (auto *ARMW = dyn_cast<AtomicRMWInst>(&II)) {
+          // For an AMD triple, uinc_wrap/udec_wrap become a call to an imported
+          // __translate_spirv_atomic_u{inc,dec}_wrap helper.
+          if (M->getTargetTriple().getVendor() == Triple::AMD &&
+              (ARMW->getOperation() == AtomicRMWInst::UIncWrap ||
+               ARMW->getOperation() == AtomicRMWInst::UDecWrap) &&
+              isAtomicWrapSizeSupported(M, ARMW->getValOperand()->getType())) {
+            AtomicRMWInst::BinOp AOp = ARMW->getOperation();
+            // The name carries a _p<addrspace>_<type> suffix (e.g. _p1_i32,
+            // _p1_v2i32) since SPIR-V resolves an import by linkage name alone.
+            Value *Ptr = ARMW->getPointerOperand();
+            Value *Val = ARMW->getValOperand();
+            Type *MemType = Val->getType();
+
+            spv::Scope S =
+                toSPIRVScope(ARMW->getContext(), ARMW->getSyncScopeID());
+            Value *MemoryScope = getInt32(M, S);
+            auto Order =
+                static_cast<OCLMemOrderKind>(llvm::toCABI(ARMW->getOrdering()));
+            unsigned SCMask =
+                getAtomicPointerMemorySemanticsMask(Ptr, Ptr->getType());
+            Value *Sem = getInt32(M, OCLMemOrderMap::map(Order) | SCMask);
+
+            std::string FuncName =
+                AOp == AtomicRMWInst::UIncWrap
+                    ? kSPIRVName::TranslateSPIRVAtomicUIncWrap
+                    : kSPIRVName::TranslateSPIRVAtomicUDecWrap;
+            FuncName +=
+                "_p" +
+                std::to_string(Ptr->getType()->getPointerAddressSpace()) + "_" +
+                getAtomicWrapTypeSuffix(MemType);
+
+            Type *Int32Ty = Type::getInt32Ty(M->getContext());
+            // Pass `volatile` and `elementwise` info as constant operands.
+            Type *BoolTy = Type::getInt1Ty(M->getContext());
+            Value *IsVolatile = ConstantInt::get(BoolTy, ARMW->isVolatile());
+            Value *IsElementwise =
+                ConstantInt::get(BoolTy, ARMW->isElementwise());
+            FunctionType *FT = FunctionType::get(
+                MemType,
+                {Ptr->getType(), Int32Ty, Int32Ty, MemType, BoolTy, BoolTy},
+                false);
+            FunctionCallee FC = M->getOrInsertFunction(FuncName, FT);
+            // The name is reserved, so it can only resolve to our own function.
+            cast<Function>(FC.getCallee())
+                ->setCallingConv(CallingConv::SPIR_FUNC);
+
+            IRBuilder<> Builder(ARMW);
+            CallInst *Call = Builder.CreateCall(
+                FC, {Ptr, MemoryScope, Sem, Val, IsVolatile, IsElementwise});
+            Call->setCallingConv(CallingConv::SPIR_FUNC);
+            Call->takeName(ARMW);
+            Call->copyMetadata(*ARMW);
+
+            ARMW->replaceAllUsesWith(Call);
+            ToErase.push_back(ARMW);
+          }
         }
       }
     }

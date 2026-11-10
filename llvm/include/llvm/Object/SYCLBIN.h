@@ -34,6 +34,9 @@ public:
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
 
+  /// Type of an IR module, stored as the "type" property of its metadata.
+  enum class IRModuleType : uint32_t { SPIRV = 0, PTX = 1, AMDGCN = 2 };
+
   struct SYCLBINModuleDesc {
     std::string ArchString;
     llvm::Triple TargetTriple;

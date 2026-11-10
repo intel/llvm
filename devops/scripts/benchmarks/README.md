@@ -47,6 +47,7 @@ of internal data structures. In order to use it one should
 - have `COMPUTE_BENCHMARKS_BUILD_PATH` env variable pointing to build directory of compute-benchmarks
 - set `LLVM_BENCHMARKS_UNIT_TESTING=1`
 - set `GPU_TYPE` variable to the type of GPU to be tested (i.e. `PVC` or `BMG`)
+- optionally set `OFFLOAD_PREFIX` to the liboffload install prefix (see `--offload-prefix`) to run the OFFLOAD (`ol`) tests; they are skipped otherwise. The build in `COMPUTE_BENCHMARKS_BUILD_PATH` must have been made with `--offload-prefix`, so that it contains the `*_ol` binaries.
 
 Then tests can be executed by
 ```
@@ -118,7 +119,7 @@ For example `--filter "graph_api_*"`
 
 When a build using local source or offload options finishes successfully, a JSON build-complete marker (`benchmark_build_complete.json`) is written into the project's build directory. It records the source contents and relevant build configuration. On subsequent runs the build is skipped when both still match, so editing source files or changing build options triggers a rebuild automatically. If `--compute-benchmarks-source-dir` points at a directory that is **not** a git repository, the benchmarks are always rebuilt.
 
-`--offload-prefix <dir>` - LLVM install prefix providing liboffload. The directory containing `libLLVMOffload.so` under `<dir>/lib` is passed as `LIBOFFLOAD_LIBRARY_DIR`, and `<dir>/include` is passed as `LIBOFFLOAD_INCLUDE_DIR`. When set, the OFFLOAD (liboffload) `SubmitKernel` benchmark is built (via `-DBUILD_OL=ON`) and enabled.
+`--offload-prefix <dir>` - LLVM install prefix providing liboffload. The directory containing `libLLVMOffload.so` under `<dir>/lib` is passed as `LIBOFFLOAD_LIBRARY_DIR`, and `<dir>/include` is passed as `LIBOFFLOAD_INCLUDE_DIR`. When set, the OFFLOAD (liboffload) implementations of the Compute Benchmarks are built (via `-DBUILD_OL=ON`) and enabled.
 
 The OL benchmark selects the first device reported by `olIterateDevices`. Control device visibility with `ZE_AFFINITY_MASK`, as for the UR benchmarks.
 

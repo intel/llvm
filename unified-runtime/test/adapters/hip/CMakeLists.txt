@@ -16,6 +16,7 @@ add_conformance_kernels_test(adapter-hip
     urContextGetNativeHandle.cpp
     urDeviceGetNativeHandle.cpp
     urEventGetNativeHandle.cpp
+    urQueueGetNativeHandle.cpp
     test_context.cpp
     test_event.cpp
     kernel_tests.cpp

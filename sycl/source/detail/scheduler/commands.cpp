@@ -834,7 +834,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+bool Command::enqueue(EnqueueResultT &EnqueueResult,
                       std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
@@ -850,29 +850,12 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
 
-  // If the command is blocked from enqueueing
+  // A blocked command is never waited on here: the caller holds the graph read
+  // lock. GraphProcessor::enqueueCommand defers blocking callers until the
+  // command is unblocked.
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
-    // Exit if enqueue type is not blocking
-    if (!Blocking) {
-      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
-      return false;
-    }
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Scoped trace event notifier that emits a barrier begin and barrier end
-    // event, which models the barrier while enqueuing along with the blocked
-    // reason, as determined by the scheduler
-    std::string Info = "enqueue.barrier[";
-    Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
-#endif
-
-    // Wait if blocking
-    while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
-      ;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
-#endif
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
+    return false;
   }
 
   std::lock_guard<std::mutex> Lock(MEnqueueMtx);
@@ -3714,16 +3697,18 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
-    std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     bool HasEventMode =
         Barrier->MEventMode != ext::oneapi::experimental::event_mode_enum::none;
-    std::vector<ur_event_handle_t> UrEvents =
-        getUrEventsBlocking(Events, HasEventMode, *MWorkerQueue, isHostTask());
 
-    if (UrEvents.empty() && RawEvents.empty()) {
-      // Nothing to synchronize with: the barrier wait list is empty and no
-      // explicit depends_on() dependency contributed a native event, so the
-      // barrier has no effect.
+    std::vector<ur_event_handle_t> UrEvents =
+        HasEventMode
+            ? Command::getUrEvents(MPreparedDepsEvents,
+                                   /*CommandQueue=*/nullptr, isHostTask())
+            : RawEvents;
+
+    if (UrEvents.empty()) {
+      // Nothing to synchronize with: no dependency contributed a native event,
+      // so the barrier has no effect.
       return UR_RESULT_SUCCESS;
     }
 
@@ -3737,12 +3722,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     adapter_impl &Adapter = MQueue->getAdapter();
-    // User can specify explicit dependencies via depends_on call that we should
-    // honor here. It is very important for cross queue dependencies. Adding
-    // them to the barrier wait list since barrier w/ wait list waits only for
-    // the events provided in wait list and we can just extend the list.
-    UrEvents.insert(UrEvents.end(), RawEvents.begin(), RawEvents.end());
-
     if (auto Result =
             Adapter.call_nocheck<UrApiKind::urEnqueueEventsWaitWithBarrierExt>(
                 MQueue->getHandleRef(), &Properties, UrEvents.size(),

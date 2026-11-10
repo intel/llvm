@@ -59,6 +59,7 @@ class E2EExpr(BooleanExpression):
         "sg-8",
         "sg-16",
         "sg-32",
+        "lld",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):

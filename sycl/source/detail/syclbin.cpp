@@ -9,6 +9,7 @@
 // TODO: Remove once we can consistently link the SYCL runtime library with
 // LLVMObject.
 
+#include <cstddef>
 #include <detail/compiler.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -16,6 +17,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/syclbin.hpp>
 
+#include <optional>
 #include <sstream>
 
 namespace sycl {
@@ -38,7 +40,9 @@ struct OffloadBinaryHeaderType {
   uint64_t Size;
   uint64_t EntriesOffset; // V2: Renamed from EntryOffset
   uint64_t EntriesCount;  // V2: Renamed from EntrySize, now stores count
+  uint64_t InflatedSize;  // V3: Original size of the binary if compressed.
 };
+static_assert(sizeof(OffloadBinaryHeaderType) == 40);
 struct OffloadBinaryEntryType {
   uint16_t ImageKind;
   uint16_t OffloadKind;
@@ -54,7 +58,7 @@ protected:
   BlockReader(const char *Data, size_t Size) : Data{Data}, Size{Size} {}
 
   void ReadSizeCheck(size_t ByteOffset, size_t ReadSize) {
-    if (ByteOffset + ReadSize > Size)
+    if (ByteOffset > Size || ReadSize > Size - ByteOffset)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Unexpected file contents size.");
   }
@@ -91,7 +95,10 @@ public:
 
 std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
                                                         size_t Size) {
-  if (sizeof(OffloadBinaryHeaderType) > Size)
+  // The v1/v2 header lacks the trailing InflatedSize field.
+  constexpr size_t HeaderSizeV2 =
+      offsetof(OffloadBinaryHeaderType, InflatedSize);
+  if (HeaderSizeV2 > Size)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Invalid Offload Binary size.");
 
@@ -102,22 +109,39 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Incorrect Offload Binary magic number.");
 
-  // Support both v1 and v2 formats
-  if (Header->Version == 0 || Header->Version > 2)
+  // Support v1, v2 and v3 formats.
+  if (Header->Version == 0 || Header->Version > 3)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unsupported Offload Binary version number.");
+
+  // V3: a non-zero InflatedSize means everything after the header is
+  // compressed, which this reader cannot decompress. Uncompressed v3 binaries
+  // have the same entry layout as v2, located via EntriesOffset.
+  if (Header->Version >= 3) {
+    if (sizeof(OffloadBinaryHeaderType) > Size)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Invalid Offload Binary size.");
+    if (Header->InflatedSize != 0)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Compressed Offload Binary is not supported.");
+  }
 
   // V1: EntriesCount was EntrySize and stored sizeof(Entry)
   // V2: EntriesCount stores the number of entries
   uint64_t EntriesCount = (Header->Version == 1) ? 1 : Header->EntriesCount;
-  uint64_t EntriesSize = sizeof(OffloadBinaryEntryType) * EntriesCount;
 
   if (Header->Version == 1 &&
       Header->EntriesCount != sizeof(OffloadBinaryEntryType))
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unexpected entry size for v1 format.");
 
-  if (Header->EntriesOffset + EntriesSize > Size)
+  if (EntriesCount == 0)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Offload Binary contains no entries.");
+
+  if (Header->EntriesOffset > Size ||
+      EntriesCount >
+          (Size - Header->EntriesOffset) / sizeof(OffloadBinaryEntryType))
     throw sycl::exception(make_error_code(errc::invalid),
                           "Invalid entries offset.");
 
@@ -130,7 +154,7 @@ std::pair<const char *, size_t> getImageInOffloadBinary(const char *Data,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unexpected image type.");
 
-  if (Entry->ImageOffset + Entry->ImageSize > Size)
+  if (Entry->ImageOffset > Size || Entry->ImageSize > Size - Entry->ImageOffset)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Invalid image offset and size.");
 
@@ -178,12 +202,34 @@ bool isIRModuleFormat(ur::DeviceBinaryType Format) {
          Format == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 }
 
-// Maps a runtime device image format to its SYCLBIN IR module type enum
-// value. The list of valid IR types is currently SPIR-V (0), PTX (1) and
-// AMDGCN (2). Today the runtime only emits SPIR-V IR modules, so we hardcode 0
-// here. Mirrors the same hardcode in llvm/lib/Object/SYCLBIN.cpp.
-// TODO: Determine type from the input.
-uint32_t getIRModuleType(ur::DeviceBinaryType /*Format*/) { return 0; }
+// Maps a runtime device image format to its SYCLBIN IR module type enum value.
+SYCLBIN::IRModuleType getIRModuleType(ur::DeviceBinaryType Format) {
+  assert(isIRModuleFormat(Format) && "Not an IR module format");
+  // TODO: LLVM IR bitcode is recorded as SPIR-V, which is not correct.
+  (void)Format;
+  return SYCLBIN::IRModuleType::SPIRV;
+}
+
+// Runtime representation of a SYCLBIN IR module type.
+struct IRModuleFormatInfo {
+  ur::DeviceBinaryType Format;
+  const char *DeviceTargetSpec;
+};
+
+// Maps a SYCLBIN IR module type enum value to the corresponding runtime device
+// image format and target spec. This is the inverse of getIRModuleType.
+std::optional<IRModuleFormatInfo>
+getIRModuleFormatInfo(uint32_t RawIRModuleType) {
+  switch (static_cast<SYCLBIN::IRModuleType>(RawIRModuleType)) {
+  case SYCLBIN::IRModuleType::SPIRV:
+    return IRModuleFormatInfo{SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                              __SYCL_DEVICE_BINARY_TARGET_SPIRV64};
+  case SYCLBIN::IRModuleType::PTX:
+  case SYCLBIN::IRModuleType::AMDGCN:
+    break;
+  }
+  return std::nullopt;
+}
 
 // Serializes a property set (name + entries) into the textual format consumed
 // by PropertySetRegistry::read by routing through PropertySetRegistry::write.
@@ -459,7 +505,7 @@ std::vector<char> SYCLBIN::write(const SYCLBINDesc &Desc) {
   std::ostringstream OB;
   OffloadBinaryHeaderType OBHeader{};
   std::memcpy(OBHeader.Magic, OffloadBinaryMagic, sizeof(OBHeader.Magic));
-  OBHeader.Version = 2;
+  OBHeader.Version = 3;
   OBHeader.EntriesOffset = sizeof(OffloadBinaryHeaderType);
   OBHeader.EntriesCount = 1;
   // Single entry pointing at the SYCLBIN payload following the entry array.
@@ -566,7 +612,7 @@ SYCLBIN::serializeImages(const std::vector<ImageInput> &Inputs, uint8_t State) {
       ID.Bytes = Bytes;
       PropertySetRegistry IRMProps;
       IRMProps.add(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
-                   getIRModuleType(Image->getFormat()));
+                   static_cast<uint32_t>(getIRModuleType(Image->getFormat())));
       IRMProps.add(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "target",
                    std::string_view{Triple});
       ID.Metadata = serializePropSetRegistry(IRMProps);
@@ -646,12 +692,17 @@ SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
                                        FileHeader->NativeDeviceCodeImageCount;
   const uint64_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
                                    IRMHeaderBlockSize + NDCIHeaderBlockSize;
+  if (SYCLBINSize < HeaderBlockSize ||
+      FileHeader->MetadataByteTableSize > SYCLBINSize - HeaderBlockSize)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unexpected file contents size.");
   // Align metadata table size to 8.
   const uint64_t AlignedMetadataByteTableSize =
       FileHeader->MetadataByteTableSize +
       (-FileHeader->MetadataByteTableSize & 7);
-  if (SYCLBINSize < HeaderBlockSize + AlignedMetadataByteTableSize +
-                        FileHeader->BinaryByteTableSize)
+  if (AlignedMetadataByteTableSize > SYCLBINSize - HeaderBlockSize ||
+      FileHeader->BinaryByteTableSize >
+          SYCLBINSize - HeaderBlockSize - AlignedMetadataByteTableSize)
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unexpected file contents size.");
 
@@ -684,6 +735,11 @@ SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
         AMHeader->MetadataOffset, AMHeader->MetadataSize);
 
     // Read the IR modules of the current abstract module.
+    if (static_cast<uint64_t>(AMHeader->IRModuleOffset) +
+            AMHeader->IRModuleCount >
+        FileHeader->IRModuleCount)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Invalid IR module range.");
     AM.IRModules.resize(AMHeader->IRModuleCount);
     for (uint32_t J = 0; J < AMHeader->IRModuleCount; ++J) {
       IRModule &IRM = AM.IRModules[J];
@@ -691,7 +747,8 @@ SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
       // Read the header for the current IR module.
       const uint64_t IRMHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize +
-          sizeof(IRModuleHeaderType) * (AMHeader->IRModuleOffset + J);
+          sizeof(IRModuleHeaderType) *
+              (static_cast<uint64_t>(AMHeader->IRModuleOffset) + J);
       const IRModuleHeaderType *IRMHeader =
           HeaderBlockReader.GetHeaderPtr<IRModuleHeaderType>(
               IRMHeaderByteOffset);
@@ -706,6 +763,11 @@ SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
     }
 
     // Read the native device code images of the current abstract module.
+    if (static_cast<uint64_t>(AMHeader->NativeDeviceCodeImageOffset) +
+            AMHeader->NativeDeviceCodeImageCount >
+        FileHeader->NativeDeviceCodeImageCount)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Invalid native device code image range.");
     AM.NativeDeviceCodeImages.resize(AMHeader->NativeDeviceCodeImageCount);
     for (uint32_t J = 0; J < AMHeader->NativeDeviceCodeImageCount; ++J) {
       NativeDeviceCodeImage &NDCI = AM.NativeDeviceCodeImages[J];
@@ -714,7 +776,8 @@ SYCLBIN::SYCLBIN(const char *Data, size_t Size) {
       const uint64_t NDCIHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize + IRMHeaderBlockSize +
           sizeof(NativeDeviceCodeImageHeaderType) *
-              (AMHeader->NativeDeviceCodeImageOffset + J);
+              (static_cast<uint64_t>(AMHeader->NativeDeviceCodeImageOffset) +
+               J);
       const NativeDeviceCodeImageHeaderType *NDCIHeader =
           HeaderBlockReader.GetHeaderPtr<NativeDeviceCodeImageHeaderType>(
               NDCIHeaderByteOffset);
@@ -750,12 +813,15 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     AbstractModuleDesc &AMDesc = AbstractModuleDescriptors[I];
 
     // Set up the abstract module descriptor.
-    AMDesc.NumJITBinaries = AM.IRModules.size();
+    // The number of JIT binaries is set below, as IR modules of unsupported
+    // types are skipped. Their slots are left unused to keep the native
+    // binaries at a fixed offset.
+    AMDesc.NumJITBinaries = 0;
     AMDesc.NumNativeBinaries = AM.NativeDeviceCodeImages.size();
     AMDesc.JITBinaries = CurrentBinaryImagesStart;
-    AMDesc.NativeBinaries = CurrentBinaryImagesStart + AMDesc.NumJITBinaries;
+    AMDesc.NativeBinaries = CurrentBinaryImagesStart + AM.IRModules.size();
     CurrentBinaryImagesStart +=
-        AMDesc.NumJITBinaries + AM.NativeDeviceCodeImages.size();
+        AM.IRModules.size() + AM.NativeDeviceCodeImages.size();
 
     // Construct properties from SYCLBIN metadata.
     std::vector<_sycl_device_binary_property_set_struct> &BinPropertySets =
@@ -764,12 +830,30 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
       SYCLBIN::IRModule &IRM = AM.IRModules[J];
 
+      // Files without a type are treated as SPIR-V, as they were before the
+      // type was read. Look up without inserting into the parsed registry.
+      assert(IRM.Metadata != nullptr);
+      uint32_t RawIRModuleType =
+          static_cast<uint32_t>(SYCLBIN::IRModuleType::SPIRV);
+      const PropertySetRegistry::MapTy &IRMetadataSets =
+          IRM.Metadata->getPropSets();
+      auto SetIt =
+          IRMetadataSets.find(PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA);
+      if (SetIt != IRMetadataSets.end()) {
+        auto TypeIt = SetIt->second.find("type");
+        if (TypeIt != SetIt->second.end())
+          RawIRModuleType = TypeIt->second.asUint32();
+      }
+      std::optional<IRModuleFormatInfo> FormatInfo =
+          getIRModuleFormatInfo(RawIRModuleType);
+      if (!FormatInfo)
+        continue;
+
       sycl_device_binary_struct &DeviceBinary = DeviceBinaries.emplace_back();
       DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
       DeviceBinary.Kind = 4;
-      DeviceBinary.Format = SYCL_DEVICE_BINARY_TYPE_SPIRV; // TODO: Determine.
-      DeviceBinary.DeviceTargetSpec =
-          __SYCL_DEVICE_BINARY_TARGET_SPIRV64; // TODO: Determine.
+      DeviceBinary.Format = FormatInfo->Format;
+      DeviceBinary.DeviceTargetSpec = FormatInfo->DeviceTargetSpec;
       DeviceBinary.CompileOptions = nullptr;
       DeviceBinary.LinkOptions = nullptr;
       DeviceBinary.BinaryStart =
@@ -782,7 +866,8 @@ SYCLBINBinaries::SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize)
       DeviceBinary.PropertySetsEnd =
           BinPropertySets.data() + BinPropertySets.size();
       // Create an image from it.
-      AMDesc.JITBinaries[J] = RTDeviceBinaryImage{&DeviceBinary};
+      AMDesc.JITBinaries[AMDesc.NumJITBinaries++] =
+          RTDeviceBinaryImage{&DeviceBinary};
     }
 
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {

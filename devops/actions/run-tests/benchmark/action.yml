@@ -305,6 +305,7 @@ runs:
       # Run dpsycl-ls
       dpsycl-ls --verbose
   - name: Build and run benchmarks
+    id: run_benchmarks
     shell: bash
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
@@ -375,8 +376,13 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       LLVM_BENCHMARKS_UNIT_TESTING: 1
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
+      LIBOFFLOAD_ARTIFACT: ${{ inputs.liboffload_artifact }}
     run: |
       # Run benchmarks' integration tests
+
+      if [ -n "$LIBOFFLOAD_ARTIFACT" ]; then
+        export OFFLOAD_PREFIX="$(realpath ./liboffload)"
+      fi
 
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py
@@ -396,6 +402,16 @@ runs:
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
       done
+  - name: Upload github summaries as artifact
+    if: ${{ !cancelled() && steps.run_benchmarks.outcome != 'skipped' }}
+    uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+    with:
+      name: benchmark-summaries-${{ env.SAVE_NAME }}
+      path: |
+        ./github_summary_exe.md
+        ./github_summary_reg.md
+      if-no-files-found: ignore
+      retention-days: 7
   - name: Push benchmarks results
     if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
     shell: bash

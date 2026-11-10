@@ -1,7 +1,7 @@
-// RUN: %{build} -fprofile-instr-generate -fcoverage-mapping -o %t.out
+// RUN: %{build} -fprofile-instr-generate -fcoverage-mapping -fcoverage-prefix-map=%S=. -o %t.out
 // RUN: %{run} LLVM_PROFILE_FILE=%t.profraw %t.out
 // RUN: %{run-aux} llvm-profdata merge %t.profraw -o %t.profdata
-// RUN: %{run-aux} llvm-cov show -instr-profile=%t.profdata %t.out -name="main" | FileCheck %s
+// RUN: %{run-aux} llvm-cov show -instr-profile=%t.profdata %t.out -name="main" -compilation-dir=%S | FileCheck %s
 
 #include <sycl/usm.hpp>
 

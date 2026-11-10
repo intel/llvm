@@ -99,6 +99,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 # There's little reason not to generate the compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# LLVM sets this for in-tree builds; standalone builds need it as well.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+
 include(Assertions)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -195,7 +198,7 @@ if(UR_ENABLE_TRACING)
         set(UR_XPTIFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xptifw")
         cmake_path(NORMAL_PATH UR_XPTIFW_SOURCE_DIR
             OUTPUT_VARIABLE UR_XPTIFW_SOURCE_DIR)
-        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+        if(IS_DIRECTORY "${UR_XPTIFW_SOURCE_DIR}")
             FetchContent_Declare(xptifw SOURCE_DIR "${UR_XPTIFW_SOURCE_DIR}")
         else()
             FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
@@ -228,7 +231,10 @@ if(UR_ENABLE_TRACING)
         endif()
     endif()
 
-    if (MSVC)
+    if (DEFINED UR_XPTI_TARGET)
+        # Use previously defined version.
+        set(TARGET_XPTI ${UR_XPTI_TARGET})
+    elseif (MSVC)
         set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)
@@ -436,11 +442,12 @@ if(UR_FORMAT_CPP_STYLE)
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cppformat
     )
 
-    # Generate source and check for uncommitted diffs
-    add_custom_target(check-generated
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-        COMMAND git diff --exit-code
-        DEPENDS generate-code
+    # Generate source and check for uncommitted diffs and new untracked files
+    add_custom_target(check-generated USES_TERMINAL
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DBINARY_DIR=${CMAKE_BINARY_DIR}
+            -P ${PROJECT_SOURCE_DIR}/cmake/CheckGenerated.cmake
     )
 else()
     message(STATUS "  UR_FORMAT_CPP_STYLE not set. Targets: 'generate' and 'check-generated' are not available")

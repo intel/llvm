@@ -1,0 +1,79 @@
+; Checks reverse-translation of value-level ops on an OpTypeVectorIdEXT value:
+; OpConstantComposite, OpSpecConstantComposite, OpCompositeConstruct,
+; OpCompositeExtract, OpCompositeInsert.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn_cc "test_const_composite"
+               OpName %fn_sc "test_spec_composite"
+               OpName %fn_ct "test_composite_construct"
+               OpName %fn_ce "test_composite_extract"
+               OpName %fn_ci "test_composite_insert"
+               OpDecorate %fn_cc LinkageAttributes "test_const_composite" Export
+               OpDecorate %fn_sc LinkageAttributes "test_spec_composite" Export
+               OpDecorate %fn_ct LinkageAttributes "test_composite_construct" Export
+               OpDecorate %fn_ce LinkageAttributes "test_composite_extract" Export
+               OpDecorate %fn_ci LinkageAttributes "test_composite_insert" Export
+       %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
+     %uint_5 = OpConstant %uint 5
+    %float_1 = OpConstant %float 1
+    %sc_elem = OpSpecConstant %float 2
+    %v5float = OpTypeVectorIdEXT %float %uint_5
+         %cc = OpConstantComposite %v5float %float_1 %float_1 %float_1 %float_1 %float_1
+         %sc = OpSpecConstantComposite %v5float %sc_elem %sc_elem %sc_elem %sc_elem %sc_elem
+    %fnty_cc = OpTypeFunction %v5float
+    %fnty_ct = OpTypeFunction %v5float %float
+    %fnty_ce = OpTypeFunction %float %v5float
+    %fnty_ci = OpTypeFunction %v5float %v5float %float
+
+; CHECK: define spir_func <5 x float> @test_const_composite()
+; CHECK: ret <5 x float> splat (float 1.000000e+00)
+      %fn_cc = OpFunction %v5float None %fnty_cc
+   %entry_cc = OpLabel
+               OpReturnValue %cc
+               OpFunctionEnd
+
+; CHECK: define spir_func <5 x float> @test_spec_composite()
+; CHECK: ret <5 x float> splat (float 2.000000e+00)
+      %fn_sc = OpFunction %v5float None %fnty_cc
+   %entry_sc = OpLabel
+               OpReturnValue %sc
+               OpFunctionEnd
+
+; CHECK: define spir_func <5 x float> @test_composite_construct(float %[[#A:]])
+; CHECK: insertelement <5 x float> poison, float %[[#A]], i32 0
+      %fn_ct = OpFunction %v5float None %fnty_ct
+      %arg_a = OpFunctionParameter %float
+   %entry_ct = OpLabel
+        %ctv = OpCompositeConstruct %v5float %arg_a %arg_a %arg_a %arg_a %arg_a
+               OpReturnValue %ctv
+               OpFunctionEnd
+
+; CHECK: define spir_func float @test_composite_extract(<5 x float> %[[#V:]])
+; CHECK: extractelement <5 x float> %[[#V]], i32 3
+      %fn_ce = OpFunction %float None %fnty_ce
+      %arg_v = OpFunctionParameter %v5float
+   %entry_ce = OpLabel
+        %ext = OpCompositeExtract %float %arg_v 3
+               OpReturnValue %ext
+               OpFunctionEnd
+
+; CHECK: define spir_func <5 x float> @test_composite_insert(<5 x float> %[[#V:]], float %[[#S:]])
+; CHECK: insertelement <5 x float> %[[#V]], float %[[#S]], i32 2
+      %fn_ci = OpFunction %v5float None %fnty_ci
+     %arg_v2 = OpFunctionParameter %v5float
+      %arg_s = OpFunctionParameter %float
+   %entry_ci = OpLabel
+        %ins = OpCompositeInsert %v5float %arg_s %arg_v2 2
+               OpReturnValue %ins
+               OpFunctionEnd
