@@ -22,6 +22,7 @@ add_llvm_unittest(ObjectTests
   OffloadingBundleTest.cpp
   SymbolSizeTest.cpp
   SymbolicFileTest.cpp
+  WindowsMachineFlagTest.cpp
   XCOFFObjectFileTest.cpp
   )
 

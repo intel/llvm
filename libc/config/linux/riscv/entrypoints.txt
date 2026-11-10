@@ -536,6 +536,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.unistd.pause
     libc.src.unistd.pipe
     libc.src.unistd.pipe2
+    libc.src.unistd.posix_close
     libc.src.unistd.pread
     libc.src.unistd.pwrite
     libc.src.unistd.read
@@ -1621,6 +1622,8 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.signal.sigpending
     libc.src.signal.sigprocmask
     libc.src.signal.sigsuspend
+    libc.src.signal.sigtimedwait
+    libc.src.signal.sigwaitinfo
 
     # spawn.h entrypoints
     libc.src.spawn.posix_spawn
@@ -1691,6 +1694,7 @@ if(LLVM_LIBC_FULL_BUILD)
     libc.src.time.localtime
     libc.src.time.localtime_r
     libc.src.time.mktime
+    libc.src.time.clock_nanosleep
     libc.src.time.nanosleep
     libc.src.time.strftime
     libc.src.time.strftime_l
