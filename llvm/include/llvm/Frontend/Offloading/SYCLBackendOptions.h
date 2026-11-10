@@ -14,7 +14,7 @@
 
 namespace llvm::offloading {
 
-inline bool isSYCLIntelGPUCRI(StringRef Arch) {
+inline bool supportsBFloat16(StringRef Arch) {
   Arch.consume_front("intel_gpu_");
   return Arch == "cri" || Arch == "35_11_0";
 }

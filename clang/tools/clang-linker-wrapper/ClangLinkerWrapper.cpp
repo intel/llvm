@@ -941,7 +941,7 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
             : "-spirv-allow-unknown-intrinsics=llvm.genx.");
 
   // Disable all the extensions by default
-  static constexpr char ExtArg[] =
+  static const std::string BaseExtArg =
       "-spirv-ext=-all"
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
@@ -972,15 +972,13 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
 
-  static constexpr char CRIExtArg[] =
-      ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
-  if (llvm::offloading::isSYCLIntelGPUCRI(Arch)) {
-    // Function-local static: initialized once, thread-safe, outlives callers.
-    static const std::string Combined = std::string(ExtArg) + CRIExtArg;
-    TranslatorArgs.push_back(Combined.c_str());
-    return;
-  }
-  TranslatorArgs.push_back(ExtArg);
+  // Function-local statics: initialized once, thread-safe, and outlive the
+  // StringRefs stored in TranslatorArgs.
+  static const std::string CRIExtArg =
+      BaseExtArg + ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
+  TranslatorArgs.push_back(llvm::offloading::supportsBFloat16(Arch)
+                               ? CRIExtArg
+                               : BaseExtArg);
 }
 
 /// Run LLVM to SPIR-V translation.

@@ -1,6 +1,4 @@
-// REQUIRES: arch-intel_gpu_cri, ocloc, target-spir
-// UNSUPPORTED: spirv-backend
-// UNSUPPORTED-INTENDED: native atomic16 requires the SPIR-V translator
+// REQUIRES: arch-intel_gpu_cri, ocloc, target-spir, linux
 // RUN: mkdir -p %t.dir
 // RUN: %{build} -fsycl-targets=intel_gpu_cri,intel_gpu_bmg_g31,intel_gpu_pvc -fsycl-device-code-split=per_kernel -save-temps=obj -o %t.dir/atomic16.out
 // RUN: FileCheck %s --check-prefix=CRI --input-file=%t.dir/atomic16_aot-sycl-spir64_gen-unknown-unknown-cri.table

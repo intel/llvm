@@ -11412,7 +11412,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
 
-  if (llvm::offloading::isSYCLIntelGPUCRI(Arch))
+  if (llvm::offloading::supportsBFloat16(Arch))
     ExtArg += ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
 
   TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
