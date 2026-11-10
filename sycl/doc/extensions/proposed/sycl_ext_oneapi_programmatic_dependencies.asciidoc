@@ -74,8 +74,8 @@ specified below.
 == Overview
 
 This extension provides a way to enqueue a dependent kernel such that the
-prolog of the dependent kernel overlaps with the epilog of its predecessor
-kernel (called the primary kernel from now on).
+prolog of the dependent kernel overlaps with its preceding kernel (called the
+primary kernel from now on).
 This is useful in cases where the dependent kernel does some initial work that
 does not need the results that are computed by the primary kernel.
 This extension can also be used to hide the launch latency of the dependent
@@ -84,35 +84,33 @@ kernel by overlapping this launch with the execution of the primary kernel.
 The simplified code snippet below helps illustrate the flow.
 The first call to `nd_launch` enqueues the primary kernel, and the second call
 enqueues the dependent kernel.
-Once all sub-groups in the primary kernel call `programmatic_trigger`, the
-depend kernel may start executing.
-Each work-item in the dependent kernel must call `programmatic_wait`, which
-blocks execution until the primary kernel completes.
+The launch of the dependent kernel uses the special property
+`programmatic_serialization`, which allows the dependent kernel to be launched
+even before the primary kernel completes.
+Work-items in the dependent kernel may do some work that does not require the
+results from the primary kernel.
+However, each work-item in the dependent kernel must eventually call
+`programmatic_wait`, which blocks execution until the primary kernel completes.
 Once these calls unblock, each work-item in the dependent kernel can use
 data that was written to memory from the primary kernel.
 
 [source,c++]
 ----
 syclex::nd_launch(q, ndr, [=](sycl::nd_item<1> it) {
-  // main body of primary kernel
-  syclex::programmatic_trigger();
-  // epilog of primary kernel
-  // potentially overlapped with the dependent kernel prolog ...
+  // body of primary kernel, potentially overlapped with dependent kernel prolog
 });
 
-syclex::nd_launch(q, ndr, [=](sycl::nd_item<1> it) {
-  // ... prolog of dependent kernel
-  //     potentially overlapped with the epilog of primary kernel
+syclex::launch_config cfg{
+  ndr,
+  syclex::properties{syclex::programmatic_serialization{}}
+};
+
+syclex::nd_launch(q, cfg, [=](sycl::nd_item<1> it) {
+  // prolog of dependent kernel, potentially overlapped with primary kernel
   syclex::programmatic_wait();
   // use results from primary kernel
 });
 ----
-
-Some details are not shown here for brevity.
-For example, there are kernel launch properties which specify the dependency
-relationship between the kernels.
-These details are described more thoroughly below, and there are more detailed
-examples toward the end of this document.
 
 
 == Specification
@@ -167,89 +165,34 @@ this extension.
 
 === New functions for programmatic kernel dependencies
 
-This extension adds two new functions which can be called in device code to
+This extension adds a new function which can be called in device code to
 implement programmatic dependencies between a primary kernel and its dependent
 kernel(s).
 
 In the current version of this extension, there is only one type of programmatic
 dependency called "programmatic serialization", but other forms of programmatic
 dependencies might be added in future versions of this extension.
-The functions defined in this section are expected to work with all forms of
+The function defined in this section is expected to work with all forms of
 programmatic dependencies.
 Although programmatic serialization involves one primary kernel and one
 dependent kernel, other forms of programmatic dependencies might involve one
 primary kernel and multiple dependent kernels.
 
-The primary kernel (the kernel triggering the dependency) calls
-`programmatic_trigger` and the dependent kernels (the kernels waiting on the
-dependency) call `programmatic_wait`.
-Once each sub-group in the primary kernel calls `programmatic_trigger`, the
-implementation may start executing the dependent kernels.
-Each work-item in the dependent kernels must call `programmatic_wait`, which
-causes the work-item to block until the primary kernel completes.
-As a result, code that follows the call to `programmatic_trigger` in the
-primary kernel (the primary kernel's epilog) may overlap execution with the code
-in the dependent kernels that precede their calls to `programmatic_wait` (the
-dependent kernels' prolog).
-Although this overlap is possible, there is no guarantee that the epilog and
-prologs overlap in this manner.
-
-It is not necessary for every sub-group in the primary kernel to call
-`programmatic_trigger`.
-If a sub-group does not call this function, an implicit call is made after all
-work-items in the sub-group complete.
-
-As noted earlier, future versions of this extension may support several types of
-programmatic dependencies.
 The specific type of dependency is determined by the properties used to launch
 the primary and dependent kernels.
-These properties are described later.
+The property used for programmatic serialization is described later in this
+document.
 
-'''
-
-`*programmatic_trigger*`
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-void programmatic_trigger();
-
-}
-----
-
-_Preconditions_: The function is called from device code.
-
-_Effects:_ Informs the implementation that the calling sub-group is ready for
-the dependent kernels to start executing.
-If a sub-group does not call this function before all its work-items complete,
-it behaves as though an implicit call is made just after they complete.
-
-_Remarks:_ A sub-group may call this function multiple times, but only the first
-call has any effect.
-Subsequent calls by the same sub-group are ignored.
-
-A kernel may call this function even when there are no dependent kernels.
-When this happens, the call has no effect.
-
-This function is an optional kernel feature as defined by section 5.7 of the
-core SYCL specification.
-If a kernel's static call tree contains a call to this function and the
-application submits the kernel to a device that does not have
-`aspect::ext_oneapi_programmatic_serialization`, the implementation throws a
-synchronous `exception` with the error code `errc::kernel_not_supported` from
-the kernel invocation command.
-
-[_Note:_ Calls to this function do not "synchronize with" the start of the
-dependent kernel in the formal {cpp} definition of that term.
-As a result, memory writes that are sequenced before this call are *not*
-guaranteed to be visible in the dependent kernel.
-However, the application can make these writes visible by using a "release"
-memory fence at `memory_scope::device` or `memory_scope::system` that is
-sequenced before the call to `programmatic_trigger`.
-(Assuming, of course, that the device supports this memory fence scope.)
-See also the synchronization guarantees for `programmatic_wait`.
-_{endnote}_]
+In all forms of programmatic dependency, the dependent kernels may be launched
+even before the primary kernel completes.
+Therefore, each work-item in the dependent kernels must call
+`programmatic_wait`, which causes the work-item to block until the primary
+kernel completes.
+As a result, code in the primary kernel may overlap execution with the code in
+the dependent kernels that precede their calls to `programmatic_wait` (the
+dependent kernels' prolog).
+Although this overlap is possible, there is no guarantee that code overlaps in
+this manner.
 
 '''
 
@@ -295,8 +238,8 @@ This type of dependency can only be used when two kernels are submitted
 consecutively to the same in-order queue.
 The first kernel is the primary kernel and the second is the dependent kernel.
 When programmatic serialization is used, the dependent kernel may launch even
-before the primary kernel completes, and the two kernels synchronize via the
-`programmatic_trigger` and `programmatic_wait` calls.
+before the primary kernel completes, and the two kernels synchronize via
+`programmatic_wait`.
 
 In order to use this type of programmatic dependency, the primary kernel does
 not need to be launched with any special property.
@@ -305,7 +248,7 @@ However, the dependent kernel must be launched with the
 
 Kernels using programmatic serialization may be chained together.
 In this case, a single kernel may act as both the dependent kernel to its
-predecessor and as the primary kernel to it successor.
+predecessor and as the primary kernel to its successor.
 
 This property is defined as follows:
 
@@ -382,12 +325,8 @@ int main() {
   sycl::nd_range<1> ndr{GLOBAL, LOCAL};
 
   // Launch the first kernel in the programmatic serialization pair.
-  // Each sub-group calls "programmatic_trigger" once it is ready for the second
-  // kernel to begin execution.
   syclex::nd_launch(q, ndr, [=](sycl::nd_item<1> it) {
-    // main body of first kernel
-    syclex::programmatic_trigger();
-    // potentially overlapped with second kernel ...
+    // body of first kernel potentially overlapped with prolog of second kernel ...
   });
 
   // Launch the second kernel in the programmatic serialization pair.
@@ -417,9 +356,7 @@ static constexpr size_t LOCAL = 16;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
 void primary(/*args*/) {
-  // main body of first kernel
-  syclex::programmatic_trigger();
-  // potentially overlapped with second kernel ...
+  // body of first kernel potentially overlapped with prolog of second kernel ...
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
