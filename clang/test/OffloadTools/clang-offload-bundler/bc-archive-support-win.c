@@ -1,7 +1,4 @@
-// Target "host-x86_64-pc-windows-msvc" only works on Windows
-// REQUIRES: system-windows
-
-// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+// REQUIRES: x86-registered-target
 
 // Ensure that bundled BC files in archives can work with:
 // TEST1:  clang-offload-bundler -list
@@ -16,13 +13,15 @@
 // Make bundled object with targets:
 // sycl-spir64-unknown-unknown
 // host-x86_64-pc-windows-msvc
-// RUN: %clangxx -fsycl --no-offload-new-driver -c -ccc-install-dir %{clang_install_dir} %s -o %t_bundled.o
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c %s -o %t_dev.bc
+// RUN: %clang -target x86_64-pc-windows-msvc -c %s -o %t_host.o
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown,host-x86_64-pc-windows-msvc -input=%t_dev.bc -input=%t_host.o -output=%t_bundled.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make three distinct BC files
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE1 -ccc-install-dir %{clang_install_dir} %s -o %t1.bc
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE2 -ccc-install-dir %{clang_install_dir} %s -o %t2.bc
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE3 -ccc-install-dir %{clang_install_dir} %s -o %t3.bc
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c -DTYPE1 %s -o %t1.bc
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c -DTYPE2 %s -o %t2.bc
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c -DTYPE3 %s -o %t3.bc
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Bundle BC files to different targets:
@@ -110,9 +109,7 @@
 // RUN_disabled_because_backtick_not_supported: cmp %t_unbundled_A.o `cat %t_listA.txt`
 // RUN_disabled_because_backtick_not_supported: cmp %t2.bc           `cat %t_listB.txt`
 
-#include <sycl/sycl.hpp>
-
-SYCL_EXTERNAL int foo(int x) {
+int foo(int x) {
 
 #ifdef TYPE1
   return x+13;

@@ -1,36 +1,31 @@
 // This test prepares Archive input for clang-offload-bundler
-// and checks -exclude-target command line option.
-// Option should exclude fat_device_aoco object file.
+// and checks -excluded-targets command line option.
+// Option should exclude every archive member that contains an excluded target
+// (fat_device_excl.o below), even if it also contains the requested target.
 
 // UNSUPPORTED: system-windows
+// REQUIRES: x86-registered-target
 
-// The test uses assembled archive file fatlib.a.
-// The assembly algorithm is the following:
-// echo "DUMMY IR FILE" > device
-// echo "DUMMY IR2 FILE" > device2
-// echo "DUMMY AOCO FILE" > aoco
-// echo "DUMMY HOST FILE" > host
-// echo "DUMMY HOST2 FILE" > host2
-// # Wrap and compile objects
-// clang-offload-wrapper -o=device.bc -host=x86_64-unknown-linux-gnu -target=spir64 -kind=sycl device
-// clang-offload-wrapper -o=device2.bc -host=x86_64-unknown-linux-gnu -target=spir64 -kind=sycl device2
-// clang-offload-wrapper -o=aoco.bc -host=x86_64-unknown-linux-gnu -target=spir64 -kind=sycl aoco
-// clang-offload-wrapper -o=host.bc -host=x86_64-unknown-linux-gnu -target=spir64 -kind=sycl host
-// clang-offload-wrapper -o=host2.bc -host=x86_64-unknown-linux-gnu -target=spir64 -kind=sycl host2
-// llc -filetype=obj -o device.o device.bc
-// llc -filetype=obj -o device2.o device2.bc
-// llc -filetype=obj -o aoco.o aoco.bc
-// llc -filetype=obj -o host.o host.bc
-// llc -filetype=obj -o host2.o host2.bc
-// # Bundle the objects
-// clang-offload-bundler -input=device.o -input=host.o -output=fat_device.o -targets=sycl-spir64_fpga-unknown-unknown,host-x86_64-unknown-linux-gnu -type=o
-// clang-offload-bundler -input=device2.o -input=aoco.o -input=host2.o -output=fat_device_aoco.o -targets=sycl-spir64_fpga-unknown-unknown,sycl-fpga_aoco-intel-unknown,host-x86_64-unknown-linux-gnu -type=o
-// # Create the archive
-// ar cr fatlib.a fat_device.o fat_device_aoco.o
-
+// Build the archive: two fat objects, the second one also has the excluded
+// sycl-spir64_gen target.
+// RUN: rm -rf %t && mkdir %t
+// RUN: echo "DUMMY IR FILE" > %t/device
+// RUN: echo "DUMMY IR2 FILE" > %t/device2
+// RUN: echo "DUMMY GEN FILE" > %t/gen
+// RUN: %clang -target x86_64-unknown-linux-gnu -c %s -o %t/host.o
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64_x86_64-unknown-unknown,host-x86_64-unknown-linux-gnu -input=%t/device -input=%t/host.o -output=%t/fat_device.o
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64_x86_64-unknown-unknown,sycl-spir64_gen-unknown-unknown,host-x86_64-unknown-linux-gnu -input=%t/device2 -input=%t/gen -input=%t/host.o -output=%t/fat_device_excl.o
+// RUN: llvm-ar cr %t/fatlib.a %t/fat_device.o %t/fat_device_excl.o
 
 // Unbundle archive
-// RUN: clang-offload-bundler -type=aoo -excluded-targets=sycl-fpga_aoco-intel-unknown -targets=sycl-spir64_fpga-unknown-unknown -input=%S/Inputs/exclude/fatlib.a -output=%t-my_output.txt -unbundle -allow-missing-bundles
+// RUN: clang-offload-bundler -type=aoo -excluded-targets=sycl-spir64_gen-unknown-unknown -targets=sycl-spir64_x86_64-unknown-unknown -input=%t/fatlib.a -output=%t/my_output.txt -unbundle -allow-missing-bundles
 
-// Check that output of unbundling doesn't contain content of device2
-// RUN: cat %t-my_output.txt | xargs cat | strings | not grep "DUMMY IR2"
+// Check that output of unbundling contains content of device, but not device2
+// RUN: cat %t/my_output.txt | xargs cat | strings | grep "DUMMY IR FILE"
+// RUN: cat %t/my_output.txt | xargs cat | strings | not grep "DUMMY IR2"
+
+// Without -excluded-targets, device2 is extracted too
+// RUN: clang-offload-bundler -type=aoo -targets=sycl-spir64_x86_64-unknown-unknown -input=%t/fatlib.a -output=%t/all_output.txt -unbundle -allow-missing-bundles
+// RUN: cat %t/all_output.txt | xargs cat | strings | grep "DUMMY IR2"
+
+void foo(void) {}
