@@ -1,13 +1,15 @@
 // Device pre-linking host-only or kernel-free SYCL inputs must produce an
 // object that a host linker can use without linking the SYCL runtime.
 // Regression for https://github.com/intel/llvm/issues/23528.
-// Use the GNU-style driver options with both clang++ and clang-cl test setups.
-// DEFINE: %{cxx} = %clangxx --driver-mode=g++
-// Preview mode adds a flag that is unused without SYCL source compilation.
-// DEFINE: %{host} = %{cxx} -fno-sycl %if preview-mode %{-Wno-unused-command-line-argument%}
+// clang-cl is kept in CL mode, where %clangxx may carry CL-only flags such as
+// /EHsc. /MD makes host-only and SYCL objects use the same CRT.
+// DEFINE: %{cxx} = %clangxx %if cl_options %{/MD%} %else %{--driver-mode=g++%}
+// Preview mode and CL-only %clangxx flags (e.g. /EHsc) are unused without SYCL
+// source compilation.
+// DEFINE: %{host} = %{cxx} -fno-sycl %if preview-mode || cl_options %{-Wno-unused-command-line-argument%}
 // Disable automatic SYCL library dependencies in Windows objects as well.
 // DEFINE: %{sycl} = %{cxx} -fsycl -nolibsycl
-// DEFINE: %{sycl_link} = %{sycl} -fsycl-link %if preview-mode %{-Wno-unused-command-line-argument%}
+// DEFINE: %{sycl_link} = %{sycl} -fsycl-link %if preview-mode || cl_options %{-Wno-unused-command-line-argument%}
 // RUN: %{host} -c %s -o %t.host.o
 
 // No device inputs, with both offload drivers.
