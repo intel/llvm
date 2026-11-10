@@ -76,10 +76,26 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   if (Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
-  // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() && !Blocking) {
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
+  // Exit early if the command is blocked (e.g. by a live host accessor).
+  // Blocking callers must not wait here: they hold the graph read lock, and
+  // the thread that unblocks the command may need the graph lock to do so.
+  // Instead, register the root as a blocked user; it is enqueued when the
+  // command is unblocked, and waitForEvent waits for it with the lock dropped.
+  if (Cmd->isEnqueueBlocked()) {
+    if (Blocking) {
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+      // Re-check under the mutex the unblocking thread also takes, so that
+      // the root is either seen as a blocked user or enqueued normally.
+      if (Cmd->isEnqueueBlocked()) {
+        Cmd->addBlockedUserUnique(RootCommand->getEvent());
+        RootCommand->copySubmissionCodeLocation();
+        EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+        return false;
+      }
+    } else {
+      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+      return false;
+    }
   }
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
@@ -113,7 +129,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
-  bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  bool Result = Cmd->enqueue(EnqueueResult, ToCleanUp);
   if (Result)
     Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
   return Result;

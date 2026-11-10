@@ -1,5 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv
 
 ; This is a regression test for reported issue https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/524.

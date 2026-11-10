@@ -152,15 +152,18 @@ void test_accessor() {
 void test_shared() {
   sycl::queue Q;
   int *data = sycl::malloc_shared<int>(4, Q);
+  assert(data != nullptr);
+  data[0] = 0;
 
   kernel_bundle bundle =
       get_kernel_bundle<bundle_state::executable>(Q.get_context());
   kernel_id id = ext::oneapi::experimental::get_kernel_id<sum<int *>>();
   kernel Kernel = bundle.get_kernel(id);
   Q.submit([&](handler &h) {
-    h.set_args(data);
-    h.parallel_for(nd_range{{1}, {1}}, Kernel);
-  });
+     h.set_args(data);
+     h.parallel_for(nd_range{{1}, {1}}, Kernel);
+   }).wait_and_throw();
+  assert(data[0] == 42);
   sycl::free(data, Q);
 }
 

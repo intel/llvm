@@ -1,11 +1,11 @@
 // REQUIRES: native_cpu_ock
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
 
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -fno-inline -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-TL
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -fno-inline -fno-discard-value-names -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-TL
 
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fenable-sycl-dae -mllvm -sycl-opt -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
 
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-TL
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -fno-discard-value-names -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-TL
 
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins.

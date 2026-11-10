@@ -111,23 +111,17 @@ ur_result_t urDeviceGet(
   std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
   bool DeviceDefaultGPU = false;
 
-  bool isCombinedMode =
-      std::any_of(Platform->URDevicesCache.begin(),
-                  Platform->URDevicesCache.end(), [](const auto &D) {
-                    if (D->isSubDevice())
-                      return false;
-                    ze_device_handle_t RootDev = nullptr;
-                    // Query Root Device for root-devices.
-                    // We cannot use ZE2UR_CALL because under some circumstances
-                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
-                    // and ZE2UR_CALL will abort because it's not
-                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
-                    // check manually that the result is either
-                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
-                                                (D->ZeDevice, &RootDev));
-                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
-                  });
+  bool isCombinedMode = false;
+  for (const auto &D : Platform->URDevicesCache) {
+    if (D->isSubDevice())
+      continue;
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Platform->getRootDevice(D->ZeDevice, &RootDev));
+    if (RootDev != nullptr) {
+      isCombinedMode = true;
+      break;
+    }
+  }
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -1213,15 +1207,11 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
-    ur_device_handle_t UrRootDev = nullptr;
-    ze_device_handle_t DevHandle = Device->ZeDevice;
-    ze_device_handle_t RootDev;
-    // Query Root Device.
-    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (DevHandle, &RootDev));
-    UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
-    if (errc != ZE_RESULT_SUCCESS &&
-        errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-      return ze2urResult(errc);
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Device->Platform->getRootDevice(Device->ZeDevice, &RootDev));
+    ur_device_handle_t UrRootDev =
+        RootDev ? Device->Platform->getDeviceFromNativeHandle(RootDev)
+                : nullptr;
     return ReturnValue(UrRootDev);
   }
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
@@ -1382,28 +1372,24 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
     const auto ZeDeviceBlockArrayFlags =
         Device->ZeDeviceBlockArrayProperties->flags;
 
     auto supportsFlags =
-        [&](ze_intel_device_block_array_exp_flags_t RequiredFlags) {
+        [&](ur_ze_intel_device_block_array_exp_flags_t RequiredFlags) {
           return (ZeDeviceBlockArrayFlags & RequiredFlags) == RequiredFlags;
         };
 
     ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities = 0;
-    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
+    if (supportsFlags(UR_ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
       BlockArrayCapabilities |=
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
     }
-    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
+    if (supportsFlags(UR_ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
       BlockArrayCapabilities |=
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
     }
     return ReturnValue(BlockArrayCapabilities);
-#else
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-#endif
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
 #ifdef _WIN32
@@ -1555,8 +1541,13 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
-  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP: {
+    // Only report support if the driver can export device allocations as at
+    // least one external memory type.
+    return ReturnValue(
+        Device->ZeDeviceExternalMemoryProperties->memoryAllocationExportTypes !=
+        0);
+  }
   case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
     // LUID and Device node mask are only available on Windows.
@@ -2130,6 +2121,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                         (ZeDevice, &Properties));
       };
 
+  ZeDeviceExternalMemoryProperties.Compute =
+      [ZeDevice](ze_device_external_memory_properties_t &Properties) {
+        // If the query fails, the export types remain zero-initialized and
+        // no export support is reported.
+        ZE_CALL_NOCHECK(zeDeviceGetExternalMemoryProperties,
+                        (ZeDevice, &Properties));
+      };
+
   ZeDeviceCacheProperties.Compute =
       [ZeDevice](ze_device_cache_properties_t &Properties) {
         // TODO: Since v1.0 there can be multiple cache properties.
@@ -2198,16 +2197,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
     Range = makeQueuePriorityRange(DriverLevels);
   };
 
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
-      [ZeDevice](
-          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+      [ZeDevice](ZexStruct<ur_ze_intel_device_block_array_exp_properties_t>
+                     &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
-#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
   auto UrPlatform = this->Platform;
   ZeDeviceVectorWidthPropertiesExt.Compute =
@@ -2272,7 +2269,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       };
 
   ZeXEDeviceProperties.Compute =
-      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+      [ZeDevice](ur_ze_intel_xe_device_exp_properties_t &Properties) {
         // Set up default values of 0
         Properties.numXeStacks = 0;
         Properties.numXeRegionsPerStack = 0;

@@ -1,6 +1,9 @@
 /// With the old offloading model, the -fno-sycl-rdc device image is already
 /// wrapped by clang-offload-wrapper, so it must not also be embedded into the
 /// host compilation via -foffload-include-binary.
+
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:   -fsycl-targets=spir64_gen -fno-sycl-rdc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-OLD %s
@@ -9,7 +12,7 @@
 // CHK-OLD: clang-offload-bundler
 
 /// The new offloading model embeds the finalized device image.
-// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -ccc-install-dir %S/Inputs/SYCL/bin \
-// RUN:   --offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-rdc -c %s 2>&1 \
+// RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -ccc-install-dir %{clang_install_dir} \
+// RUN:   --offload-new-driver -fsycl-targets=intel_gpu_pvc -fno-sycl-rdc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NEW %s
 // CHK-NEW: "-fsycl-is-host"{{.*}} "-foffload-include-binary"

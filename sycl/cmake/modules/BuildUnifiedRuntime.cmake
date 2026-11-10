@@ -116,7 +116,10 @@ if(WIN32 AND UR_STATIC_LOADER)
   # Add the remaining targets that don't match the "ur_adapter_*" pattern.
   list(APPEND _ur_crt_targets
     ur_loader ur_common ur_adapter_level_zero_common ze_loader level_zero_utils
-    urinfo ur_collector collector test_collector hwloc)
+    urinfo ur_collector collector test_collector hwloc
+    # The level-zero loader's own sample links directly against ze_loader, so
+    # it needs the same forced CRT or lld-link rejects the CRT mismatch.
+    zello_world)
   foreach(_ur_target IN LISTS _ur_crt_targets)
     if(TARGET ${_ur_target})
       # Force the release CRT (/MD), even in Debug builds.
@@ -157,12 +160,16 @@ target_include_directories(UnifiedRuntime-Headers
 find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
-  # Install the UR loader.
-  install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
-    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
-  )
+  get_target_property(_ur_loader_type ur_loader TYPE)
+  # If the UR loader is built as a static lib, it is linked into the SYCL
+  # runtime, so do not install it.
+  if(NOT _ur_loader_type STREQUAL "STATIC_LIBRARY")
+    install(TARGETS ur_loader
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
+    )
+  endif()
 
   # The loader dlopen()s its shared layers from its own directory, so they have
   # to be installed alongside it.
@@ -179,12 +186,16 @@ add_custom_target(UnifiedRuntimeAdapters)
 function(add_sycl_ur_adapter NAME)
   add_dependencies(UnifiedRuntimeAdapters ur_adapter_${NAME})
 
-  install(TARGETS ur_adapter_${NAME}
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
-    RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
+  ur_adapter_is_static(${NAME} adapter_is_static)
+  # A static adapter is linked into the UR loader, so do not install it.
+  if(NOT adapter_is_static)
+    install(TARGETS ur_adapter_${NAME}
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
+      RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
 
-  set_property(GLOBAL APPEND PROPERTY
-    SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+    set_property(GLOBAL APPEND PROPERTY
+      SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+  endif()
 endfunction()
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -418,8 +429,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
 endif()
 
 if(TARGET umf)
-  install(TARGETS umf
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-    RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+  get_target_property(_umf_type umf TYPE)
+  # If UMF is built as a static lib, it is linked into its consumers (the UR
+  # loader and adapters), so do not install it.
+  if(NOT _umf_type STREQUAL "STATIC_LIBRARY")
+    install(TARGETS umf
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+      RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+  endif()
 endif()

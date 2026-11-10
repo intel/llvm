@@ -1,4 +1,6 @@
 // REQUIRES: windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // TODO: Add hypotf case back when the missing symbol is fixed.
 

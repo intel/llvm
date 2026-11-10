@@ -116,13 +116,11 @@ if (UR_UMF_REQUIRED)
   else()
     set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-    # commit e8fd1d8431ce3c23f4b7d51711ffae9fb1966495
-    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Wed Oct 7 16:05:01 2026 +0200
-    # Use FetchContent for HWLOC sources (#1615)
-    #
-    # Note: This is 'v1.3.0-dev3-1'
-    set(UMF_TAG e8fd1d8431ce3c23f4b7d51711ffae9fb1966495)
+    # commit d0e5e35f975e1c59e9a4aaa29a176303de5e9892
+    # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Mon Nov 9 17:05:39 2026 +0100
+    # 1.3.0 release
+    set(UMF_TAG v1.3.0)
 
     if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
       message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -139,6 +137,14 @@ if (UR_UMF_REQUIRED)
 
     FetchContent_MakeAvailable(unified-memory-framework)
     FetchContent_GetProperties(unified-memory-framework)
+
+    # A static UMF is linked into its consumers. Excluding its directory also
+    # drops UMF's own install rules, which would otherwise ship its archives
+    # and development files.
+    if(NOT UR_STANDALONE_BUILD AND NOT UMF_BUILD_SHARED_LIBRARY)
+      set_property(DIRECTORY ${unified-memory-framework_SOURCE_DIR}
+        PROPERTY EXCLUDE_FROM_ALL TRUE)
+    endif()
   endif()
 else()
   message(STATUS "No adapter requires UMF, skipping its build")
@@ -149,8 +155,9 @@ if(UR_ENABLE_LATENCY_HISTOGRAM)
   if(hdr_histogram_FOUND)
     set(hdr_histogram_SOURCE_DIR "${hdr_histogram_DIR}")
   else()
-    set(HDR_HISTOGRAM_BUILD_STATIC CACHE INTERNAL ON "")
-    set(HDR_HISTOGRAM_BUILD_SHARED CACHE INTERNAL OFF "")
+    set(HDR_HISTOGRAM_BUILD_STATIC ON CACHE INTERNAL "")
+    set(HDR_HISTOGRAM_BUILD_SHARED OFF CACHE INTERNAL "")
+    set(HDR_HISTOGRAM_BUILD_PROGRAMS OFF CACHE INTERNAL "")
 
     include(FetchContent)
     FetchContent_Declare(hdr_histogram
@@ -178,13 +185,7 @@ if (UNIX)
     target_link_libraries(ur_common PUBLIC Threads::Threads)
 endif()
 
-install(TARGETS ur_common
-    COMPONENT unified-runtime
-    EXPORT ${PROJECT_NAME}-targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+install_ur_library(ur_common)
 
 # ur_umf (and the umf::umf target it wraps) only exists when UR_UMF_REQUIRED,
 # i.e. when some adapter actually links against it (see top of this file).

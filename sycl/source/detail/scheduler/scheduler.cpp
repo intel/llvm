@@ -392,7 +392,12 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 
     assert(BlockedCmd && "Can't find appropriate command to unblock");
 
-    BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+    {
+      std::lock_guard<std::mutex> Guard(BlockedCmd->MBlockedUsersMutex);
+      BlockedCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+    }
+    // Commands whose blocking waiters deferred on BlockedCmd.
+    retryEnqueueBlockedUsers(BlockedCmd->MBlockedUsers, Lock, ToCleanUp);
 
     enqueueLeavesOfReqUnlocked(Req, Lock, ToCleanUp);
   }
@@ -418,7 +423,7 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
+void Scheduler::retryEnqueueBlockedUsers(events_range ToEnqueue,
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp) {
   for (event_impl &Event : ToEnqueue) {
@@ -426,8 +431,10 @@ void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
     if (!Cmd)
       continue;
     EnqueueResultT Res;
-    bool Enqueued =
-        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
+    // BLOCKING re-registers Cmd on any command that still blocks it, so that
+    // its waiter is not lost.
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res,
+                                                   ToCleanUp, Cmd, BLOCKING);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
@@ -533,7 +540,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       // update self-event status
       CmdEvent->setComplete();
     }
-    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    Scheduler::retryEnqueueBlockedUsers(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
   QueueImpl->revisitUnenqueuedCommandsState(CmdEvent);
 

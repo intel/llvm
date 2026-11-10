@@ -7,6 +7,12 @@ clang/ @intel/dpcpp-cfe-reviewers
 clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
 clang/include/clang/Basic/DiagnosticDriverKinds.td  @intel/dpcpp-clang-driver-reviewers
 
+# ClangIR
+clang/include/clang/CIR/ @intel/dpcpp-clangir-reviewers
+clang/lib/CIR/ @intel/dpcpp-clangir-reviewers
+clang/test/CIR/ @intel/dpcpp-clangir-reviewers
+clang/tools/cir-*/ @intel/dpcpp-clangir-reviewers
+
 # Clang tools
 clang-tools-extra/ @intel/dpcpp-cfe-reviewers
 

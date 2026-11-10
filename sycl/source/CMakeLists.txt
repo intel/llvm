@@ -218,7 +218,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   if (MSVC)
     # Install stripped PDB
-    add_stripped_pdb(${LIB_NAME})
+    add_stripped_pdb(${LIB_NAME} COMPONENT sycl)
   else()
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")

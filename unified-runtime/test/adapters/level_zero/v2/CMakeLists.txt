@@ -14,7 +14,6 @@ function(link_l0_v2_adapter_sources test)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
-        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(${test}-test PRIVATE
@@ -70,4 +69,5 @@ else()
     add_l0_v2_kernels_test(deferred_kernel
         deferred_kernel.cpp
     )
+    add_l0_loader_kernels_test(barrier_optimization barrier_optimization.cpp)
 endif()

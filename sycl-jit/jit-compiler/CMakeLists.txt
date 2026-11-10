@@ -51,9 +51,16 @@ set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-inst
 set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS)
 
 function(sycl_jit_add_install_command component binary_dir)
-  list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --install ${binary_dir} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
-  )
+  set(stamp_dir "${ARGV2}")
+  if(stamp_dir AND CMAKE_GENERATOR MATCHES "Make")
+    # file name must match with the name used in llvm_ExternalProject_BuildCmd.
+    set(install_cmd ${CMAKE_COMMAND} "-DLOCK_FILE_PATH=${stamp_dir}/cmake.lock"
+                    "-DCOMMAND=${CMAKE_COMMAND}@--install@${binary_dir}@--prefix@${SYCL_JIT_RESOURCE_INSTALL_DIR}@--component@${component}"
+                    "-P" "${LLVM_CMAKE_DIR}/FileLock.cmake")
+  else()
+    set(install_cmd ${CMAKE_COMMAND} --install ${binary_dir} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}")
+  endif()
+  list(APPEND SYCL_JIT_PREPARE_RESOURCE_COMMANDS COMMAND ${install_cmd})
   set(SYCL_JIT_PREPARE_RESOURCE_COMMANDS "${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}" PARENT_SCOPE)
 endfunction()
 
@@ -62,7 +69,8 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
     set(tgt "${CMAKE_MATCH_1}")
     set(component "${CMAKE_MATCH_2}")
     list(APPEND SYCL_JIT_RESOURCE_DEPS runtimes-${tgt})
-    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc")
+    sycl_jit_add_install_command("${component}" "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc"
+                                 "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-stamps")
   elseif("${component}" STREQUAL "builtins-spirv64-unknown-unknown")
     list(APPEND SYCL_JIT_RESOURCE_DEPS builtins-spirv64-unknown-unknown)
     sycl_jit_add_install_command("clang_rt.builtins-spirv64" "${CMAKE_BINARY_DIR}/runtimes/builtins-spirv64-unknown-unknown-bins/")
