@@ -262,8 +262,9 @@ void patchBytes(std::vector<char> &Bytes, std::string_view From,
   std::string_view View{Bytes.data(), Bytes.size()};
   size_t Pos = View.find(From);
   ASSERT_NE(Pos, std::string_view::npos);
-  if (RequireUnique)
+  if (RequireUnique) {
     ASSERT_EQ(View.find(From, Pos + 1), std::string_view::npos);
+  }
   std::copy(To.begin(), To.end(), Bytes.begin() + Pos);
 }
 
