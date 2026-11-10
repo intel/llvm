@@ -146,7 +146,7 @@ private:
   friend void shutdown_early(bool);
   friend void shutdown_late();
 #ifdef _WIN32
-  friend void mark_process_terminating();
+  friend void mark_process_terminating() noexcept;
 #endif
   friend class ObjectUsageCounter;
   static SpinLock MSyclGlobalHandlerProtector;
