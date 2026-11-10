@@ -1131758,11 +1131758,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131776,11 +1131776,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131794,11 +1131794,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131812,11 +1131812,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131830,11 +1131830,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131848,11 +1131848,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131866,11 +1131866,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131884,11 +1131884,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131902,11 +1131902,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131920,11 +1131920,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131938,11 +1131938,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131956,11 +1131956,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131974,11 +1131974,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1131992,11 +1131992,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132010,11 +1132010,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132028,11 +1132028,11 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132046,12 +1132046,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132065,12 +1132065,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132084,12 +1132084,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132103,12 +1132103,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132122,12 +1132122,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132141,12 +1132141,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132160,12 +1132160,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132179,12 +1132179,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132198,12 +1132198,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132217,12 +1132217,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132236,12 +1132236,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132255,12 +1132255,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132274,12 +1132274,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132293,12 +1132293,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132312,12 +1132312,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132331,12 +1132331,12 @@
       "notes": "Each layer builds on top of the previous layer, adding functionality and overhead.\nThe first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\nThe UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\nWork is ongoing to reduce the overhead of the SYCL API\n",
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "OFFLOAD",
-        "L0",
-        "latency",
         "SYCL",
+        "L0",
+        "OFFLOAD",
         "submit"
       ],
       "range_min": 0.0,
@@ -1132350,13 +1132350,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
-        "memory",
-        "proxy",
         "L0",
+        "latency",
+        "memory",
         "submit",
+        "UR",
         "graph",
-        "latency"
+        "proxy"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132369,13 +1132369,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
-        "memory",
-        "proxy",
         "L0",
+        "latency",
+        "memory",
         "submit",
+        "UR",
         "graph",
-        "latency"
+        "proxy"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132388,12 +1132388,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
         "SYCL",
-        "micro",
         "L0",
+        "latency",
         "submit",
-        "latency"
+        "UR",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132406,12 +1132406,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
         "SYCL",
-        "micro",
         "L0",
+        "latency",
         "submit",
-        "latency"
+        "UR",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132424,10 +1132424,10 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "micro",
         "SYCL",
+        "latency",
         "submit",
-        "latency"
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132440,13 +1132440,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132459,13 +1132459,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132478,13 +1132478,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132497,13 +1132497,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132516,13 +1132516,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132535,13 +1132535,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132554,13 +1132554,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132573,13 +1132573,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132592,13 +1132592,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132611,13 +1132611,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132630,13 +1132630,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132649,13 +1132649,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132668,13 +1132668,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132687,13 +1132687,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132706,13 +1132706,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132725,13 +1132725,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132744,13 +1132744,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132763,13 +1132763,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132782,13 +1132782,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132801,13 +1132801,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132820,13 +1132820,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132839,13 +1132839,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132858,13 +1132858,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132877,13 +1132877,13 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "latency",
         "UR",
         "micro",
-        "L0",
-        "graph",
-        "latency",
         "SYCL",
-        "submit"
+        "L0",
+        "submit",
+        "graph"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132898,9 +1132898,9 @@
       "tags": [
         "finalize",
         "SYCL",
-        "micro",
+        "latency",
         "graph",
-        "latency"
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132915,9 +1132915,9 @@
       "tags": [
         "finalize",
         "SYCL",
-        "micro",
+        "latency",
         "graph",
-        "latency"
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132930,12 +1132930,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "SYCL",
+        "L0",
+        "latency",
         "memory",
         "OFFLOAD",
-        "SYCL",
-        "micro",
-        "L0",
-        "latency"
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132948,12 +1132948,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
+        "SYCL",
+        "L0",
+        "latency",
         "memory",
         "OFFLOAD",
-        "SYCL",
-        "micro",
-        "L0",
-        "latency"
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132966,11 +1132966,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "OFFLOAD",
         "SYCL",
-        "micro",
+        "latency",
         "memory",
-        "latency"
+        "OFFLOAD",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1132983,11 +1132983,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "OFFLOAD",
         "SYCL",
-        "micro",
+        "latency",
         "memory",
-        "latency"
+        "OFFLOAD",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133000,11 +1133000,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "OFFLOAD",
         "SYCL",
-        "micro",
+        "latency",
         "memory",
-        "latency"
+        "OFFLOAD",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133017,11 +1133017,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "OFFLOAD",
         "SYCL",
-        "micro",
+        "latency",
         "memory",
-        "latency"
+        "OFFLOAD",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133074,8 +1133074,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133089,8 +1133089,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133104,8 +1133104,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133119,8 +1133119,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133134,8 +1133134,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133149,8 +1133149,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133164,8 +1133164,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133179,8 +1133179,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133194,8 +1133194,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133209,8 +1133209,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133224,8 +1133224,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133239,8 +1133239,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133254,8 +1133254,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133269,8 +1133269,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133284,8 +1133284,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133299,8 +1133299,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133314,8 +1133314,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133329,8 +1133329,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133344,8 +1133344,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133359,8 +1133359,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133374,8 +1133374,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133389,8 +1133389,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133404,8 +1133404,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133419,8 +1133419,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133434,8 +1133434,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133449,8 +1133449,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133464,8 +1133464,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133479,8 +1133479,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133494,8 +1133494,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133509,8 +1133509,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133524,8 +1133524,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133539,8 +1133539,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133554,8 +1133554,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133569,8 +1133569,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133584,8 +1133584,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133599,8 +1133599,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133614,8 +1133614,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133629,8 +1133629,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133644,8 +1133644,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133659,8 +1133659,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133674,8 +1133674,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133689,8 +1133689,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133704,8 +1133704,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133719,8 +1133719,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133734,8 +1133734,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133749,8 +1133749,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133764,8 +1133764,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133779,8 +1133779,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133794,8 +1133794,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133809,8 +1133809,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133824,8 +1133824,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133839,8 +1133839,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133854,8 +1133854,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133869,8 +1133869,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133884,8 +1133884,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133899,8 +1133899,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133914,8 +1133914,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1133929,8 +1133929,8 @@
       "unstable": null,
       "tags": [
         "SYCL",
-        "pytorch",
-        "L0"
+        "L0",
+        "pytorch"
       ],
       "range_min": null,
       "range_max": null,
@@ -1134167,12 +1134167,12 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
-        "OFFLOAD",
-        "memory",
-        "micro",
         "L0",
-        "latency"
+        "latency",
+        "memory",
+        "OFFLOAD",
+        "UR",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1134185,11 +1134185,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "UR",
-        "OFFLOAD",
-        "micro",
+        "latency",
         "memory",
-        "latency"
+        "OFFLOAD",
+        "UR",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1134202,11 +1134202,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "OFFLOAD",
-        "memory",
-        "micro",
         "L0",
-        "latency"
+        "latency",
+        "memory",
+        "OFFLOAD",
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1134219,11 +1134219,11 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "OFFLOAD",
+        "L0",
         "memory",
+        "OFFLOAD",
         "throughput",
-        "micro",
-        "L0"
+        "micro"
       ],
       "range_min": null,
       "range_max": null,
@@ -1134236,8 +1134236,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "micro",
         "SYCL",
+        "micro",
         "memory",
         "latency"
       ],
@@ -1134252,8 +1134252,8 @@
       "notes": null,
       "unstable": null,
       "tags": [
-        "micro",
         "SYCL",
+        "micro",
         "memory",
         "latency"
       ],
@@ -1143032,5 +1143032,7 @@
   "flamegraphData": {
     "runs": {}
   },
-  "defaultCompareNames": []
+  "defaultCompareNames": [
+    "Baseline_PVC_L0v2"
+  ]
 }
