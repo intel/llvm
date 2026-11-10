@@ -379,13 +379,11 @@ getZexStructureType<ur_ze_intel_device_block_array_exp_properties_t>() {
   return UR_ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 
-#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
 template <>
-ze_structure_type_ext_t
-getZexStructureType<ze_device_igca_target_ext_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES;
+ur_ze_structure_type_ext_t
+getZexStructureType<ur_ze_device_igca_target_ext_properties_t>() {
+  return UR_ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES;
 }
-#endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
 
 template <>
 ur_ze_structure_type_ext_t
