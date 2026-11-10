@@ -449,9 +449,9 @@ soupsieve==2.9.2 \
     --hash=sha256:4a55d8cf158a9c2e587fa4922f1bbb91d68ac829e2d6f25403a85747c71daf74 \
     --hash=sha256:8089a26fd974ca7a1f30276d3d8492ab266ab15af581642dfe8aa162e0c1c823
     # via beautifulsoup4
-sphinx==9.1.0 \
-    --hash=sha256:7741722357dd75f8190766926071fed3bdc211c74dd2d7d4df5404da95930ddb \
-    --hash=sha256:c84fdd4e782504495fe4f2c0b3413d6c2bf388589bb352d439b2a3bb99991978
+sphinx==9.1.1 \
+    --hash=sha256:48b627f02908f22c601b3ba9c7b17265b4f315dd05c8bc64cd4da41183f44fbc \
+    --hash=sha256:f8b60013ce25017be41a509e5c2d265bc1918410061315c36b809c7f335646c0
     # via
     #   -r requirements.txt.in
     #   furo
@@ -460,9 +460,9 @@ sphinx==9.1.0 \
     #   sphinx-automodapi
     #   sphinx-basic-ng
     #   sphinx-reredirects
-sphinx-automodapi==0.22.0 \
-    --hash=sha256:8ecbe8c8ba33a1e3dbe03aea06879062567d611b543da3f33367512d45118b01 \
-    --hash=sha256:9a6745d606eb948321f0bb7bd4511dc6d8481da8819caa1604d7138910173b38
+sphinx-automodapi==0.22.1 \
+    --hash=sha256:48fb115a7189eff121b2f77027d2d8e59fdbde2f0d1ef3c9adf6c57c3bb86131 \
+    --hash=sha256:a2fca6afa41b23d57171a5f9f9e1f42fffbba941e2a2f96279d5d8a6e5adc973
     # via -r requirements.txt.in
 sphinx-basic-ng==1.0.0b2 \
     --hash=sha256:9ec55a47c90c8c002b5960c57492ec3021f5193cb26cebc2dc4ea226848651c9 \

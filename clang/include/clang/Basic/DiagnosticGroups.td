@@ -1798,6 +1798,7 @@ def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
 def SyclUndefinedFuncInImage : DiagGroup<"sycl-undefined-func-in-image">;
+def LargeDeviceKernel : DiagGroup<"large-device-kernel">;
 def SyclWorkGroupDtor : DiagGroup<"sycl-work-group-dtor">;
 
 // Common warnings for SYCL and OpenMP offloading
@@ -2026,7 +2027,8 @@ def UnsafeBufferUsageInUniquePtrArrayAccess : DiagGroup<"unsafe-buffer-usage-in-
 def UnsafeBufferUsageInStaticSizedArray : DiagGroup<"unsafe-buffer-usage-in-static-sized-array">;
 def UnsafeBufferUsageInFormatAttrCall : DiagGroup<"unsafe-buffer-usage-in-format-attr-call">;
 def UnsafeBufferUsageInStringView : DiagGroup<"unsafe-buffer-usage-in-string-view">;
-def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer, UnsafeBufferUsageInLibcCall, UnsafeBufferUsageInUniquePtrArrayAccess, UnsafeBufferUsageInStaticSizedArray, UnsafeBufferUsageInFormatAttrCall, UnsafeBufferUsageInStringView]>;
+def UnsafeBufferUsageMainArgv : DiagGroup<"unsafe-buffer-usage-main-argv">;
+def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer, UnsafeBufferUsageInLibcCall, UnsafeBufferUsageInUniquePtrArrayAccess, UnsafeBufferUsageInStaticSizedArray, UnsafeBufferUsageInFormatAttrCall, UnsafeBufferUsageInStringView, UnsafeBufferUsageMainArgv]>;
 
 // Warnings and notes InstallAPI verification.
 def InstallAPIViolation : DiagGroup<"installapi-violation">;

@@ -2,7 +2,7 @@ name: 'Run UR Tests'
 
 inputs:
   test_type:
-    description: 'Type of tests to run (adapter-specific or conformance)'
+    description: 'Type of tests to run (adapter-specific, conformance or loader)'
     required: true
   build_dir:
     required: false

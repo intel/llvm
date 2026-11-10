@@ -51,9 +51,20 @@ class JITContext {
 
 public:
   static JITContext &getInstance() {
+#ifdef _WIN32
     static JITContext Instance{};
     return Instance;
+#else
+    // Runtime-compiled bundles can outlive ordinary static destructors. Keep
+    // their binary storage alive until the JIT library's late unload handler.
+    static JITContext &Context = *(Instance = new JITContext{});
+    return Context;
+#endif
   }
+
+#ifndef _WIN32
+  static void destroyInstance();
+#endif
 
   template <typename... Ts> JITBinary &emplaceBinary(Ts &&...Args) {
     WriteLockT WriteLock{BinariesMutex};
@@ -69,6 +80,9 @@ public:
   }
 
 private:
+#ifndef _WIN32
+  static JITContext *Instance;
+#endif
   JITContext() = default;
   ~JITContext() = default;
   JITContext(const JITContext &) = delete;

@@ -145,10 +145,13 @@ if (NOT SPIRV_TOOLS_FOUND)
 endif()
 
 option(LLVM_SPIRV_ENABLE_LIBSPIRV_DIS "Enable --spirv-tools-dis support.")
+option(LLVM_SPIRV_ENABLE_LIBSPIRV_VAL
+       "Enable SPIR-V Tools validation before reading SPIR-V.")
 
-if (NOT SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
+if (NOT SPIRV_TOOLS_FOUND AND
+    (LLVM_SPIRV_ENABLE_LIBSPIRV_DIS OR LLVM_SPIRV_ENABLE_LIBSPIRV_VAL))
   message(STATUS "SPIRV-Tools not found; project will be built without "
-          "--spirv-tools-dis support.")
+          "SPIR-V Tools disassembly or validation support.")
 endif()
 
 

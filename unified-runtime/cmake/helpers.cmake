@@ -224,13 +224,18 @@ if(NOT TARGET unified-runtime-libraries)
 endif()
 
 function(install_ur_library name)
-    install(TARGETS ${name}
-            COMPONENT unified-runtime
-            EXPORT ${PROJECT_NAME}-targets
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    )
+    # Static and object libraries are linked into their consumers, so they are
+    # only installed to complete the export set of a standalone build.
+    get_target_property(type ${name} TYPE)
+    if(UR_STANDALONE_BUILD OR NOT type MATCHES "^(STATIC|OBJECT)_LIBRARY$")
+        install(TARGETS ${name}
+                COMPONENT unified-runtime
+                EXPORT ${PROJECT_NAME}-targets
+                ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        )
+    endif()
 endfunction()
 
 if(UR_USE_DEBUG_POSTFIX AND NOT TARGET install-unified-runtime-libraries)

@@ -285,6 +285,8 @@ inline void SPIRVMap<NonSemanticAuxDataOpKind, std::string>::init() {
   add(NonSemanticAuxData::GlobalVariableAttribute,
       "NonSemanticAuxDataGlobalVariableAttribute");
   add(NonSemanticAuxData::Linkage, "NonSemanticAuxDataLinkage");
+  add(NonSemanticAuxData::InstructionMetadata,
+      "NonSemanticAuxDataInstructionMetadata");
 }
 SPIRV_DEF_NAMEMAP(NonSemanticAuxDataOpKind, NonSemanticAuxDataOpMap)
 

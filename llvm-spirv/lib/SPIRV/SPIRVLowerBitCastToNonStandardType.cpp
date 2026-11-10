@@ -44,10 +44,13 @@
 #include "SPIRVLowerBitCastToNonStandardType.h"
 #include "SPIRVInternal.h"
 
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include <numeric>
 #include <utility>
 
 #define DEBUG_TYPE "spv-lower-bitcast-to-nonstandard-type"
@@ -57,6 +60,239 @@ using namespace llvm;
 namespace SPIRV {
 
 using NFIRBuilder = IRBuilder<NoFolder>;
+
+static FixedVectorType *getHalfTy(Type *Ty) {
+  auto *VecTy = dyn_cast<FixedVectorType>(Ty);
+  if (!VecTy)
+    return nullptr;
+  unsigned NumElems = VecTy->getNumElements();
+  if (isValidVectorSize(NumElems) || NumElems % 2 != 0)
+    return nullptr;
+  auto *HalfTy = FixedVectorType::getHalfElementsVectorType(VecTy);
+  return isValidVectorSize(HalfTy->getNumElements()) ? HalfTy : nullptr;
+}
+
+static Constant *getConstantLane(Constant *C, unsigned Idx) {
+  Constant *Elem = C->getAggregateElement(Idx);
+  return Elem ? Elem : PoisonValue::get(C->getType()->getScalarType());
+}
+
+namespace {
+
+/// Splits values of an unsupported vector length into two legal halves. Only
+/// the shapes SROA produces are handled; the rest is left to the diagnostic.
+class NonStdVectorLegalizer {
+public:
+  explicit NonStdVectorLegalizer(NFIRBuilder &Builder) : Builder(Builder) {}
+
+  bool run(Function &F);
+
+private:
+  using HalfPair = std::pair<Value *, Value *>;
+
+  struct LaneRef {
+    Value *Src;
+    unsigned Idx;
+  };
+
+  bool canSplit(Value *V) const {
+    return Halves.count(V) != 0 || isa<Constant>(V);
+  }
+
+  HalfPair getHalves(Value *V);
+  LaneRef resolveLane(Value *V, unsigned Idx);
+  Value *extractLane(Value *V, unsigned Idx);
+  Value *buildShuffleLanes(ShuffleVectorInst &SVI, unsigned NumLanes);
+
+  bool visit(Instruction &I);
+  bool visitBitCast(BitCastInst &BCI);
+  bool visitExtractElement(ExtractElementInst &EEI);
+  bool visitShuffleVector(ShuffleVectorInst &SVI);
+
+  NFIRBuilder &Builder;
+  DenseMap<Value *, HalfPair> Halves;
+};
+
+} // namespace
+
+bool NonStdVectorLegalizer::run(Function &F) {
+  SmallVector<Instruction *, 32> Replaced;
+  // Visit defining blocks before their users, regardless of block layout.
+  for (BasicBlock *BB : ReversePostOrderTraversal<Function *>(&F)) {
+    for (Instruction &I : *BB) {
+      Builder.SetInsertPoint(&I);
+      if (visit(I))
+        Replaced.push_back(&I);
+    }
+  }
+
+  // Erase only what became fully dead. An instruction with a use the visitors
+  // declined to rewrite must survive for the diagnostic below to catch it.
+  for (Instruction *I : reverse(Replaced))
+    if (I->use_empty()) {
+      // Keep debug users of a split bitcast referring to its original operand.
+      salvageDebugInfo(*I);
+      I->eraseFromParent();
+    }
+  return !Replaced.empty();
+}
+
+bool NonStdVectorLegalizer::visit(Instruction &I) {
+  if (auto *BCI = dyn_cast<BitCastInst>(&I))
+    return visitBitCast(*BCI);
+  if (auto *EEI = dyn_cast<ExtractElementInst>(&I))
+    return visitExtractElement(*EEI);
+  if (auto *SVI = dyn_cast<ShuffleVectorInst>(&I))
+    return visitShuffleVector(*SVI);
+  return false;
+}
+
+NonStdVectorLegalizer::HalfPair NonStdVectorLegalizer::getHalves(Value *V) {
+  auto It = Halves.find(V);
+  if (It != Halves.end())
+    return It->second;
+
+  auto *C = cast<Constant>(V);
+  unsigned HalfSize = cast<FixedVectorType>(C->getType())->getNumElements() / 2;
+  SmallVector<Constant *, 16> LoElems, HiElems;
+  for (unsigned Idx = 0; Idx != HalfSize; ++Idx) {
+    LoElems.push_back(getConstantLane(C, Idx));
+    HiElems.push_back(getConstantLane(C, Idx + HalfSize));
+  }
+
+  HalfPair Res = {ConstantVector::get(LoElems), ConstantVector::get(HiElems)};
+  Halves[V] = Res;
+  return Res;
+}
+
+NonStdVectorLegalizer::LaneRef
+NonStdVectorLegalizer::resolveLane(Value *V, unsigned Idx) {
+  auto *VecTy = cast<FixedVectorType>(V->getType());
+  if (!getHalfTy(VecTy))
+    return {V, Idx};
+
+  auto [Lo, Hi] = getHalves(V);
+  unsigned HalfSize = VecTy->getNumElements() / 2;
+  return Idx < HalfSize ? LaneRef{Lo, Idx} : LaneRef{Hi, Idx - HalfSize};
+}
+
+Value *NonStdVectorLegalizer::extractLane(Value *V, unsigned Idx) {
+  auto [Src, SrcIdx] = resolveLane(V, Idx);
+  if (auto *C = dyn_cast<Constant>(Src))
+    return getConstantLane(C, SrcIdx);
+  return Builder.CreateExtractElement(Src, SrcIdx);
+}
+
+Value *NonStdVectorLegalizer::buildShuffleLanes(ShuffleVectorInst &SVI,
+                                                unsigned NumLanes) {
+  Type *ElemTy = cast<FixedVectorType>(SVI.getType())->getElementType();
+  unsigned NumSrcElems =
+      cast<FixedVectorType>(SVI.getOperand(0)->getType())->getNumElements();
+
+  SmallVector<LaneRef, 16> Lanes(NumLanes, LaneRef{nullptr, 0});
+  for (unsigned Lane = 0; Lane != NumLanes; ++Lane) {
+    int MaskVal = SVI.getMaskValue(Lane);
+    if (MaskVal < 0)
+      continue;
+    unsigned SrcIdx = MaskVal;
+    Value *Src = SVI.getOperand(0);
+    if (SrcIdx >= NumSrcElems) {
+      SrcIdx -= NumSrcElems;
+      Src = SVI.getOperand(1);
+    }
+    Lanes[Lane] = resolveLane(Src, SrcIdx);
+  }
+
+  SmallVector<Value *, 2> Srcs;
+  bool OneShuffleIsEnough = true;
+  for (const LaneRef &Lane : Lanes) {
+    if (!Lane.Src || is_contained(Srcs, Lane.Src))
+      continue;
+    if (Srcs.size() == 2 ||
+        (!Srcs.empty() && Srcs.front()->getType() != Lane.Src->getType())) {
+      OneShuffleIsEnough = false;
+      break;
+    }
+    Srcs.push_back(Lane.Src);
+  }
+
+  if (Srcs.empty())
+    return PoisonValue::get(FixedVectorType::get(ElemTy, NumLanes));
+
+  if (OneShuffleIsEnough) {
+    unsigned SrcSize =
+        cast<FixedVectorType>(Srcs.front()->getType())->getNumElements();
+    SmallVector<int, 16> Mask(NumLanes, PoisonMaskElem);
+    for (unsigned Lane = 0; Lane != NumLanes; ++Lane)
+      if (Lanes[Lane].Src)
+        Mask[Lane] =
+            (Lanes[Lane].Src == Srcs.front() ? 0 : SrcSize) + Lanes[Lane].Idx;
+    if (Srcs.size() == 1 && ShuffleVectorInst::isIdentityMask(Mask, SrcSize))
+      return Srcs.front();
+
+    Value *Src1 = Srcs.size() == 2 ? Srcs.back()
+                                   : PoisonValue::get(Srcs.front()->getType());
+    return Builder.CreateShuffleVector(Srcs.front(), Src1, Mask);
+  }
+
+  Value *Res = PoisonValue::get(FixedVectorType::get(ElemTy, NumLanes));
+  for (unsigned Lane = 0; Lane != NumLanes; ++Lane) {
+    auto [Src, Idx] = Lanes[Lane];
+    if (!Src)
+      continue;
+    Value *Elem = isa<Constant>(Src) ? getConstantLane(cast<Constant>(Src), Idx)
+                                     : Builder.CreateExtractElement(Src, Idx);
+    Res = Builder.CreateInsertElement(Res, Elem, Lane);
+  }
+  return Res;
+}
+
+bool NonStdVectorLegalizer::visitBitCast(BitCastInst &BCI) {
+  auto *DstHalfTy = getHalfTy(BCI.getType());
+  Value *Src = BCI.getOperand(0);
+  auto *SrcTy = dyn_cast<FixedVectorType>(Src->getType());
+  // SPIR-V does not allow bitcasts to Boolean vectors, even with legal lengths.
+  if (!DstHalfTy || DstHalfTy->getElementType()->isIntegerTy(1) || !SrcTy ||
+      SrcTy->getNumElements() % 2 != 0)
+    return false;
+  unsigned HalfSrcSize = SrcTy->getNumElements() / 2;
+  if (!isValidVectorSize(SrcTy->getNumElements()) ||
+      !isValidVectorSize(HalfSrcSize))
+    return false;
+
+  SmallVector<int, 8> LoMask(HalfSrcSize), HiMask(HalfSrcSize);
+  std::iota(LoMask.begin(), LoMask.end(), 0);
+  std::iota(HiMask.begin(), HiMask.end(), HalfSrcSize);
+  // Separate statements so Lo is always emitted before Hi; MSVC does not
+  // reliably evaluate braced-init-lists left to right.
+  Value *Lo = Builder.CreateBitCast(Builder.CreateShuffleVector(Src, LoMask),
+                                    DstHalfTy);
+  Value *Hi = Builder.CreateBitCast(Builder.CreateShuffleVector(Src, HiMask),
+                                    DstHalfTy);
+  Halves[&BCI] = {Lo, Hi};
+  return true;
+}
+
+bool NonStdVectorLegalizer::visitExtractElement(ExtractElementInst &EEI) {
+  Value *Vec = EEI.getVectorOperand();
+  auto *Idx = dyn_cast<ConstantInt>(EEI.getIndexOperand());
+  if (!getHalfTy(Vec->getType()) || !Idx || !canSplit(Vec))
+    return false;
+
+  EEI.replaceAllUsesWith(extractLane(Vec, Idx->getZExtValue()));
+  return true;
+}
+
+bool NonStdVectorLegalizer::visitShuffleVector(ShuffleVectorInst &SVI) {
+  unsigned NumElems = cast<FixedVectorType>(SVI.getType())->getNumElements();
+  if (!getHalfTy(SVI.getOperand(0)->getType()) || !isValidVectorSize(NumElems))
+    return false;
+  if (!canSplit(SVI.getOperand(0)) || !canSplit(SVI.getOperand(1)))
+    return false;
+
+  SVI.replaceAllUsesWith(buildShuffleLanes(SVI, NumElems));
+  return true;
+}
 
 static Value *removeBitCasts(Value *OldValue, Type *NewTy, NFIRBuilder &Builder,
                              std::vector<Instruction *> &InstsToErase) {
@@ -130,6 +366,14 @@ SPIRVLowerBitCastToNonStandardTypePass::run(Function &F,
       Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return PreservedAnalyses::all();
 
+  NFIRBuilder Builder(F.getContext());
+
+  // Split vectors whose number of components is not supported by SPIR-V, but
+  // whose half is, into a pair of halves. This covers the vectors that SROA
+  // creates when it promotes a whole alloca to a single vector register.
+  if (NonStdVectorLegalizer(Builder).run(F))
+    Changed = true;
+
   // The basic pattern we're trying to fix is this InstCombine pattern:
   // trunc (extractelement) -> extractelement (bitcast)
   // (note that the bitcast itself can get propagated back to change the type
@@ -150,7 +394,6 @@ SPIRVLowerBitCastToNonStandardTypePass::run(Function &F,
     }
 
   std::vector<Instruction *> InstsToErase;
-  NFIRBuilder Builder(F.getContext());
   for (auto &I : NonStdVecInsts) {
     VectorType *OldVecTy = I->getVectorOperandType();
     unsigned OldVecSize = OldVecTy->getElementCount().getFixedValue();

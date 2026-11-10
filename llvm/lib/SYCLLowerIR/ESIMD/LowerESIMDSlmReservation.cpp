@@ -147,8 +147,11 @@ int getSLMUsage(const CallInst *SLMReserveCall) {
         SLMReserveCall->getFunction()->getName());
     return -1;
   }
-  int64_t Res = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
-  assert(Res < std::numeric_limits<int>::max());
+  uint64_t Res = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
+  esimd::assert_and_diag(
+      Res <= static_cast<uint64_t>(std::numeric_limits<int>::max()),
+      "SLM reservation size is too large, function ",
+      SLMReserveCall->getFunction()->getName());
   return static_cast<int>(Res);
 }
 
@@ -543,9 +546,18 @@ TraversalResult findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
       ReachedKernels.insert(F);
     }
   }
-  int ResSLM = CurIsKernel ? 0
-                           : (MaxSLMUsage < 0 ? MaxSLMUsage
-                                              : SLMUsageByCur + MaxSLMUsage);
+  int ResSLM = 0;
+
+  if (!CurIsKernel) {
+    if (MaxSLMUsage < 0) {
+      ResSLM = MaxSLMUsage;
+    } else {
+      esimd::assert_and_diag(SLMUsageByCur <=
+                                 std::numeric_limits<int>::max() - MaxSLMUsage,
+                             "total SLM usage is too large");
+      ResSLM = SLMUsageByCur + MaxSLMUsage;
+    }
+  }
   // Construct result for current node from sub-problem solution results and
   // cache it.
   TraversalResult Res = std::make_pair(ResSLM, std::move(ReachedKernels));

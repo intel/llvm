@@ -1,11 +1,19 @@
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only
-// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=1
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=0
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -fpreview-breaking-changes -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=0
 // expected-no-diagnostics
 
 #include <sycl/vector.hpp>
 
 #include <type_traits>
+
+// Users of the removed legacy vec implementation must keep its ABI.
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&                              \
+    defined(__SYCL_USE_LIBSYCL8_VEC_IMPL)
+static_assert(!__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE);
+#endif
 
 namespace sycl {
 namespace detail {
