@@ -15,7 +15,7 @@ void foo2(int *Data) {}
 void foo(int [[clang::sycl_local]] *Data) {}
 
 template <typename T>
-void tmpl(T t);
+[[clang::sycl_external]] void tmpl(T t);
 
 [[clang::sycl_external]] void usages() {
   int *NoAS;
