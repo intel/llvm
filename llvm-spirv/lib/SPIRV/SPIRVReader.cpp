@@ -57,6 +57,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -75,6 +76,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
 #include "llvm/IR/PassInstrumentation.h"
+#include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/Casting.h"
@@ -83,16 +85,23 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/SaveAndRestore.h"
 
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+#include "spirv-tools/libspirv.hpp"
+#endif
+
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #define DEBUG_TYPE "spirv"
 
@@ -2023,6 +2032,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         transValue(BR->getCondition(), F, BB),
         cast<BasicBlock>(transValue(BR->getTrueLabel(), F, BB)),
         cast<BasicBlock>(transValue(BR->getFalseLabel(), F, BB)), BB);
+    const std::vector<SPIRVWord> &Weights = BR->getBranchWeights();
+    if (Weights.size() == 2)
+      setBranchWeights(*BC, {Weights[0], Weights[1]}, /*IsExpected=*/false);
     // Loop metadata will be translated in the end of function translation.
     return mapValue(BV, BC);
   }
@@ -2567,7 +2579,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       V = GEP;
     } else {
       auto *CT = cast<Constant>(Base);
-      V = ConstantExpr::getGetElementPtr(BaseTy, CT, Index, IsInbound);
+      SmallVector<Constant *, 4> ConstIndexList =
+          map_to_vector(Index, [](Value *V) { return cast<Constant>(V); });
+      V = ConstantExpr::getGetElementPtr(M->getDataLayout(), BaseTy, CT,
+                                         ConstIndexList, IsInbound);
+      if (!BM->getErrorLog().checkError(
+              V != nullptr, SPIRVEC_InvalidInstruction,
+              "OpAccessChain cannot be represented as a "
+              "canonical constant ptradd"))
+        return nullptr;
     }
     return mapValue(BV, V);
   }
@@ -4330,9 +4350,6 @@ bool SPIRVToLLVM::translate() {
   transGeneratorMD();
   if (!lowerBuiltins(BM, M))
     return false;
-  // Only AMD targets emit these helpers, so only AMD targets reconstruct them.
-  if (M->getTargetTriple().getVendor() == Triple::AMD)
-    lowerAtomicWrapCalls(M);
   if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR) {
     SPIRVWord SrcLangVer = 0;
     BM->getSourceLanguage(&SrcLangVer);
@@ -4345,6 +4362,12 @@ bool SPIRVToLLVM::translate() {
   for (SPIRVExtInst *EI : BM->getAuxDataInstVec()) {
     transAuxDataInst(EI);
   }
+
+  // Only AMD targets emit these helpers, so only AMD targets reconstruct them.
+  // Runs after AuxData: ValueMap still points at the helper calls, and
+  // copyMetadata carries their restored metadata to the atomicrmw.
+  if (M->getTargetTriple().getVendor() == Triple::AMD)
+    lowerAtomicWrapCalls(M);
 
   eraseUselessFunctions(M);
 
@@ -5781,6 +5804,45 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
   assert(BC->getExtSetKind() == SPIRV::SPIRVEIS_NonSemantic_AuxData);
   if (!BC->getModule()->preserveAuxData())
     return;
+  auto Args = BC->getArguments();
+
+  // Metadata Value operands start at Args[2].
+  auto TransMDValues = [&]() {
+    SmallVector<Metadata *> MetadataArgs;
+    for (size_t CurArg = 2; CurArg < Args.size(); CurArg++) {
+      auto *Arg = BC->getModule()->get<SPIRVEntry>(Args[CurArg]);
+      // For metadata, the metadata values can be either values or strings.
+      if (Arg->getOpCode() == OpString) {
+        auto *ArgAsStr = static_cast<SPIRVString *>(Arg);
+        MetadataArgs.push_back(MDString::get(*Context, ArgAsStr->getStr()));
+      } else {
+        auto *ArgAsVal = static_cast<SPIRVValue *>(Arg);
+        auto *TranslatedMD = transValue(ArgAsVal, nullptr, nullptr);
+        MetadataArgs.push_back(ValueAsMetadata::get(TranslatedMD));
+      }
+    }
+    return MDNode::get(*Context, MetadataArgs);
+  };
+
+  // InstructionMetadata targets an instruction, not a global object, so it
+  // is handled separately before the GlobalObject-based switch below.
+  if (BC->getExtOp() == NonSemanticAuxData::InstructionMetadata) {
+    auto *Target = BC->getModule()->getValue(Args[0]);
+    Value *V = getTranslatedValue(Target);
+    if (auto *Inst = dyn_cast_or_null<Instruction>(V)) {
+      const std::string &MDName =
+          BC->getModule()->get<SPIRVString>(Args[1])->getStr();
+      // If this metadata is already attached, skip it.
+      if (Inst->hasMetadata(MDName))
+        return;
+      Inst->setMetadata(MDName, TransMDValues());
+    } else {
+      LLVM_DEBUG(dbgs() << "InstructionMetadata target is not an Instruction; "
+                           "ignoring.\n");
+    }
+    return;
+  }
+
   switch (BC->getExtOp()) {
   case NonSemanticAuxData::FunctionAttribute:
   case NonSemanticAuxData::GlobalVariableAttribute:
@@ -5791,7 +5853,6 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
   default:
     return;
   }
-  auto Args = BC->getArguments();
   // Arg 0 is common to all instructions in this set: it identifies the
   // global object the auxiliary data is attached to.
   auto *Arg0 = BC->getModule()->getValue(Args[0]);
@@ -5842,22 +5903,7 @@ void SPIRVToLLVM::transAuxDataInst(SPIRVExtInst *BC) {
     // If this metadata was specially handled and added elsewhere, skip it.
     if (GO->hasMetadata(AttrOrMDName))
       return;
-    SmallVector<Metadata *> MetadataArgs;
-    // Process the metadata values.
-    for (size_t CurArg = 2; CurArg < Args.size(); CurArg++) {
-      auto *Arg = BC->getModule()->get<SPIRVEntry>(Args[CurArg]);
-      // For metadata, the metadata values can be either values or strings.
-      if (Arg->getOpCode() == OpString) {
-        auto *ArgAsStr = static_cast<SPIRVString *>(Arg);
-        MetadataArgs.push_back(
-            MDString::get(GO->getContext(), ArgAsStr->getStr()));
-      } else {
-        auto *ArgAsVal = static_cast<SPIRVValue *>(Arg);
-        auto *TranslatedMD = transValue(ArgAsVal, nullptr, nullptr);
-        MetadataArgs.push_back(ValueAsMetadata::get(TranslatedMD));
-      }
-    }
-    GO->setMetadata(AttrOrMDName, MDNode::get(*Context, MetadataArgs));
+    GO->setMetadata(AttrOrMDName, TransMDValues());
     break;
   }
   case NonSemanticAuxData::Linkage: {
@@ -6130,6 +6176,71 @@ SPIRVModuleTextReport formatSpirvReport(const SPIRVModuleReport &Report) {
   return TextReport;
 }
 
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+static std::optional<spv_target_env>
+getSPIRVToolsTargetEnv(VersionNumber Version) {
+  switch (Version) {
+  case VersionNumber::SPIRV_1_0:
+    return SPV_ENV_UNIVERSAL_1_0;
+  case VersionNumber::SPIRV_1_1:
+    return SPV_ENV_UNIVERSAL_1_1;
+  case VersionNumber::SPIRV_1_2:
+    return SPV_ENV_UNIVERSAL_1_2;
+  case VersionNumber::SPIRV_1_3:
+    return SPV_ENV_UNIVERSAL_1_3;
+  case VersionNumber::SPIRV_1_4:
+    return SPV_ENV_UNIVERSAL_1_4;
+  case VersionNumber::SPIRV_1_5:
+    return SPV_ENV_UNIVERSAL_1_5;
+  case VersionNumber::SPIRV_1_6:
+    return SPV_ENV_UNIVERSAL_1_6;
+  default:
+    return std::nullopt;
+  }
+}
+
+static bool validateSPIRVBinary(std::istream &IS, std::string &Binary,
+                                std::string &ErrMsg) {
+  Binary.assign(std::istreambuf_iterator<char>(IS),
+                std::istreambuf_iterator<char>());
+  if (Binary.size() % sizeof(uint32_t) != 0) {
+    ErrMsg = "SPIR-V validation failed: input size is not a multiple of 4 "
+             "bytes";
+    return false;
+  }
+
+  std::vector<uint32_t> Words(Binary.size() / sizeof(uint32_t));
+  if (!Binary.empty())
+    std::memcpy(Words.data(), Binary.data(), Binary.size());
+
+  if (Words.size() < 5) {
+    ErrMsg = "SPIR-V validation failed: incomplete SPIR-V header";
+    return false;
+  }
+
+  const auto TargetEnv =
+      getSPIRVToolsTargetEnv(static_cast<VersionNumber>(Words[1]));
+  if (!TargetEnv) {
+    ErrMsg = "SPIR-V validation failed: unsupported SPIR-V version";
+    return false;
+  }
+
+  std::string ValidationError;
+  spvtools::SpirvTools Validator(*TargetEnv);
+  Validator.SetMessageConsumer(
+      [&ValidationError](spv_message_level_t, const char *,
+                         const spv_position_t &,
+                         const char *Message) { ValidationError = Message; });
+  if (Validator.Validate(Words))
+    return true;
+
+  ErrMsg = "SPIR-V validation failed";
+  if (!ValidationError.empty())
+    ErrMsg += ": " + ValidationError;
+  return false;
+}
+#endif
+
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg) {
@@ -6148,7 +6259,25 @@ std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
   std::unique_ptr<SPIRVModule> BM(
       SPIRVModule::createSPIRVModule(*EffectiveOpts));
 
+#ifdef LLVM_SPIRV_HAVE_SPIRV_TOOLS
+  if (EffectiveOpts->isSPIRVValidationEnabled() && !SPIRVUseTextFormat) {
+    std::string Binary;
+    if (!validateSPIRVBinary(IS, Binary, ErrMsg))
+      return nullptr;
+
+    std::istringstream ValidatedInput(Binary, std::ios::in | std::ios::binary);
+    ValidatedInput >> *BM;
+  } else {
+    IS >> *BM;
+  }
+#else
+  if (EffectiveOpts->isSPIRVValidationEnabled()) {
+    ErrMsg = "SPIR-V validation was requested, but this build lacks "
+             "SPIR-V Tools validation support";
+    return nullptr;
+  }
   IS >> *BM;
+#endif
   if (!BM->isModuleValid()) {
     BM->getError(ErrMsg);
     return nullptr;

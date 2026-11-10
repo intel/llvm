@@ -489,11 +489,12 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
         specs,
         meta,
     )
+    opencl_dstpath = os.path.join(path, "adapters", "opencl")
     loc += _mako_interface_loader_api(
-        dstpath, "opencl", "cpp", namespace, tags, version, specs, meta
+        opencl_dstpath, "opencl", "cpp", namespace, tags, version, specs, meta
     )
     loc += _mako_interface_loader_api(
-        dstpath, "opencl", "hpp", namespace, tags, version, specs, meta
+        opencl_dstpath, "opencl", "hpp", namespace, tags, version, specs, meta
     )
 
     print("Generated %s lines of code.\n" % loc)

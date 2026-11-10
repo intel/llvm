@@ -14,6 +14,7 @@ int main() {
   kernel_parallel_for_work_group<class kernel>([=](sycl::group<1> G) {
     const int WG_CONST = 10;
   });
+  // CHECK: @{{.*}}WG_CONST{{.*}} = internal addrspace(3) global i32 undef
   // CHECK:  store i32 10, ptr addrspace(4) addrspacecast (ptr addrspace(3) @{{.*}}WG_CONST{{.*}} to ptr addrspace(4))
   return 0;
 }

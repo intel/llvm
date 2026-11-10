@@ -442,11 +442,12 @@ if(UR_FORMAT_CPP_STYLE)
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target cppformat
     )
 
-    # Generate source and check for uncommitted diffs
-    add_custom_target(check-generated
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-        COMMAND git diff --exit-code
-        DEPENDS generate-code
+    # Generate source and check for uncommitted diffs and new untracked files
+    add_custom_target(check-generated USES_TERMINAL
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DBINARY_DIR=${CMAKE_BINARY_DIR}
+            -P ${PROJECT_SOURCE_DIR}/cmake/CheckGenerated.cmake
     )
 else()
     message(STATUS "  UR_FORMAT_CPP_STYLE not set. Targets: 'generate' and 'check-generated' are not available")

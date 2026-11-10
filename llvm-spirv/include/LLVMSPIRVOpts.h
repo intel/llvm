@@ -364,6 +364,13 @@ public:
     ErrorHandling = Kind;
   }
 
+  // Enable SPIR-V Tools validation. This requires the translator to have
+  // been built with LLVM_SPIRV_ENABLE_LIBSPIRV_VAL.
+  void setSPIRVValidationEnabled(bool Enable) noexcept {
+    SPIRVValidation = Enable;
+  }
+  bool isSPIRVValidationEnabled() const noexcept { return SPIRVValidation; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -395,6 +402,9 @@ private:
 
   // What to do with a module the translator cannot accept.
   SPIRVDbgErrorHandlingKinds ErrorHandling = SPIRVDbgErrorHandlingKinds::Exit;
+
+  // Validate a SPIR-V binary with SPIR-V Tools before reading it.
+  bool SPIRVValidation = false;
 
   // Enable support for extra DIExpression opcodes not listed in the SPIR-V
   // DebugInfo specification.

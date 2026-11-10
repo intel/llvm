@@ -992,7 +992,7 @@ def StdcRotateRightTyped : LibBuiltin<"stdbit.h", "C2Y_LANG">, IntBitUtilTemplat
 
 def StdcMemReverse8: LibBuiltin<"stdbit.h", "C2Y_LANG"> {
   let Spellings = ["stdc_memreverse8"];
-  let Attributes = [NoThrow, NonNull<NonOptimizing, [1]>];
+  let Attributes = [NoThrow, Constexpr, NonNull<NonOptimizing, [1]>];
   let Prototype = "void(size_t, unsigned char*)";
   let AddBuiltinPrefixedAlias = 1;
 }
@@ -3570,6 +3570,11 @@ def Fwrite : LibBuiltin<"stdio.h"> {
   let Prototype = "size_t(void const*, size_t, size_t, FILE*)";
 }
 
+def Fgets : LibBuiltin<"stdio.h"> {
+  let Spellings = ["fgets"];
+  let Prototype = "char*(char*, int, FILE*)";
+}
+
 // C99 ctype.h
 
 def IsAlNum : LibBuiltin<"ctype.h"> {
@@ -5355,6 +5360,15 @@ def SYCLIsNDRangeKernel : LangBuiltin<"SYCL_LANG"> {
   let Prototype = "bool(...)";
 }
 
+// Takes a call to a SYCL free function kernel and evaluates to a pointer to the
+// function the call selects; the call is not evaluated. Used by the
+// SYCL_EXT_ONEAPI_KERNEL_FUNCTION macro.
+def SYCLResolveKernelFunction : LangBuiltin<"SYCL_LANG"> {
+  let Spellings = ["__builtin_sycl_resolve_kernel_function"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void*(...)";
+}
+
 // HLSL
 def HLSLAddUint64: LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_adduint64"];
@@ -5824,6 +5838,12 @@ def HLSLFrac : LangBuiltin<"HLSL_LANG"> {
   let Prototype = "void(...)";
 }
 
+def HLSLIsfinite : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_elementwise_isfinite"];
+  let Attributes = [NoThrow, Const, CustomTypeChecking];
+  let Prototype = "void(...)";
+}
+
 def HLSLIsinf : LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_elementwise_isinf"];
   let Attributes = [NoThrow, Const, CustomTypeChecking];
@@ -5936,6 +5956,12 @@ def HLSLGroupMemoryBarrierWithGroupSync: LangBuiltin<"HLSL_LANG"> {
   let Spellings = ["__builtin_hlsl_group_memory_barrier_with_group_sync"];
   let Attributes = [NoThrow, Const];
   let Prototype = "void()";
+}
+
+def HLSLBarrier : LangBuiltin<"HLSL_LANG"> {
+  let Spellings = ["__builtin_hlsl_barrier"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void(...)";
 }
 
 class HLSLScalarTemplate

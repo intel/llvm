@@ -15,6 +15,7 @@
 #include <detail/config.hpp>
 #include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -207,6 +208,15 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return PM;
 }
 
+#if SYCL_EXT_JIT_ENABLE
+jit_compiler &GlobalHandler::getJITCompiler() {
+  const LockGuard Lock{MJITCompiler.Lock};
+  if (!MJITCompiler.Inst)
+    MJITCompiler.Inst.reset(new jit_compiler());
+  return *MJITCompiler.Inst;
+}
+#endif
+
 std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
 GlobalHandler::getPlatformToDefaultContextCache() {
   // The optimization with static reference is not done because
@@ -359,6 +369,37 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
+#if defined(_WIN32)
+bool GlobalHandler::winEarlyExitCheck(bool ProcessExiting = true) {
+  // In Windows ExitProcess all non host threads are forcibly terminated prior
+  // to DLL_PROCESS_DETACH. However, backend or XPTI calls may rely on these
+  // threads being active. In such cases, making XPTI or backend calls at
+  // DLL_PROCESS_DETACH can lead to hangs or memory corruption. Because of this
+  // it is best to not unload the backend after thread destruction.
+#if defined(XPTI_ENABLE_INSTRUMENTATION)
+  if (xptiTraceEnabled())
+    return true;
+#endif
+  if (ProcessExiting) {
+    // Level zero relies on unloading cleanup for UR_L0_LEAKS_DEBUG
+    // functionality on Windows so don't exit early for L0 platforms.
+    if (auto PlatformCache =
+            GlobalHandler::RTGlobalObjHandler->getPlatformCache();
+        !std::any_of(PlatformCache.begin(), PlatformCache.end(),
+                     [](const std::shared_ptr<platform_impl> &p) {
+                       return p->getBackend() == backend::ext_oneapi_level_zero;
+                     })) {
+
+      // If spawned threads using the Windows CRT are forcibly killed, this
+      // can prevent stdout buffer being flushed at the program end.
+      std::fflush(stdout);
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 // Note: on Windows this function is called from DllMain when the library is
 // unloaded via FreeLibrary, or from the static shutdown handler when the
 // library is linked statically. It is not called from DllMain during process
@@ -375,14 +416,13 @@ void shutdown_early(bool CanJoinThreads = true) {
     ProcessTerminating.store(true, std::memory_order_release);
 #endif
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
-#endif
-
   // Now that we are shutting down, we will no longer defer MemObj releases.
   GlobalHandler::RTGlobalObjHandler->endDeferredRelease();
+
+#ifdef _WIN32
+  if (GlobalHandler::winEarlyExitCheck(CanJoinThreads))
+    return;
+#endif
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
@@ -441,10 +481,9 @@ void shutdown_late() {
   if (!GlobalHandler::RTGlobalObjHandler)
     return;
 
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(_WIN32)
-  if (xptiTraceEnabled())
-    return; // When doing xpti tracing, we can't safely shutdown on Win.
-            // TODO: figure out why XPTI prevents release.
+#ifdef _WIN32
+  if (GlobalHandler::winEarlyExitCheck())
+    return;
 #endif
 
   // First, release resources, that may access adapters.
@@ -459,6 +498,9 @@ void shutdown_late() {
       nullptr, std::memory_order_release);
   GlobalHandler::RTGlobalObjHandler->MScheduler.Inst.reset(nullptr);
   GlobalHandler::RTGlobalObjHandler->MProgramManager.Inst.reset(nullptr);
+
+  // The JIT compiler owns image tables referenced by the program manager.
+  GlobalHandler::RTGlobalObjHandler->MJITCompiler.Inst.reset(nullptr);
 
   // Clear the adapters and reset the instance if it was there.
   GlobalHandler::RTGlobalObjHandler->unloadAdapters();

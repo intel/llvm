@@ -65,3 +65,40 @@ TEST_P(urQueueEndGraphCaptureExpTest, InvalidNullPtrGraph) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urQueueEndGraphCaptureExp(queue, nullptr));
 }
+
+TEST_P(urQueueEndGraphCaptureExpTest, InvalidNotCapturing) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphCaptureErrorsMinL0DriverVersion);
+
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING,
+                   urQueueEndGraphCaptureExp(queue, &capturedGraph));
+}
+
+TEST_P(urQueueEndGraphCaptureExpTest, InvalidCaptureAlreadyEnded) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphCaptureErrorsMinL0DriverVersion);
+
+  ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &capturedGraph));
+
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING,
+                   urQueueEndGraphCaptureExp(queue, &capturedGraph));
+}
+
+using urQueueEndGraphCaptureExpMultiQueueTest =
+    uur::urGraphMultiQueueCaptureExpTest;
+
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urQueueEndGraphCaptureExpMultiQueueTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
+
+TEST_P(urQueueEndGraphCaptureExpMultiQueueTest, InvalidUnjoinedForks) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphForkErrorsMinL0DriverVersion);
+
+  // The helper asserts that ending the capture returns UNJOINED_FORKS.
+  UUR_RETURN_ON_FATAL_FAILURE(recordGraphWithUnjoinedForks());
+}

@@ -2,10 +2,6 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// Test old vec implementation for all platforms.
-// RUN:  %{build}  -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -o %t-pfrev.out
-// RUN: %{run} %t-pfrev.out
-
 // XFAIL: linux && level_zero && arch-intel_gpu_mtl_u
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/23094
 

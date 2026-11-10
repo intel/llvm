@@ -204,3 +204,41 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueSuccess, Res.MResult)
       << "Enqueue operation should return successfully.\n";
 }
+
+// When a blocked user is unblocked by A but is still blocked by B, it must be
+// re-registered on B, or its waiter is never woken up.
+TEST_F(SchedulerTest, BlockedUserReRegisteredOnNextBlockedCommand) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
+  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+
+  //     Root
+  //     /  \
+  //    A    B   (both blocked, e.g. by live read host accessors)
+  MockCommand A(&QueueImpl), B(&QueueImpl), Root(&QueueImpl);
+  std::vector<detail::Command *> ToCleanUp;
+  for (MockCommand *Dep : {&A, &B}) {
+    Dep->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+    Dep->MIsBlockable = true;
+    auto DepEvent = detail::event_impl::create_device_event(QueueImpl);
+    DepEvent->setCommand(Dep);
+    (void)Root.addDep(DepEvent, ToCleanUp);
+  }
+
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
+  detail::EnqueueResultT Res;
+  ASSERT_FALSE(MockScheduler::enqueueCommand(&Root, Res, detail::BLOCKING));
+  ASSERT_EQ(1u, A.MBlockedUsers.size());
+  ASSERT_EQ(0u, B.MBlockedUsers.size());
+
+  A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  MockScheduler::retryEnqueueBlockedUsers(A.MBlockedUsers, Lock, ToCleanUp);
+  ASSERT_FALSE(Root.isSuccessfullyEnqueued());
+  ASSERT_EQ(1u, B.MBlockedUsers.size());
+  ASSERT_EQ(Root.getEvent(), B.MBlockedUsers[0]);
+
+  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  MockScheduler::retryEnqueueBlockedUsers(B.MBlockedUsers, Lock, ToCleanUp);
+  ASSERT_TRUE(Root.isSuccessfullyEnqueued());
+}

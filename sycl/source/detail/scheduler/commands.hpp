@@ -388,10 +388,12 @@ public:
   /// removal).
   bool MMarkedForCleanup = false;
 
-  /// Contains list of commands that depends on the host command explicitly (by
-  /// depends_on). Not involved in the cleanup process since it is one-way link
-  /// and does not hold resources.
-  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
+  /// Events of root commands whose enqueue was deferred because this command
+  /// is blocking: a host task that is not complete yet, or a command blocked
+  /// by a live host accessor. They are re-enqueued by retryEnqueueBlockedUsers
+  /// when this command stops blocking. Not involved in the cleanup process
+  /// since it is one-way link and does not hold resources.
+  /// Using EventImplPtr since retryEnqueueBlockedUsers and event.wait may
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
   std::mutex MBlockedUsersMutex;
