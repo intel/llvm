@@ -12314,6 +12314,13 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));
 
+    // The wrapper object must use the same ABI as the user's host code, or
+    // the link can fail (e.g. soft-float vs double-float on RISC-V).
+    for (OptSpecifier Opt : {OPT_march_EQ, OPT_mabi_EQ})
+      if (const Arg *A = Args.getLastArg(Opt))
+        CmdArgs.push_back(Args.MakeArgString("--sycl-host-compiler-arg=" +
+                                             A->getAsString(Args)));
+
     // When linking SYCLBIN files, the output is a SYCLBIN file created by
     // --syclbin rather than a device image wrapped for the host link.
     if (Args.hasArg(options::OPT_fsycl_link_EQ) && !D.getSYCLBINLinkSeen())
