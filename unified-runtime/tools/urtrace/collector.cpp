@@ -116,8 +116,8 @@ const char *output_format_str[MAX_OUTPUT_FORMAT] = {"human readable", "json"};
  */
 static class cli_args {
   std::optional<std::string>
-  arg_with_value(std::string_view name, const std::string arg_name,
-                 const std::vector<std::string> arg_values) {
+  arg_with_value(std::string_view name, const std::string &arg_name,
+                 const std::vector<std::string> &arg_values) {
     if (arg_name != name) {
       return std::nullopt;
     }
