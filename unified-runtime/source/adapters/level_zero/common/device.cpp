@@ -241,16 +241,19 @@ supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
 #endif
 }
 
-#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
 static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
   constexpr const char *ExtensionName = ZE_DEVICE_IGCA_TARGET_EXT_NAME;
   constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
 
   auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
   return Extension != Platform->zeDriverExtensionMap.end() &&
          Extension->second >= MinVersion;
+#else
+  std::ignore = Platform;
+  return false;
+#endif
 }
-#endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
 
 static std::optional<uint64_t>
 getDeviceUsableMemSizeFromCore(ur_device_handle_t Device) {
@@ -1645,26 +1648,24 @@ ur_result_t urDeviceGetInfo(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   case UR_DEVICE_INFO_IGCA_TARGET:
   case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
-#ifndef ZE_DEVICE_IGCA_TARGET_EXT_NAME
-    // Built against Level Zero headers without the IGCA target extension.
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-#else
-    const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
-    // A device implementing no IGCA feature set has no IGCA target, which is
-    // also what is reported when the extension is unavailable.
-    if (IgcaProperties.featureSets == 0)
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    if (supportsDeviceIgcaTargetExtension(Device->Platform)) {
+#ifdef ZE_DEVICE_IGCA_TARGET_EXT_NAME
+      const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
+      // A device implementing no IGCA feature set has no IGCA target.
+      if (IgcaProperties.featureSets != 0) {
+        if (ParamName == UR_DEVICE_INFO_IGCA_TARGET)
+          return ReturnValue(uint32_t{IgcaProperties.target});
 
-    if (ParamName == UR_DEVICE_INFO_IGCA_TARGET)
-      return ReturnValue(uint32_t{IgcaProperties.target});
-
-    ur_device_igca_feature_flags_t FeatureSets = 0;
-    if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_COMPUTE)
-      FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
-    if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER)
-      FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
-    return ReturnValue(FeatureSets);
+        ur_device_igca_feature_flags_t FeatureSets = 0;
+        if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_COMPUTE)
+          FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+        if (IgcaProperties.featureSets & ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER)
+          FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+        return ReturnValue(FeatureSets);
+      }
 #endif // ZE_DEVICE_IGCA_TARGET_EXT_NAME
+    }
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
