@@ -330,6 +330,14 @@
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: sycl-post-link"{{.*}} --device-lib-dir={{.*}}/Inputs/SYCL/lib {{.*}} SYCL_POST_LINK_OPTIONS {{.*}}
 
+/// Check that default SYCL device libraries are resolved by
+/// clang-linker-wrapper itself from -sycl-device-library-location= for
+/// old-model objects, without the driver enumerating them via
+/// --bitcode-library=.
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEFAULT-LIBS %s
+// CHK-CMDS-DEFAULT-LIBS: llvm-link{{.*}} --suppress-warnings
+// CHK-CMDS-DEFAULT-LIBS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc
+
 /// Check for libsycl-nativecpu_utils.bc getting linked in for Native CPU.
 //
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu -sycl-device-library-location=%S/Inputs/native_cpu --sycl-post-link-options=SYCL_POST_LINK_OPTIONS --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null %t_native_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s

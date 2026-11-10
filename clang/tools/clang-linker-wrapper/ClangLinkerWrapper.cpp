@@ -1812,13 +1812,6 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 
   // Gather device library files from --bitcode-library option.
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  // SPIR/SPIRV libraries are already linked in at compile time for new-model
-  // objects; only resolve them here as a link-time fallback for old-model
-  // objects (detected via unbundling, see getInputBitcodeLibrary). Other
-  // targets (NVPTX, AMD, NativeCPU) always need link-time resolution.
-  if (Triple.isSPIROrSPIRV() && !NeedsDeviceLibResolution)
-    return *LinkedFile;
-
   SmallVector<std::string, 16> DeviceLibFiles;
 
   // Collect bitcode libraries from --bitcode-library option
@@ -1845,6 +1838,28 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                    " does not exist.");
 
     DeviceLibFiles.emplace_back(LibraryPath.str());
+  }
+
+  // SPIR/SPIRV device libraries are linked in at compile time for new-model
+  // objects, so the driver never passes them via --bitcode-library=. Old-model
+  // objects (detected via unbundling, see getInputBitcodeLibrary) still need
+  // them resolved here; clang-linker-wrapper knows the default library names
+  // itself rather than having them enumerated on the command line.
+  if (Triple.isSPIROrSPIRV() && NeedsDeviceLibResolution) {
+    if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
+      static constexpr const char *DefaultSYCLDeviceLibs[] = {
+          "libsycl-crt.bc", "libsycl-cmath.bc",
+#if defined(_WIN32)
+          "libsycl-msvc-math.bc",
+#endif
+          "libsycl-imf.bc"};
+      for (const char *LibName : DefaultSYCLDeviceLibs) {
+        SmallString<128> LibPath(A->getValue());
+        llvm::sys::path::append(LibPath, LibName);
+        if (llvm::sys::fs::exists(LibPath))
+          DeviceLibFiles.emplace_back(LibPath.str());
+      }
+    }
   }
 
   // No device library files provided, second device linking step not required.
