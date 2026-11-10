@@ -976,9 +976,8 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
   // StringRefs stored in TranslatorArgs.
   static const std::string CRIExtArg =
       BaseExtArg + ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
-  TranslatorArgs.push_back(llvm::offloading::supportsBFloat16(Arch)
-                               ? CRIExtArg
-                               : BaseExtArg);
+  TranslatorArgs.push_back(
+      llvm::offloading::supportsBFloat16(Arch) ? CRIExtArg : BaseExtArg);
 }
 
 /// Run LLVM to SPIR-V translation.
