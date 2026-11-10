@@ -1391,10 +1391,10 @@ bool ItaniumCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
   // hook getSRetAddrSpace to decide the AS.
   if (!RD->canPassInRegisters()) {
     auto Align = CGM.getContext().getTypeAlignInChars(FI.getReturnType());
+    // The object must be constructed in place, so the sret AS always comes
+    // from the target hook, regardless of UseAllocaASForSrets.
     LangAS SRetAS = CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
-    unsigned AS = CGM.getCodeGenOpts().UseAllocaASForSrets
-                                ? CGM.getDataLayout().getAllocaAddrSpace()
-                                : CGM.getContext().getTargetAddressSpace(SRetAS);
+    unsigned AS = CGM.getContext().getTargetAddressSpace(SRetAS);
     FI.getReturnInfo() =
         ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AS, /*ByVal=*/false);
     return true;

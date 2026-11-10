@@ -303,11 +303,13 @@ void AggExprEmitter::withReturnValueSlot(
   // return type.
   const CXXRecordDecl *RD = RetTy->getAsCXXRecordDecl();
   LangAS SRetLangAS = CGF.CGM.getTargetCodeGenInfo().getSRetAddrSpace(RD);
-  unsigned SRetAS = CGF.CGM.getCodeGenOpts().UseAllocaASForSrets
-                                ? CGF.getContext().getTargetAddressSpace(
-                                    getLangASFromTargetAS(
-                                      CGF.CGM.getABIInfo().getDataLayout().getAllocaAddrSpace()))
-                                : CGF.getContext().getTargetAddressSpace(SRetLangAS);
+  // Must match the AS chosen by classifyReturnType: records that cannot be
+  // copied always use the target hook, regardless of UseAllocaASForSrets.
+  unsigned SRetAS =
+      CGF.CGM.getCodeGenOpts().UseAllocaASForSrets &&
+              (!RD || RD->canPassInRegisters())
+          ? CGF.CGM.getABIInfo().getDataLayout().getAllocaAddrSpace()
+          : CGF.getContext().getTargetAddressSpace(SRetLangAS);
   bool CanAggregateCopy =
       RD ? (RD->hasDefinition() &&
             (RD->hasTrivialCopyConstructor() ||
