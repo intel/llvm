@@ -1,10 +1,11 @@
-; RUN: opt -passes='break-crit-edges,lower-switch,mergereturn' -S < %s | FileCheck %s
+; RUN: veczc -k foo -k bar -vecz-passes='function(break-crit-edges,lower-switch),mergereturn' -S < %s | FileCheck %s
 
 ; The pass did previously not report the correct Modified status in the case
 ; where a function had at most one return block, and an unified unreachable
 ; block was created. This was caught by the pass return status check that is
 ; hidden under EXPENSIVE_CHECKS.
 
+; CHECK-LABEL: define i32 @__vecz_v4_foo(
 ; CHECK: for.foo.body2:
 ; CHECK-NEXT: br label %UnifiedUnreachableBlock
 
@@ -34,9 +35,10 @@ for.foo.end:                                          ; preds = %for.foo.cond1
   unreachable
 
 for.foo.end3:                                         ; preds = %for.foo.cond
-  ret i32 undef
+  ret i32 poison
 }
 
+; CHECK-LABEL: define void @__vecz_v4_bar(
 ; CHECK: for.bar.body2:
 ; CHECK-NEXT: br label %UnifiedUnreachableBlock
 
