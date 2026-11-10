@@ -33,9 +33,9 @@ int main() {
     Queue
         .submit([&](sycl::handler &Handler) {
           auto Half =
-              HalfBuffer.get_access<sycl::access::mode::read_write>(Handler);
+              HalfBuffer.get_access<sycl::access_mode::read_write>(Handler);
           auto BFloat =
-              BFloatBuffer.get_access<sycl::access::mode::read_write>(Handler);
+              BFloatBuffer.get_access<sycl::access_mode::read_write>(Handler);
           Handler.single_task<class Atomic16AOT>([=]() {
             sycl::atomic_ref<sycl::half, sycl::memory_order::relaxed,
                              sycl::memory_scope::device,
