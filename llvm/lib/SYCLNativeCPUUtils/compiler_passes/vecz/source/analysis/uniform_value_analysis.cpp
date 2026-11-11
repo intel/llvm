@@ -252,7 +252,8 @@ void UniformValueResult::findVectorLeaves(
                Op->isMaskedScatterGatherMemOp())) {
             IsCallLeaf = true;
           }
-        } else if (Ctx.isMaskedAtomicFunction(*CI->getCalledFunction())) {
+        } else if (Function *Callee = CI->getCalledFunction();
+                   Callee && Ctx.isMaskedAtomicFunction(*Callee)) {
           IsCallLeaf = true;
         }
         if (IsCallLeaf) {
