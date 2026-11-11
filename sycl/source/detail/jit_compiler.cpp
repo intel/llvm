@@ -114,6 +114,10 @@ jit_compiler::jit_compiler()
       return false;
     }
 
+    this->GetSPIRVKernelInfoHandle = reinterpret_cast<GetSPIRVKernelInfoFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr.get(),
+                                                  "getSPIRVKernelInfo"));
+
     LibraryHandle = std::move(LibraryPtr);
     return true;
   };
@@ -444,6 +448,13 @@ std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
   std::string Prefix = CompilationID + '$';
   return std::make_pair(createDeviceBinaries(Result.getBundleInfo(), Prefix),
                         std::move(Prefix));
+}
+
+::jit_compiler::DynArray<::jit_compiler::SPIRVKernelInfo>
+jit_compiler::getSPIRVKernelInfo(const std::vector<uint8_t> &SPIRVBinary) {
+  if (!GetSPIRVKernelInfoHandle)
+    return {};
+  return GetSPIRVKernelInfoHandle(::jit_compiler::View<uint8_t>{SPIRVBinary});
 }
 
 } // namespace detail
