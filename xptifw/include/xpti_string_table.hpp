@@ -8,7 +8,7 @@
 #include "parallel_hashmap/phmap.h"
 #include "spin_lock.hpp"
 #include "xpti/xpti_data_types.h"
-#include <hash_table7.hpp>
+#include <emhash/hash_table7.hpp>
 
 #include <atomic>
 #include <unordered_map>
