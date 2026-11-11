@@ -372,7 +372,7 @@ jobs:
       uses: ./devops/actions/run-tests/linux/cts
       # Normally this job takes less than 10m. But sometimes it hangs up and
       # reaches the 360m limit. Set a lower limit to free up the runner earlier.
-      timeout-minutes: 35
+      timeout-minutes: 40
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
