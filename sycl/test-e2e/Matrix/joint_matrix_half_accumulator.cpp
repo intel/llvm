@@ -23,9 +23,12 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
-// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
-// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
+// Each of these runs the full shape and type list, which does not finish on the
+// CRI simulator, CMPLRLLVM-75924. The default run above covers every shape and
+// type there, only the IGC load/store levels are left out.
+// RUN: %if gpu && !arch-intel_gpu_cri %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
+// RUN: %if gpu && !arch-intel_gpu_cri %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
+// RUN: %if gpu && !arch-intel_gpu_cri %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 #include <iostream>
 
 #include "common.hpp"

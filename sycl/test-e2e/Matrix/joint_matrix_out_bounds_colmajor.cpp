@@ -12,10 +12,12 @@
 // UNSUPPORTED: gpu-intel-dg2, cpu
 // UNSUPPORTED-INTENDED: Checked load/stores are not supported by DG2 and CPU HW
 
-// RUN: %{build} -o %t.out
+// The default size hangs on the CRI simulator, CMPLRLLVM-75924, so build a
+// smaller one there. Restore the default once CRI hardware is available.
+// RUN: %if arch-intel_gpu_cri %{ %{build} -DMATRIX_SIZE=256 -o %t.out %} %else %{ %{build} -o %t.out %}
 // RUN: %{run} %t.out
 
-// RUN: %{build} -o %t32.out -DSG_SZ=32
+// RUN: %if arch-intel_gpu_cri %{ %{build} -DMATRIX_SIZE=256 -o %t32.out -DSG_SZ=32 %} %else %{ %{build} -o %t32.out -DSG_SZ=32 %}
 // RUN: %{run} %t32.out
 #include <iostream>
 
