@@ -4070,6 +4070,8 @@ TEST(TripleTest, DefaultWCharSize) {
   EXPECT_EQ(2u, Triple("x86_64-scei-ps4").getDefaultWCharSize());
   EXPECT_EQ(2u, Triple("x86_64-scei-ps5").getDefaultWCharSize());
   EXPECT_EQ(2u, Triple("powerpc-ibm-aix").getDefaultWCharSize());
+  EXPECT_EQ(2u, Triple("avr-unknown-unknown").getDefaultWCharSize());
+  EXPECT_EQ(2u, Triple("msp430-unknown-unknown").getDefaultWCharSize());
 
   EXPECT_EQ(1u, Triple("xcore-unknown-unknown").getDefaultWCharSize());
 }
