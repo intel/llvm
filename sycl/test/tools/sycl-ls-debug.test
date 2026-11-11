@@ -9,10 +9,14 @@ CHECK-DEBUG-NOT: with '--debug' to get more details
 CHECK-DEBUG-NOT: default_selector_v
 CHECK-DEBUG-NOT: with '--debug' to get more details
 
--- '--debug' enables the UR loader logs on stderr.
-RUN: env --unset=UR_LOG_LOADER sycl-ls --debug 2> debug_err.out
-RUN: FileCheck --input-file debug_err.out --check-prefix CHECK-DEBUG-LOG %s
+-- '--debug' enables basic UR tracing, which prints the UR loader logs.
+RUN: FileCheck --input-file debug.out --check-prefix CHECK-DEBUG-LOG %s
 CHECK-DEBUG-LOG: adapters loaded
+
+-- '--debug' preserves the tracing levels already requested by the user.
+RUN: env SYCL_UR_TRACE=2 sycl-ls --debug > debug_trace2.out
+RUN: FileCheck --input-file debug_trace2.out --check-prefixes CHECK-DEBUG-LOG,CHECK-DEBUG-CALLS %s
+CHECK-DEBUG-CALLS: urAdapterGet
 
 -- '--verbose' and '--debug' are independent.
 RUN: sycl-ls --verbose --debug > verbose_debug.out
@@ -30,33 +34,36 @@ RUN: sycl-ls > concise.out
 RUN: FileCheck --input-file concise.out --check-prefix CHECK-CONCISE %s
 CHECK-CONCISE-NOT: default_selector_v
 
--- '--debug=all' is equivalent to '--debug'.
+-- '--debug=all' is equivalent to '--debug'. The logs are filtered out since
+-- they may contain addresses.
 RUN: sycl-ls --debug=all > debug_all.out
-RUN: diff debug.out debug_all.out
+RUN: grep -v '^<' debug.out > debug_nolog.out || true
+RUN: grep -v '^<' debug_all.out > debug_all_nolog.out || true
+RUN: diff debug_nolog.out debug_all_nolog.out
 
 -- '--debug=<backends>' only enables the logs of the selected adapters. The
--- adapter loggers are unset so that only sycl-ls can enable them.
+-- adapter loggers are unset so that only SYCL_UR_TRACE can enable them.
 DEFINE: %{unset_loggers} = env --unset=UR_LOG_OPENCL --unset=UR_LOG_CUDA \
 DEFINE:   --unset=UR_LOG_HIP --unset=UR_LOG_LEVEL_ZERO \
 DEFINE:   --unset=UR_LOG_NATIVE_CPU --unset=UR_LOG_OFFLOAD
-RUN: %{unset_loggers} sycl-ls --debug=cuda 2> debug_cuda_err.out
-RUN: FileCheck --input-file debug_cuda_err.out --check-prefix CHECK-DEBUG-CUDA %s
+RUN: %{unset_loggers} sycl-ls --debug=cuda > debug_cuda.out
+RUN: FileCheck --input-file debug_cuda.out --check-prefix CHECK-DEBUG-CUDA %s
 CHECK-DEBUG-CUDA-NOT: <OPENCL>[
 CHECK-DEBUG-CUDA-NOT: <HIP>[
 CHECK-DEBUG-CUDA-NOT: <LEVEL_ZERO>[
 CHECK-DEBUG-CUDA-NOT: <NATIVE_CPU>[
 CHECK-DEBUG-CUDA-NOT: <OFFLOAD>[
 
-RUN: %{unset_loggers} sycl-ls --debug=hip,cuda 2> debug_hip_cuda_err.out
-RUN: FileCheck --input-file debug_hip_cuda_err.out --check-prefix CHECK-DEBUG-HIP-CUDA %s
+RUN: %{unset_loggers} sycl-ls --debug=hip,cuda > debug_hip_cuda.out
+RUN: FileCheck --input-file debug_hip_cuda.out --check-prefix CHECK-DEBUG-HIP-CUDA %s
 CHECK-DEBUG-HIP-CUDA-NOT: <OPENCL>[
 CHECK-DEBUG-HIP-CUDA-NOT: <LEVEL_ZERO>[
 CHECK-DEBUG-HIP-CUDA-NOT: <NATIVE_CPU>[
 CHECK-DEBUG-HIP-CUDA-NOT: <OFFLOAD>[
 
 -- The UR loader logs are enabled regardless of the selected backends.
-RUN: env --unset=UR_LOG_LOADER %{unset_loggers} sycl-ls --debug=native_cpu 2> debug_native_cpu_err.out
-RUN: FileCheck --input-file debug_native_cpu_err.out --check-prefixes CHECK-DEBUG-LOG,CHECK-DEBUG-NATIVE-CPU %s
+RUN: %{unset_loggers} sycl-ls --debug=native_cpu > debug_native_cpu.out
+RUN: FileCheck --input-file debug_native_cpu.out --check-prefixes CHECK-DEBUG-LOG,CHECK-DEBUG-NATIVE-CPU %s
 CHECK-DEBUG-NATIVE-CPU-NOT: <OPENCL>[
 CHECK-DEBUG-NATIVE-CPU-NOT: <CUDA>[
 CHECK-DEBUG-NATIVE-CPU-NOT: <HIP>[

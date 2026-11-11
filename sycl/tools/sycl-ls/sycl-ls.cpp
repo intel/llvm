@@ -19,8 +19,9 @@
 // Independently, debug mode (enabled with --debug[=<backends>]) prints
 // diagnostic information to help find out why expected platforms or devices
 // are missing: it checks render group permissions and enables UR adapter
-// loading logs. The diagnostics can be restricted to a comma-separated list of
-// backends, '--debug' alone is equivalent to '--debug=all'.
+// loading logs through SYCL_UR_TRACE. The diagnostics can be restricted to a
+// comma-separated list of backends, '--debug' alone is equivalent to
+// '--debug=all'.
 //
 #include <sycl/sycl.hpp>
 
@@ -123,7 +124,8 @@ struct DebugBackendInfo {
   // Name used on the command line.
   std::string_view Name;
   backend Backend;
-  // UR adapter logger environment variable.
+  // UR adapter logger environment variable. Keep in sync with the adapter
+  // loggers enabled by SYCL_UR_TRACE in sycl/source/detail/ur.cpp.
   const char *UrLogger;
 };
 
@@ -545,33 +547,20 @@ int main(int argc, char **argv) {
     if (DiscardFilters && FilterEnvVars.size())
       unsetFilterEnvVars();
 
-    // In debug mode, if UR logging has not already been enabled by the user,
-    // enable the printing of any errors related to adapter loading for the
-    // selected backends.
-    std::vector<const char *> SetLoggers;
-    auto EnableLogger = [&](const char *Logger) {
-      if (nullptr == std::getenv(Logger)) {
-        SetLoggers.push_back(Logger);
-        setenv(Logger, "level:info;output:stderr", 1);
-      }
-    };
-
+    // In debug mode, enable basic UR tracing, which logs adapter loading and
+    // platform discovery. The runtime does not override adapter loggers set by
+    // the user, so silence those of the backends that were not selected.
     if (debug) {
-      // Every adapter is loaded through the UR loader, so its logs are
-      // relevant to any selected backend.
-      EnableLogger("UR_LOG_LOADER");
+      const char *TraceVar = std::getenv("SYCL_UR_TRACE");
+      int TraceLevel = TraceVar ? std::atoi(TraceVar) : 0;
+      setenv("SYCL_UR_TRACE", std::to_string(TraceLevel | 1).c_str(), 1);
       for (const auto &Info : DebugBackendInfos)
-        if (isDebugEnabled(Info.Backend))
-          EnableLogger(Info.UrLogger);
+        if (!isDebugEnabled(Info.Backend) && !std::getenv(Info.UrLogger))
+          setenv(Info.UrLogger, "level:quiet", 1);
     }
 
     const auto &Platforms = platform::get_platforms();
 
-    if (debug) {
-      for (const auto &Logger : SetLoggers) {
-        unsetenv(Logger);
-      }
-    }
     if (Platforms.size() == 0) {
       std::cout << "No platforms found";
       if (!debug)

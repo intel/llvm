@@ -186,6 +186,23 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
 #else
     setenv("UR_LOG_LOADER", LogOptions, 1);
 #endif
+
+    // Also enable the adapter loggers, which report why platforms might be
+    // missing. Unlike the loader logger, a configuration provided by the user
+    // takes precedence, which allows silencing specific adapters (sycl-ls
+    // relies on this for --debug=<backends>). Keep in sync with the list in
+    // sycl-ls.
+    for (const char *AdapterLogger :
+         {"UR_LOG_OPENCL", "UR_LOG_CUDA", "UR_LOG_HIP", "UR_LOG_LEVEL_ZERO",
+          "UR_LOG_NATIVE_CPU", "UR_LOG_OFFLOAD"}) {
+      if (std::getenv(AdapterLogger))
+        continue;
+#ifdef _WIN32
+      _putenv_s(AdapterLogger, LogOptions);
+#else
+      setenv(AdapterLogger, LogOptions, 1);
+#endif
+    }
   }
 
   CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
