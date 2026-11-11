@@ -1,12 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; llvm-spirv does not preserve the "debugger-tuning" module flag, so append it
+; to the translated module.
+; RUN: echo '!llvm.module.flags = !{!1000}' >> %t.ll
+; RUN: echo '!1000 = !{i32 2, !"debugger-tuning", !"sce"}' >> %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj -dwarf-linkage-names=Abstract < %t.ll | llvm-dwarfdump -v -debug-info - > %t
 ; RUN: FileCheck %s -check-prefix=ONENAME < %t
 ; RUN: FileCheck %s -check-prefix=REF < %t 
 ; Verify tuning for SCE gets us Abstract only.
-; RUN: llc -mtriple=%triple -O0 -filetype=obj -debugger-tune=sce < %t.ll | llvm-dwarfdump -v -debug-info - > %t
+; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - > %t
 ; RUN: FileCheck %s -check-prefix=ONENAME < %t
 ; RUN: FileCheck %s -check-prefix=REF < %t 
 ; REQUIRES: object-emission

@@ -3,8 +3,12 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; llvm-spirv does not preserve the "debugger-tuning" module flag, so append it
+; to the translated module.
+; RUN: echo '!llvm.module.flags = !{!1000}' >> %t.ll
+; RUN: echo '!1000 = !{i32 2, !"debugger-tuning", !"gdb"}' >> %t.ll
 
-; RUN: llc -mtriple=%triple -debugger-tune=gdb -filetype=obj -o %t.o < %t.ll
+; RUN: llc -mtriple=%triple -filetype=obj -o %t.o < %t.ll
 ; RUN: llvm-dwarfdump -debug-pubnames %t.o | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

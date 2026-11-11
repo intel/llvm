@@ -2,10 +2,17 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; llvm-spirv does not preserve the "debugger-tuning" module flag, so append it
+; to the translated module.
+; RUN: echo '!llvm.module.flags = !{!1000}' >> %t.ll
+; RUN: echo '!1000 = !{i32 2, !"debugger-tuning", !"TUNE_PLACEHOLDER"}' >> %t.ll
 
-; RUN: llc -mtriple=%triple -debugger-tune=lldb -asm-verbose -O1 -o - < %t.ll | FileCheck %s
-; RUN: llc -mtriple=%triple -debugger-tune=gdb -asm-verbose -O1 -o - < %t.ll | FileCheck %s --check-prefix=DISABLE
-; RUN: llc -mtriple=%triple -frame-pointer=all -debugger-tune=lldb -asm-verbose -O1 -o - < %t.ll | FileCheck %s --check-prefix=DISABLE
+; RUN: sed 's/TUNE_PLACEHOLDER/lldb/' %t.ll | \
+; RUN:   llc -mtriple=%triple -asm-verbose -O1 -o - | FileCheck %s
+; RUN: sed 's/TUNE_PLACEHOLDER/gdb/' %t.ll | \
+; RUN:   llc -mtriple=%triple -asm-verbose -O1 -o - | FileCheck %s --check-prefix=DISABLE
+; RUN: sed 's/TUNE_PLACEHOLDER/lldb/' %t.ll | \
+; RUN:   llc -mtriple=%triple -frame-pointer=all -asm-verbose -O1 -o - | FileCheck %s --check-prefix=DISABLE
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

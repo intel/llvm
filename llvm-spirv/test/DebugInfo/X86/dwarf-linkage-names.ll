@@ -4,24 +4,32 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; llvm-spirv does not preserve the "debugger-tuning" module flag, so append it
+; to the translated module.
+; RUN: echo '!llvm.module.flags = !{!1000}' >> %t.ll
+; RUN: echo '!1000 = !{i32 2, !"debugger-tuning", !"TUNE_PLACEHOLDER"}' >> %t.ll
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2
 ; RUN: llc -O0 -mtriple=x86_64-scei-ps4 < %t.ll | FileCheck %s -check-prefix NOLINKAGE
-; RUN: llc -O0 -mtriple=x86_64-unknown-unknown -debugger-tune=sce < %t.ll | FileCheck %s -check-prefix NOLINKAGE
+; RUN: sed 's/TUNE_PLACEHOLDER/sce/' %t.ll | llc -O0 -mtriple=x86_64-unknown-unknown | FileCheck %s -check-prefix NOLINKAGE
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: echo '!llvm.module.flags = !{!1000}' >> %t.ll
+; RUN: echo '!1000 = !{i32 2, !"debugger-tuning", !"TUNE_PLACEHOLDER"}' >> %t.ll
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2
 ; RUN: llc -O0 -mtriple=x86_64-scei-ps4 < %t.ll | FileCheck %s -check-prefix NOLINKAGE
-; RUN: llc -O0 -mtriple=x86_64-unknown-unknown -debugger-tune=sce < %t.ll | FileCheck %s -check-prefix NOLINKAGE
+; RUN: sed 's/TUNE_PLACEHOLDER/sce/' %t.ll | llc -O0 -mtriple=x86_64-unknown-unknown | FileCheck %s -check-prefix NOLINKAGE
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: echo '!llvm.module.flags = !{!1000}' >> %t.ll
+; RUN: echo '!1000 = !{i32 2, !"debugger-tuning", !"TUNE_PLACEHOLDER"}' >> %t.ll
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2
 ; RUN: llc -O0 -mtriple=x86_64-scei-ps4 < %t.ll | FileCheck %s -check-prefix NOLINKAGE
-; RUN: llc -O0 -mtriple=x86_64-unknown-unknown -debugger-tune=sce < %t.ll | FileCheck %s -check-prefix NOLINKAGE
+; RUN: sed 's/TUNE_PLACEHOLDER/sce/' %t.ll | llc -O0 -mtriple=x86_64-unknown-unknown | FileCheck %s -check-prefix NOLINKAGE
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
