@@ -66,7 +66,7 @@ static cl::opt<bool>
 
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
-    OptimizationLevel OptLevel) {
+    OptimizationLevel OptLevel, IntrusiveRefCntPtr<vfs::FileSystem> FS) {
   MPM.addPass(SpecConstantsPass(SpecConstantsPass::HandlingMode::emulation));
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
@@ -90,7 +90,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     };
     MAM.registerPass(
         [QueryFunc] { return vecz::VeczPassOptionsAnalysis(QueryFunc); });
-    MPM.addPass(vecz::RunVeczPass());
+    MPM.addPass(vecz::RunVeczPass(FS));
     FunctionPassManager FPM;
     FPM.addPass(SimplifyCFGPass());
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
