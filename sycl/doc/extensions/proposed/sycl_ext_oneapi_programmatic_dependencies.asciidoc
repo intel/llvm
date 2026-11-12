@@ -281,12 +281,12 @@ If a kernel is launched with this property and the value `true` on an
 out-of-order queue, the launch function throws a synchronous `exception` with
 the `errc::invalid` error code.
 
-A kernel may be launched with this property and the value `true` even if the
-immediately preceding command in the queue is not a kernel, or if there is no
-immediately preceding command in the queue.
+A kernel can be launched with this property set to true on queue _Q_, even if
+the previous command on _Q_ is not a kernel, or if there is no previous command
+on _Q_.
 In this case, the property has no effect.
-There is no primary kernel, and calls to `programmatic_wait` in this kernel
-have no effect.
+There is no primary kernel, and calls to `programmatic_wait` in this kernel have
+no effect.
 
 '''
 
