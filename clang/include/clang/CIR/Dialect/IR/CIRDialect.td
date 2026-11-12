@@ -151,6 +151,8 @@ def CIR_Dialect : Dialect {
     static llvm::StringRef getOpenCLVersionAttrName() { return "cir.cl.version"; }
     static llvm::StringRef getOpenCLCXXVersionAttrName() { return "cir.cl.cxx.version"; }
     static llvm::StringRef getOpenCLSPIRVersionAttrName() { return "cir.cl.spir.version"; }
+    static llvm::StringRef getSYCLDeviceAttrName() { return "cir.sycl_device"; }
+    static llvm::StringRef getSPIRVSourceAttrName() { return "cir.spirv.source"; }
     static llvm::StringRef getDefaultTlsModelAttrName() { return "cir.default_tls_model"; }
 
     void registerAttributes();

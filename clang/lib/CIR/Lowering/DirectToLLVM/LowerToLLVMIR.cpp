@@ -207,6 +207,9 @@ private:
       }
     }
 
+    if (attribute.getName() == cir::CIRDialect::getSYCLDeviceAttrName())
+      llvmModule->addModuleFlag(llvm::Module::Error, "sycl-device", 1);
+
     if (attribute.getName() == "cir.amdgpu_printf_kind") {
       if (auto strAttr =
               mlir::dyn_cast<mlir::StringAttr>(attribute.getValue())) {

@@ -582,6 +582,9 @@ void CIRGenFunction::startFunction(GlobalDecl gd, QualType returnType,
     fn->setAttr(cir::CIRDialect::getSrcLocAttrName(),
                 builder.getI32IntegerAttr(d->getLocation().getRawEncoding()));
 
+  if (getLangOpts().SYCLIsDevice && fd && fd->hasAttr<SYCLSimdAttr>())
+    cgm.setHasSYCLExplicitSimdFunction();
+
   mlir::Block *entryBB = &fn.getBlocks().front();
   builder.setInsertionPointToStart(entryBB);
 

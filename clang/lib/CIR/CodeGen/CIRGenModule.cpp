@@ -165,6 +165,13 @@ CIRGenModule::CIRGenModule(mlir::MLIRContext &mlirContext,
                                                        spirMajor > 1 ? 0 : 2));
     }
   }
+  if (langOpts.SYCLIsDevice) {
+    getModule()->setAttr(cir::CIRDialect::getSYCLDeviceAttrName(),
+                         mlir::UnitAttr::get(&getMLIRContext()));
+    // SYCL device code always uses SPIR version 1.2.
+    getModule()->setAttr(cir::CIRDialect::getOpenCLSPIRVersionAttrName(),
+                         cir::OpenCLVersionAttr::get(&getMLIRContext(), 1, 2));
+  }
   getModule()->setAttr(cir::CIRDialect::getTripleAttrName(),
                        builder.getStringAttr(getTriple().str()));
   getModule()->setAttr(cir::CIRDialect::getTargetABIAttrName(),
@@ -4189,6 +4196,9 @@ void CIRGenModule::release() {
   if (getTriple().isAMDGPU() ||
       (getTriple().isSPIRV() && getTriple().getVendor() == llvm::Triple::AMD))
     emitAMDGPUMetadata();
+
+  if (getLangOpts().SYCLIsDevice)
+    emitSYCLModuleMetadata();
 
   if (getLangOpts().HIP) {
     // Emit a unique ID so that host and device binaries from the same

@@ -222,6 +222,17 @@ void lowerOpenCLModuleMetadataAttrs(mlir::ModuleOp module) {
     emitOpenCLVersionMetadata(module, mapping.llvmMetadataName, version);
     module->removeAttr(mapping.cirAttrName);
   }
+
+  // SYCL device code records its source language and version for the SPIR-V
+  // translator.
+  if (auto spirvSource = module->getAttrOfType<mlir::DenseI32ArrayAttr>(
+          cir::CIRDialect::getSPIRVSourceAttrName())) {
+    LLVMMetadataNodeBuilder metadataBuilder(module.getContext());
+    llvm::SmallVector<unsigned> values(spirvSource.asArrayRef());
+    createOpenCLVersionNamedMetadata(module, "spirv.Source",
+                                     metadataBuilder.getI32Node(values));
+    module->removeAttr(cir::CIRDialect::getSPIRVSourceAttrName());
+  }
 }
 
 } // namespace direct
