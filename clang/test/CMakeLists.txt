@@ -112,6 +112,7 @@ list(APPEND CLANG_TEST_DEPS
   clang-ssaf-src-edit-merge
   clang-sycl-linker
   diagtool
+  dpllvm
   hmaptool
   )
 
