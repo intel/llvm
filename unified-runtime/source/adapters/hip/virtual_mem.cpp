@@ -51,15 +51,17 @@ urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
                     size_t size, void **ppStart) {
   // Reserve the virtual mem. Only need to do once for arbitrary device
   ScopedDevice Active(hContext->getDevices()[0]);
+  hipDeviceptr_t Reserved{};
   UR_CHECK_ERROR(
-      hipMemAddressReserve(ppStart, size, 0, const_cast<void *>(pStart), 0));
+      hipMemAddressReserve(&Reserved, size, 0, asHipDevicePtr(pStart), 0));
+  *ppStart = asVoidPtr(Reserved);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(ur_context_handle_t,
                                                      const void *pStart,
                                                      size_t size) {
-  UR_CHECK_ERROR(hipMemAddressFree(const_cast<void *>(pStart), size));
+  UR_CHECK_ERROR(hipMemAddressFree(asHipDevicePtr(pStart), size));
   return UR_RESULT_SUCCESS;
 }
 
@@ -79,7 +81,7 @@ urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
     AccessDesc.location.id = Device->getIndex();
     ScopedDevice Active(Device);
     UR_CHECK_ERROR(
-        hipMemSetAccess(const_cast<void *>(pStart), size, &AccessDesc, 1));
+        hipMemSetAccess(asHipDevicePtr(pStart), size, &AccessDesc, 1));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -90,8 +92,8 @@ urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
                 ur_virtual_mem_access_flags_t flags) {
   // Map the virtual mem. Only need to do once for arbitrary device
   ScopedDevice Active(hContext->getDevices()[0]);
-  UR_CHECK_ERROR(hipMemMap(const_cast<void *>(pStart), size, offset,
-                           hPhysicalMem->get(), 0));
+  UR_CHECK_ERROR(
+      hipMemMap(asHipDevicePtr(pStart), size, offset, hPhysicalMem->get(), 0));
   if (flags)
     UR_CHECK_ERROR(urVirtualMemSetAccess(hContext, pStart, size, flags));
   return UR_RESULT_SUCCESS;
@@ -101,7 +103,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemUnmap(
     ur_context_handle_t hContext, const void *pStart, size_t size) {
   // Unmap the virtual mem. Only need to do once for arbitrary device
   ScopedDevice Active(hContext->getDevices()[0]);
-  UR_CHECK_ERROR(hipMemUnmap(const_cast<void *>(pStart), size));
+  UR_CHECK_ERROR(hipMemUnmap(asHipDevicePtr(pStart), size));
   return UR_RESULT_SUCCESS;
 }
 
@@ -120,8 +122,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
     MemLocation.id = hContext->getDevices()[0]->getIndex();
 
     unsigned long long HipAccessFlags;
-    UR_CHECK_ERROR(hipMemGetAccess(&HipAccessFlags, &MemLocation,
-                                   const_cast<void *>(pStart)));
+    UR_CHECK_ERROR(
+        hipMemGetAccess(&HipAccessFlags, &MemLocation, asHipDevicePtr(pStart)));
 
     ur_virtual_mem_access_flags_t UrAccessFlags = 0;
     if (HipAccessFlags == hipMemAccessFlagsProtReadWrite)

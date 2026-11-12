@@ -202,7 +202,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
         using T = std::decay_t<decltype(Mem)>;
         if constexpr (std::is_same_v<T, BufferMem>) {
           size_t AllocSize = 0;
-          hipDeviceptr_t BasePtr = nullptr;
+          hipDeviceptr_t BasePtr{};
           UR_CHECK_ERROR(
               hipMemGetAddressRange(&BasePtr, &AllocSize, Mem.getPtr(Device)));
           return AllocSize;
@@ -262,11 +262,11 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 #if defined(__HIP_PLATFORM_NVIDIA__)
-  if (sizeof(BufferMem::native_type) > sizeof(ur_native_handle_t)) {
+  if constexpr (sizeof(BufferMem::native_type) > sizeof(ur_native_handle_t)) {
     // Check that all the upper bits that cannot be represented by
-    // ur_native_handle_t are empty.
-    // NOTE: The following shift might trigger a warning, but the check in the
-    // if above makes sure that this does not underflow.
+    // ur_native_handle_t are empty. if constexpr drops this shift when the
+    // two types are the same width, which would otherwise be a 64-bit shift
+    // of a 64-bit value.
     BufferMem::native_type UpperBits =
         std::get<BufferMem>(hMem->Mem).getPtr(Device) >>
         (sizeof(ur_native_handle_t) * CHAR_BIT);
@@ -279,10 +279,10 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
   if (std::holds_alternative<BufferMem>(hMem->Mem)) {
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+    *phNativeMem = hipBitCast<ur_native_handle_t>(
         std::get<BufferMem>(hMem->Mem).getPtr(Device));
   } else if (std::holds_alternative<SurfaceMem>(hMem->Mem)) {
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+    *phNativeMem = hipBitCast<ur_native_handle_t>(
         std::get<SurfaceMem>(hMem->Mem).getSurface(Device));
   } else {
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
