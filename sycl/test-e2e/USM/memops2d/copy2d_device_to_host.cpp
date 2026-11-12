@@ -22,6 +22,9 @@
 // RUN: env UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out > %t.batched8.log 2>&1 || true
 // RUN: env UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out > %t.batched9.log 2>&1 || true
 // RUN: env UR_L0_V2_FORCE_BATCHED=1 %{run} %t.out > %t.batched10.log 2>&1 || true
+// Check the batched logs now, before the default path below (which can
+// abort the script on a real failure) gets a chance to run.
+// RUN: not grep -l "did not match" %t.batched1.log %t.batched2.log %t.batched3.log %t.batched4.log %t.batched5.log %t.batched6.log %t.batched7.log %t.batched8.log %t.batched9.log %t.batched10.log
 // Default (immediate command list) path; repeated for intermittent
 // failures. A real failure here aborts the test, as before.
 // RUN: %{run} %t.out
@@ -34,8 +37,6 @@
 // RUN: %{run} %t.out
 // RUN: %{run} %t.out
 // RUN: %{run} %t.out
-// Surface a batched-only failure even if the default path above passed.
-// RUN: not grep -q "did not match" %t.batched1.log %t.batched2.log %t.batched3.log %t.batched4.log %t.batched5.log %t.batched6.log %t.batched7.log %t.batched8.log %t.batched9.log %t.batched10.log
 
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10157
