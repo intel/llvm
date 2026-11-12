@@ -20,7 +20,7 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
-#include <hash_table7.hpp>
+#include <emhash/hash_table7.hpp>
 
 #include <algorithm>
 #include <array>
