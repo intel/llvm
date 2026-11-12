@@ -950,11 +950,11 @@ llvm::Value *TargetInfo::createVectorShuffle(llvm::IRBuilder<> &B,
   const auto allocaIt = entryBlock.getFirstInsertionPt();
   const auto it = B.GetInsertPoint();
 
-  B.SetInsertPoint(&entryBlock, allocaIt);
+  B.SetInsertPoint(allocaIt);
   auto *const alloc = B.CreateAlloca(srcTy, nullptr);
 
   // Reset the insertion point to wherever we must insert instructions
-  B.SetInsertPoint(curBlock, it);
+  B.SetInsertPoint(it);
 
   // Store the wide vector to the allocation
   B.CreateStore(src, alloc);

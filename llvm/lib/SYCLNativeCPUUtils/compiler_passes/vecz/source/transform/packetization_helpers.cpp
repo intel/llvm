@@ -80,14 +80,14 @@ IRBuilder<> buildAfter(Value *V, Function &F, bool IsPhi) {
     // before the debug info. This is required for PHIs and makes sense for
     // other instructions too.
     Next.setHeadBit(true);
-    return {I->getParent(), Next};
+    return IRBuilder<>{Next};
   }
   // Else find the first point in the function after any allocas.
   auto it = F.getEntryBlock().begin();
   while (isa<AllocaInst>(*it)) {
     ++it;
   }
-  return {&F.getEntryBlock(), it};
+  return IRBuilder<>{it};
 }
 
 static Constant *getShuffleMask(ShuffleVectorInst *shuffle) {

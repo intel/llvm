@@ -405,7 +405,6 @@ Value *compiler::utils::Barrier::LiveValuesHelper::getReload(Value *live,
   if (auto *I = dyn_cast<Instruction>(live)) {
     // Save these
     auto insPoint = ir.GetInsertPoint();
-    auto *const insBB = ir.GetInsertBlock();
 
     if (!reuse || !mapped) {
       auto *clone = I->clone();
@@ -431,7 +430,7 @@ Value *compiler::utils::Barrier::LiveValuesHelper::getReload(Value *live,
     }
 
     // Restore the original insert point
-    ir.SetInsertPoint(insBB, insPoint);
+    ir.SetInsertPoint(insPoint);
     return I;
   }
 
