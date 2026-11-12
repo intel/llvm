@@ -557,6 +557,11 @@ int main(int argc, char **argv) {
       for (const auto &Info : DebugBackendInfos)
         if (!isDebugEnabled(Info.Backend) && !std::getenv(Info.UrLogger))
           setenv(Info.UrLogger, "level:quiet", 1);
+      // Also enable the Level Zero loader's own trace, which reports issues
+      // with loading the Level Zero drivers.
+      if (isDebugEnabled(backend::ext_oneapi_level_zero) &&
+          !std::getenv("ZE_ENABLE_LOADER_DEBUG_TRACE"))
+        setenv("ZE_ENABLE_LOADER_DEBUG_TRACE", "1", 1);
     }
 
     const auto &Platforms = platform::get_platforms();
