@@ -574,6 +574,14 @@ void CIRGenFunction::startFunction(GlobalDecl gd, QualType returnType,
     fn->setAttr(cir::CIRDialect::getStrictFPAttrName(),
                 mlir::UnitAttr::get(fn.getContext()));
   }
+
+  // Source location of functions is required to emit required diagnostics in
+  // SYCLPropagateAspectsUsagePass. Save the token in a srcloc attribute, which
+  // is lowered to !srcloc function metadata.
+  if (getLangOpts().SYCLIsDevice && d)
+    fn->setAttr(cir::CIRDialect::getSrcLocAttrName(),
+                builder.getI32IntegerAttr(d->getLocation().getRawEncoding()));
+
   mlir::Block *entryBB = &fn.getBlocks().front();
   builder.setInsertionPointToStart(entryBB);
 

@@ -49,7 +49,7 @@ int squareNoAttr(int x) { return x * x; }
 // CIR: cir.func private @_Z16declUsedInDevicei({{.*}} attributes {convergent{{[^"]*}}} loc
 // CIR: cir.func {{.*}}@_Z5func1i({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
 // CIR: cir.func {{.*}}@_Z8withAttrv() {{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
-// CIR: cir.func {{.*}}@_Z4ret1v() {{.*}} attributes {convergent{{[^"]*}}} {
+// CIR: cir.func {{.*}}@_Z4ret1v() {{.*}} attributes {cir.srcloc = {{[0-9]+}} : i32, convergent{{[^"]*}}} {
 // CIR: cir.func {{.*}}@_Z5tFuncIiEvT_({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp", uniform_work_group_size}
 // CIR: cir.func {{.*}}@_ZTS2KN({{.*}} attributes {{{.*}}"sycl-module-id" = "{{.*}}sycl-external.cpp"}
 // CIR-NOT: @_Z8declOnlyv

@@ -170,6 +170,20 @@ private:
     llvm::Function *llvmFunc = moduleTranslation.lookupFunction(func.getName());
     llvm::StringRef attrName = attribute.getName().strref();
 
+    // SYCL device functions carry their source location as !srcloc metadata.
+    if (attrName == cir::CIRDialect::getSrcLocAttrName()) {
+      auto srcLoc = mlir::dyn_cast<mlir::IntegerAttr>(attribute.getValue());
+      if (!srcLoc)
+        return mlir::failure();
+      llvm::LLVMContext &llvmContext = moduleTranslation.getLLVMContext();
+      llvm::MDNode *node = llvm::MDNode::get(
+          llvmContext, llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+                           llvm::Type::getInt32Ty(llvmContext),
+                           srcLoc.getValue().getZExtValue())));
+      llvmFunc->setMetadata("srcloc", node);
+      return mlir::success();
+    }
+
     // Strip the "cir." prefix to get the LLVM attribute name.
     llvm::StringRef llvmAttrName = attrName.substr(strlen("cir."));
     if (auto strAttr = mlir::dyn_cast<mlir::StringAttr>(attribute.getValue()))
