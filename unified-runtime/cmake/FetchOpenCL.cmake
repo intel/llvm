@@ -85,6 +85,16 @@ if(NOT TARGET OpenCL)
   )
   FetchContent_GetProperties(ocl-icd)
   FetchContent_MakeAvailable(ocl-icd)
+
+  # Excluding these directories drops their component-less install rules,
+  # which would otherwise ship OpenCL headers, libOpenCL and CMake/pkg-config
+  # files under the enclosing project's default install component.
+  if(NOT UR_STANDALONE_BUILD)
+    set_property(DIRECTORY ${ocl-headers_SOURCE_DIR}
+      PROPERTY EXCLUDE_FROM_ALL TRUE)
+    set_property(DIRECTORY ${ocl-icd_SOURCE_DIR}
+      PROPERTY EXCLUDE_FROM_ALL TRUE)
+  endif()
 endif()
 
 add_library(OpenCL-Headers INTERFACE)
