@@ -2822,8 +2822,7 @@ void ModuleAddressSanitizer::SetComdatForGlobalMetadata(
     }
 
     if (!InternalSuffix.empty() && G->hasLocalLinkage()) {
-      std::string Name = std::string(G->getName());
-      Name += InternalSuffix;
+      std::string Name = (G->getName() + "." + InternalSuffix).str();
       C = M.getOrInsertComdat(Name);
     } else {
       C = M.getOrInsertComdat(G->getName());

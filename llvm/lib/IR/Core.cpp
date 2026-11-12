@@ -1392,6 +1392,18 @@ LLVMMetadataRef LLVMValueAsMetadata(LLVMValueRef Val) {
   return wrap(ValueAsMetadata::get(V));
 }
 
+char *LLVMPrintMetadataToString(LLVMMetadataRef MD) {
+  std::string buf;
+  raw_string_ostream os(buf);
+
+  if (unwrap(MD))
+    unwrap(MD)->print(os);
+  else
+    os << "Printing <null> Metadata";
+
+  return strdup(buf.c_str());
+}
+
 const char *LLVMGetMDString(LLVMValueRef V, unsigned *Length) {
   if (const auto *MD = dyn_cast<MetadataAsValue>(unwrap(V)))
     if (const MDString *S = dyn_cast<MDString>(MD->getMetadata())) {
@@ -3479,7 +3491,10 @@ struct DelayedIRBuilder {
   std::optional<IRBuilder<>> Builder;
 
   DelayedIRBuilder() = default;
-  DelayedIRBuilder(Module &M) { Builder.emplace(M); }
+  DelayedIRBuilder(Module &M) {
+    Builder.emplace(M);
+    Builder->disableGEPCanonicalization();
+  }
 
   void initUsingInsertionBlock(BasicBlock *BB) {
     if (Builder)
@@ -3489,6 +3504,7 @@ struct DelayedIRBuilder {
       if (Function *F = BB->getParent()) {
         if (Module *M = F->getParent()) {
           Builder.emplace(*M);
+          Builder->disableGEPCanonicalization();
           return;
         }
       }
