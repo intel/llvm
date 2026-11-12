@@ -94,7 +94,6 @@ inline constexpr bool sub_has_inc_dec =
 template <typename T>
 inline constexpr size_t sub_num_ops = sub_has_inc_dec<T> ? 4 : 2;
 
-
 template <template <typename, memory_order, memory_scope,
                     access::address_space> class AtomicRef,
           access::address_space space, typename T, typename Difference,
