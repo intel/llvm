@@ -173,6 +173,15 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   // reference here
   auto AllocInfo = AllocInfoIt->second;
 
+  // Registered memory must be released by unregisterMemory
+  if (AllocInfo->isRegistered()) {
+    ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
+    if (getContext()->Options.HaltOnError) {
+      exitWithErrors();
+    }
+    return UR_RESULT_SUCCESS;
+  }
+
   if (AllocInfo->Context != Context) {
     if (AllocInfo->UserBegin == Addr) {
       ReportBadContext(Addr, GetCurrentBacktrace(), AllocInfo);
@@ -265,24 +274,29 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t AsanInterceptor::registerIPCMemory(ur_context_handle_t Context,
-                                               ur_device_handle_t Device,
-                                               uptr Addr, size_t Size) {
-  auto CI = getContextInfo(Context);
-  auto DI = getDeviceInfo(Device);
-
+ur_result_t AsanInterceptor::registerMemory(ur_context_handle_t Context,
+                                            ur_device_handle_t Device,
+                                            uptr Addr, size_t Size,
+                                            AllocType Type) {
+  // The memory isn't allocated by us, so it has no redzones.
   auto AI = std::make_shared<AllocInfo>(AllocInfo{Addr,
                                                   Addr,
                                                   Addr + Size,
                                                   Size,
-                                                  AllocType::DEVICE_USM,
+                                                  Type,
                                                   false,
                                                   Context,
                                                   Device,
                                                   GetCurrentBacktrace(),
                                                   {}});
 
-  DI->insertAllocInfo(AI);
+  // For updating shadow memory
+  if (Device) {
+    getDeviceInfo(Device)->insertAllocInfo(AI);
+  } else {
+    for (const auto &Device : getContextInfo(Context)->DeviceList)
+      getDeviceInfo(Device)->insertAllocInfo(AI);
+  }
 
   // For memory release
   {
@@ -293,17 +307,65 @@ ur_result_t AsanInterceptor::registerIPCMemory(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t AsanInterceptor::unregisterIPCMemory(uptr Addr) {
-  auto AllocInfoItOp = findAllocInfoByAddress(Addr);
-  if (AllocInfoItOp.has_value()) {
-    auto AllocInfo = AllocInfoItOp.value()->second;
-    AllocInfo->IsReleased = true;
-    AllocInfo->ReleaseStack = GetCurrentBacktrace();
-    getDeviceInfo(AllocInfo->Device)->insertAllocInfo(AllocInfo);
+ur_result_t AsanInterceptor::unregisterMemory(ur_context_handle_t Context,
+                                              void *Ptr, AllocType Type) {
+  auto ContextInfo = getContextInfo(Context);
 
-    std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    m_AllocationMap.erase(*AllocInfoItOp);
+  auto Addr = reinterpret_cast<uptr>(Ptr);
+  auto AllocInfoItOp = findAllocInfoByAddress(Addr);
+
+  if (!AllocInfoItOp) {
+    // "Addr" might be a host pointer
+    ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
+    if (getContext()->Options.HaltOnError) {
+      exitWithErrors();
+    }
+    return UR_RESULT_SUCCESS;
   }
+
+  auto AllocInfoIt = *AllocInfoItOp;
+  // NOTE: AllocInfoIt will be erased later, so "AllocInfo" must be a new
+  // reference here
+  auto AllocInfo = AllocInfoIt->second;
+
+  // Like releaseMemory, an invalid pointer isn't forwarded to the driver, since
+  // releasing it could free memory we still track.
+  if (AllocInfo->Type != Type || Addr != AllocInfo->UserBegin) {
+    ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
+    if (getContext()->Options.HaltOnError) {
+      exitWithErrors();
+    }
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (AllocInfo->Context != Context) {
+    ReportBadContext(Addr, GetCurrentBacktrace(), AllocInfo);
+    if (getContext()->Options.HaltOnError) {
+      exitWithErrors();
+    }
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (Type == AllocType::IPC_MEM) {
+    UR_CALL(getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp(Context, Ptr));
+  } else {
+    UR_CALL(getContext()->urDdiTable.USMExp.pfnHostAllocUnregisterExp(Context,
+                                                                      Ptr));
+  }
+
+  AllocInfo->IsReleased = true;
+  AllocInfo->ReleaseStack = GetCurrentBacktrace();
+
+  // For updating shadow memory
+  if (AllocInfo->Device) {
+    getDeviceInfo(AllocInfo->Device)->insertAllocInfo(AllocInfo);
+  } else {
+    for (const auto &Device : ContextInfo->DeviceList)
+      getDeviceInfo(Device)->insertAllocInfo(AllocInfo);
+  }
+
+  std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+  m_AllocationMap.erase(AllocInfoIt);
 
   return UR_RESULT_SUCCESS;
 }
@@ -397,9 +459,11 @@ AsanInterceptor::enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
     const int8_t *ShadowByte;
     switch (AI->Type) {
     case AllocType::HOST_USM:
+    case AllocType::REGISTERED_HOST_MEM:
       ShadowByte = &kUsmHostDeallocatedMagic;
       break;
     case AllocType::DEVICE_USM:
+    case AllocType::IPC_MEM:
       ShadowByte = &kUsmDeviceDeallocatedMagic;
       break;
     case AllocType::SHARED_USM:
@@ -1063,7 +1127,8 @@ ContextInfo::~ContextInfo() {
         getAsanInterceptor()->findAllocInfoByContext(Handle);
     for (const auto &It : AllocInfos) {
       const auto &[_, AI] = *It;
-      if (!AI->IsReleased) {
+      // Registered memory isn't allocated by us, so it can't be leaked by us
+      if (!AI->IsReleased && !AI->isRegistered()) {
         ReportMemoryLeak(AI);
       }
     }

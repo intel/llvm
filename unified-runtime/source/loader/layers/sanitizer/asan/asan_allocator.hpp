@@ -36,6 +36,10 @@ struct AllocInfo {
 
   void print();
   size_t getRedzoneSize() { return AllocSize - (UserEnd - UserBegin); }
+  // The memory isn't allocated by us, it's tracked by registerMemory
+  bool isRegistered() const {
+    return Type == AllocType::IPC_MEM || Type == AllocType::REGISTERED_HOST_MEM;
+  }
 };
 
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;
