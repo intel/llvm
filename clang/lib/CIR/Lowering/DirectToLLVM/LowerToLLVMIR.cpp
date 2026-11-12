@@ -184,6 +184,15 @@ private:
       return mlir::success();
     }
 
+    // SYCL explicit SIMD (ESIMD) functions are marked with an empty
+    // !sycl_explicit_simd metadata node.
+    if (attrName == cir::CIRDialect::getSYCLExplicitSimdAttrName()) {
+      llvmFunc->setMetadata(
+          "sycl_explicit_simd",
+          llvm::MDNode::get(moduleTranslation.getLLVMContext(), {}));
+      return mlir::success();
+    }
+
     // Strip the "cir." prefix to get the LLVM attribute name.
     llvm::StringRef llvmAttrName = attrName.substr(strlen("cir."));
     if (auto strAttr = mlir::dyn_cast<mlir::StringAttr>(attribute.getValue()))

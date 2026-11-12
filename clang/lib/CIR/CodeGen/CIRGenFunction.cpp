@@ -582,8 +582,12 @@ void CIRGenFunction::startFunction(GlobalDecl gd, QualType returnType,
     fn->setAttr(cir::CIRDialect::getSrcLocAttrName(),
                 builder.getI32IntegerAttr(d->getLocation().getRawEncoding()));
 
+  // Mark explicit SIMD (ESIMD) functions. The attribute is lowered to
+  // !sycl_explicit_simd function metadata and also selects the source language
+  // recorded in the module's !spirv.Source metadata.
   if (getLangOpts().SYCLIsDevice && fd && fd->hasAttr<SYCLSimdAttr>())
-    cgm.setHasSYCLExplicitSimdFunction();
+    fn->setAttr(cir::CIRDialect::getSYCLExplicitSimdAttrName(),
+                mlir::UnitAttr::get(fn.getContext()));
 
   mlir::Block *entryBB = &fn.getBlocks().front();
   builder.setInsertionPointToStart(entryBB);

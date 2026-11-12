@@ -122,10 +122,6 @@ private:
   /// Accumulated record layout entries, materialized in release().
   llvm::SmallVector<mlir::NamedAttribute> recordLayoutEntries;
 
-  /// Whether any emitted SYCL device function has the sycl_explicit_simd
-  /// attribute.
-  bool hasSYCLExplicitSimdFunction = false;
-
   /// Whether C++20 named modules get their own module initializer function,
   /// which requires the Itanium mangling of the initializer name.
   bool cxx20ModuleInits = false;
@@ -756,13 +752,6 @@ public:
                             clang::ASTContext &ctx);
 
   void addSYCLModuleIdAttr(cir::FuncOp fn);
-
-  /// Record that an explicit SIMD (ESIMD) function was emitted, which changes
-  /// the source language recorded in the SYCL spirv.Source module metadata.
-  void setHasSYCLExplicitSimdFunction() { hasSYCLExplicitSimdFunction = true; }
-
-  /// Emit SYCL device module attributes that depend on the emitted functions.
-  void emitSYCLModuleMetadata();
 
   void emitGlobalVarDefinition(const clang::VarDecl *vd,
                                bool isTentative = false);

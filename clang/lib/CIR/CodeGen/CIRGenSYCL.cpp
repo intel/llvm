@@ -96,16 +96,6 @@ void CIRGenModule::addSYCLModuleIdAttr(cir::FuncOp fn) {
               mlir::StringAttr::get(&getMLIRContext(), moduleId));
 }
 
-void CIRGenModule::emitSYCLModuleMetadata() {
-  assert(getLangOpts().SYCLIsDevice);
-  // We are trying to look like OpenCL C++ for SPIR-V translator.
-  // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
-  // 0 - ESIMD, if any kernel or function is an explicit SIMD one
-  int32_t lang = hasSYCLExplicitSimdFunction ? 0 : 4;
-  getModule()->setAttr(cir::CIRDialect::getSPIRVSourceAttrName(),
-                       builder.getDenseI32ArrayAttr({lang, 100000}));
-}
-
 void CIRGenModule::emitSYCLKernelCaller(const FunctionDecl *kernelEntryPointFn,
                                         ASTContext &ctx) {
   assert(ctx.getLangOpts().SYCLIsDevice &&

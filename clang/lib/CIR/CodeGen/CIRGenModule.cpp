@@ -4197,9 +4197,6 @@ void CIRGenModule::release() {
       (getTriple().isSPIRV() && getTriple().getVendor() == llvm::Triple::AMD))
     emitAMDGPUMetadata();
 
-  if (getLangOpts().SYCLIsDevice)
-    emitSYCLModuleMetadata();
-
   if (getLangOpts().HIP) {
     // Emit a unique ID so that host and device binaries from the same
     // compilation unit can be associated.
