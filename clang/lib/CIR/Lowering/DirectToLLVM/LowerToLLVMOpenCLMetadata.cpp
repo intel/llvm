@@ -222,6 +222,21 @@ void lowerOpenCLModuleMetadataAttrs(mlir::ModuleOp module) {
     emitOpenCLVersionMetadata(module, mapping.llvmMetadataName, version);
     module->removeAttr(mapping.cirAttrName);
   }
+
+  // SYCL device code records its source language and version for the SPIR-V
+  // translator, looking like OpenCL C++ to it:
+  // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
+  // 0 - ESIMD, if any kernel or function is an explicit SIMD one
+  if (module->hasAttr(cir::CIRDialect::getSYCLDeviceAttrName())) {
+    bool hasExplicitSimd =
+        llvm::any_of(module.getOps<cir::FuncOp>(), [](cir::FuncOp func) {
+          return func->hasAttr(cir::CIRDialect::getSYCLExplicitSimdAttrName());
+        });
+    LLVMMetadataNodeBuilder metadataBuilder(module.getContext());
+    unsigned spirvSource[] = {hasExplicitSimd ? 0u : 4u, 100000u};
+    createOpenCLVersionNamedMetadata(module, "spirv.Source",
+                                     metadataBuilder.getI32Node(spirvSource));
+  }
 }
 
 } // namespace direct

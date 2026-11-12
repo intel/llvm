@@ -170,6 +170,29 @@ private:
     llvm::Function *llvmFunc = moduleTranslation.lookupFunction(func.getName());
     llvm::StringRef attrName = attribute.getName().strref();
 
+    // SYCL device functions carry their source location as !srcloc metadata.
+    if (attrName == cir::CIRDialect::getSrcLocAttrName()) {
+      auto srcLoc = mlir::dyn_cast<mlir::IntegerAttr>(attribute.getValue());
+      if (!srcLoc)
+        return mlir::failure();
+      llvm::LLVMContext &llvmContext = moduleTranslation.getLLVMContext();
+      llvm::MDNode *node = llvm::MDNode::get(
+          llvmContext, llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+                           llvm::Type::getInt32Ty(llvmContext),
+                           srcLoc.getValue().getZExtValue())));
+      llvmFunc->setMetadata("srcloc", node);
+      return mlir::success();
+    }
+
+    // SYCL explicit SIMD (ESIMD) functions are marked with an empty
+    // !sycl_explicit_simd metadata node.
+    if (attrName == cir::CIRDialect::getSYCLExplicitSimdAttrName()) {
+      llvmFunc->setMetadata(
+          "sycl_explicit_simd",
+          llvm::MDNode::get(moduleTranslation.getLLVMContext(), {}));
+      return mlir::success();
+    }
+
     // Strip the "cir." prefix to get the LLVM attribute name.
     llvm::StringRef llvmAttrName = attrName.substr(strlen("cir."));
     if (auto strAttr = mlir::dyn_cast<mlir::StringAttr>(attribute.getValue()))
@@ -192,6 +215,9 @@ private:
                                   static_cast<uint32_t>(intAttr.getInt()));
       }
     }
+
+    if (attribute.getName() == cir::CIRDialect::getSYCLDeviceAttrName())
+      llvmModule->addModuleFlag(llvm::Module::Error, "sycl-device", 1);
 
     if (attribute.getName() == "cir.amdgpu_printf_kind") {
       if (auto strAttr =
