@@ -2682,7 +2682,8 @@ public:
   llvm::Value *EmitVTableTypeCheckedLoad(const CXXRecordDecl *RD,
                                          llvm::Value *VTable,
                                          llvm::Type *VTableTy,
-                                         uint64_t VTableByteOffset);
+                                         uint64_t VTableByteOffset,
+                                         SourceLocation Loc);
 
   /// EnterDtorCleanups - Enter the cleanups necessary to complete the
   /// given phase of destruction for a destructor.  The end result

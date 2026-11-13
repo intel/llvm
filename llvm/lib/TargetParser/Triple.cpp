@@ -245,6 +245,8 @@ StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) {
       return "dxilv1.8";
     case Triple::DXILSubArch_v1_9:
       return "dxilv1.9";
+    case Triple::DXILSubArch_v1_10:
+      return "dxilv1.10";
     default:
       break;
     }
@@ -685,7 +687,7 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
           .Case("loongarch64", Triple::loongarch64)
           .Cases({"dxil", "dxilv1.0", "dxilv1.1", "dxilv1.2", "dxilv1.3",
                   "dxilv1.4", "dxilv1.5", "dxilv1.6", "dxilv1.7", "dxilv1.8",
-                  "dxilv1.9"},
+                  "dxilv1.9", "dxilv1.10"},
                  Triple::dxil)
           .Case("xtensa", Triple::xtensa)
           .Case("native_cpu", Triple::native_cpu)
@@ -800,6 +802,7 @@ Triple::SubArchType Triple::parseSubArch(StringRef SubArchName) {
         .EndsWith("v1.7", Triple::DXILSubArch_v1_7)
         .EndsWith("v1.8", Triple::DXILSubArch_v1_8)
         .EndsWith("v1.9", Triple::DXILSubArch_v1_9)
+        .EndsWith("v1.10", Triple::DXILSubArch_v1_10)
         .Default(Triple::NoSubArch);
 
   if (SubArchName.consume_front("amdgpu")) {
@@ -1172,7 +1175,7 @@ static StringRef getDXILArchNameFromShaderModel(StringRef ShaderModelStr) {
   VersionTuple Ver =
       parseVersionFromName(ShaderModelStr.drop_front(strlen("shadermodel")));
   // Default DXIL minor version when Shader Model version is anything other
-  // than 6.[0...9] or 6.x (which translates to latest current SM version)
+  // than 6.[0...10] or 6.x (which translates to latest current SM version)
   const unsigned SMMajor = 6;
   if (!Ver.empty()) {
     if (Ver.getMajor() == SMMajor) {
@@ -1198,6 +1201,8 @@ static StringRef getDXILArchNameFromShaderModel(StringRef ShaderModelStr) {
           return Triple::getArchName(Triple::dxil, Triple::DXILSubArch_v1_8);
         case 9:
           return Triple::getArchName(Triple::dxil, Triple::DXILSubArch_v1_9);
+        case 10:
+          return Triple::getArchName(Triple::dxil, Triple::DXILSubArch_v1_10);
         default:
           report_fatal_error("Unsupported Shader Model version", false);
         }
