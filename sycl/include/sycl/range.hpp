@@ -82,7 +82,11 @@ public:
     return result;                                                             \
   }
 
-#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+// TODO: Remove these guards and the #else part at the next ABI-breaking window.
+// The __SYCL_DISABLE_ID_TO_INT_CONV__ opt-out is obsolete: SYCL 2020 mandates
+// the integral-type operators, so preview mode ignores the macro.
+#if !defined(__SYCL_DISABLE_ID_TO_INT_CONV__) ||                               \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   // Enable operators with integral types only
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
