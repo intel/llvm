@@ -8234,10 +8234,13 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
       for (StringRef Arch : Arg->getValues()) {
         if (Arch == "all") {
           Archs.clear();
+          SYCLIntelOffloadArchs.clear();
         } else {
           StringRef ArchStr =
               getCanonicalArchString(C, Args, Arch, TC.getTriple());
           Archs.erase(ArchStr);
+          llvm::erase_if(SYCLIntelOffloadArchs,
+                         [&](const auto &P) { return P.first == ArchStr; });
         }
       }
     }

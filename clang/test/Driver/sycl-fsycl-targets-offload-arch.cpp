@@ -47,6 +47,13 @@
 // RUN:   -fsycl-targets=spir64 --offload-arch=pvc --no-offload-arch=pvc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=NO-ERROR,SPIRV64-JIT %s
 // RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   --offload-arch=pvc --no-offload-arch=pvc -fsycl-targets=intel_gpu_pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,SPIR64-GEN-PVC %s
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   --offload-arch=pvc --no-offload-arch=all -fsycl-targets=intel_gpu_pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,SPIR64-GEN-PVC %s
+// SPIR64-GEN-PVC: "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -fsycl-targets=spir64 -Xarch_host --offload-arch=pvc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=NO-ERROR,SPIRV64-JIT %s
 // SPIRV64-JIT: "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"
