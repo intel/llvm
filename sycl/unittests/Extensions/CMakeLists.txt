@@ -7,6 +7,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DeviceArchitecture.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
+  DeviceGlobalStaleProgramHandle.cpp
   OneAPISubGroupMask.cpp
   USMP2P.cpp
   CompositeDevice.cpp
