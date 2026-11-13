@@ -18,5 +18,5 @@
 // RUN: FileCheck %s --input-file=%t.ir --check-prefix=COMPILE-OPTS
 // RUN: FileCheck %s --input-file=%t.ir --check-prefix=LINK-OPTS
 
-// COMPILE-OPTS: @.omp_offloading.device_image = {{.*}}compile-opts{{.*}}-cl-opt-disable
-// LINK-OPTS: @.omp_offloading.device_image = {{.*}}link-opts{{.*}}-cl-take-global-address
+// COMPILE-OPTS: @.llvm_offloading.device_image = {{.*}}compile-opts{{.*}}-cl-opt-disable
+// LINK-OPTS: @.llvm_offloading.device_image = {{.*}}link-opts{{.*}}-cl-take-global-address

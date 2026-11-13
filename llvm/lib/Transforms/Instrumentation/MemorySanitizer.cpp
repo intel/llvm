@@ -3991,7 +3991,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void visitXor(BinaryOperator &I) { handleShadowOr(I); }
 
   void handleIntegerDiv(Instruction &I) {
-    IRBuilder<> IRB(&I);
     // Strict on the second argument.
     insertCheckShadowOf(I.getOperand(1), &I);
     setShadow(&I, getShadow(&I, 0));

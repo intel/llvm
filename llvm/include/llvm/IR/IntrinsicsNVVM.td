@@ -1838,8 +1838,6 @@ let TargetPrefix = "nvvm" in {
   //
   // Fma
   //
-  // TODO: Add tests for commutativity along with missing mixed precision 
-  // patterns.
   foreach ftz = ["", "_ftz"] in
     foreach variant = ["", "_sat", "_relu"] in
       def int_nvvm_fma # ftz # variant :
