@@ -1,6 +1,9 @@
 // REQUIRES: hip
-// REQUIRES: hip-arch-gfx90a
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
+// REQUIRES: hip-arch-gfx90a || hip-arch-gfx940 || hip-arch-gfx941 || hip-arch-gfx942 || hip-arch-gfx950
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s %if hip-arch-gfx950 %{ --check-prefixes=CHECK,CHECK-CDNA4 %}
+
+// The half MFMA shapes of gfx90a are available on every AMD target with
+// joint_matrix support. gfx950 (CDNA4) adds 16x16x32 and 32x32x16.
 
 #include <sycl/sycl.hpp>
 
@@ -60,3 +63,59 @@ row_col_m32n32k8(sycl::accessor<half, 1, sycl::access::mode::read_write,
                      accD.template get_multi_ptr<access::decorated::yes>(), 32,
                      layout::row_major);
 }
+
+#if defined(__gfx950__)
+SYCL_EXTERNAL [[sycl::reqd_work_group_size(1, 1, 64)]] void
+row_row_m16n16k32(sycl::accessor<half, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accA,
+                  sycl::accessor<half, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accB,
+                  sycl::accessor<float, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accC,
+                  sycl::accessor<float, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accD,
+                  nd_item<2> item) {
+  sycl::sub_group sg = item.get_sub_group();
+
+  joint_matrix<sub_group, float, use::accumulator, 16, 16> sub_c{};
+  joint_matrix<sub_group, half, use::a, 16, 32, layout::row_major> sub_a{};
+  joint_matrix<sub_group, half, use::b, 32, 16, layout::row_major> sub_b{};
+
+  // CHECK-CDNA4: tail call <4 x float> @llvm.amdgcn.mfma.f32.16x16x32.f16(<8 x half> {{.*}}, <8 x half> {{.*}}, <4 x float> zeroinitializer, i32 0, i32 0, i32 0)
+  joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+  joint_matrix_store(sg, sub_c,
+                     accD.template get_multi_ptr<access::decorated::yes>(), 16,
+                     layout::row_major);
+}
+
+SYCL_EXTERNAL [[sycl::reqd_work_group_size(1, 1, 64)]] void
+row_col_m32n32k16(sycl::accessor<half, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accA,
+                  sycl::accessor<half, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accB,
+                  sycl::accessor<float, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accC,
+                  sycl::accessor<float, 1, sycl::access::mode::read_write,
+                                 sycl::target::device>
+                      accD,
+                  nd_item<2> item) {
+  sycl::sub_group sg = item.get_sub_group();
+
+  joint_matrix<sub_group, float, use::accumulator, 32, 32> sub_c{};
+  joint_matrix<sub_group, half, use::a, 32, 16, layout::row_major> sub_a{};
+  joint_matrix<sub_group, half, use::b, 16, 32, layout::col_major> sub_b{};
+
+  // CHECK-CDNA4: tail call <16 x float> @llvm.amdgcn.mfma.f32.32x32x16.f16(<8 x half> {{.*}}, <8 x half> {{.*}}, <16 x float> zeroinitializer, i32 0, i32 0, i32 0)
+  joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+  joint_matrix_store(sg, sub_c,
+                     accD.template get_multi_ptr<access::decorated::yes>(), 32,
+                     layout::row_major);
+}
+#endif
