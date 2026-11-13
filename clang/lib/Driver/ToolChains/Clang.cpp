@@ -12316,7 +12316,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // The wrapper object must use the same ABI as the user's host code, or
     // the link can fail (e.g. soft-float vs double-float on RISC-V).
-    for (OptSpecifier Opt : {OPT_march_EQ, OPT_mabi_EQ})
+    for (OptSpecifier Opt :
+         {OPT_march_EQ, OPT_mcpu_EQ, OPT_mabi_EQ, OPT_mcmodel_EQ})
       if (const Arg *A = Args.getLastArg(Opt))
         CmdArgs.push_back(Args.MakeArgString("--sycl-host-compiler-arg=" +
                                              A->getAsString(Args)));
