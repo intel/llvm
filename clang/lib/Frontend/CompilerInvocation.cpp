@@ -69,7 +69,6 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/HashBuilder.h"
-#include "llvm/Support/IOSandbox.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -5310,16 +5309,13 @@ static void CreateEmptyFile(StringRef HeaderName) {
   if (HeaderName.empty())
     return;
 
-  auto BypassSandbox = llvm::sys::sandbox::scopedDisable();
-  Expected<llvm::sys::fs::file_t> FT = llvm::sys::fs::openNativeFileForWrite(
-      HeaderName, llvm::sys::fs::CD_OpenAlways, llvm::sys::fs::OF_None);
-  if (FT)
-    llvm::sys::fs::closeFile(*FT);
-  else {
+  std::error_code EC;
+  llvm::raw_fd_ostream OS(HeaderName, EC, llvm::sys::fs::CD_OpenAlways);
+  if (EC) {
     // Emit a message but don't terminate; compilation will fail
     // later if this file is absent.
-    llvm::errs() << "Error: " << llvm::toString(FT.takeError())
-                 << " when opening " << HeaderName << "\n";
+    llvm::errs() << "Error: " << EC.message() << " when opening " << HeaderName
+                 << "\n";
   }
 }
 
