@@ -46,8 +46,8 @@ bool test_different_seeds(sycl::queue &q) {
    }).wait();
 
   bool differ = (*val_a != *val_b);
-  std::cout << "  seed=" << SEED_A << " → rand()=" << *val_a << "\n";
-  std::cout << "  seed=" << SEED_B << " → rand()=" << *val_b << "\n";
+  std::cout << "  seed=" << SEED_A << ", rand()=" << *val_a << "\n";
+  std::cout << "  seed=" << SEED_B << ", rand()=" << *val_b << "\n";
   if (!differ)
     std::cerr << "  Seeds " << SEED_A << " and " << SEED_B
               << " produced the same first value: " << *val_a << "\n";
@@ -121,7 +121,7 @@ int main() {
   };
 
   const std::vector<TestCase> tests = {
-      {"srand() different seeds → different first values",
+      {"srand() different seeds leading to different first values",
        test_different_seeds},
       {"rand() sequence is non-constant", test_sequence_varies},
   };
@@ -146,5 +146,5 @@ int main() {
             << " (out of " << tests.size() << " tests)\n";
   std::cout << "========================================\n";
 
-  return (failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+  return failed;
 }
