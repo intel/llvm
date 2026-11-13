@@ -56,6 +56,7 @@ jobs:
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
+      toolchain_artifact: sycl_windows_default
       changes: ${{ needs.detect_changes.outputs.filters }}
       e2e_binaries_artifact: sycl_windows_e2ebin
       e2e_binaries_new_offload_model_artifact: sycl_windows_e2ebin_with_new_offload_model
