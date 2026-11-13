@@ -14,6 +14,11 @@
 
 namespace llvm::offloading {
 
+inline bool supportsBFloat16(StringRef Arch) {
+  Arch.consume_front("intel_gpu_");
+  return Arch == "cri" || Arch == "35_11_0";
+}
+
 /// Option namespace shared by the driver and linker wrapper for SYCL SPIR
 /// backends. AOT tools have one namespace for compile and link options; JIT
 /// uses separate namespaces. Other targets use clang and need no prefix.
