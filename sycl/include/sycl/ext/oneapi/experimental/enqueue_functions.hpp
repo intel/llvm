@@ -12,7 +12,10 @@
 #include <type_traits>
 #include <utility>
 
-#if __has_include(<span>)
+#if __has_include(<version>)
+#include <version> // defines __cpp_lib_span
+#endif
+#ifdef __cpp_lib_span
 #include <span>
 #endif
 
