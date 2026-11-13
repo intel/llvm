@@ -12316,6 +12316,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // The wrapper object must use the same ABI as the user's host code, or
     // the link can fail (e.g. soft-float vs double-float on RISC-V).
+    // TODO: This is a stop-gap. Upstream compileModule() in
+    // clang-linker-wrapper also builds the wrapper with no CPU, features or
+    // code model. Once upstream compileModule() is fixed to use the host
+    // options, compile the SYCL wrapper with it and delete this code and the
+    // --sycl-host-compiler-arg option. See #14139.
     for (OptSpecifier Opt :
          {OPT_march_EQ, OPT_mcpu_EQ, OPT_mabi_EQ, OPT_mcmodel_EQ})
       if (const Arg *A = Args.getLastArg(Opt))
