@@ -8,7 +8,10 @@
 
 #include "NativeRecordingMock.hpp"
 
+#include <detail/queue_impl.hpp>
+
 #include <algorithm>
+#include <iterator>
 
 namespace NativeRecordingMock {
 
@@ -18,9 +21,27 @@ GraphState &MockState::graph(ur_exp_graph_handle_t Handle) {
   return It->second;
 }
 
+ur_exp_graph_handle_t MockState::capturedGraph(ur_queue_handle_t Queue) const {
+  auto It = PrimaryCapturing.find(Queue);
+  if (It != PrimaryCapturing.end())
+    return It->second;
+  It = ForkedCapturing.find(Queue);
+  if (It != ForkedCapturing.end())
+    return It->second;
+  return nullptr;
+}
+
 MockState &state() {
   static MockState State;
   return State;
+}
+
+void forkTo(
+    const sycl::queue &Queue,
+    const experimental::command_graph<experimental::graph_state::modifiable>
+        &Graph) {
+  state().ForkedCapturing[getSyclObjImpl(Queue)->getHandleRef()] =
+      getSyclObjImpl(Graph)->getNativeGraphHandle();
 }
 
 void trace(std::string EntryPoint, const void *Handle,
@@ -194,8 +215,15 @@ ur_result_t mock_urQueueEndGraphCaptureExp(void *pParams) {
   auto It = State.PrimaryCapturing.find(*Params.phQueue);
   if (It == State.PrimaryCapturing.end())
     return UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING;
-  **Params.pphGraph = It->second;
+  ur_exp_graph_handle_t Graph = It->second;
+  **Params.pphGraph = Graph;
   State.PrimaryCapturing.erase(It);
+  // Ending the capture ends it for the queues it was forked onto as well.
+  for (auto Fork = State.ForkedCapturing.begin();
+       Fork != State.ForkedCapturing.end();) {
+    Fork = Fork->second == Graph ? State.ForkedCapturing.erase(Fork)
+                                 : std::next(Fork);
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -203,17 +231,17 @@ ur_result_t mock_urQueueIsGraphCaptureEnabledExp(void *pParams) {
   auto Params =
       *static_cast<ur_queue_is_graph_capture_enabled_exp_params_t *>(pParams);
   trace("urQueueIsGraphCaptureEnabledExp", *Params.phQueue);
-  **Params.ppResult = state().PrimaryCapturing.count(*Params.phQueue) != 0;
+  **Params.ppResult = state().capturedGraph(*Params.phQueue) != nullptr;
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t mock_urQueueGetGraphExp(void *pParams) {
   auto Params = *static_cast<ur_queue_get_graph_exp_params_t *>(pParams);
   trace("urQueueGetGraphExp", *Params.phQueue);
-  auto It = state().PrimaryCapturing.find(*Params.phQueue);
-  if (It == state().PrimaryCapturing.end())
+  ur_exp_graph_handle_t Graph = state().capturedGraph(*Params.phQueue);
+  if (!Graph)
     return UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING;
-  **Params.pphGraph = It->second;
+  **Params.pphGraph = Graph;
   return UR_RESULT_SUCCESS;
 }
 
