@@ -24,7 +24,7 @@ protected:
   SYCLBINBlockReader(const char *Data, size_t Size) : Data{Data}, Size{Size} {}
 
   Error ReadSizeCheck(size_t ByteOffset, size_t ReadSize) {
-    if (ByteOffset + ReadSize > Size)
+    if (ByteOffset > Size || ReadSize > Size - ByteOffset)
       return createStringError(inconvertibleErrorCode(),
                                "Unexpected file contents size.");
     return Error::success();
@@ -342,10 +342,18 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                                      FileHeader->NativeDeviceCodeImageCount;
   const size_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
                                  IRMHeaderBlockSize + NDCIHeaderBlockSize;
+  // Check the blocks against the buffer one at a time; summing the
+  // file-supplied 64-bit table sizes first could wrap past the check.
+  const size_t BufferSize = Source.getBufferSize();
+  if (BufferSize < HeaderBlockSize ||
+      FileHeader->MetadataByteTableSize > BufferSize - HeaderBlockSize)
+    return createStringError(inconvertibleErrorCode(),
+                             "Unexpected file contents size.");
   const size_t AlignedMetadataByteTableSize =
       alignTo(FileHeader->MetadataByteTableSize, 8);
-  if (Source.getBufferSize() < HeaderBlockSize + AlignedMetadataByteTableSize +
-                                   FileHeader->BinaryByteTableSize)
+  if (AlignedMetadataByteTableSize > BufferSize - HeaderBlockSize ||
+      FileHeader->BinaryByteTableSize >
+          BufferSize - HeaderBlockSize - AlignedMetadataByteTableSize)
     return createStringError(inconvertibleErrorCode(),
                              "Unexpected file contents size.");
 
