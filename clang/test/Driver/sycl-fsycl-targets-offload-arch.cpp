@@ -75,6 +75,11 @@
 // RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -fsycl-targets=spir64 -Xsycl-target-backend=spir64 --offload-arch=pvc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=FORWARDED %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=intel_gpu_pvc -Xsycl-target-backend=intel_gpu_pvc --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=FORWARDED-GPU %s
+// FORWARDED-GPU: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=intel_gpu_pvc'
+// FORWARDED-GPU-NOT: not allowed with
 // FORWARDED: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
 // FORWARDED-NOT: not allowed with
 
@@ -140,6 +145,14 @@
 // RUN:   --offload-arch=pvc %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefixes=NO-ERROR,LINK-OK %s
 // LINK-OK: clang-linker-wrapper
+
+/// Without -fsycl-targets, --offload-arch passed with
+/// -Xsycl-target-backend=intel_gpu_<device> does not select an architecture.
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   --offload-arch=pvc -Xsycl-target-backend=intel_gpu_bmg_g21 --offload-arch=bmg_g21 -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,BACKEND-OPT %s
+// BACKEND-OPT: llvm-offload-binary{{.*}} "--image={{.*}}arch=pvc,kind=sycl
+// BACKEND-OPT-NOT: arch=bmg_g21
 
 /// The old offloading model does not support --offload-arch for SYCL, so the
 /// options are not diagnosed as conflicting there.

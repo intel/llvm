@@ -8131,8 +8131,28 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
   // For SYCL, the Intel architectures given with --offload-arch, in order, and
   // the option that gave each of them, for the -fsycl-targets check below.
   SmallVector<std::pair<StringRef, std::string>, 2> SYCLIntelOffloadArchs;
+  // For SYCL, an Intel architecture given with
+  // -Xsycl-target-backend=intel_gpu_<device> --offload-arch, for the same
+  // check. It does not select an architecture of the toolchain.
+  std::string SYCLForwardedIntelOffloadArch;
   std::unique_ptr<llvm::opt::Arg> ExtractedArg = nullptr;
   for (auto *Arg : C.getArgsForToolChain(&TC, /*BA=*/{}, Kind)) {
+    // -Xsycl-target-backend=intel_gpu_<device> passes --offload-arch to the
+    // backend instead of selecting an architecture, so only record it.
+    if (Kind == Action::OFK_SYCL &&
+        Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) &&
+        TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+        !tools::SYCL::gen::resolveGenDevice(Arg->getValue(0)).empty()) {
+      StringRef Value = Arg->getValue(1);
+      SmallVector<StringRef, 4> ArchList;
+      if (Value.consume_front("--offload-arch=")) {
+        Value.split(ArchList, ',');
+        if (llvm::any_of(ArchList, [](StringRef Arch) {
+              return StringToOffloadArch(Arch).isIntel();
+            }))
+          SYCLForwardedIntelOffloadArch = Arg->getValue(1);
+      }
+    }
     // Extract any '--[no-]offload-arch' arguments intended for this toolchain.
     if (Kind == Action::OFK_SYCL) {
       // For SYCL based offloading, we allow for -Xsycl-target-backend
@@ -8256,13 +8276,15 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
     auto Remaining = llvm::find_if(SYCLIntelOffloadArchs, [&](const auto &P) {
       return Archs.contains(P.first);
     });
-    if (Remaining != SYCLIntelOffloadArchs.end()) {
+    StringRef Conflicting = Remaining != SYCLIntelOffloadArchs.end()
+                                ? StringRef(Remaining->second)
+                                : StringRef(SYCLForwardedIntelOffloadArch);
+    if (!Conflicting.empty()) {
       if (const llvm::opt::Arg *FsyclTargets =
               getFsyclTargetsArgForOffloadArchCheck(*this, C.getInputArgs())) {
         if (!SYCLTargetsWithIntelOffloadArchDiagnosed) {
           Diag(diag::err_drv_argument_not_allowed_with)
-              << Remaining->second
-              << FsyclTargets->getAsString(C.getInputArgs());
+              << Conflicting << FsyclTargets->getAsString(C.getInputArgs());
           SYCLTargetsWithIntelOffloadArchDiagnosed = true;
         }
         return {};
