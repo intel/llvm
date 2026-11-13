@@ -44,10 +44,13 @@ public:
   /// @param[in] ctx the vectorization context object for the module.
   /// @param[in] verifyEach true if each pass should be verified
   /// @param[in] debugLogLevel debug logging verbosity.
+  /// @param[in] FS file system to be used by the PassBuilder.
   VeczPassMachinery(llvm::LLVMContext &llvmCtx, llvm::TargetMachine *TM,
                     VectorizationContext &ctx, bool verifyEach,
                     compiler::utils::DebugLogging debugLogLevel =
-                        compiler::utils::DebugLogging::None);
+                        compiler::utils::DebugLogging::None,
+                    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS =
+                        llvm::vfs::getRealFileSystem());
 
   virtual void registerPasses() override;
 

@@ -83,8 +83,10 @@ using namespace vecz;
 VeczPassMachinery::VeczPassMachinery(
     llvm::LLVMContext &llvmCtx, llvm::TargetMachine *TM,
     VectorizationContext &Ctx, bool verifyEach,
-    compiler::utils::DebugLogging debugLogLevel)
-    : compiler::utils::PassMachinery(llvmCtx, TM, verifyEach, debugLogLevel),
+    compiler::utils::DebugLogging debugLogLevel,
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
+    : compiler::utils::PassMachinery(llvmCtx, TM, verifyEach, debugLogLevel,
+                                     std::move(FS)),
       Ctx(Ctx) {}
 
 void VeczPassMachinery::registerPasses() {
