@@ -53,11 +53,16 @@ int main() {
   bytes = img.ext_oneapi_get_backend_content();
   auto clContext = sycl::get_native<sycl::backend::opencl>(ctxt);
   auto clDevice = sycl::get_native<sycl::backend::opencl>(d);
+  // The spec promises an executable binary on OpenCL, so load it as such.
   cl_int status;
-  auto clProgram = clCreateProgramWithIL(
-      clContext, reinterpret_cast<const void *>(bytes.data()), bytes.size(),
-      &status);
+  const size_t binSize = bytes.size();
+  const unsigned char *binPtr =
+      reinterpret_cast<const unsigned char *>(bytes.data());
+  cl_int binStatus;
+  auto clProgram = clCreateProgramWithBinary(clContext, 1, &clDevice, &binSize,
+                                             &binPtr, &binStatus, &status);
   assert(status == CL_SUCCESS);
+  assert(binStatus == CL_SUCCESS);
   status = clBuildProgram(clProgram, 1, &clDevice, "", nullptr, nullptr);
   assert(status == CL_SUCCESS);
   auto clKernel = clCreateKernel(clProgram, "__sycl_kernel_iota", &status);

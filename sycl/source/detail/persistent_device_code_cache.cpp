@@ -182,14 +182,17 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
   std::vector<std::vector<char>> Result(Devices.size());
   auto ResultIt = Result.begin();
   for (device_impl &Device : Devices) {
-    auto DeviceIt = std::find_if(URDevices.begin(), URDevices.end(),
-                                 [&Device](const ur_device_handle_t &URDevice) {
-                                   return URDevice == Device.getHandleRef();
-                                 });
-    assert(DeviceIt != URDevices.end() &&
-           "Device is not associated with the program");
-    auto URDeviceIndex = std::distance(URDevices.begin(), DeviceIt);
-    *ResultIt = std::move(Binaries[URDeviceIndex]);
+    auto Find = [&URDevices](ur_device_handle_t Handle) {
+      return std::find(URDevices.begin(), URDevices.end(), Handle);
+    };
+    auto DeviceIt = Find(Device.getHandleRef());
+    // A sub-device built in a root-device context: the program lists the root.
+    if (DeviceIt == URDevices.end() && !Device.isRootDevice())
+      DeviceIt = Find(Device.getRootDeviceHandle());
+    // Leave the entry empty rather than index past Binaries.
+    if (DeviceIt != URDevices.end())
+      *ResultIt =
+          std::move(Binaries[std::distance(URDevices.begin(), DeviceIt)]);
     ++ResultIt;
   }
 
