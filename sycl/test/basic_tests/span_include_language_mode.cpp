@@ -5,6 +5,7 @@
 // In C++17, the poison <span> header catches includes even when the standard
 // library leaves __cpp_lib_span undefined. C++20 must retain std::span support.
 
+#include <sycl/ext/oneapi/experimental/detail/ipc_common.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_event.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
