@@ -2575,16 +2575,15 @@ Expected<StringRef> writeOffloadFile(const OffloadFile &File,
 
 // Compile the module to an object file using the appropriate target machine for
 // the host triple.
-Expected<StringRef>
-compileModule(const cl::LibraryOptionsContext &LibraryOptions, Module &M,
-              OffloadKind Kind) {
+Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Compile module");
   std::string Msg;
   const Target *T = TargetRegistry::lookupTarget(M.getTargetTriple(), Msg);
   if (!T)
     return createStringError(Msg);
 
-  auto Options = codegen::getTargetOptions(LibraryOptions, M.getTargetTriple());
+  auto Options = codegen::getTargetOptions(M.getContext().getLibraryOptions(),
+                                           M.getTargetTriple());
   StringRef CPU = "";
   StringRef Features = "";
   std::unique_ptr<TargetMachine> TM(
@@ -2622,9 +2621,8 @@ static std::unique_ptr<Module> createHostWrapperModule(LLVMContext &C,
   return M;
 }
 
-static Expected<StringRef>
-emitWrapperObject(const cl::LibraryOptionsContext &LibraryOptions, Module &M,
-                  const ArgList &Args, OffloadKind Kind) {
+static Expected<StringRef> emitWrapperObject(Module &M, const ArgList &Args,
+                                             OffloadKind Kind) {
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << M;
   if (Args.hasArg(OPT_save_temps)) {
@@ -2643,17 +2641,15 @@ emitWrapperObject(const cl::LibraryOptionsContext &LibraryOptions, Module &M,
     return createOutputFile(ExecutableName + "." + getOffloadKindName(Kind) +
                                 ".image.wrapper",
                             "o");
-  return compileModule(LibraryOptions, M, Kind);
+  return compileModule(M, Kind);
 }
 
 /// Emit the host object required by device pre-linking when there are no device
 /// inputs, without requiring a device triple or introducing runtime references.
-static Expected<StringRef>
-emitEmptySYCLWrapperObject(const cl::LibraryOptionsContext &LibraryOptions,
-                           const ArgList &Args) {
+static Expected<StringRef> emitEmptySYCLWrapperObject(const ArgList &Args) {
   LLVMContext C;
   auto M = createHostWrapperModule(C, Args);
-  return emitWrapperObject(LibraryOptions, *M, Args, OFK_SYCL);
+  return emitWrapperObject(*M, Args, OFK_SYCL);
 }
 
 /// Performs the wrapping stage with individual tool invocations for verbose
@@ -2721,8 +2717,7 @@ wrapDeviceImagesVerbose(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
 /// Creates the object file containing the device image and runtime
 /// registration code from the device images stored in \p Images.
 Expected<StringRef>
-wrapDeviceImages(const cl::LibraryOptionsContext &LibraryOptions,
-                 ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
+wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
                  const ArgList &Args, OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Wrap bundled images");
 
@@ -2776,7 +2771,7 @@ wrapDeviceImages(const cl::LibraryOptionsContext &LibraryOptions,
                              " wrapping is not supported");
   }
 
-  return emitWrapperObject(LibraryOptions, M, Args, Kind);
+  return emitWrapperObject(M, Args, Kind);
 }
 
 /// Perform the OpenMP and OpenACC bundling with 'llvm-offload-binary' in
@@ -3070,8 +3065,7 @@ extractCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 /// be registered by the runtime. If EmitFatbinOnly is true, writes bundled
 /// output directly without wrapping or host linking.
 Expected<SmallVector<StringRef>>
-linkAndWrapDeviceFiles(const cl::LibraryOptionsContext &LibraryOptions,
-                       ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
+linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                        const InputArgList &Args, char **Argv, int Argc,
                        bool EmitFatbinOnly) {
   llvm::TimeTraceScope TimeScope("Handle all device input");
@@ -3388,8 +3382,7 @@ linkAndWrapDeviceFiles(const cl::LibraryOptionsContext &LibraryOptions,
       continue;
     }
 
-    auto OutputOrErr = wrapDeviceImages(LibraryOptions, *BundledImagesOrErr,
-                                        Args, WrapperKind);
+    auto OutputOrErr = wrapDeviceImages(*BundledImagesOrErr, Args, WrapperKind);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
     WrappedOutput.push_back(*OutputOrErr);
@@ -3964,8 +3957,8 @@ int main(int Argc, char **Argv) {
 
     // Link and process the device images. The function may emit a direct fat
     // binary if --emit-fatbin-only is specified.
-    auto FilesOrErr = linkAndWrapDeviceFiles(LibraryOptions, *DeviceInputFiles,
-                                             Args, Argv, Argc, EmitFatbinOnly);
+    auto FilesOrErr = linkAndWrapDeviceFiles(*DeviceInputFiles, Args, Argv,
+                                             Argc, EmitFatbinOnly);
     if (!FilesOrErr)
       reportError(FilesOrErr.takeError());
 
@@ -3978,7 +3971,7 @@ int main(int Argc, char **Argv) {
         // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
         if (FilesOrErr->empty()) {
-          auto OutputFile = emitEmptySYCLWrapperObject(LibraryOptions, Args);
+          auto OutputFile = emitEmptySYCLWrapperObject(Args);
           if (!OutputFile)
             reportError(OutputFile.takeError());
           FilesOrErr->push_back(*OutputFile);
