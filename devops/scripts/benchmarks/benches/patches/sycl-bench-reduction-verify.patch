@@ -1,3 +1,6 @@
+Base: unisa-hpc/sycl-bench 31fc70be6266193c4ba60eb1fe3ce26edee4ca5b
+Fix reduction verification (upstream issue #86): sum in double, keep sums exact.
+
 diff --git a/pattern/reduction.cpp b/pattern/reduction.cpp
 index e1d938f..1c7698c 100644
 --- a/pattern/reduction.cpp

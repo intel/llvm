@@ -25,6 +25,8 @@ class SyclBench(Suite):
 
     def git_hash(self) -> str:
         # 21 Feb, 2025
+        # patches/sycl-bench-reduction-verify.patch targets this commit;
+        # re-check it when bumping.
         return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
 
     def setup(self) -> None:
