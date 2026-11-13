@@ -1382,8 +1382,17 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
   }
 
   ze_graph_handle_t zeGraph = nullptr;
-  ZE2UR_CALL(hContext.get()->getPlatform()->ZeGraphExt.endGraphCapture,
-             (getZeCommandList(), nullptr, &zeGraph));
+  ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(hContext.get()->getPlatform()->ZeGraphExt.endGraphCapture,
+                      (getZeCommandList(), nullptr, &zeGraph));
+  // With unjoined forks the driver still ends the capture and hands back the
+  // (invalid) recorded graph. Wrap it so the caller can destroy it instead of
+  // leaking the native handle.
+  const bool endedWithUnjoinedForks =
+      ZeResult == ZE_RESULT_ERROR_GRAPH_UNJOINED_FORKS && zeGraph != nullptr;
+  if (ZeResult != ZE_RESULT_SUCCESS && !endedWithUnjoinedForks) {
+    return ze2urResult(ZeResult);
+  }
 
   {
     std::scoped_lock<ur_shared_mutex> lock(hContextInternal->GraphMapMutex);
@@ -1396,7 +1405,7 @@ ur_command_list_manager::endGraphCapture(ur_exp_graph_handle_t *phGraph) {
     *phGraph = hUrGraph;
   }
 
-  return UR_RESULT_SUCCESS;
+  return ze2urResult(ZeResult);
 }
 
 ur_result_t
