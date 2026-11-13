@@ -1,4 +1,4 @@
-// REQUIRES: gpu
+// REQUIRES: gpu, aspect-usm_shared_allocations
 // RUN: %{build} -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ -o %t1.out
 
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t1.out | FileCheck %s --check-prefix CHECK-DISABLED
@@ -32,7 +32,8 @@ void try_rounding_off(size_t size, bool useShortcutFunction) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,
                           sycl::memory_scope::device>(*CounterPtr);
     atm.fetch_add(1);
-    (*RangePtr) = id.get_range(0);
+    if (id.get_linear_id() == 0)
+      (*RangePtr) = id.get_range(0);
   };
   command_submit_wrappers::parallel_for_wrapper<class TestKernel>(
       useShortcutFunction, Queue, Range, KernelFunc);
