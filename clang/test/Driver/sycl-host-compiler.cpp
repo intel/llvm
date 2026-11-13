@@ -82,6 +82,26 @@
 // RUN:  | FileCheck -check-prefix=NO_EXTERNAL_HOST_COMPILER %s
 // NO_EXTERNAL_HOST_COMPILER-NOT: "-D__SYCL_EXTERNAL_HOST_COMPILER__"
 
+/// The external host compiler does not run clang's InitPreprocessor, so the
+/// driver passes it __SYCL_EXTERNAL_HOST_COMPILER__ and, only with relocatable
+/// device code (the default), the host-side (empty) SYCL_EXTERNAL definition.
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler=g++ -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_RDC %s
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler=g++ -fsycl-rdc -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_RDC %s
+// HOST_DEFINES_RDC: g++{{.*}} "-D" "__SYCL_EXTERNAL_HOST_COMPILER__" "-D" "SYCL_EXTERNAL="
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler=g++ -fno-sycl-rdc -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_NO_RDC %s
+// HOST_DEFINES_NO_RDC: g++{{.*}} "-D" "__SYCL_EXTERNAL_HOST_COMPILER__"
+// HOST_DEFINES_NO_RDC-NOT: "SYCL_EXTERNAL=
+// RUN: %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler=cl -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_RDC_CL %s
+// HOST_DEFINES_RDC_CL: cl{{.*}} "/D" "__SYCL_EXTERNAL_HOST_COMPILER__" "/D" "SYCL_EXTERNAL="
+// RUN: %clang_cl -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler=cl -fno-sycl-rdc -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_NO_RDC_CL %s
+// HOST_DEFINES_NO_RDC_CL: cl{{.*}} "/D" "__SYCL_EXTERNAL_HOST_COMPILER__"
+// HOST_DEFINES_NO_RDC_CL-NOT: "SYCL_EXTERNAL=
+
 // Zc:__cplusplus, Zc:__cplusplus- check.
 // RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS %s
 // RUN: %clang_cl -### -fsycl-host-compiler=cl -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl-host-compiler-options=/Zc:__cplusplus- %s 2>&1 | FileCheck -check-prefix=CHECK-ZC-CPLUSPLUS-MINUS %s
@@ -103,7 +123,7 @@
 // CHECK_SAVE_TEMPS-NEXT: clang{{.*}} "-fsycl-is-device"
 // CHECK_SAVE_TEMPS-SAME: "-emit-llvm-bc"{{.*}} "-o" "[[DEVICE_BC2:.+\.bc]]"{{.*}} "[[DEVICE_BC1]]"
 // CHECK_SAVE_TEMPS-NEXT: append-file{{.*}} "--output=[[APPEND_CPP:.+\.cpp]]
-// CHECK_SAVE_TEMPS-NEXT: g++{{.*}} "[[APPEND_CPP]]" "-c"
+// CHECK_SAVE_TEMPS-NEXT: g++{{.*}} "[[APPEND_CPP]]"{{.*}} "-c"
 // CHECK_SAVE_TEMPS-SAME: "-o" "[[HOST_OBJ:.+\.o]]"
 // CHECK_SAVE_TEMPS-NEXT: clang-offload-bundler{{.*}} "-input=[[DEVICE_BC2]]" "-input=[[HOST_OBJ]]"
 

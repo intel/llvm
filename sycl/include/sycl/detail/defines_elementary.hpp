@@ -36,7 +36,13 @@
 #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
 #else
 #define __DPCPP_SYCL_EXTERNAL
+// Fallback for compilers outside DPC++ SYCL mode. DPC++ (SYCL_LANGUAGE_VERSION)
+// and the driver for -fsycl-host-compiler (__SYCL_EXTERNAL_HOST_COMPILER__)
+// already define SYCL_EXTERNAL when RDC is on; leaving it undefined means
+// no-rdc.
+#if !defined(SYCL_LANGUAGE_VERSION) && !defined(__SYCL_EXTERNAL_HOST_COMPILER__)
 #define SYCL_EXTERNAL
+#endif
 #endif
 #endif
 
