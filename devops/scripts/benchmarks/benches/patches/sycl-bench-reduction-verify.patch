@@ -1,0 +1,29 @@
+Base: unisa-hpc/sycl-bench 31fc70be6266193c4ba60eb1fe3ce26edee4ca5b
+Fix reduction verification (upstream issue #86): sum in double, keep sums exact.
+
+diff --git a/pattern/reduction.cpp b/pattern/reduction.cpp
+index e1d938f..1c7698c 100644
+--- a/pattern/reduction.cpp
++++ b/pattern/reduction.cpp
+@@ -30,7 +30,8 @@ public:
+ 
+   void generate_input(std::vector<T>& out) {
+     out.resize(_args.problem_size);
+-    for(std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<T>(i);
++    // Keep the sum small so it fits in int and stays exact in float (N < 2^25).
++    for(std::size_t i = 0; i < out.size(); ++i) out[i] = static_cast<T>(i % 2);
+   }
+ 
+   void setup() {
+@@ -61,9 +62,9 @@ public:
+ 
+     // Calculate CPU result in fp64 to avoid obtaining a wrong verification result
+     std::vector<double> input_fp64(_input.size());
+-    for(std::size_t i = 0; i < _input.size(); ++i) input_fp64[i] = static_cast<double>(i);
++    for(std::size_t i = 0; i < _input.size(); ++i) input_fp64[i] = static_cast<double>(_input[i]);
+     double delta =
+-        static_cast<double>(result) - std::reduce(input_fp64.begin(), input_fp64.end(), 0, std::plus<double>());
++        static_cast<double>(result) - std::reduce(input_fp64.begin(), input_fp64.end(), 0.0, std::plus<double>());
+     return std::abs(delta) < 1.e-5;
+   }
+ 
