@@ -1,5 +1,5 @@
 // Target "host-x86_64-unknown-linux-gnu" only works on Linux
-// REQUIRES: system-linux
+// REQUIRES: system-linux, x86-registered-target
 
 // Ensure that bundled BC files in archives can work with:
 // TEST1:  clang-offload-bundler -list
@@ -14,13 +14,15 @@
 // Make bundled object with targets:
 // sycl-spir64-unknown-unknown
 // host-x86_64-unknown-linux-gnu
-// RUN: %clangxx -fsycl --no-offload-new-driver -c %s -o %t_bundled.o
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c %s -o %t_dev.bc
+// RUN: %clang -target x86_64-unknown-linux-gnu -c %s -o %t_host.o
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu -input=%t_dev.bc -input=%t_host.o -output=%t_bundled.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make three distinct BC files
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE1 %s -o %t1.bc
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE2 %s -o %t2.bc
-// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-device-only -DTYPE3 %s -o %t3.bc
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c -DTYPE1 %s -o %t1.bc
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c -DTYPE2 %s -o %t2.bc
+// RUN: %clang -target spir64-unknown-unknown -emit-llvm -c -DTYPE3 %s -o %t3.bc
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Bundle BC files to different targets:
@@ -107,13 +109,7 @@
 // RUN: sh -c 'cmp %t_unbundled_A.o `cat %t_listA.txt`'
 // RUN: sh -c 'cmp %t2.bc           `cat %t_listB.txt`'
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_EXTERNAL __attribute__((sycl_device))
-#else
-#define SYCL_EXTERNAL
-#endif
-
-SYCL_EXTERNAL int foo(int x) {
+int foo(int x) {
 
 #ifdef TYPE1
   return x+13;
