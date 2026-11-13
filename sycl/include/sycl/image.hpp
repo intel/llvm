@@ -24,6 +24,7 @@
 #include <sycl/event.hpp>                             // for event
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/properties/image_properties.hpp>       // for property::image
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
