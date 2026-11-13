@@ -60,6 +60,10 @@ add_l0_v2_devices_test(queue_priority
     queue_priority_test.cpp
 )
 
+# Calls the L0v2 adapter entry points directly, bypassing the UR loader.
+add_gtest_test(adapter_get_no_platforms urAdapterGetNoPlatforms.cpp)
+link_l0_v2_adapter_sources(adapter_get_no_platforms)
+
 if(NOT UR_FOUND_DPCXX)
     # Tests that require kernels can't be used if we aren't generating
     # device binaries
