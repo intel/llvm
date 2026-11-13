@@ -59,9 +59,9 @@ void nullptrRelationalOperatorTest() {
         })
         .wait_and_throw();
     assert(sycl::host_accessor{buf}[0] == 10);
-  } catch (sycl::exception e) {
+  } catch (const sycl::exception &e) {
     std::cout << "SYCL exception caught: " << e.what();
-    return;
+    throw;
   }
 }
 

@@ -145,9 +145,8 @@ void check1DSubBuffer(sycl::queue &q) {
 
 void checkExceptions() {
   size_t row = 8, col = 8;
-  std::vector<int> vec(1, 0);
-  sycl::buffer<int, 2> buf2d(vec.data(), {row, col});
-  sycl::buffer<int, 3> buf3d(vec.data(), {row / 2, col / 2, col / 2});
+  sycl::buffer<int, 2> buf2d(sycl::range<2>{row, col});
+  sycl::buffer<int, 3> buf3d(sycl::range<3>{row / 2, col / 2, col / 2});
   bool caughtException = false;
 
   // non-contiguous region

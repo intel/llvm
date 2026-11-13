@@ -196,6 +196,11 @@ int main() {
 #endif
 
       cgh.host_task([=]() {
+        // All six accessors share buf_data. Initialize it through the
+        // full-range accessor before reading or checking values that no_init
+        // may discard.
+        for (size_t I = 0; I < acc_1.size(); ++I)
+          acc_1[I] = I + 1;
         acc_7[6] = acc_1[0];
         acc_8[7] = acc_2[1];
         acc_9[7] = acc_3[1];

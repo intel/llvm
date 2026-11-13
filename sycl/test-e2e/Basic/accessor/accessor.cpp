@@ -505,7 +505,7 @@ int main() {
       queue.submit([&](sycl::handler &cgh) {
         auto acc = buf.get_access<sycl::access_mode::read_write>(cgh);
         auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
-        Wrapper1 wr1;
+        Wrapper1 wr1{};
         auto wr2 = Wrapper2<decltype(acc)>{wr1, acc_wrapped};
         auto wr3 = Wrapper3<decltype(acc)>{wr2};
         cgh.parallel_for<class wrapped_access3>(
@@ -831,7 +831,8 @@ int main() {
       q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
       q.wait_and_throw();
     } catch (sycl::exception &e) {
-      assert("Unexpected exception");
+      std::cerr << "Unexpected SYCL exception: " << e.what() << std::endl;
+      return 1;
     } catch (...) {
       std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
                 << std::endl;
@@ -1470,7 +1471,7 @@ int main() {
     AccT acc;
     assert(!acc.is_placeholder());
     sycl::queue q;
-    bool result;
+    bool result = true;
     {
       sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
       // As a non-placeholder accessor, make sure no exception is thrown when
@@ -1484,7 +1485,8 @@ int main() {
         });
         q.wait_and_throw();
       } catch (sycl::exception &e) {
-        assert("Unexpected exception");
+        std::cerr << "Unexpected SYCL exception: " << e.what() << std::endl;
+        return 1;
       } catch (...) {
         std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
                   << std::endl;
@@ -1516,7 +1518,8 @@ int main() {
         });
         q.wait_and_throw();
       } catch (sycl::exception &e) {
-        assert("Unexpected exception");
+        std::cerr << "Unexpected SYCL exception: " << e.what() << std::endl;
+        return 1;
       } catch (...) {
         std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
                   << std::endl;
@@ -1551,7 +1554,8 @@ int main() {
         });
         q.wait_and_throw();
       } catch (sycl::exception &e) {
-        assert("Unexpected exception");
+        std::cerr << "Unexpected SYCL exception: " << e.what() << std::endl;
+        return 1;
       } catch (...) {
         std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
                   << std::endl;
