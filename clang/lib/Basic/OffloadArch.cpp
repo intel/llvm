@@ -94,8 +94,16 @@ static const IntelArchNameMap IntelArchNames[] = {
     INTEL_GPU(ARL_H, "arl_h"),
     INTEL_GPU(BMG, "bmg"),
     INTEL_GPU(BMG_G21, "bmg_g21"),
-    INTEL_GPU(PTL, "ptl"),
+    INTEL_GPU(BMG_G31, "bmg_g31"),
     INTEL_GPU(LNL_M, "lnl_m"),
+    INTEL_GPU(PTL, "ptl"),
+    INTEL_GPU(PTL_H, "ptl_h"),
+    INTEL_GPU(PTL_U, "ptl_u"),
+    INTEL_GPU(WCL, "wcl"),
+    INTEL_GPU(NVL_S, "nvl_s"),
+    INTEL_GPU(NVL_U, "nvl_u"),
+    INTEL_GPU(NVL_P, "nvl_p"),
+    INTEL_GPU(CRI, "cri"),
     // clang-format on
 };
 #undef INTEL_CPU
