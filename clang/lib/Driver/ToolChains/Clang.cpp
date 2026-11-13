@@ -11445,8 +11445,14 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
       llvm::Triple Triple = TC.getTriple();
-      getTripleBasedSPIRVTransOpts(
-          C, TCArgs, Triple, JA.getOffloadingArch().ArchName, TranslatorArgs);
+      StringRef Arch = JA.getOffloadingArch().ArchName;
+      ArgStringList BackendArgs;
+      if (Arch.empty() &&
+          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+        TC.TranslateBackendTargetArgs(Triple, TCArgs, BackendArgs);
+        Arch = tools::SYCL::gen::getEmbeddedDeviceArch(BackendArgs);
+      }
+      getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, Arch, TranslatorArgs);
       // Handle -Xspirv-translator
       TC.TranslateTargetOpt(
           Triple, TCArgs, TranslatorArgs, options::OPT_Xspirv_translator,
