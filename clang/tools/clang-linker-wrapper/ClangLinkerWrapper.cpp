@@ -265,7 +265,7 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   // This helper is only used to wrap objects extracted via unbundling
   // (sycl::extractBundledObjects), i.e. old-model device code. Tag it so
   // later SPIR/SPIRV device-library resolution knows it's needed here.
-  Image.StringData["sycl-old-offload-model"] = "1";
+  Image.StringData["old-offload-model"] = "1";
   Image.Image = std::move(*ImageOrError);
 
   std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
@@ -1784,6 +1784,104 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
+/// Return the default SYCL device library file names that clang-linker-wrapper
+/// should resolve for an old-model \p Triple device image. Mirrors
+/// SYCLToolChain::getDeviceLibNames/addSYCLDeviceSanitizerLibs
+/// (clang/lib/Driver/ToolChains/SYCL.cpp).
+///
+/// --no-offloadlib/-fno-sycl-instrument-device-code/-fsanitize= reach here via
+/// --device-compiler=<arch>=<value> (Clang::ConstructJob), rewritten into
+/// --compiler-arg= by getLinkerArgs/ProcessDeviceArgs. SPIR never reaches a
+/// real device-compile step, so these are never parsed as compiler flags.
+static SmallVector<std::string, 8>
+getDefaultSYCLDeviceLibNames(const llvm::Triple &Triple, const ArgList &Args) {
+  SmallVector<std::string, 8> Libs;
+  bool NoOffloadLib = false;
+  bool InstrumentDeviceCode = true;
+  std::string SanitizeVal;
+  for (StringRef V : Args.getAllArgValues(OPT_compiler_arg_EQ)) {
+    if (V == "--no-offloadlib")
+      NoOffloadLib = true;
+    else if (V == "-fno-sycl-instrument-device-code")
+      InstrumentDeviceCode = false;
+    else if (StringRef Val = V; Val.consume_front("-fsanitize="))
+      SanitizeVal = Val.str();
+  }
+
+  if (!NoOffloadLib) {
+    Libs.push_back("libsycl-crt.bc");
+    Libs.push_back("libsycl-cmath.bc");
+    if (Args.hasArg(OPT_sycl_is_windows_msvc_env))
+      Libs.push_back("libsycl-msvc-math.bc");
+    Libs.push_back("libsycl-imf.bc");
+  }
+
+  // ITT instrumentation libraries are independent of --no-offloadlib.
+  if (InstrumentDeviceCode) {
+    Libs.push_back("libsycl-itt-user-wrappers.bc");
+    Libs.push_back("libsycl-itt-compiler-wrappers.bc");
+    Libs.push_back("libsycl-itt-stubs.bc");
+  }
+
+  // AOT device name: new-model objects carry it via --arch=; old-model
+  // objects (unbundled, see getInputBitcodeLibrary) instead carry it as a
+  // 4th component baked into the triple string itself.
+  StringRef Device = Args.getLastArgValue(OPT_arch_EQ);
+  if (Device.empty())
+    Device = Triple.getEnvironmentName();
+
+  // bfloat16: plain spir64 JIT (NoSubArch) defers to runtime; NVPTX/AMDGCN
+  // never reach this SPIR-only branch.
+  if (!NoOffloadLib && Triple.getSubArch() != llvm::Triple::NoSubArch) {
+    // Keep in sync with SYCL.cpp's GPUArchsWithNBF16 (selectBfloatLibs); no
+    // shared source for this list exists today.
+    static constexpr llvm::StringLiteral GPUArchsWithNativeBF16[] = {
+        "pvc",   "acm_g10", "acm_g11", "acm_g12", "bmg_g21", "lnl_m", "ptl_h",
+        "ptl_u", "wcl",     "cri",     "nvl_s",   "nvl_u",   "nvl_p"};
+    bool UseNative = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                     llvm::is_contained(GPUArchsWithNativeBF16, Device);
+    Libs.push_back(UseNative ? "libsycl-native-bfloat16.bc"
+                             : "libsycl-fallback-bfloat16.bc");
+  }
+
+  // Device sanitizer libraries are independent of --no-offloadlib.
+  if (!SanitizeVal.empty()) {
+    enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
+    size_t Idx = JIT;
+    if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+      Idx = AOT_CPU;
+    else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+      if (Device == "pvc")
+        Idx = AOT_PVC;
+      else if (Device == "dg2")
+        Idx = AOT_DG2;
+    }
+    static constexpr llvm::StringLiteral AsanLibs[] = {
+        "libsycl-asan.bc", "libsycl-asan-cpu.bc", "libsycl-asan-dg2.bc",
+        "libsycl-asan-pvc.bc"};
+    static constexpr llvm::StringLiteral MsanLibs[] = {
+        "libsycl-msan.bc", "libsycl-msan-cpu.bc",
+        // Currently only PVC and CPU have AOT msan libdevice; DG2 uses the
+        // JIT library as a placeholder, mirroring the driver.
+        "libsycl-msan.bc", "libsycl-msan-pvc.bc"};
+    static constexpr llvm::StringLiteral TsanLibs[] = {
+        "libsycl-tsan.bc", "libsycl-tsan-cpu.bc",
+        // Same DG2 placeholder note as msan above.
+        "libsycl-tsan.bc", "libsycl-tsan-pvc.bc"};
+    if (SanitizeVal == "address")
+      Libs.push_back(AsanLibs[Idx].str());
+    else if (SanitizeVal == "memory")
+      Libs.push_back(MsanLibs[Idx].str());
+    else if (SanitizeVal == "thread")
+      Libs.push_back(TsanLibs[Idx].str());
+  }
+
+  if (!NoOffloadLib)
+    Libs.push_back("libclang_rt.builtins.bc");
+
+  return Libs;
+}
+
 /// Link all SYCL device input files into a single LLVM IR file, then link
 /// with device library files specified via --bitcode-library option.
 ///
@@ -1846,18 +1944,15 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   // them resolved here; clang-linker-wrapper knows the default library names
   // itself rather than having them enumerated on the command line.
   if (Triple.isSPIROrSPIRV() && NeedsDeviceLibResolution) {
-    if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ)) {
-      static constexpr const char *DefaultSYCLDeviceLibs[] = {
-          "libsycl-crt.bc", "libsycl-cmath.bc",
-#if defined(_WIN32)
-          "libsycl-msvc-math.bc",
-#endif
-          "libsycl-imf.bc"};
-      for (const char *LibName : DefaultSYCLDeviceLibs) {
-        SmallString<128> LibPath(A->getValue());
+    for (StringRef LibName : getDefaultSYCLDeviceLibNames(Triple, Args)) {
+      for (StringRef Location :
+           Args.getAllArgValues(OPT_sycl_device_library_location_EQ)) {
+        SmallString<128> LibPath(Location);
         llvm::sys::path::append(LibPath, LibName);
-        if (llvm::sys::fs::exists(LibPath))
+        if (llvm::sys::fs::exists(LibPath)) {
           DeviceLibFiles.emplace_back(LibPath.str());
+          break;
+        }
       }
     }
   }
@@ -3187,7 +3282,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       // extracted from an embedded OffloadBinary (see getInputBitcodeLibrary).
       // Only those need SPIR/SPIRV device libraries resolved here.
       bool NeedsDeviceLibResolution = llvm::any_of(Input, [](const auto &File) {
-        return !File.getBinary()->getString("sycl-old-offload-model").empty();
+        return !File.getBinary()->getString("old-offload-model").empty();
       });
 
       Expected<std::vector<module_split::SplitModule>> ModulesOrErr =

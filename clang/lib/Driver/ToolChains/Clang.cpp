@@ -12342,6 +12342,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
     bool HasNativeCPU = false;
+    SmallVector<std::string, 4> SPIRArchNames;
+    const ToolChain *SPIRTC = nullptr;
 
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (const auto &[Kind, TC] :
@@ -12364,6 +12366,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           if (llvm::sys::path::extension(AddLib.Path) == ".bc")
             BCLibList.push_back(
                 (Twine(TargetTriple.str()) + "=" + AddLib.Path).str());
+      } else {
+        SPIRTC = TC;
+        std::string ArchName = TargetTriple.getArchName().str();
+        if (!llvm::is_contained(SPIRArchNames, ArchName))
+          SPIRArchNames.push_back(std::move(ArchName));
       }
 
       if (TargetTriple.isNVPTX())
@@ -12378,6 +12385,61 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
+    // SPIR never reaches a real device-compile step in clang-linker-wrapper,
+    // so these --device-compiler= entries just carry info back to
+    // getDefaultSYCLDeviceLibNames, reusing the existing per-arch forwarding
+    // instead of adding new clang-linker-wrapper flags.
+    bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
+                                      options::OPT_no_offloadlib, true);
+    bool InstrumentDeviceCode =
+        Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                     options::OPT_fno_sycl_instrument_device_code, true);
+    std::string SanitizeVal;
+    if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                                 options::OPT_fno_sanitize_EQ)) {
+      if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+          A->getValues().size() == 1)
+        SanitizeVal = A->getValue();
+    } else {
+      // -fsanitize= can also reach the device compiler via
+      // -Xsycl-target-frontend.
+      std::vector<std::string> ArgVals;
+      for (StringRef V : Args.getAllArgValues(options::OPT_Xsycl_frontend))
+        ArgVals.push_back(V.str());
+      for (StringRef V : Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ))
+        ArgVals.push_back(V.str());
+      for (StringRef V : Args.getAllArgValues(options::OPT_Xarch_device))
+        ArgVals.push_back(V.str());
+      for (const std::string &V : ArgVals) {
+        if (V.find("-fsanitize=address") != std::string::npos) {
+          SanitizeVal = "address";
+          break;
+        }
+        if (V.find("-fsanitize=memory") != std::string::npos) {
+          SanitizeVal = "memory";
+          break;
+        }
+        if (V.find("-fsanitize=thread") != std::string::npos) {
+          SanitizeVal = "thread";
+          break;
+        }
+      }
+    }
+
+    for (const std::string &ArchName : SPIRArchNames) {
+      if (NoOffloadLib)
+        CmdArgs.push_back(Args.MakeArgString(Twine("--device-compiler=") +
+                                             ArchName + "=--no-offloadlib"));
+      if (!InstrumentDeviceCode)
+        CmdArgs.push_back(
+            Args.MakeArgString(Twine("--device-compiler=") + ArchName +
+                               "=-fno-sycl-instrument-device-code"));
+      if (!SanitizeVal.empty())
+        CmdArgs.push_back(Args.MakeArgString(Twine("--device-compiler=") +
+                                             ArchName +
+                                             "=-fsanitize=" + SanitizeVal));
+    }
+
     // -sycl-device-library-location=<dir> provides the location of the
     // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
     SmallString<128> DeviceLibDir(D.Dir);
@@ -12388,6 +12450,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       DeviceLibDir = llvm::sys::path::parent_path(*FullLibName);
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
+
+    // libclang_rt.builtins.bc lives in the resource-dir compiler-rt path, so
+    // it's forwarded as a second (repeatable) -sycl-device-library-location=.
+    if (!NoOffloadLib && SPIRTC) {
+      SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
+      llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
+      if (llvm::sys::fs::exists(CompilerRTPath))
+        CmdArgs.push_back(Args.MakeArgString(
+            Twine("-sycl-device-library-location=") + CompilerRTPath));
+    }
 
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;

@@ -340,6 +340,29 @@
 // CHK-CMDS-DEFAULT-LIBS: llvm-link{{.*}} --suppress-warnings
 // CHK-CMDS-DEFAULT-LIBS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc
 
+/// Check ITT instrumentation libraries, bfloat16 (native for AOT pvc,
+/// fallback for JIT), device sanitizer libraries, and libclang_rt.builtins.bc
+/// (resolved from a second -sycl-device-library-location=) are all added for
+/// old-model objects by default, and that forwarding --no-offloadlib and
+/// -fno-sycl-instrument-device-code via --device-compiler=<arch>=<value>
+/// (the same per-arch mechanism used for e.g. ocloc options) suppresses the
+/// libraries they control.
+// RUN: touch %t.libdir/libsycl-itt-user-wrappers.bc %t.libdir/libsycl-itt-compiler-wrappers.bc %t.libdir/libsycl-itt-stubs.bc
+// RUN: touch %t.libdir/libsycl-native-bfloat16.bc %t.libdir/libsycl-fallback-bfloat16.bc
+// RUN: touch %t.libdir/libsycl-asan.bc %t.libdir/libsycl-asan-pvc.bc
+// RUN: mkdir -p %t.rtdir
+// RUN: touch %t.rtdir/libclang_rt.builtins.bc
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir -sycl-device-library-location=%t.rtdir --device-compiler=spir64=-fsanitize=address --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-JIT %s
+// CHK-DEFAULT-LIBS-JIT: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc {{.*}}libsycl-itt-user-wrappers.bc {{.*}}libsycl-itt-compiler-wrappers.bc {{.*}}libsycl-itt-stubs.bc {{.*}}libsycl-asan.bc {{.*}}libclang_rt.builtins.bc
+// CHK-DEFAULT-LIBS-JIT-NOT: bfloat16.bc
+
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-PVC %s
+// CHK-DEFAULT-LIBS-PVC: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-native-bfloat16.bc
+// CHK-DEFAULT-LIBS-PVC-NOT: fallback-bfloat16
+
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir --device-compiler=spir64=--no-offloadlib --device-compiler=spir64=-fno-sycl-instrument-device-code --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-NONE %s
+// CHK-DEFAULT-LIBS-NONE-NOT: llvm-link{{.*}} --only-needed
+
 /// Check for libsycl-nativecpu_utils.bc getting linked in for Native CPU.
 //
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu -sycl-device-library-location=%S/Inputs/native_cpu --sycl-post-link-options=SYCL_POST_LINK_OPTIONS --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null %t_native_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s
