@@ -38,6 +38,11 @@ class SyclBench(Suite):
                 Path(options.workdir),
                 "sycl-bench",
                 use_installdir=False,
+                patches=[
+                    Path(__file__).parent
+                    / "patches"
+                    / "sycl-bench-reduction-verify.patch"
+                ],
             )
 
         if not self.project.needs_rebuild():
@@ -69,7 +74,7 @@ class SyclBench(Suite):
             HostDevBandwidth(self),
             LocalMem(self),
             # Pattern_L2(self), # validation failure
-            # Reduction(self), # validation failure
+            Reduction(self),
             ScalarProd(self),
             SegmentReduction(self),
             # UsmAccLatency(self), # validation failure
@@ -83,7 +88,7 @@ class SyclBench(Suite):
             Three_mm(self),
             # Arith(self), # run time < 1ms
             Atax(self),
-            # Atomic_reduction(self), # run time < 1ms
+            Atomic_reduction(self),
             Bicg(self),
             # Correlation(self), # validation failure
             # Covariance(self), # validation failure
@@ -154,7 +159,12 @@ class SyclBenchmark(Benchmark):
         env_vars.update(self.extra_env_vars())
 
         # no output to stdout, all in outputfile
-        self.run_bench(command, env_vars, run_trace=run_trace, force_trace=force_trace)
+        self.run_bench(
+            command,
+            env_vars,
+            flamegraph_enabled=flamegraph_enabled,
+            force_trace=force_trace,
+        )
 
         with open(self.outputfile, "r") as f:
             reader = csv.reader(f)
@@ -381,7 +391,13 @@ class Atax(SyclBenchmark):
 
 class Atomic_reduction(SyclBenchmark):
     def __init__(self, bench):
-        super().__init__(bench, "atomic_reduction", "ReductionAtomic_fp64")
+        super().__init__(bench, "atomic_reduction", "ReductionAtomic_multi")
+
+    def bin_args(self) -> list[str]:
+        # The float sum of ones stays exact only up to 2^24.
+        return [
+            f"--size=10240000",
+        ]
 
 
 class Bicg(SyclBenchmark):

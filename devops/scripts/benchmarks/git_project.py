@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 
 from utils.logger import log
 from utils.utils import run
@@ -28,6 +29,7 @@ class GitProject:
         shallow_clone: bool = True,
         src_dir_override: Path | None = None,
         build_cache_key: dict | None = None,
+        patches: list[Path] | None = None,
     ) -> None:
         self._url = url
         self._ref = ref
@@ -38,7 +40,10 @@ class GitProject:
         self._shallow_clone = shallow_clone
         self._src_dir_override = src_dir_override
         self._build_cache_key = build_cache_key
+        self._patches = patches or []
         self._rebuild_needed = self._setup_repo()
+        if self._apply_patches():
+            self._rebuild_needed = True
 
     @property
     def name(self):
@@ -312,6 +317,33 @@ class GitProject:
         except Exception as e:
             log.error(f"Failed to fetch updates for repository {self._url}: {e}")
             raise
+
+    def _apply_patches(self) -> bool:
+        """Apply patches to the checked-out sources, skipping already-applied ones.
+        Returns:
+            bool: True if any patch was applied.
+        """
+        # Never modify user-provided sources; skip when there is no checkout.
+        if (
+            self._src_dir_override is not None
+            or not Path(self.src_dir, ".git").exists()
+        ):
+            return False
+        applied = False
+        for patch in self._patches:
+            # Probe quietly: run() would log the expected failure as an error.
+            already_applied = subprocess.run(
+                ["git", "apply", "--reverse", "--check", str(patch)],
+                cwd=self.src_dir,
+                capture_output=True,
+            )  # nosec B603
+            if already_applied.returncode == 0:
+                log.debug(f"Patch {patch} already applied to {self._name}")
+                continue
+            log.debug(f"Applying patch {patch} to {self._name}")
+            run(["git", "apply", str(patch)], cwd=self.src_dir)
+            applied = True
+        return applied
 
     def _setup_repo(self) -> bool:
         """Clone a git repository into a specified directory at a specific ref.
