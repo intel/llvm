@@ -921,7 +921,6 @@ feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
-    ToolSubst("lld", command=FindTool("ld.lld"), unresolved="ignore"),
 ]
 
 tools = [
@@ -950,14 +949,25 @@ tools = [
 # builds, where the tools may be externally defined.
 # The DPC++ bin directory is different from the LLVM bin directory when using
 # the Intel Compiler (icx), which puts tools into $dpcpp_root_dir/bin/compiler
-llvm_config.add_tool_substitutions(
-    tools, [config.dpcpp_bin_dir, config.llvm_tools_dir, os.environ.get("PATH", "")]
-)
+tool_search_dirs = [
+    config.dpcpp_bin_dir,
+    config.llvm_tools_dir,
+    os.environ.get("PATH", ""),
+]
+llvm_config.add_tool_substitutions(tools, tool_search_dirs)
 for tool in feature_tools:
     if tool.was_resolved:
         config.available_features.add(tool.key)
     else:
         lit_config.warning("Can't find " + tool.key)
+
+# lld is only exposed as a feature, not as a substitution: a ToolSubst for
+# "lld" would also rewrite flags such as -fuse-ld=lld into a path to ld.lld,
+# which breaks linking on Windows.
+if lit.util.which("ld.lld", os.pathsep.join(filter(None, tool_search_dirs))):
+    config.available_features.add("lld")
+else:
+    lit_config.warning("Can't find lld")
 
 if shutil.which("cmc") is not None:
     config.available_features.add("cm-compiler")
