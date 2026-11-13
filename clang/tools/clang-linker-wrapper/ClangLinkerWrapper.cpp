@@ -1370,6 +1370,8 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
   const std::string TargetStr = "--target=" + HostTriple.getTriple();
   CmdArgs.push_back(TargetStr);
+  for (StringRef Arg : Args.getAllArgValues(OPT_sycl_host_compiler_arg_EQ))
+    CmdArgs.push_back(Args.MakeArgString(Arg));
 
   // Checking for '-shared' linker option
   if (Args.hasArg(OPT_shared)) {
