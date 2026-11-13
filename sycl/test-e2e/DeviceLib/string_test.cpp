@@ -608,8 +608,9 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
                      sycl::access::target::device,
                      sycl::access::placeholder::false_t>
           dst1_acc(buffer3, cgh);
+      // Only one work-item may modify these shared local/global destinations.
       cgh.parallel_for<class KernelTestMemcpyAddrSpace>(
-          sycl::nd_range<1>{16, 16}, [=](sycl::nd_item<1>) {
+          sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
             // memcpy from constant buffer to local buffer
             memcpy(local_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
                    src_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
