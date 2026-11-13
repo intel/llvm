@@ -515,6 +515,7 @@ inline void cleanupVulkanContext(VulkanContext &ctx) {
 #endif
   vkDestroyInstance(ctx.instance, nullptr);
 }
+
 inline ImageResources createExportableImage(
     VulkanContext &ctx, VkExtent3D extent, VkFormat format, VkImageType type,
     VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
@@ -574,6 +575,37 @@ inline ImageResources createExportableImage(
   VK_CHECK(vkBindImageMemory(ctx.device, res.image, res.memory, 0));
 
   return res;
+}
+
+// Whether the driver supports creating an image with this format, type, tiling
+// and usage whose memory can be exported through PLATFORM_MEM_HANDLE_TYPE.
+// vkCreateImage is undefined for combinations this query rejects, so callers
+// must check it before createExportableImage for any non-trivial usage.
+inline bool isExportableImageFormatSupported(
+    VulkanContext &ctx, VkFormat format, VkImageType type, VkImageTiling tiling,
+    VkImageUsageFlags usage,
+    VkExternalMemoryHandleTypeFlagBits handleType = PLATFORM_MEM_HANDLE_TYPE) {
+  VkPhysicalDeviceExternalImageFormatInfo externalInfo = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO};
+  externalInfo.handleType = handleType;
+
+  VkPhysicalDeviceImageFormatInfo2 formatInfo = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2, &externalInfo};
+  formatInfo.format = format;
+  formatInfo.type = type;
+  formatInfo.tiling = tiling;
+  formatInfo.usage = usage;
+
+  VkExternalImageFormatProperties externalProps = {
+      VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES};
+
+  VkImageFormatProperties2 props = {VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
+                                    &externalProps};
+
+  return vkGetPhysicalDeviceImageFormatProperties2(
+             ctx.physicalDevice, &formatInfo, &props) == VK_SUCCESS &&
+         (externalProps.externalMemoryProperties.externalMemoryFeatures &
+          VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT);
 }
 
 inline VkSemaphore createExportableSemaphore(VulkanContext &ctx) {
