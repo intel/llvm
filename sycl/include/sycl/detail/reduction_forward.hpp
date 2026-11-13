@@ -15,7 +15,9 @@
 #include <sycl/nd_range.hpp>         // for nd_range
 #include <sycl/range.hpp>            // for range
 
+#include <optional> // for std::optional
 #include <stddef.h> // for size_t
+#include <variant>  // for std::variant
 
 // To be included in <sycl/handler.hpp>. Note that reductions implementation
 // need complete sycl::handler type so we cannot include whole
@@ -28,6 +30,13 @@ namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl_algo;
+
+// Tag structs to help creating unique kernels for multi-reduction cases.
+struct KernelOneWGTag {};
+struct KernelMultipleWGTag {};
+
+using __sycl_reduction_kernel_tag_type =
+    std::optional<std::variant<KernelOneWGTag, KernelMultipleWGTag>>;
 
 namespace reduction {
 enum class strategy : int {
@@ -63,6 +72,13 @@ template <typename KernelName,
           int Dims, typename PropertiesT, typename... RestT>
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest);
+
+template <typename Param, typename KernelName, int Dims,
+          reduction::strategy Strategy, typename... RestT>
+std::optional<typename Param::return_type>
+reduction_kernel_get_info(handler &CGH, bool ForAuxKernel,
+                          __sycl_reduction_kernel_tag_type ForKernelTag,
+                          RestT... Rest);
 
 /// Base non-template class which is a base class for all reduction
 /// implementation classes. It is needed to detect the reduction classes.

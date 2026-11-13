@@ -61,6 +61,10 @@ device getDeviceFromHandler(handler &CGH) {
   return createSyclObjFromImpl<device>(getSyclObjImpl(CGH)->get_device());
 }
 
+context getContextFromHandler(handler &CGH) {
+  return createSyclObjFromImpl<context>(CGH.getContextImpl());
+}
+
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(

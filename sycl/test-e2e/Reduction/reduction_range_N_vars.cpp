@@ -9,6 +9,12 @@
 
 using namespace sycl;
 
+// Forward-declare the test kernel type names.
+// Required per specification as complete, stable type in the namespace scope.
+class Case1;
+class Case2;
+class Case3;
+
 template <typename... Ts> class KNameGroup;
 template <typename T, bool B> class KName;
 
