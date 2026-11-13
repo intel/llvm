@@ -1434,8 +1434,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   }
 
   diagnoseSYCLOptions(C, IsSYCL);
-  // Initialize the compilation identifier used for unique CUDA / HIP names.
-  if (IsCuda || IsHIP)
+  // Initialize the compilation identifier used for unique CUDA / HIP / SYCL
+  // names.
+  if (IsCuda || IsHIP || IsSYCL)
     CUIDOpts = CUIDOptions(C.getArgs(), *this);
 
   // Get the list of requested offloading toolchains. If they were not
@@ -5614,11 +5615,19 @@ class OffloadingActionBuilder final {
         if (IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           return ABRT_Inactive;
 
+        // Assign the compilation unit ID to the source input, and share it
+        // with each device input so the host and device compilations of this
+        // translation unit use the same ID.
+        const CUIDOptions &CUIDOpts = C.getDriver().getCUIDOpts();
+        if (CUIDOpts.isEnabled() && types::isSrcFile(IA->getType()) &&
+            IA->getId().empty())
+          IA->setId(CUIDOpts.getCUID(IA->getInputArg().getValue(), Args));
+
         if (CompileHostOnly) {
           for (auto &TargetInfo : SYCLTargetInfoList) {
             (void)TargetInfo;
-            SYCLDeviceActions.push_back(
-                C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+            SYCLDeviceActions.push_back(C.MakeAction<InputAction>(
+                IA->getInputArg(), IA->getType(), IA->getId()));
           }
           return ABRT_Success;
         }
@@ -5643,8 +5652,8 @@ class OffloadingActionBuilder final {
 
         for (auto &TargetInfo : SYCLTargetInfoList) {
           (void)TargetInfo;
-          SYCLDeviceActions.push_back(
-              C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+          SYCLDeviceActions.push_back(C.MakeAction<InputAction>(
+              IA->getInputArg(), IA->getType(), IA->getId()));
         }
         return ABRT_Success;
       }
