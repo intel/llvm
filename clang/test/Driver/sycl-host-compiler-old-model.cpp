@@ -31,6 +31,16 @@
 // RUN:  | FileCheck -check-prefix=HOST_OPTIONS_CL %s
 // HOST_OPTIONS_CL: cl{{.*}} "-Fo[[HOSTOBJ:.+\.obj]]"{{.*}} "/DFOO" "/DBAR" "/O2"
 
+/// host-side defines: __SYCL_EXTERNAL_HOST_COMPILER__ always, SYCL_EXTERNAL
+/// only with relocatable device code (the default)
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ -c %s -### 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_RDC %s
+// HOST_DEFINES_RDC: g++{{.*}} "-D" "__SYCL_EXTERNAL_HOST_COMPILER__" "-D" "SYCL_EXTERNAL="
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ -fno-sycl-rdc -c %s -### 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_DEFINES_NO_RDC %s
+// HOST_DEFINES_NO_RDC: g++{{.*}} "-D" "__SYCL_EXTERNAL_HOST_COMPILER__"
+// HOST_DEFINES_NO_RDC-NOT: "SYCL_EXTERNAL=
+
 /// preprocessing
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ -E %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_PREPROCESS %s
@@ -115,7 +125,7 @@
 // CHECK_SAVE_TEMPS-NEXT: clang{{.*}} "-fsycl-is-device"
 // CHECK_SAVE_TEMPS-SAME: "-emit-llvm-bc" {{.*}} "-o" "[[DEVICE_BC:.+sycl-spir64-unknown-unknown.bc]]"{{.*}} "[[PREPROC_OUT]]"
 // CHECK_SAVE_TEMPS-NEXT: append-file{{.*}} "--output=[[APPEND_CPP:.+\.cpp]]
-// CHECK_SAVE_TEMPS-NEXT: g++{{.*}} "[[APPEND_CPP]]" "-c"
+// CHECK_SAVE_TEMPS-NEXT: g++{{.*}} "[[APPEND_CPP]]"{{.*}} "-c"
 // CHECK_SAVE_TEMPS-SAME: "-o" "[[HOST_OBJ:.+\.o]]"
 // CHECK_SAVE_TEMPS-NEXT: clang-offload-bundler{{.*}} "-input=[[DEVICE_BC]]" "-input=[[HOST_OBJ]]"
 
