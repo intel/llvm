@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: windows && gpu-intel-gen12
 // UNSUPPORTED-INTENDED: There is a separate version of this test for Win Gen12.
-// REQUIRES-INTEL-DRIVER: lin: 40430
+// REQUIRES-INTEL-DRIVER: lin: 40196
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
