@@ -17,3 +17,14 @@
 // RUN:   | FileCheck -check-prefix=NONE %s
 // NONE: clang-linker-wrapper
 // NONE-NOT: --sycl-host-compiler-arg
+
+/// The old offloading model passes the same options to the clang command that
+/// compiles the wrapper.
+// RUN: %clangxx -### -fsycl --no-offload-new-driver --no-offloadlib \
+// RUN:   -fno-sycl-instrument-device-code \
+// RUN:   --target=riscv64-unknown-linux-gnu -march=rv64id -mcpu=sifive-u74 \
+// RUN:   -mabi=lp64 -mcmodel=medany %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=OLD %s
+// OLD: clang-offload-wrapper
+// OLD: clang{{.*}} "--target=riscv64-unknown-linux-gnu" "-c"
+// OLD-SAME: "-march=rv64id" "-mcpu=sifive-u74" "-mabi=lp64" "-mcmodel=medany"

@@ -10747,6 +10747,19 @@ void OffloadBundler::ConstructJobMultipleOutputs(
 
 // Begin OffloadWrapper
 
+// The SYCL wrapper object must use the same ABI as the user's host code, or
+// the link can fail (e.g. soft-float vs double-float on RISC-V). Return the
+// host ABI options to pass to the clang command that compiles the wrapper.
+static SmallVector<const Arg *, 4>
+getSYCLWrapperHostABIArgs(const ArgList &Args) {
+  SmallVector<const Arg *, 4> Res;
+  for (OptSpecifier Opt : {options::OPT_march_EQ, options::OPT_mcpu_EQ,
+                           options::OPT_mabi_EQ, options::OPT_mcmodel_EQ})
+    if (const Arg *A = Args.getLastArg(Opt))
+      Res.push_back(A);
+  return Res;
+}
+
 static void addRunTimeWrapperOpts(Compilation &C,
                                   Action::OffloadKind DeviceOffloadKind,
                                   const llvm::opt::ArgList &TCArgs,
@@ -10929,9 +10942,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         if (!TC.getAuxTriple()->isOSWindows())
           ClangArgs.push_back("-fPIC");
       }
-      if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
-        ClangArgs.push_back(
-            TCArgs.MakeArgString(Twine("-mcmodel=") + A->getValue()));
+      for (const Arg *A : getSYCLWrapperHostABIArgs(C.getArgs()))
+        ClangArgs.push_back(TCArgs.MakeArgString(A->getAsString(C.getArgs())));
 
       SmallString<128> ClangPath(C.getDriver().Dir);
       llvm::sys::path::append(ClangPath, "clang");
@@ -12314,18 +12326,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString(Twine("--ocloc-path=") + A->getValue()));
 
-    // The wrapper object must use the same ABI as the user's host code, or
-    // the link can fail (e.g. soft-float vs double-float on RISC-V).
+    // Pass the host ABI options for the wrapper compile.
     // TODO: This is a stop-gap. Upstream compileModule() in
     // clang-linker-wrapper also builds the wrapper with no CPU, features or
     // code model. Once upstream compileModule() is fixed to use the host
     // options, compile the SYCL wrapper with it and delete this code and the
     // --sycl-host-compiler-arg option. See #14139.
-    for (OptSpecifier Opt :
-         {OPT_march_EQ, OPT_mcpu_EQ, OPT_mabi_EQ, OPT_mcmodel_EQ})
-      if (const Arg *A = Args.getLastArg(Opt))
-        CmdArgs.push_back(Args.MakeArgString("--sycl-host-compiler-arg=" +
-                                             A->getAsString(Args)));
+    for (const Arg *A : getSYCLWrapperHostABIArgs(Args))
+      CmdArgs.push_back(Args.MakeArgString("--sycl-host-compiler-arg=" +
+                                           A->getAsString(Args)));
 
     // When linking SYCLBIN files, the output is a SYCLBIN file created by
     // --syclbin rather than a device image wrapped for the host link.
