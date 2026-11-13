@@ -381,6 +381,12 @@ getZexStructureType<ur_ze_intel_device_block_array_exp_properties_t>() {
 
 template <>
 ur_ze_structure_type_ext_t
+getZexStructureType<ur_ze_device_igca_target_ext_properties_t>() {
+  return UR_ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES;
+}
+
+template <>
+ur_ze_structure_type_ext_t
 getZexStructureType<ur_ze_intel_xe_device_exp_properties_t>() {
   return UR_ZE_STRUCTURE_TYPE_INTEL_XE_DEVICE_EXP_PROPERTIES;
 }

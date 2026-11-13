@@ -147,7 +147,12 @@ if config.llvm_examples:
 if "libdevice" in config.enable_projects:
     config.available_features.add("libdevice")
 
-for offload_tool in ("spirv-to-ir-wrapper", "sycl-post-link", "file-table-tform"):
+for offload_tool in (
+    "spirv-to-ir-wrapper",
+    "sycl-post-link",
+    "file-table-tform",
+    "llvm-spirv",
+):
     if lit.util.which(offload_tool, config.clang_tools_dir) or lit.util.which(
         offload_tool, config.llvm_tools_dir
     ):

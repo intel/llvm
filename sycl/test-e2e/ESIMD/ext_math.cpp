@@ -429,8 +429,9 @@ template <class T, int N> bool testESIMD(queue &Q) {
   Pass &= test<T, N, MathOp::sqrt, ESIMDf>(Q, "sqrt", InitWide<T>{});
   Pass &= test<T, N, MathOp::inv, ESIMDf>(Q, "inv");
   Pass &= test<T, N, MathOp::rsqrt, ESIMDf>(Q, "rsqrt");
-  Pass &= test<T, N, MathOp::sin, ESIMDf>(Q, "sin", InitTrig<T>{});
-  Pass &= test<T, N, MathOp::cos, ESIMDf>(Q, "cos", InitTrig<T>{});
+  // H/w sin/cos absolute error is up to 0.0008, see the InitTrig comment.
+  Pass &= test<T, N, MathOp::sin, ESIMDf>(Q, "sin", InitTrig<T>{}, 0.0008f);
+  Pass &= test<T, N, MathOp::cos, ESIMDf>(Q, "cos", InitTrig<T>{}, 0.0008f);
   Pass &= test<T, N, MathOp::exp, ESIMDf>(Q, "exp", InitInRange0_5<T>{});
   Pass &= test<T, N, MathOp::log, ESIMDf>(Q, "log", InitWide<T>{});
   Pass &= test<T, N, MathOp::exp2, ESIMDf>(Q, "exp2", InitInRange0_5<T>{});

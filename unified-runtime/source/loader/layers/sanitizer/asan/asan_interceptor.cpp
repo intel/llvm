@@ -936,8 +936,11 @@ ur_result_t AsanInterceptor::prepareLaunch(
                "Skip checking local memory of kernel <{}>",
                GetKernelName(Kernel));
     } else {
+      LaunchInfo.Data.Host.LocalWindowSize =
+          DeviceInfo->Shadow->LocalWindowSize;
       UR_LOG_L(getContext()->logger, INFO,
-               "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
+               "ShadowMemory(Local, WorkGroup={}, Window={}, {} - {})", NumWG,
+               LaunchInfo.Data.Host.LocalWindowSize,
                (void *)LaunchInfo.Data.Host.LocalShadowOffset,
                (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
     }

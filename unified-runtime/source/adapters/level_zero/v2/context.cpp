@@ -14,6 +14,8 @@
 #include "event_provider_counter.hpp"
 #include "event_provider_normal.hpp"
 
+#include <unordered_set>
+
 namespace ur::level_zero::v2 {
 
 template <typename T> static void sortAndUnique(std::vector<T> &values) {
@@ -21,10 +23,17 @@ template <typename T> static void sortAndUnique(std::vector<T> &values) {
   values.erase(std::unique(values.begin(), values.end()), values.end());
 }
 
+// Removes duplicates but keeps the caller's order, e.g. first device is used as
+// the owning device of images and some buffers
 static std::vector<ur_device_handle_t>
 uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
-  std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
-  sortAndUnique(devices);
+  std::vector<ur_device_handle_t> devices;
+  devices.reserve(numDevices);
+  std::unordered_set<ur_device_handle_t> seen;
+  for (uint32_t i = 0; i < numDevices; ++i) {
+    if (seen.insert(phDevices[i]).second)
+      devices.push_back(phDevices[i]);
+  }
   return devices;
 }
 
