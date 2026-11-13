@@ -9,6 +9,7 @@ add_clang_tool(clang-offload-deps
 
 set(CLANG_OFFLOAD_DEPS_LIB_DEPS
   clangBasic
+  clangDriver
   )
 
 add_dependencies(clang clang-offload-deps)

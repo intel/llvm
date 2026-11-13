@@ -1702,11 +1702,8 @@ Error OffloadBundler::ListBundleIDsInFile(
   return Error::success();
 }
 
-/// @brief Checks if a code object \p CodeObjectInfo is compatible with a given
-/// target \p TargetInfo.
-/// @link https://clang.llvm.org/docs/ClangOffloadBundler.html#bundle-entry-id
-bool isCodeObjectCompatible(const OffloadTargetInfo &CodeObjectInfo,
-                            const OffloadTargetInfo &TargetInfo) {
+bool clang::isCodeObjectCompatible(const OffloadTargetInfo &CodeObjectInfo,
+                                   const OffloadTargetInfo &TargetInfo) {
 
   // Compatible in case of exact match.
   if (CodeObjectInfo == TargetInfo) {
