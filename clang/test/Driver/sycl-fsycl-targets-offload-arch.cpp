@@ -123,6 +123,24 @@
 // AMDGCN: "-triple" "amdgpu{{.*}}-amd-amdhsa"{{.*}} "-fsycl-is-device"
 // SPIRV: "-triple" "spirv64-unknown-unknown"{{.*}} "-fsycl-is-device"
 
+/// The options are also diagnosed when only linking.
+// RUN: touch %t.o
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 --offload-arch=pvc %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefix=LINK %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 -Xarch_device --offload-arch=pvc %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefix=LINK %s
+// LINK: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
+// LINK-NOT: not allowed with
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,LINK-OK %s
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   --offload-arch=pvc %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,LINK-OK %s
+// LINK-OK: clang-linker-wrapper
+
 /// The old offloading model does not support --offload-arch for SYCL, so the
 /// options are not diagnosed as conflicting there.
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -ccc-install-dir %{clang_install_dir} \

@@ -12499,11 +12499,28 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -Xdevice-post-link -> --sycl-post-link-options
     // -Xspirv-translator -> --llvm-spirv-options
     // -Xspirv-to-ir-wrapper -> --spirv-to-ir-wrapper-options.
+    // -fsycl-targets with an Intel --offload-arch is diagnosed by
+    // getOffloadArchs, which a link-only invocation otherwise does not call
+    // for every SYCL toolchain.
+    bool CheckSYCLOffloadArch =
+        llvm::any_of(C.getInputArgs().filtered(options::OPT_offload_targets_EQ),
+                     [](const Arg *A) {
+                       return A->getAlias() &&
+                              A->getAlias()->getOption().getID() ==
+                                  options::OPT_fsycl_targets_EQ;
+                     }) &&
+        C.getInputArgs().hasArgNoClaim(
+            options::OPT_offload_arch_EQ, options::OPT_Xarch_device,
+            options::OPT_Xarch__, options::OPT_Xsycl_backend,
+            options::OPT_Xsycl_backend_EQ);
     for (auto &ToolChainMember :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = ToolChainMember.second;
       if (!TC->getTriple().isSPIROrSPIRV())
         continue;
+      if (CheckSYCLOffloadArch)
+        (void)C.getDriver().getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL,
+                                            *TC);
       // TC is a real SYCLToolChain: OFK_SYCL range + SPIR/SPIR-V triple.
       const toolchains::SYCLToolChain &SYCLTC =
           static_cast<const toolchains::SYCLToolChain &>(*TC);
