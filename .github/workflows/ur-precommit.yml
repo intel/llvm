@@ -53,8 +53,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-      # Extra native CPU jobs are here to force the loader to be used.
-      # UR will not use the loader if there is only one target.
+      # TEMP: trimmed to L0/L0_V2 while debugging #23392 to save CI time;
+      # restore the full matrix before merging.
         include:
           - name: L0
             runner: UR_L0
@@ -62,34 +62,6 @@ jobs:
           - name: L0_V2
             runner: UR_L0
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-          - name: L0
-            runner: UR_L0
-            static: ON
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-          - name: L0
-            runner: UR_L0
-            other_adapter: NATIVE_CPU
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-          - name: L0_V2
-            runner: UR_L0_BMG
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-          # TODO: re-enable CUDA build when the workflow is updated to use the latest CUDA image
-          # - name: CUDA
-          #   runner: UR_CUDA
-          #   image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
-          - name: OPENCL
-            runner: UR_OPENCL
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
-          - name: OPENCL
-            runner: UR_OPENCL
-            other_adapter: NATIVE_CPU
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
-          - name: NATIVE_CPU
-            runner: UR_NATIVE_CPU
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
     uses: ./.github/workflows/ur-build-hw.yml
     with:
       adapter_name: ${{ matrix.name }}
@@ -110,7 +82,8 @@ jobs:
   macos:
     name: MacOS build only
     needs: [detect_changes, source_checks]
-    if: ${{ !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    # TEMP: disabled while debugging #23392 (L0V2 memops2d on DG2/ARL) to save CI time.
+    if: false
     strategy:
       matrix:
         os: ['macos-latest']
