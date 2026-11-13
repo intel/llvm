@@ -51,6 +51,7 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
+#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <set>
@@ -249,6 +250,23 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
+  // dpllvm supplies the public name for diagnostics without changing argv[0].
+  // Consume the override before even the early -cc1 dispatch so that it cannot
+  // affect tools launched by this invocation.
+  std::optional<std::string> DPCPPDriverName =
+      llvm::sys::Process::GetEnv("DPCPP_DRIVER_NAME");
+  if (DPCPPDriverName) {
+#ifdef _WIN32
+    int Err = ::_putenv_s("DPCPP_DRIVER_NAME", "");
+#else
+    int Err = ::unsetenv("DPCPP_DRIVER_NAME");
+#endif
+    if (Err) {
+      llvm::errs() << "error: couldn't unset DPCPP_DRIVER_NAME\n";
+      return 1;
+    }
+  }
+
   llvm::InitializeAllTargets();
 
   llvm::BumpPtrAllocator A;
@@ -343,7 +361,10 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   TextDiagnosticPrinter *DiagClient =
       new TextDiagnosticPrinter(llvm::errs(), *DiagOpts);
-  FixupDiagPrefixExeName(DiagClient, ProgName);
+  FixupDiagPrefixExeName(DiagClient,
+                         DPCPPDriverName && !DPCPPDriverName->empty()
+                             ? *DPCPPDriverName
+                             : ProgName);
 
   DiagnosticsEngine Diags(DiagnosticIDs::create(), *DiagOpts, DiagClient);
 

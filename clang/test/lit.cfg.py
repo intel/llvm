@@ -128,6 +128,11 @@ tools = [
     "llvm-lto2",
     "llvm-profdata",
     "llvm-readtapi",
+    # Exercise the built dpllvm aliases, not clang with --driver-mode.
+    ToolSubst("%dpclang", command=FindTool("dpclang")),
+    ToolSubst("%dpclangxx", command=FindTool("dpclang++")),
+    ToolSubst("%dpclang_cl", command=FindTool("dpclang-cl")),
+    ToolSubst("%dpclang_cpp", command=FindTool("dpclang-cpp")),
     ToolSubst(
         "%clang_extdef_map",
         command=FindTool("clang-extdef-mapping"),
