@@ -8,6 +8,7 @@ and GPU.
   * [Prerequisites](#prerequisites)
     * [Create DPC++ workspace](#create-dpc-workspace)
   * [Build DPC++ toolchain](#build-dpc-toolchain)
+    * [Build with profile-guided optimization](#build-with-profile-guided-optimization)
     * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
@@ -146,6 +147,12 @@ placed in non-default directory using `-o` flag, you must also specify this flag
 and the same path in `compile.py` options. This allows you, for example, to
 configure several different builds and then build just one of them which is
 needed at the moment.
+
+### Build with profile-guided optimization
+
+For an opt-in instrumented build, compiler-focused profile collection, and a
+PGO-optimized build, see [Build DPC++ with profile-guided
+optimization](developer/PGOBuild.md).
 
 ### Build DPC++ toolchain with libc++ library
 
