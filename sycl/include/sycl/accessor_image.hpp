@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sycl/accessor.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_SUPPRESS_DEPRECATED_PUSH/POP
 #include <sycl/detail/image_accessor_util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/image.hpp>
@@ -220,6 +221,9 @@ private:
   template <typename T1, int T2, access::mode T3, access::placeholder T4>
   friend class __image_array_slice__;
 
+  // access::target::host_image, image, image_array and mode::discard_write are
+  // deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   constexpr static bool IsHostImageAcc =
       (AccessTarget == access::target::host_image);
 
@@ -232,6 +236,7 @@ private:
       (AccessMode == access::mode::write ||
        AccessMode == access::mode::discard_write);
 
+  __SYCL_SUPPRESS_DEPRECATED_POP
   constexpr static bool IsImageAccessAnyWrite =
       (IsImageAccessWriteOnly || AccessMode == access::mode::read_write);
 
@@ -433,6 +438,8 @@ public:
 
 #endif
 
+  // sycl::sampler is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   // Available only when:
   // (accessTarget == access::target::image && accessMode == access::mode::read)
   // || (accessTarget == access::target::host_image && ( accessMode ==
@@ -474,6 +481,7 @@ public:
         AccessorBaseHost::getElemSize());
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   // Available only when:
   // (accessTarget == access::target::image && (accessMode ==
@@ -528,6 +536,8 @@ class __image_array_slice__ {
   }
 
 public:
+  // access::target::image_array and sycl::sampler are deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   __image_array_slice__(
       accessor<DataT, Dimensions, AccessMode, access::target::image_array,
                IsPlaceholder, ext::oneapi::accessor_property_list<>>
@@ -547,6 +557,7 @@ public:
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<IsValidCoordDataT<Dims, CoordT>::value>>
@@ -586,6 +597,9 @@ public:
 
 #endif
 
+  // access::target::image_array, access::target::image,
+  // access::target::host_image and sycl::image are deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
 private:
   size_t MIdx;
   accessor<DataT, Dimensions, AccessMode, access::target::image_array,
@@ -757,6 +771,7 @@ public:
   }
 };
 
+__SYCL_SUPPRESS_DEPRECATED_POP
 // SYCL 2020 image accessors
 
 template <typename DataT, int Dimensions, access_mode AccessMode,

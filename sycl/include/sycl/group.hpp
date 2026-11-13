@@ -13,7 +13,7 @@
 #include <sycl/detail/assert.hpp>
 #include <sycl/detail/async_work_group_copy_ptr.hpp> // for convertToOpenCLGroupAsyncCopyPtr
 #include <sycl/detail/defines.hpp>                   // for __SYCL_TYPE
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/detail/fwd/multi_ptr.hpp>
 #include <sycl/detail/helpers.hpp> // for Builder, getSPIRVMemo...
 #include <sycl/detail/nd_loop.hpp> // for NDLoop
@@ -307,6 +307,8 @@ public:
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // access::fence_space is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
@@ -331,6 +333,7 @@ public:
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
 #endif
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Asynchronously copies a number of elements specified by \p numElements

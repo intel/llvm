@@ -15,6 +15,7 @@
 #include <sycl/atomic_ref.hpp>                      // for atomic_ref
 #include <sycl/buffer.hpp>                          // for buffer
 #include <sycl/builtins.hpp>                        // for min
+#include <sycl/detail/defines_elementary.hpp>       // for __SYCL_SU...
 #include <sycl/detail/export.hpp>                   // for __SYCL_EX...
 #include <sycl/detail/generic_type_traits.hpp>      // for is_sgenfloat
 #include <sycl/detail/impl_utils.hpp>               // for createSyc...
@@ -1357,11 +1358,14 @@ struct NDRangeReduction<
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
     // fast path requires USM device allocations though, so check for that as
     // well.
+    // info::device::host_unified_memory is deprecated.
+    __SYCL_SUPPRESS_DEPRECATED_PUSH
     if (device.get_info<info::device::host_unified_memory>() ||
         !device.has(aspect::usm_device_allocations))
       Rest(Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH));
     else
       Rest(Redu.getGroupsCounterAccDiscrete(CGH));
+    __SYCL_SUPPRESS_DEPRECATED_POP
   }
 };
 
