@@ -42,11 +42,22 @@ bool testND(queue &Q, size_t XSize, size_t YSize, size_t ZSize = 1) {
 
   // Allocate input buffer and initialize it with some values.
   uint32_t *Input = (uint32_t *)malloc(NumI32Elts * sizeof(uint32_t));
+  if (!Input) {
+    DeviceLost = true;
+    std::cout << "Host input allocation failed" << std::endl;
+    return true;
+  }
   for (int i = 0; i < NumI32Elts; i++)
     Input[i] = i;
 
   // calloc to ensure that the output buffer is initialized to zero.
   uint32_t *Output = (uint32_t *)calloc(NumI32Elts, sizeof(uint32_t));
+  if (!Output) {
+    free(Input);
+    DeviceLost = true;
+    std::cout << "Host output allocation failed" << std::endl;
+    return true;
+  }
 
   // Create the image and submit the copy kernel.
   try {
