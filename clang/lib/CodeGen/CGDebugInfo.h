@@ -1033,7 +1033,8 @@ public:
   /// Restore everything back to the original state.
   ~ApplyInlineDebugLocation();
   ApplyInlineDebugLocation(const ApplyInlineDebugLocation &) = delete;
-  ApplyInlineDebugLocation &operator=(ApplyInlineDebugLocation &) = delete;
+  ApplyInlineDebugLocation &
+  operator=(const ApplyInlineDebugLocation &) = delete;
 };
 
 bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
@@ -1047,7 +1048,7 @@ public:
                          SanitizerHandler Handler);
   ~SanitizerDebugLocation();
   SanitizerDebugLocation(const SanitizerDebugLocation &) = delete;
-  SanitizerDebugLocation &operator=(SanitizerDebugLocation &) = delete;
+  SanitizerDebugLocation &operator=(const SanitizerDebugLocation &) = delete;
 };
 
 } // namespace CodeGen
