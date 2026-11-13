@@ -21,8 +21,15 @@
 #endif // __clang__
 
 // See vec::DataType definitions for more details.
-#ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE !__SYCL_USE_LIBSYCL8_VEC_IMPL
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&                              \
+    !defined(__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE)
+// The removed legacy implementation (__SYCL_USE_LIBSYCL8_VEC_IMPL=1) used
+// std::array storage when its layout differs, keep that ABI for its users.
+#if defined(__SYCL_USE_LIBSYCL8_VEC_IMPL) && __SYCL_USE_LIBSYCL8_VEC_IMPL
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
+#else
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
+#endif
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
@@ -48,7 +55,6 @@ struct from_incomplete<vec<DataT, NumElements>> {
   static constexpr size_t size() { return NumElements; }
 };
 
-#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
 namespace hide_swizzle_from_adl {
 template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 class Swizzle;
@@ -77,7 +83,6 @@ struct from_incomplete<
   }();
   static constexpr bool is_assignable = !IsConstVec && !has_repeating_indexes;
 };
-#endif
 
 template <bool Cond, typename Mixin> struct ApplyIf {};
 template <typename Mixin> struct ApplyIf<true, Mixin> : Mixin {};
@@ -88,8 +93,6 @@ template <typename Self> struct vec_ops_base {
 template <typename Self> struct swizzle_ops_base {
   struct Combined {};
 };
-
-template <typename DataT, int NumElements> class vec_arith;
 
 } // namespace detail
 } // namespace _V1

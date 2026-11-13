@@ -51,7 +51,6 @@
 #include <llvm/Transforms/Utils/FixIrreducible.h>
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 #include <llvm/Transforms/Utils/Mem2Reg.h>
-#include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 
 #include <cassert>
 
@@ -75,6 +74,7 @@
 #include "transform/passes.h"
 #include "transform/scalarization_pass.h"
 #include "transform/ternary_transform_pass.h"
+#include "transform/unify_function_exit_nodes_pass.h"
 
 #define DEBUG_TYPE "vecz"
 using namespace llvm;
@@ -83,8 +83,10 @@ using namespace vecz;
 VeczPassMachinery::VeczPassMachinery(
     llvm::LLVMContext &llvmCtx, llvm::TargetMachine *TM,
     VectorizationContext &Ctx, bool verifyEach,
-    compiler::utils::DebugLogging debugLogLevel)
-    : compiler::utils::PassMachinery(llvmCtx, TM, verifyEach, debugLogLevel),
+    compiler::utils::DebugLogging debugLogLevel,
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
+    : compiler::utils::PassMachinery(llvmCtx, TM, verifyEach, debugLogLevel,
+                                     std::move(FS)),
       Ctx(Ctx) {}
 
 void VeczPassMachinery::registerPasses() {

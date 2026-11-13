@@ -20,7 +20,7 @@ namespace fs = filesystem;
 namespace ur_loader {
 
 std::optional<fs::path> getLoaderLibPath();
-std::optional<fs::path> getAdapterNameAsPath(std::string adapterName);
+std::optional<fs::path> getAdapterNameAsPath(const std::string &adapterName);
 
 } // namespace ur_loader
 

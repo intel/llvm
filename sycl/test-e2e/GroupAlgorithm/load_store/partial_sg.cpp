@@ -1,6 +1,11 @@
 // RUN: %{build} -Wno-error=incorrect-sub-group-size -o %t.out
 // RUN: %{run} %t.out
 
+// -O0 (stack-call) builds of the SG32 kernels hang the Xe-LPG GPU on Windows
+// and can take the host down, so skip instead of XFAIL.
+// UNSUPPORTED: windows && O0 && (arch-intel_gpu_mtl_u || arch-intel_gpu_mtl_h || arch-intel_gpu_arl_h)
+// UNSUPPORTED-TRACKER: GSD-13843
+
 #include <algorithm>
 #include <numeric>
 #include <sycl/detail/core.hpp>

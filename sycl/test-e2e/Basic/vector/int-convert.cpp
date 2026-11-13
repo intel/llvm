@@ -6,9 +6,6 @@
 //
 // RUN: %{build} -o %t.out -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
 // RUN: %{run} %t.out
-//
-// RUN: %{build} -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t2.out
-// RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/detail/vector_convert.hpp>

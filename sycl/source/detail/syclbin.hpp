@@ -53,6 +53,10 @@ public:
   /// Magic number used to identify SYCLBIN files.
   static constexpr uint32_t MagicNumber = 0x53594249;
 
+  /// Type of an IR module. Must match SYCLBIN::IRModuleType in
+  /// llvm/include/llvm/Object/SYCLBIN.h.
+  enum class IRModuleType : uint32_t { SPIRV = 0, PTX = 1, AMDGCN = 2 };
+
   struct IRModule {
     std::unique_ptr<PropertySetRegistry> Metadata;
     std::string_view RawIRBytes;
