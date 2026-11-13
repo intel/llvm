@@ -16,6 +16,7 @@ RUN zypper --non-interactive refresh && \
       git \
       gzip \
       ccache && \
+      python311-PyYAML && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     zypper clean --all
 
