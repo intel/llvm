@@ -48,6 +48,9 @@ def main():
                 # We only need .bc files from libdevice:
                 if re.search(r"[/\\]libsycl-.*\.(o|obj|spv)$", file_path):
                     continue
+                # Avoid leaking paths to the build directory:
+                if re.search(r"[/\\](CMakeLists\.txt|.*\.cmake)$", file_path):
+                    continue
                 yield file_path
 
     all_files = [
