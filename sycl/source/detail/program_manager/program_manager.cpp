@@ -87,9 +87,14 @@ createBinaryProgram(context_impl &Context, devices_range Devices,
   return Program;
 }
 
-static Managed<ur_program_handle_t>
-createSpirvProgram(context_impl &Context, const unsigned char *Data,
-                   size_t DataLen) {
+// Returns true for JIT-compiled IL binaries; false for native binaries.
+static bool isILFormat(ur::DeviceBinaryType Format) {
+  return Format == SYCL_DEVICE_BINARY_TYPE_SPIRV;
+}
+
+static Managed<ur_program_handle_t> createILProgram(context_impl &Context,
+                                                    const unsigned char *Data,
+                                                    size_t DataLen) {
   adapter_impl &Adapter = Context.getAdapter();
   Managed<ur_program_handle_t> Program{Adapter};
   Adapter.call<UrApiKind::urProgramCreateWithIL>(Context.getHandleRef(), Data,
@@ -213,8 +218,8 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
       Devices.size(), const_cast<uint8_t *>(RawImg.BinaryStart));
   std::vector<size_t> Lengths(Devices.size(), ImgSize);
   Managed<ur_program_handle_t> Res =
-      Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
-          ? createSpirvProgram(ContextImpl, RawImg.BinaryStart, ImgSize)
+      isILFormat(Format)
+          ? createILProgram(ContextImpl, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(ContextImpl, Devices, Binaries.data(),
                                 Lengths.data(), ProgMetadata);
 
@@ -969,8 +974,7 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
     Managed<ur_program_handle_t> BuiltProgram =
         build(std::move(NativePrg), ContextImpl, CompileOpts, LinkOpts,
               URDevices, ProgramsToLink,
-              /*CreatedFromBinary*/ MainImg.getFormat() !=
-                  SYCL_DEVICE_BINARY_TYPE_SPIRV,
+              /*CreatedFromBinary*/ !isILFormat(MainImg.getFormat()),
               AllowUnresolvedSymbols);
 
     // Those extra programs won't be used anymore, just the final
