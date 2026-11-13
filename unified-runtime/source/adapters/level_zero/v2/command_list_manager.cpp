@@ -114,8 +114,8 @@ void wait_list_view::addEvent(ur_event_handle_t phEvent) {
 
 ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    v2::raii::command_list_unique_handle &&commandList)
-    : hContext(hContext), hDevice(hDevice),
+    v2::raii::command_list_unique_handle &&commandList, bool isImmediate)
+    : hContext(hContext), hDevice(hDevice), isImmediate(isImmediate),
       zeCommandList(std::move(commandList)) {}
 
 v2::raii::command_list_unique_handle &&
@@ -231,6 +231,29 @@ ur_command_list_manager::getSignalEvent(ur_event_handle_t hUserEvent,
   }
 }
 
+// The command-list lock must be held, but no kernel mutex may be held while
+// waiting for work that another queue may need to unblock.
+ur_result_t ur_command_list_manager::releasePendingKernelsOnLimit() {
+  constexpr size_t maxPendingKernels = 10000;
+  if (isImmediate && pendingKernels.size() >= maxPendingKernels) {
+    bool captureActive = false;
+    auto result = queryGraphCaptureActive(&captureActive);
+    if (result != UR_RESULT_SUCCESS &&
+        result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      return result;
+    if (!captureActive) {
+      // Synchronize before launching so a failure cannot cause a submitted
+      // kernel to be retried. Captured kernels must remain available for
+      // replay.
+      ZE2UR_CALL(zeCommandListHostSynchronize,
+                 (getZeCommandList(), UINT64_MAX));
+      UR_CALL(releasePendingKernels());
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 // must be called with hKernel->Mutex held
 ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
     ur_kernel_handle_t hKernel, ze_kernel_handle_t hZeKernel, uint32_t workDim,
@@ -276,7 +299,19 @@ ur_result_t ur_command_list_manager::appendKernelLaunchLocked(
                 zeSignalEvent, waitListView.num, waitListView.handles));
   }
 
-  recordSubmittedKernel(hKernel);
+  bool captureActive = false;
+  if (isImmediate) {
+    // A wait-list dependency can make this launch join another list's capture.
+    // Query after submission, but never report a submitted launch as failed.
+    auto result = queryGraphCaptureActive(&captureActive);
+    if (result != UR_RESULT_SUCCESS &&
+        result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      UR_LOG(ERR, "Failed to query graph capture after kernel launch: {}",
+             result);
+      captureActive = true;
+    }
+  }
+  recordSubmittedKernel(hKernel, captureActive);
 
   postSubmit(hZeKernel, pGlobalWorkOffset);
 
@@ -304,6 +339,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
     return checkResult;
   }
 
+  UR_CALL(releasePendingKernelsOnLimit());
+
   ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
 
   std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
@@ -313,21 +350,15 @@ ur_result_t ur_command_list_manager::appendKernelLaunchUnlocked(
       pLocalWorkSize, waitListView, phEvent, cooperative);
 }
 
-ur_result_t ur_command_list_manager::appendKernelLaunch(
-    ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize,
+static ur_result_t kernelLaunchPropertyChecks(
     const ur_kernel_launch_ext_properties_t *launchPropList,
-    wait_list_view &waitListView, ur_event_handle_t phEvent) {
-  TRACK_SCOPE_LATENCY("ur_command_list_manager::appendKernelLaunch");
-
+    bool &cooperative) {
+  cooperative = false;
   ur_kernel_launch_ext_properties_t *_launchPropList =
       const_cast<ur_kernel_launch_ext_properties_t *>(launchPropList);
   if (_launchPropList &&
       _launchPropList->flags & UR_KERNEL_LAUNCH_FLAG_COOPERATIVE) {
-    UR_CALL(appendKernelLaunchUnlocked(
-        hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-        waitListView, phEvent, true /* cooperative */));
+    cooperative = true;
     return UR_RESULT_SUCCESS;
   }
 
@@ -347,11 +378,22 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
         _launchPropList->pNext);
   }
 
-  UR_CALL(appendKernelLaunchUnlocked(
-      hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-      waitListView, phEvent, false /* cooperative */));
-
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendKernelLaunch(
+    ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize,
+    const ur_kernel_launch_ext_properties_t *launchPropList,
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
+  TRACK_SCOPE_LATENCY("ur_command_list_manager::appendKernelLaunch");
+
+  bool cooperative = false;
+  UR_CALL(kernelLaunchPropertyChecks(launchPropList, cooperative));
+  return appendKernelLaunchUnlocked(hKernel, workDim, pGlobalWorkOffset,
+                                    pGlobalWorkSize, pLocalWorkSize,
+                                    waitListView, phEvent, cooperative);
 }
 
 ur_result_t ur_command_list_manager::appendUSMMemcpy(
@@ -1072,9 +1114,22 @@ ur_result_t ur_command_list_manager::appendNativeCommandExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-void ur_command_list_manager::recordSubmittedKernel(
-    ur_kernel_handle_t hKernel) {
-  auto [_, inserted] = submittedKernels.insert(hKernel);
+ur_result_t ur_command_list_manager::releasePendingKernels() {
+  while (!pendingKernels.empty()) {
+    auto kernel = *pendingKernels.begin();
+    pendingKernels.erase(pendingKernels.begin());
+    UR_CALL(kernel->release());
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+void ur_command_list_manager::recordSubmittedKernel(ur_kernel_handle_t hKernel,
+                                                    bool captureActive) {
+  // Regular lists can be replayed, and captured kernels belong to a graph,
+  // not to the immediately executing command stream.
+  const bool canRetire = isImmediate && !captureActive;
+  auto &kernels = canRetire ? pendingKernels : submittedKernels;
+  auto [_, inserted] = kernels.insert(hKernel);
   if (inserted) {
     hKernel->RefCount.retain();
   }
@@ -1120,6 +1175,8 @@ ur_result_t ur_command_list_manager::appendEventsWaitWithBarrier(
 }
 
 ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
+  UR_CALL(releasePendingKernels());
+
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
     UR_CALL(hKernel->release());
@@ -1135,6 +1192,12 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
     const ur_exp_kernel_arg_properties_t *pArgs,
     const ur_kernel_launch_ext_properties_t *launchPropList,
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
+  UR_CALL(kernelLaunchChecks(hKernel, workDim));
+  bool cooperative = false;
+  UR_CALL(kernelLaunchPropertyChecks(launchPropList, cooperative));
+  UR_CALL(releasePendingKernelsOnLimit());
+  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
+
   {
     std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
     ur_device_handle_t hDevice = this->hDevice.get();
@@ -1171,13 +1234,11 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
         return UR_RESULT_ERROR_INVALID_ENUMERATION;
       }
     }
+
+    return appendKernelLaunchLocked(
+        hKernel, hZeKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, waitListView, phEvent, cooperative);
   }
-
-  UR_CALL(appendKernelLaunch(hKernel, workDim, pGlobalWorkOffset,
-                             pGlobalWorkSize, pLocalWorkSize, launchPropList,
-                             waitListView, phEvent));
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
@@ -1231,6 +1292,8 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     _launchPropList = static_cast<ur_kernel_launch_ext_properties_t *>(
         _launchPropList->pNext);
   }
+
+  UR_CALL(releasePendingKernelsOnLimit());
 
   ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice.get());
 
@@ -1433,6 +1496,9 @@ ur_result_t ur_command_list_manager::queryGraphCaptureActive(bool *pResult) {
   }
   ze_result_t ZeResult = ZeGraphExt.normalizeGraphQueryResult(ZE_CALL_NOCHECK(
       ZeGraphExt.zeCommandListIsGraphCaptureEnabledExp, (getZeCommandList())));
+
+  if (ZeResult != ZE_RESULT_QUERY_TRUE && ZeResult != ZE_RESULT_QUERY_FALSE)
+    return ze2urResult(ZeResult);
 
   *pResult = (ZeResult == ZE_RESULT_QUERY_TRUE);
 

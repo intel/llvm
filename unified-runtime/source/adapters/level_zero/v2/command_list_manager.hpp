@@ -49,7 +49,8 @@ struct wait_list_view {
 struct ur_command_list_manager {
   ur_command_list_manager(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice,
-                          v2::raii::command_list_unique_handle &&commandList);
+                          v2::raii::command_list_unique_handle &&commandList,
+                          bool isImmediate = false);
   ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
 
@@ -269,7 +270,9 @@ private:
       ur_event_handle_t phEvent, wait_list_view &waitListView,
       ur_command_t callerCommand);
 
-  void recordSubmittedKernel(ur_kernel_handle_t hKernel);
+  ur_result_t releasePendingKernelsOnLimit();
+  ur_result_t releasePendingKernels();
+  void recordSubmittedKernel(ur_kernel_handle_t hKernel, bool captureActive);
 
   ze_event_handle_t getSignalEvent(ur_event_handle_t hUserEvent,
                                    ur_command_t commandType);
@@ -315,6 +318,8 @@ private:
   v2::raii::ur_device_handle_t hDevice;
 
   std::unordered_set<ur_kernel_handle_t> submittedKernels;
+  bool isImmediate;
+  std::unordered_set<ur_kernel_handle_t> pendingKernels;
   v2::raii::command_list_unique_handle zeCommandList;
   std::vector<ze_event_handle_t> waitList;
 };
