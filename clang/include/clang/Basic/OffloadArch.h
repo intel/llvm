@@ -104,16 +104,8 @@ public:
     ARL_H,
     BMG,
     BMG_G21,
-    BMG_G31,
-    LNL_M,
     PTL,
-    PTL_H,
-    PTL_U,
-    WCL,
-    NVL_S,
-    NVL_U,
-    NVL_P,
-    CRI,
+    LNL_M,
   };
 
 private:

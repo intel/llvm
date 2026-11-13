@@ -119,33 +119,9 @@
 // RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=lnl_m %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=lnl_m -DMAC_STR=LNL_M
 
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=bmg_g31 %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=bmg_g31 -DMAC_STR=BMG_G31
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=ptl_h %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=ptl_h -DMAC_STR=PTL_H
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=ptl_u %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=ptl_u -DMAC_STR=PTL_U
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=wcl %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=wcl -DMAC_STR=WCL
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=nvl_s %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_s -DMAC_STR=NVL_S
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=nvl_u %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_u -DMAC_STR=NVL_U
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=nvl_p %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_p -DMAC_STR=NVL_P
-
-// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl --offload-arch=cri %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=cri -DMAC_STR=CRI
-
 // SYCL AOT compilation to Intel GPUs using -fsycl-targets=intel_gpu_*. The
-// resolved device must be bound as the offload arch, the same as with
-// --offload-arch, rather than falling back to arch=generic.
+// resolved device must be bound as the offload arch, including devices that
+// have no OffloadArch entry, rather than falling back to arch=generic.
 
 // RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_bmg_g31 %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=bmg_g31 -DMAC_STR=BMG_G31

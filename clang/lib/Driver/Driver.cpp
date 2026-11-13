@@ -8140,10 +8140,9 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
           }
-          if (StringToOffloadArch(
-                  getProcessorFromTargetID(TC.getTriple(), Device->data()))
-                  .isIntelGPU())
-            Arch = Device->data();
+          // The device was already validated by resolveGenDevice(), so use it
+          // as given rather than requiring an OffloadArch entry for it.
+          Arch = Device->data();
         } else if (auto Device = tools::SYCL::gen::isGPUTarget<
                        tools::SYCL::gen::NvidiaGPU>(SYCLTargetValue)) {
           if (Device->empty()) {

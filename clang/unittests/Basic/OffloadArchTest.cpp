@@ -89,30 +89,6 @@ TEST(OffloadArchTest, IntelGPUFamilyArchParsing) {
   EXPECT_EQ(StringToOffloadArch("ptl"),
             OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
                                   OffloadArch::IntelArch::PTL));
-  EXPECT_EQ(StringToOffloadArch("bmg_g31"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::BMG_G31));
-  EXPECT_EQ(StringToOffloadArch("ptl_h"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::PTL_H));
-  EXPECT_EQ(StringToOffloadArch("ptl_u"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::PTL_U));
-  EXPECT_EQ(StringToOffloadArch("wcl"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::WCL));
-  EXPECT_EQ(StringToOffloadArch("nvl_s"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::NVL_S));
-  EXPECT_EQ(StringToOffloadArch("nvl_u"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::NVL_U));
-  EXPECT_EQ(StringToOffloadArch("nvl_p"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::NVL_P));
-  EXPECT_EQ(StringToOffloadArch("cri"),
-            OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,
-                                  OffloadArch::IntelArch::CRI));
 }
 
 // Every AMDGPU gfx OffloadArch must round-trip through its subarch and
