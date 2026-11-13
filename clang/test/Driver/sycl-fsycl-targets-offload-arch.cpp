@@ -18,20 +18,77 @@
 // RUN:   | FileCheck -check-prefix=CPU %s
 // CPU: error: invalid argument '--offload-arch=skylake-avx512' not allowed with '-fsycl-targets=spir64_x86_64'
 
-/// --offload-arch passed with -Xarch_device or -Xarch_<arch> is diagnosed too.
+/// The option is reported as the user spelled it.
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 --cuda-gpu-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=ALIAS %s
+// ALIAS: error: invalid argument '--cuda-gpu-arch=pvc' not allowed with '-fsycl-targets=spir64'
+
+/// Several Intel architectures are reported once.
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 --offload-arch=pvc --offload-arch=bmg_g21 -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=MULTI %s
+// MULTI: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
+// MULTI-NOT: not allowed with
+
+/// This also applies to -fsycl-device-only and to -fsycl-targets=native_cpu.
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 --offload-arch=pvc -fsycl-device-only -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=SPIR64 %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=native_cpu --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=NATIVE-CPU %s
+// SPIR64: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
+// NATIVE-CPU: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=native_cpu'
+
+/// An architecture removed with --no-offload-arch, or passed to the host
+/// compilation, is not diagnosed.
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 --offload-arch=pvc --no-offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,SPIRV64-JIT %s
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 -Xarch_host --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,SPIRV64-JIT %s
+// SPIRV64-JIT: "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"
+
+/// --offload-arch passed to the SYCL device compilation with -Xarch_device,
+/// -Xarch_<arch> or -Xsycl-target-backend is diagnosed too, once.
 // RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -fsycl-targets=spir64 -Xarch_device --offload-arch=pvc -c %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=XARCH-DEVICE %s
-// XARCH-DEVICE: error: invalid argument '-Xarch_device --offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
+// RUN:   | FileCheck -check-prefix=FORWARDED %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 -Xarch_device "-O2 --offload-arch=pvc" -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=FORWARDED %s
 // RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -fsycl-targets=spir64 -Xarch_spir64 --offload-arch=pvc -c %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=XARCH %s
-// XARCH: error: invalid argument '-Xarch_spir64 --offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
+// RUN:   | FileCheck -check-prefix=FORWARDED %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 -Xsycl-target-backend --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=FORWARDED %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 -Xsycl-target-backend=spir64 --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=FORWARDED %s
+// FORWARDED: error: invalid argument '--offload-arch=pvc' not allowed with '-fsycl-targets=spir64'
+// FORWARDED-NOT: not allowed with
+
+/// --offload-arch for another device is not diagnosed: -Xarch_spir64 when
+/// there is no SPIR-V device, and -Xsycl-target-backend for an NVIDIA device.
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN:   --offload-arch=sm_80 -Xarch_spir64 --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,NVPTX %s
+// RUN: %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fno-sycl-libspirv -nocudalib -fsycl-targets=spir64,nvptx64-nvidia-cuda \
+// RUN:   -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_80 -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=NO-ERROR,NVPTX %s
 
 /// spir64_gen is not supported with the new offloading model, which is the
 /// only error reported.
 // RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
 // RUN:   -fsycl-targets=spir64_gen --offload-arch=pvc -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=SPIR64-GEN %s
+// RUN: not %clangxx -### -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} \
+// RUN:   -fsycl-targets=spir64 -fsycl-targets=spir64_gen --offload-arch=pvc -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=SPIR64-GEN %s
 // SPIR64-GEN-NOT: not allowed with
 // SPIR64-GEN: error: '-fsycl-targets=spir64_gen' is not supported with the new offloading model

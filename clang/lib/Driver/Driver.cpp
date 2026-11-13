@@ -1260,59 +1260,6 @@ static void diagnoseSYCLOptions(Compilation &C, bool IsSYCL) {
           << SYCLForceTarget->getAsString(C.getInputArgs());
   }
 
-  // -fsycl-targets uses the existing compilation flow for Intel devices, and
-  // --offload-arch with an Intel architecture uses a different flow, so they
-  // cannot be used together. --offload-arch with other architectures, e.g.
-  // --offload-arch=sm_80 with -fsycl-targets=nvptx64-nvidia-cuda, and the
-  // other spellings of --offload-targets with --offload-arch are not affected.
-  // spir64_gen is diagnosed below, so it is not diagnosed here as well.
-  if (IsSYCL && C.getDriver().getUseNewOffloadingDriver()) {
-    const Driver &D = C.getDriver();
-    const Arg *FsyclTargets = nullptr;
-    bool HasSPIRGenTarget = false;
-    for (const Arg *A :
-         C.getInputArgs().filtered(options::OPT_offload_targets_EQ)) {
-      const Arg *Alias = A->getAlias();
-      if (!Alias || Alias->getOption().getID() != options::OPT_fsycl_targets_EQ)
-        continue;
-      FsyclTargets = Alias;
-      HasSPIRGenTarget |= llvm::any_of(A->getValues(), [&](StringRef Target) {
-        llvm::Triple TT = D.getSYCLDeviceTriple(Target);
-        return TT.isSPIR() && TT.getSubArch() == llvm::Triple::SPIRSubArch_gen;
-      });
-    }
-    auto IsIntelArch = [](StringRef Arch) {
-      return StringToOffloadArch(Arch).isIntel();
-    };
-    // Returns the --offload-arch argument with an Intel architecture, either
-    // given directly or passed with -Xarch_device or -Xarch_<arch>.
-    auto FindIntelOffloadArch = [&]() -> const Arg * {
-      for (const Arg *A : C.getInputArgs()) {
-        if (A->getOption().matches(options::OPT_offload_arch_EQ)) {
-          if (llvm::any_of(A->getValues(), IsIntelArch))
-            return A->getAlias() ? A->getAlias() : A;
-          continue;
-        }
-        if (!A->getOption().matches(options::OPT_Xarch_device) &&
-            !A->getOption().matches(options::OPT_Xarch__))
-          continue;
-        StringRef Value = A->getValues().back();
-        if (Value.consume_front("--offload-arch=")) {
-          SmallVector<StringRef, 4> Archs;
-          Value.split(Archs, ',');
-          if (llvm::any_of(Archs, IsIntelArch))
-            return A;
-        }
-      }
-      return nullptr;
-    };
-    if (FsyclTargets && !HasSPIRGenTarget)
-      if (const Arg *OffloadArch = FindIntelOffloadArch())
-        D.Diag(clang::diag::err_drv_argument_not_allowed_with)
-            << OffloadArch->getAsString(C.getInputArgs())
-            << FsyclTargets->getAsString(C.getInputArgs());
-  }
-
   // spir64_gen is deprecated in favor of intel_gpu_<arch>, both as a
   // -fsycl-targets value and as the triple of the -X<tool>= options. It is not
   // supported with the new offloading model, and will be removed together with
@@ -8144,6 +8091,28 @@ getConflictOffloadArchCombination(const llvm::DenseSet<StringRef> &Archs,
   return getConflictTargetIDCombination(ArchSet);
 }
 
+/// \return the last -fsycl-targets argument as the user spelled it, for use in
+/// diagnostics. \return nullptr if -fsycl-targets is not given, or if any
+/// -fsycl-targets names spir64_gen, which has its own diagnostic in the new
+/// offloading model. --offload-targets and its other spellings are ignored.
+static const Arg *getFsyclTargetsArgForOffloadArchCheck(const Driver &D,
+                                                        const ArgList &Args) {
+  const Arg *FsyclTargets = nullptr;
+  for (const Arg *A : Args.filtered(options::OPT_offload_targets_EQ)) {
+    const Arg *Alias = A->getAlias();
+    if (!Alias || Alias->getOption().getID() != options::OPT_fsycl_targets_EQ)
+      continue;
+    if (llvm::any_of(A->getValues(), [&](StringRef Target) {
+          llvm::Triple TT = D.getSYCLDeviceTriple(Target);
+          return TT.isSPIR() &&
+                 TT.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+        }))
+      return nullptr;
+    FsyclTargets = Alias;
+  }
+  return FsyclTargets;
+}
+
 llvm::SmallVector<BoundArch>
 Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                         Action::OffloadKind Kind, const ToolChain &TC) const {
@@ -8159,6 +8128,9 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
   }
 
   llvm::DenseSet<StringRef> Archs;
+  // For SYCL, the Intel architectures given with --offload-arch, in order, and
+  // the option that gave each of them, for the -fsycl-targets check below.
+  SmallVector<std::pair<StringRef, std::string>, 2> SYCLIntelOffloadArchs;
   std::unique_ptr<llvm::opt::Arg> ExtractedArg = nullptr;
   for (auto *Arg : C.getArgsForToolChain(&TC, /*BA=*/{}, Kind)) {
     // Extract any '--[no-]offload-arch' arguments intended for this toolchain.
@@ -8251,6 +8223,11 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Archs.insert(CanonicalStr);
           else
             return {};
+
+          if (Kind == Action::OFK_SYCL &&
+              StringToOffloadArch(CanonicalStr).isIntel())
+            SYCLIntelOffloadArchs.emplace_back(CanonicalStr,
+                                               Arg->getAsString(Args));
         }
       }
     } else if (Arg->getOption().matches(options::OPT_no_offload_arch_EQ)) {
@@ -8262,6 +8239,30 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
               getCanonicalArchString(C, Args, Arch, TC.getTriple());
           Archs.erase(ArchStr);
         }
+      }
+    }
+  }
+
+  // -fsycl-targets selects Intel devices through its target list, and
+  // --offload-arch with an Intel architecture selects them through a different
+  // compilation flow, so they cannot be used together. This checks the
+  // --offload-arch values of this toolchain that remain after
+  // --no-offload-arch, including those passed with -Xarch_ or
+  // -Xsycl-target-backend.
+  if (Kind == Action::OFK_SYCL && getUseNewOffloadingDriver()) {
+    auto Remaining = llvm::find_if(SYCLIntelOffloadArchs, [&](const auto &P) {
+      return Archs.contains(P.first);
+    });
+    if (Remaining != SYCLIntelOffloadArchs.end()) {
+      if (const llvm::opt::Arg *FsyclTargets =
+              getFsyclTargetsArgForOffloadArchCheck(*this, C.getInputArgs())) {
+        if (!SYCLTargetsWithIntelOffloadArchDiagnosed) {
+          Diag(diag::err_drv_argument_not_allowed_with)
+              << Remaining->second
+              << FsyclTargets->getAsString(C.getInputArgs());
+          SYCLTargetsWithIntelOffloadArchDiagnosed = true;
+        }
+        return {};
       }
     }
   }
