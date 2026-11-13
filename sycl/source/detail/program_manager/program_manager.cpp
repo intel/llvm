@@ -224,7 +224,8 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
     NativePrograms.insert({Res, {ContextImpl.shared_from_this(), &Img}});
   }
 
-  ContextImpl.addDeviceGlobalInitializer(Res, Devices, &Img);
+  // No device_global registration here: this may be only a link input that is
+  // released once linked. The callers register the final built/linked program.
 
   if constexpr (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
@@ -3082,6 +3083,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   std::vector<ur_device_handle_t> Devs = {DeviceImpl.getHandleRef()};
   auto BuildProgram = build(std::move(ProgramManaged), ContextImpl, CompileOpts,
                             LinkOpts, Devs, ExtraProgramsToLink);
+  ContextImpl.addDeviceGlobalInitializer(BuildProgram, {Device}, &Img);
   Managed<ur_kernel_handle_t> UrKernel{Adapter};
   Adapter.call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram, KernelName.data(), &UrKernel);
