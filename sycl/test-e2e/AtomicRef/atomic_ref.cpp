@@ -84,24 +84,20 @@ template <typename T> int test_atomic_add() {
 }
 
 template <typename T> int test_atomic_min() {
-  const T initial = static_cast<T>(10);
-  const T other = static_cast<T>(3);
-  const T expected =
-      static_cast<float>(initial) < static_cast<float>(other) ? initial : other;
+  const T initial = static_cast<T>(N);
+  const T expected = static_cast<T>(0);
 
   return test_atomic(
-      initial, [=](item<1>) { return other; },
+      initial, [](item<1> it) { return static_cast<T>(it.get_id(0)); },
       [](auto &a, auto v) { a.fetch_min(v); }, expected);
 }
 
 template <typename T> int test_atomic_max() {
-  const T initial = static_cast<T>(10);
-  const T other = static_cast<T>(3);
-  const T expected =
-      static_cast<float>(initial) > static_cast<float>(other) ? initial : other;
+  const T initial = static_cast<T>(0);
+  const T expected = static_cast<T>(N - 1);
 
   return test_atomic(
-      initial, [=](item<1>) { return other; },
+      initial, [](item<1> it) { return static_cast<T>(it.get_id(0)); },
       [](auto &a, auto v) { a.fetch_max(v); }, expected);
 }
 
@@ -142,24 +138,33 @@ template <typename T> int test_atomic_xor() {
       [](auto &a, auto v) { a.fetch_xor(v); }, expected);
 }
 
+// 16-bit integer (short, unsigned short) and bfloat16 atomics are not
+// implemented on this release branch: intel/llvm#23247, which adds them to
+// IsValidAtomicRefType and provides the 16-bit integral atomic_ref_impl
+// specialization, is not part of 7.2.x. Only the sycl::half cases below are
+// buildable here. Drop these #if 0 guards if #23247 is ever backported.
 int main() {
 
   int ret = test_atomic_sub<sycl::half>();
+#if 0
   ret |= test_atomic_sub<unsigned short>();
   ret |= test_atomic_sub<short>();
   ret |= test_atomic_sub<sycl::ext::oneapi::bfloat16>();
-
+#endif
   ret |= test_atomic_add<sycl::half>();
+#if 0
   ret |= test_atomic_add<unsigned short>();
   ret |= test_atomic_add<short>();
   ret |= test_atomic_add<sycl::ext::oneapi::bfloat16>();
-
+#endif
   ret |= test_atomic_min<sycl::half>();
+#if 0
   ret |= test_atomic_min<unsigned short>();
   ret |= test_atomic_min<short>();
   ret |= test_atomic_min<sycl::ext::oneapi::bfloat16>();
-
+#endif
   ret |= test_atomic_max<sycl::half>();
+#if 0
   ret |= test_atomic_max<unsigned short>();
   ret |= test_atomic_max<short>();
   ret |= test_atomic_max<sycl::ext::oneapi::bfloat16>();
@@ -172,6 +177,6 @@ int main() {
 
   ret |= test_atomic_xor<unsigned short>();
   ret |= test_atomic_xor<short>();
-
+#endif
   return ret;
 }
