@@ -72,7 +72,8 @@ jobs:
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
-    if: ${{ !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    # TEMP: disabled while debugging #23392 (L0V2 memops2d on DG2/ARL) to save CI time.
+    if: false
     runs-on: [Linux, build]
     needs: [build]
     container:
@@ -156,29 +157,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # TEMP: trimmed to the DG2/ARL runners relevant to #23392 to save CI
+        # time while debugging; restore the full matrix before merging.
         include:
-          - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: cuda:gpu
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu         
-          - name: Intel / Ponte Vecchio GPU
-            runner: '["Linux", "pvc"]'
-            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            target_devices: level_zero_v1:gpu;level_zero_v2:gpu
-          - name: Preview Mode
-            runner: '["Linux", "gen12"]'
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param test-preview-mode=True
-            binaries_artifact: e2e_bin_preview
-            skip_run: ${{ startsWith(github.base_ref, 'sycl-rel-') }}
           - name: Intel / ARL with L0 v2
             runner: '["Linux", "arl"]'
             image_options: >-
@@ -186,22 +170,6 @@ jobs:
               --privileged --cap-add SYS_ADMIN --memory=48g --memory-swap=56g
             target_devices: level_zero_v2:arch-intel_gpu_mtl_u
             extra_lit_opts: --param test-preview-mode=True
-
-          # We're in an ABI-breaking window, so these don't make sense for now.
-          - name: ABI compatibility / sycl-rel-6_2
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
-          - name: ABI compatibility / sycl-rel-6_3
-            runner: '["Linux", "pvc"]'
-            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
-            target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
-            binaries_artifact: 'in-container'
-            skip_run: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
