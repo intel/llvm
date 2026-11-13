@@ -1042,7 +1042,10 @@ the `T` template parameter as follows: +
 `uint8`: `uint8_t` +
 `uint16`: `uint16_t` +
 `uint32`: `uint32_t` +
-`uint64`: `uint64_t`
+`uint64`: `uint64_t` +
+`fp8_e5m2`: `sycl::ext::oneapi::experimental::fp8_e5m2_x<1>` +
+`fp8_e4m3`: `sycl::ext::oneapi::experimental::fp8_e4m3_x<1>` +
+`fp4_e2m1`: `sycl::ext::oneapi::experimental::fp4_e2m1_x<2>` +
 |======================
 
 ===== Runtime Query Example:
@@ -1419,10 +1422,7 @@ run the compiled code on an unsupported architecture will throw an error.
 |16 |16 |128
 |======================
 
-The `matrix_type::fp8_e5m2`, `matrix_type::fp8_e4m3` and
-`matrix_type::fp4_e2m1` types correspond to the `fp8_e5m2_x<1>`,
-`fp8_e4m3_x<1>` and `fp4_e2m1_x<2>` types of the `sycl_ext_oneapi_fp8` and
-`sycl_ext_oneapi_fp4` extensions. Each `fp4_e2m1_x<2>` element packs two 4-bit
+For `matrix_type::fp4_e2m1`, each `fp4_e2m1_x<2>` element packs two 4-bit
 values that are adjacent in memory, and it is the only supported form of
 `fp4_e2m1_x`. As for the other types, M, N and K count 4-bit values, while the
 pointer and `stride` arguments of `joint_matrix_load` are expressed in
