@@ -330,6 +330,18 @@ TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
   // Test that using an update graph that contains unsupported node types
   // results in an error.
   buffer<int> Buffer{range<1>{1}};
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      Queue.get_context(),
+      Dev,
+      {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+  experimental::command_graph<experimental::graph_state::modifiable>
+      UpdateGraph{
+          Queue.get_context(),
+          Dev,
+          {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));

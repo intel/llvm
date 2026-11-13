@@ -117,13 +117,33 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
       )
   endif()
 
+  set(unittest_ur_mock unified-runtime::mock)
+
+  if(WIN32 AND UR_STATIC_LOADER AND build_type_lower MATCHES "debug")
+    set(unittest_ur_mock
+      "${CMAKE_BINARY_DIR}/unified-runtimed/lib/ur_mockd.lib")
+
+    target_include_directories(${test_dirname} PRIVATE
+      "${UNIFIED_RUNTIME_SOURCE_DIR}/source/mock")
+
+    add_dependencies(${test_dirname} unified-runtimed-build)
+
+    add_custom_command(TARGET ${test_dirname} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_BINARY_DIR}/unified-runtimed/bin/ur_mockd.dll"
+        "${CMAKE_BINARY_DIR}/unified-runtimed/bin/ur_adapter_mockd.dll"
+        "$<TARGET_FILE_DIR:${test_dirname}>"
+      VERBATIM
+    )
+  endif()
+
   target_link_libraries(${test_dirname}
     PRIVATE
       mockOpenCL
       LLVMTestingSupport
       OpenCL-Headers
       emhash::emhash
-      unified-runtime::mock
+      ${unittest_ur_mock}
       ${SYCL_LINK_LIBS}
     )
 
@@ -134,7 +154,14 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
   if(WIN32)
-    target_link_libraries(${test_dirname} PRIVATE UnifiedRuntimeLoader ur_win_proxy_loader)
+    if(UR_STATIC_LOADER AND build_type_lower MATCHES "debug")
+      set(unittest_ur_loader UnifiedRuntimeLoaderDebug)
+    else()
+      set(unittest_ur_loader UnifiedRuntimeLoader)
+    endif()
+
+    target_link_libraries(${test_dirname}
+      PRIVATE ${unittest_ur_loader} ur_win_proxy_loader)
   endif()
 
   target_include_directories(${test_dirname}

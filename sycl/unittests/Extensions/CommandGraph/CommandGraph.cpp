@@ -116,6 +116,10 @@ TEST_F(CommandGraphTest, AddNode) {
 
 TEST_F(CommandGraphTest, Finalize) {
   sycl::buffer<int> Buf(1);
+  experimental::command_graph<experimental::graph_state::modifiable> Graph{
+      Queue.get_context(),
+      Dev,
+      {experimental::property::graph::assume_buffer_outlives_graph{}}};
   auto Node1 = Graph.add([&](sycl::handler &cgh) {
     sycl::accessor A(Buf, cgh, sycl::write_only, sycl::no_init);
     cgh.single_task<TestKernel>([]() {});
