@@ -80,7 +80,7 @@ bool isZeroGEP(const Value *V);
 /// Returns the type an address computation indexes into: the GEP source
 /// element type or other GEP-like instructions. Returns nullptr for anything
 /// else.
-Type *getAccessedType(const Value *V);
+Type *getAddressSourceElementType(const Value *V);
 
 /// Returns the type of the object the resulting address points to: the GEP
 /// result element type or other GEP-like instructions. Returns nullptr for

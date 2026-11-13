@@ -299,7 +299,7 @@ bool hasDoubleType(const Instruction &I) {
   // inside the types are accessed through a GEP-like instruction. However, this
   // will not be caught by the operands check above, so we must extract the
   // information directly from the GEP-like.
-  if (auto *Ty = sycl::utils::getAccessedType(&I))
+  if (auto *Ty = sycl::utils::getAddressSourceElementType(&I))
     if (hasDoubleType(Ty))
       return true;
 
@@ -336,7 +336,7 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   // inside the types are accessed through a GEP-like instruction. However, this
   // will not be caught by the operands check above, so we must extract the
   // information directly from the GEP-like.
-  if (auto *Ty = sycl::utils::getAccessedType(&I))
+  if (auto *Ty = sycl::utils::getAddressSourceElementType(&I))
     AddAspectsFromType(Ty);
 
   if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {

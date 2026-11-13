@@ -88,7 +88,7 @@ bool isZeroGEP(const Value *V) {
   return GEPI && GEPI->hasAllZeroIndices();
 }
 
-Type *getAccessedType(const Value *V) {
+Type *getAddressSourceElementType(const Value *V) {
   if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
     return GEPI->getSourceElementType();
   return nullptr;
