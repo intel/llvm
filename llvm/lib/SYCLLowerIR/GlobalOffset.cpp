@@ -256,6 +256,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     if (!CalleeWithImplicitParam) {
       // Replace __spirv_BuiltInGlobalOffset call with load from parameter.
       IRBuilder<> Builder(CallToOld);
+      Builder.disableGEPCanonicalization();
       Value *Index = CallToOld->getArgOperand(0);
       Value *OffsetPtr = Builder.CreateInBoundsGEP(
           KernelImplicitArgumentType->getElementType(), ImplicitOffset,
