@@ -8091,6 +8091,28 @@ getConflictOffloadArchCombination(const llvm::DenseSet<StringRef> &Archs,
   return getConflictTargetIDCombination(ArchSet);
 }
 
+/// \return the last -fsycl-targets argument as the user spelled it, for use in
+/// diagnostics. \return nullptr if -fsycl-targets is not given, or if any
+/// -fsycl-targets names spir64_gen, which has its own diagnostic in the new
+/// offloading model. --offload-targets and its other spellings are ignored.
+static const Arg *getFsyclTargetsArgForOffloadArchCheck(const Driver &D,
+                                                        const ArgList &Args) {
+  const Arg *FsyclTargets = nullptr;
+  for (const Arg *A : Args.filtered(options::OPT_offload_targets_EQ)) {
+    const Arg *Alias = A->getAlias();
+    if (!Alias || Alias->getOption().getID() != options::OPT_fsycl_targets_EQ)
+      continue;
+    if (llvm::any_of(A->getValues(), [&](StringRef Target) {
+          llvm::Triple TT = D.getSYCLDeviceTriple(Target);
+          return TT.isSPIR() &&
+                 TT.getSubArch() == llvm::Triple::SPIRSubArch_gen;
+        }))
+      return nullptr;
+    FsyclTargets = Alias;
+  }
+  return FsyclTargets;
+}
+
 llvm::SmallVector<BoundArch>
 Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
                         Action::OffloadKind Kind, const ToolChain &TC) const {
@@ -8106,8 +8128,31 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
   }
 
   llvm::DenseSet<StringRef> Archs;
+  // For SYCL, the Intel architectures given with --offload-arch, in order, and
+  // the option that gave each of them, for the -fsycl-targets check below.
+  SmallVector<std::pair<StringRef, std::string>, 2> SYCLIntelOffloadArchs;
+  // For SYCL, an Intel architecture given with
+  // -Xsycl-target-backend=intel_gpu_<device> --offload-arch, for the same
+  // check. It does not select an architecture of the toolchain.
+  std::string SYCLForwardedIntelOffloadArch;
   std::unique_ptr<llvm::opt::Arg> ExtractedArg = nullptr;
   for (auto *Arg : C.getArgsForToolChain(&TC, /*BA=*/{}, Kind)) {
+    // -Xsycl-target-backend=intel_gpu_<device> passes --offload-arch to the
+    // backend instead of selecting an architecture, so only record it.
+    if (Kind == Action::OFK_SYCL &&
+        Arg->getOption().matches(options::OPT_Xsycl_backend_EQ) &&
+        TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+        !tools::SYCL::gen::resolveGenDevice(Arg->getValue(0)).empty()) {
+      StringRef Value = Arg->getValue(1);
+      SmallVector<StringRef, 4> ArchList;
+      if (Value.consume_front("--offload-arch=")) {
+        Value.split(ArchList, ',');
+        if (llvm::any_of(ArchList, [](StringRef Arch) {
+              return StringToOffloadArch(Arch).isIntel();
+            }))
+          SYCLForwardedIntelOffloadArch = Arg->getValue(1);
+      }
+    }
     // Extract any '--[no-]offload-arch' arguments intended for this toolchain.
     if (Kind == Action::OFK_SYCL) {
       // For SYCL based offloading, we allow for -Xsycl-target-backend
@@ -8198,17 +8243,51 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Archs.insert(CanonicalStr);
           else
             return {};
+
+          if (Kind == Action::OFK_SYCL &&
+              StringToOffloadArch(CanonicalStr).isIntel())
+            SYCLIntelOffloadArchs.emplace_back(CanonicalStr,
+                                               Arg->getAsString(Args));
         }
       }
     } else if (Arg->getOption().matches(options::OPT_no_offload_arch_EQ)) {
       for (StringRef Arch : Arg->getValues()) {
         if (Arch == "all") {
           Archs.clear();
+          SYCLIntelOffloadArchs.clear();
         } else {
           StringRef ArchStr =
               getCanonicalArchString(C, Args, Arch, TC.getTriple());
           Archs.erase(ArchStr);
+          llvm::erase_if(SYCLIntelOffloadArchs,
+                         [&](const auto &P) { return P.first == ArchStr; });
         }
+      }
+    }
+  }
+
+  // -fsycl-targets selects Intel devices through its target list, and
+  // --offload-arch with an Intel architecture selects them through a different
+  // compilation flow, so they cannot be used together. This checks the
+  // --offload-arch values of this toolchain that remain after
+  // --no-offload-arch, including those passed with -Xarch_ or
+  // -Xsycl-target-backend.
+  if (Kind == Action::OFK_SYCL && getUseNewOffloadingDriver()) {
+    auto Remaining = llvm::find_if(SYCLIntelOffloadArchs, [&](const auto &P) {
+      return Archs.contains(P.first);
+    });
+    StringRef Conflicting = Remaining != SYCLIntelOffloadArchs.end()
+                                ? StringRef(Remaining->second)
+                                : StringRef(SYCLForwardedIntelOffloadArch);
+    if (!Conflicting.empty()) {
+      if (const llvm::opt::Arg *FsyclTargets =
+              getFsyclTargetsArgForOffloadArchCheck(*this, C.getInputArgs())) {
+        if (!SYCLTargetsWithIntelOffloadArchDiagnosed) {
+          Diag(diag::err_drv_argument_not_allowed_with)
+              << Conflicting << FsyclTargets->getAsString(C.getInputArgs());
+          SYCLTargetsWithIntelOffloadArchDiagnosed = true;
+        }
+        return {};
       }
     }
   }
