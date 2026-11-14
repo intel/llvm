@@ -414,7 +414,8 @@ void *ur_discrete_buffer_handle_t::getDevicePtr(
 
   if (!p2pAccessible || restrictUsmResidencyToP2P()) {
     UR_LOG(DEBUG,
-           "p2p is not accessible: migrating buffer through host: "
+           "migrating buffer through host due to P2P connectivity or "
+           "residency restrictions: "
            "from src device: {} to dst device: {}",
            (void *)activeAllocationDevice, (void *)hDevice);
     return asyncMigrateDeviceAllocThroughHost(hDevice, offset, cmdList,
