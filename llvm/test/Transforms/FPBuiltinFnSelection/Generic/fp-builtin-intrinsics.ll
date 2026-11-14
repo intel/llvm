@@ -1,4 +1,5 @@
 ; RUN: opt -alt-math-library=test -fpbuiltin-fn-selection -S < %s | FileCheck %s
+; RUN: opt -alt-math-library=test -passes=fpbuiltin-fn-selection -S < %s | FileCheck %s
 
 ; Basic argument tests for fp-builtin intrinsics.
 ; Only a few representative functions are tested.
