@@ -45,6 +45,7 @@ ur_result_t context_t::init() {
   if (!adapter_registry.adaptersForceLoaded()) {
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
     if (adapter_registry.includesAdapter("ur_adapter_level_zero")) {
+      UR_LOG(INFO, "Statically loaded adapter: ur_adapter_level_zero");
       auto &level_zero = platforms.emplace_back(nullptr);
       ur::level_zero::v1::urAdapterGetDdiTables(&level_zero.dditable);
       adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_level_zero");
@@ -52,6 +53,7 @@ ur_result_t context_t::init() {
 #endif
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO_V2
     if (adapter_registry.includesAdapter("ur_adapter_level_zero_v2")) {
+      UR_LOG(INFO, "Statically loaded adapter: ur_adapter_level_zero_v2");
       auto &level_zero_v2 = platforms.emplace_back(nullptr);
       ur::level_zero::v2::urAdapterGetDdiTables(&level_zero_v2.dditable);
       adapter_registry.markAdapterAsStaticallyLoaded(
@@ -60,6 +62,7 @@ ur_result_t context_t::init() {
 #endif
 #ifdef UR_STATIC_ADAPTER_OPENCL
     if (adapter_registry.includesAdapter("ur_adapter_opencl")) {
+      UR_LOG(INFO, "Statically loaded adapter: ur_adapter_opencl");
       auto &opencl = platforms.emplace_back(nullptr);
       ur::opencl::urAdapterGetDdiTables(&opencl.dditable);
       adapter_registry.markAdapterAsStaticallyLoaded("ur_adapter_opencl");
@@ -78,6 +81,7 @@ ur_result_t context_t::init() {
     for (const auto &path : adapterPaths) {
       auto handle = LibLoader::loadAdapterLibrary(path.string().c_str());
       if (handle) {
+        UR_LOG(INFO, "Successfully loaded adapter: {}", path.string());
         platforms.emplace_back(std::move(handle));
         break;
       }
@@ -87,6 +91,8 @@ ur_result_t context_t::init() {
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
 #endif
+
+  UR_LOG(INFO, "{} adapters loaded", platforms.size());
 
   forceIntercept = getenv_tobool("UR_ENABLE_LOADER_INTERCEPT");
 

@@ -22,6 +22,11 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
 
   UR_ASSERT(pNumPlatforms || phPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
 
+  [[maybe_unused]] static const bool Logged = [] {
+    UR_LOG(INFO, "NATIVE_CPU: found 1 platform");
+    return true;
+  }();
+
   if (pNumPlatforms) {
     *pNumPlatforms = 1;
   }
