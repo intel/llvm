@@ -1253,7 +1253,7 @@ bool verifyLayeredImageSupport(
         hDevice->get()));
 
     maxImageLayers = static_cast<size_t>(
-        std::min(maxTextureLayeredWidth, maxSurfaceLayeredWidth));
+        std::min(maxTextureLayers, maxSurfaceLayers));
 
     if (pImageDesc->width > maxImageWidth ||
         pImageDesc->height > maxImageHeight ||
