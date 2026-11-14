@@ -78,6 +78,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // Emit function body, unpack kernel args
   auto *KernelTy = F->getFunctionType();
   IRBuilder<> Builder(Ctx);
+  Builder.disableGEPCanonicalization();
   BasicBlock *Block = BasicBlock::Create(Ctx, "entry", SubhF);
   Builder.SetInsertPoint(Block);
   unsigned NumArgs = F->getFunctionType()->getNumParams();
