@@ -85,6 +85,15 @@
 
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
+/// Property names in the "SYCL/device requirements" property set. Defined in
+/// SYCLDeviceRequirements.cpp and PropertySetIO.h.
+#define __SYCL_DEVICE_REQUIREMENTS_ASPECTS "aspects"
+#define __SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE "reqd_work_group_size"
+#define __SYCL_DEVICE_REQUIREMENTS_REQD_WORK_GROUP_SIZE_UINT64                 \
+  "reqd_work_group_size_uint64_t"
+#define __SYCL_DEVICE_REQUIREMENTS_REQD_SUB_GROUP_SIZE "reqd_sub_group_size"
+#define __SYCL_DEVICE_REQUIREMENTS_WORK_GROUP_NUM_DIM "work_group_num_dim"
+
 // New entry type after
 // https://github.com/llvm/llvm-project/pull/124018
 // This is a replica of the EntryTy data structure in
