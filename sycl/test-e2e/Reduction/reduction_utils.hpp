@@ -9,6 +9,12 @@
 
 using namespace sycl;
 
+// Forward-declare kernel type names, commonly reused across reduction tests.
+// Required per specification as complete, stable type in the namespace scope.
+class InitKernel;
+class Test;
+class Check;
+
 struct AllIdOp {
   constexpr bool operator()(size_t Idx) const { return true; }
 };

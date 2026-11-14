@@ -9,6 +9,22 @@
 
 using namespace sycl;
 
+// Forward-declare the test kernel type names.
+// Required per specification as complete, stable type in the namespace scope.
+class AtomicReduce1;
+class Atomic1;
+class Atomic2;
+class Reduce1;
+class Reduce2;
+class Generic1;
+class Generic2;
+class Generic3;
+class Generic4;
+
+class Host;
+class Shared;
+class Device;
+
 template <typename T1, typename T2> class USMKName;
 
 template <typename Name, typename T, class BinaryOperation>
