@@ -1925,6 +1925,7 @@ public:
             {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
             {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
             {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
+            {"10.3", oneapi_exp_arch::nvidia_gpu_sm_103},
             {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
             {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
             {"gfx703", oneapi_exp_arch::amd_gpu_gfx703},
