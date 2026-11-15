@@ -127,7 +127,6 @@ enum class MatrixOperands : uint32_t {
   MatrixResultSignedComponentsKHR = 0x8,
   SaturatingAccumulationKHR = 0x10,
   // SPV_INTEL_joint_matrix operands
-  MatrixAAndBTF32ComponentsINTEL = 0x20,
   MatrixAAndBBFloat16ComponentsINTEL = 0x40,
   MatrixCBFloat16ComponentsINTEL = 0x80,
   MatrixResultBFloat16ComponentsINTEL = 0x100,
