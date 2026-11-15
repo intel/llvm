@@ -1373,6 +1373,7 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
+  BPF().DiagnoseAnonymousPreserveAIEnums();
   OpenMP().DiagnoseUnterminatedOpenMPDeclareTarget();
   DiagnosePrecisionLossInComplexDivision();
   DiagnoseUnusedAPINotesSelectors();

@@ -326,7 +326,8 @@
 
 // SYCL-INTEL: spirv-to-ir-wrapper
 
-//      SYCL: @.sycl_offloading.binary = internal unnamed_addr constant [0 x i8] zeroinitializer, section ".llvm.offloading"
+// SYCL-NOREL: @.sycl_offloading.binary = internal unnamed_addr constant [0 x i8] zeroinitializer, section ".llvm.offloading"
+//   SYCL-REL: @.sycl_offloading.binary = internal unnamed_addr constant [0 x i8] zeroinitializer, section ".sycl_fatbin"
 
 //      SYCL: define internal void @sycl.descriptor_reg() section ".text.startup" {
 // SYCL-NEXT: entry:
