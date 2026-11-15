@@ -40,21 +40,24 @@ ur_queue_batched_t::ur_queue_batched_t(
     ur_queue_flags_t flags)
     : regularCmdListDesc(v2::command_list_desc_t{
           true /* isInOrder*/, ordinal /* Ordinal*/,
-          true /* copyOffloadEnable*/, false /*isMutable*/}),
-      currentCmdLists(
-          hContext, hDevice,
-          /* regular command list*/
-          hContext->getCommandListCache().getRegularCommandList(
-              hDevice->ZeDevice, regularCmdListDesc),
-          /* command list immediate*/
-          hContext->getCommandListCache().getImmediateCommandList(
-              hDevice->ZeDevice,
-              {true, ordinal, true /* always enable copy offload */},
-              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
-              priorityLevel)
+          // Copy offload corrupts DG2 2D region copies.
+          !hDevice->isDG2() /* copyOffloadEnable*/, false /*isMutable*/}),
+      currentCmdLists(hContext, hDevice,
+                      /* regular command list*/
+                      hContext->getCommandListCache().getRegularCommandList(
+                          hDevice->ZeDevice, regularCmdListDesc),
+                      /* command list immediate*/
+                      hContext->getCommandListCache().getImmediateCommandList(
+                          hDevice->ZeDevice, {true, ordinal, !hDevice->isDG2()},
+                          ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
+                          priorityLevel)
 
       ) {
   TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
+
+  if (hDevice->isDG2()) {
+    UR_LOG(INFO, "Copy offload disabled for DG2.");
+  }
 
   // TODO common code?
   if (!hContext->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {

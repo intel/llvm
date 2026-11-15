@@ -286,12 +286,24 @@ int test(queue &Q, T ExpectedVal1, T ExpectedVal2) {
                                DST_ELEMS);
     Q.wait();
 
-    for (size_t I = 0; I < SRC_ELEMS; ++I) {
-      T ExpectedVal = I >= DST_ELEMS ? ExpectedVal2 : ExpectedVal1;
-      if (!checkResult<SrcAllocKind, DstAllocKind, PathKind>(
-              Results[I], ExpectedVal, I, "Test 6")) {
+    // Diagnostic for #23392: report every mismatch instead of stopping at
+    // the first one, to see whether corruption is row-aligned or scattered.
+    {
+      size_t Mismatches = 0;
+      for (size_t I = 0; I < SRC_ELEMS; ++I) {
+        T ExpectedVal = I >= DST_ELEMS ? ExpectedVal2 : ExpectedVal1;
+        if (Results[I] != ExpectedVal) {
+          if (Mismatches < 30) {
+            checkResult<SrcAllocKind, DstAllocKind, PathKind>(
+                Results[I], ExpectedVal, I, "Test 6");
+          }
+          ++Mismatches;
+        }
+      }
+      if (Mismatches) {
+        std::cout << "Test 6 total mismatches: " << Mismatches << " / "
+                  << SRC_ELEMS << std::endl;
         ++Failures;
-        break;
       }
     }
 

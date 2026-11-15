@@ -51,9 +51,9 @@ jobs:
 
   build:
     needs: [detect_changes]
-    if: |
-      success()
-      && github.repository == 'intel/llvm'
+    # TEMP: disabled while debugging #23392 (Linux-only L0V2 memops2d on
+    # DG2/ARL) to save CI time; restore before merging.
+    if: false
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}

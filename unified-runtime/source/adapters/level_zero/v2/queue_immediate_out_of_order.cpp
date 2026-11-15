@@ -14,6 +14,15 @@
 
 namespace ur::level_zero::v2 {
 
+// Copy offload corrupts DG2 2D region copies.
+static bool copyOffloadEnabledFor(ur_device_handle_t hDevice) {
+  if (hDevice->isDG2()) {
+    UR_LOG(INFO, "Copy offload disabled for DG2.");
+    return false;
+  }
+  return true;
+}
+
 template <size_t N>
 std::array<ur_command_list_manager, N> createCommandListManagers(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
@@ -23,8 +32,7 @@ std::array<ur_command_list_manager, N> createCommandListManagers(
     return ur_command_list_manager(
         hContext, hDevice,
         hContext->getCommandListCache().getImmediateCommandList(
-            hDevice->ZeDevice,
-            {true, ordinal, true /* always enable copy offload */},
+            hDevice->ZeDevice, {true, ordinal, copyOffloadEnabledFor(hDevice)},
             ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index,
             priorityLevel));
   });

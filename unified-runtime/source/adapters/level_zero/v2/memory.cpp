@@ -64,7 +64,11 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
           .ZeOrdinal;
-  listDesc.CopyOffloadEnable = true;
+  // Copy offload corrupts DG2 2D region copies.
+  listDesc.CopyOffloadEnable = !hDevice->isDG2();
+  if (!listDesc.CopyOffloadEnable) {
+    UR_LOG(INFO, "Copy offload disabled for DG2.");
+  }
   return hContext->getCommandListCache().getImmediateCommandList(
       hDevice->ZeDevice, listDesc, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS,
       ZE_COMMAND_QUEUE_PRIORITY_NORMAL, std::nullopt);
