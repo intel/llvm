@@ -1,12 +1,17 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %{run} %t.out
-//
+// RUN-IF: sg-8, %{build} -fsycl-device-code-split=per_kernel -DSG_SIZE=8 -o %t8.out && %{run} %t8.out
+// RUN-IF: sg-16, %{build} -fsycl-device-code-split=per_kernel -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// RUN-IF: sg-32, %{build} -fsycl-device-code-split=per_kernel -DSG_SIZE=32 -o %t32.out && %{run} %t32.out
+
 // Test CPU AOT as well when possible.
-// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s
-// RUN-IF: cpu, %{run} %t.x86.out
-//
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -DSG_SIZE=8 -o %t8.x86.out %s
+// RUN-IF: sg-8 && cpu && opencl-aot, %{run} %t8.x86.out
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -DSG_SIZE=16 -o %t16.x86.out %s
+// RUN-IF: sg-16 && cpu && opencl-aot, %{run} %t16.x86.out
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -DSG_SIZE=32 -o %t32.x86.out %s
+// RUN-IF: sg-32 && cpu && opencl-aot, %{run} %t32.x86.out
+
 // REQUIRES: cpu || gpu
-// REQUIRES: sg-32
+// REQUIRES: sg-8 || sg-16 || sg-32
 // REQUIRES: aspect-ext_oneapi_chunk
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-INTENDED: fixed_size_group aspect not available on amd
@@ -18,7 +23,7 @@
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
-#include <vector>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template <size_t PartitionSize> class TestKernel;
@@ -26,7 +31,7 @@ template <size_t PartitionSize> class TestKernel;
 template <size_t PartitionSize> void test() {
   sycl::queue Q;
 
-  constexpr uint32_t SGSize = 32;
+  constexpr uint32_t SGSize = SG_SIZE;
 
   sycl::buffer<size_t, 1> TmpBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> BarrierBuf{sycl::range{SGSize}};
@@ -37,6 +42,10 @@ template <size_t PartitionSize> void test() {
   sycl::buffer<bool, 1> ReduceBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ExScanBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> IncScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanFloatBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanFloatBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanInitBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanInitBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> SelectBuf{sycl::range{SGSize}};
@@ -53,6 +62,10 @@ template <size_t PartitionSize> void test() {
     sycl::accessor ReduceAcc{ReduceBuf, CGH, sycl::write_only};
     sycl::accessor ExScanAcc{ExScanBuf, CGH, sycl::write_only};
     sycl::accessor IncScanAcc{IncScanBuf, CGH, sycl::write_only};
+    sycl::accessor ExScanFloatAcc{ExScanFloatBuf, CGH, sycl::write_only};
+    sycl::accessor IncScanFloatAcc{IncScanFloatBuf, CGH, sycl::write_only};
+    sycl::accessor ExScanInitAcc{ExScanInitBuf, CGH, sycl::write_only};
+    sycl::accessor IncScanInitAcc{IncScanInitBuf, CGH, sycl::write_only};
     sycl::accessor ShiftLeftAcc{ShiftLeftBuf, CGH, sycl::write_only};
     sycl::accessor ShiftRightAcc{ShiftRightBuf, CGH, sycl::write_only};
     sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
@@ -116,6 +129,24 @@ template <size_t PartitionSize> void test() {
               sycl::inclusive_scan_over_group(ChunkGroup, 1, sycl::plus<>());
           IncScanAcc[WI] = (IncScanResult == LID + 1);
 
+          float ExScanFloatResult =
+              sycl::exclusive_scan_over_group(ChunkGroup, 1.0f, sycl::plus<>());
+          ExScanFloatAcc[WI] = (ExScanFloatResult == static_cast<float>(LID));
+
+          float IncScanFloatResult =
+              sycl::inclusive_scan_over_group(ChunkGroup, 1.0f, sycl::plus<>());
+          IncScanFloatAcc[WI] =
+              (IncScanFloatResult == static_cast<float>(LID + 1));
+
+          constexpr uint32_t Init = 42;
+          uint32_t ExScanInitResult = sycl::exclusive_scan_over_group(
+              ChunkGroup, 1, Init, sycl::plus<>());
+          ExScanInitAcc[WI] = (ExScanInitResult == Init + LID);
+
+          uint32_t IncScanInitResult = sycl::inclusive_scan_over_group(
+              ChunkGroup, 1, sycl::plus<>(), Init);
+          IncScanInitAcc[WI] = (IncScanInitResult == Init + LID + 1);
+
           uint32_t ShiftLeftResult = sycl::shift_group_left(ChunkGroup, LID, 2);
           ShiftLeftAcc[WI] =
               (LID + 2 >= PartitionSize || ShiftLeftResult == LID + 2);
@@ -146,6 +177,10 @@ template <size_t PartitionSize> void test() {
   sycl::host_accessor ReduceAcc{ReduceBuf, sycl::read_only};
   sycl::host_accessor ExScanAcc{ExScanBuf, sycl::read_only};
   sycl::host_accessor IncScanAcc{IncScanBuf, sycl::read_only};
+  sycl::host_accessor ExScanFloatAcc{ExScanFloatBuf, sycl::read_only};
+  sycl::host_accessor IncScanFloatAcc{IncScanFloatBuf, sycl::read_only};
+  sycl::host_accessor ExScanInitAcc{ExScanInitBuf, sycl::read_only};
+  sycl::host_accessor IncScanInitAcc{IncScanInitBuf, sycl::read_only};
   sycl::host_accessor ShiftLeftAcc{ShiftLeftBuf, sycl::read_only};
   sycl::host_accessor ShiftRightAcc{ShiftRightBuf, sycl::read_only};
   sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
@@ -159,6 +194,10 @@ template <size_t PartitionSize> void test() {
     assert(ReduceAcc[WI] == true);
     assert(ExScanAcc[WI] == true);
     assert(IncScanAcc[WI] == true);
+    assert(ExScanFloatAcc[WI] == true);
+    assert(IncScanFloatAcc[WI] == true);
+    assert(ExScanInitAcc[WI] == true);
+    assert(IncScanInitAcc[WI] == true);
     assert(ShiftLeftAcc[WI] == true);
     assert(ShiftRightAcc[WI] == true);
     assert(SelectAcc[WI] == true);
@@ -171,7 +210,14 @@ int main() {
   test<2>();
   test<4>();
   test<8>();
-  test<16>();
-  test<32>();
+
+  if constexpr (SG_SIZE >= 16) {
+    test<16>();
+  }
+
+  if constexpr (SG_SIZE >= 32) {
+    test<32>();
+  }
+
   return 0;
 }
