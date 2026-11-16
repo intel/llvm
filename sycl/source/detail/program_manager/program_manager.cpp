@@ -3083,7 +3083,6 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   std::vector<ur_device_handle_t> Devs = {DeviceImpl.getHandleRef()};
   auto BuildProgram = build(std::move(ProgramManaged), ContextImpl, CompileOpts,
                             LinkOpts, Devs, ExtraProgramsToLink);
-  ContextImpl.addDeviceGlobalInitializer(BuildProgram, {Device}, &Img);
   Managed<ur_kernel_handle_t> UrKernel{Adapter};
   Adapter.call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram, KernelName.data(), &UrKernel);
