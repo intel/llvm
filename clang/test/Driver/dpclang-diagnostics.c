@@ -1,8 +1,9 @@
+// The real driver aliases can be omitted through CLANG_LINKS_TO_CREATE.
 // RUN: not %dpclang 2>&1 | FileCheck %s --check-prefix=DIAG-C
-// RUN: not %dpclangxx 2>&1 | FileCheck %s --check-prefix=DIAG-CXX
-// RUN: not %dpclang_cl 2>&1 | FileCheck %s --check-prefix=DIAG-CL
-// RUN: not %dpclang_cpp --dpclang-test-invalid-option %s 2>&1 | FileCheck %s --check-prefix=DIAG-CPP
-// RUN: env DPCPP_DRIVER_NAME=stale not %dpclangxx 2>&1 | FileCheck %s --check-prefix=DIAG-CXX
+// RUN: %if clang++ %{ not %dpclangxx 2>&1 | FileCheck %s --check-prefix=DIAG-CXX %}
+// RUN: %if clang-cl %{ not %dpclang_cl 2>&1 | FileCheck %s --check-prefix=DIAG-CL %}
+// RUN: %if clang-cpp %{ not %dpclang_cpp --dpclang-test-invalid-option %s 2>&1 | FileCheck %s --check-prefix=DIAG-CPP %}
+// RUN: %if clang++ %{ env DPCPP_DRIVER_NAME=stale not %dpclangxx 2>&1 | FileCheck %s --check-prefix=DIAG-CXX %}
 // RUN: not %clang 2>&1 | FileCheck %s --check-prefix=DIAG-DIRECT
 // RUN: env DPCPP_DRIVER_NAME= not %clang 2>&1 | FileCheck %s --check-prefix=DIAG-DIRECT
 
@@ -14,10 +15,10 @@
 
 // The dp-prefixed name must not change language or driver-mode selection.
 // RUN: %dpclang -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-C
-// RUN: %dpclangxx -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-CXX
-// RUN: %dpclang_cl -### /Zs -- %s 2>&1 | FileCheck %s --check-prefix=MODE-CL
-// RUN: %dpclang_cpp -### %s 2>&1 | FileCheck %s --check-prefix=MODE-CPP
-// RUN: %dpclangxx --driver-mode=gcc -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-C
+// RUN: %if clang++ %{ %dpclangxx -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-CXX %}
+// RUN: %if clang-cl %{ %dpclang_cl -### /Zs -- %s 2>&1 | FileCheck %s --check-prefix=MODE-CL %}
+// RUN: %if clang-cpp %{ %dpclang_cpp -### %s 2>&1 | FileCheck %s --check-prefix=MODE-CPP %}
+// RUN: %if clang++ %{ %dpclangxx --driver-mode=gcc -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-C %}
 
 // MODE-C: "-cc1"
 // MODE-C-SAME: "-fsyntax-only"
@@ -35,8 +36,8 @@
 // resource directory or relying on system headers.
 // RUN: %dpclang -canonical-prefixes -fno-integrated-cc1 -fsyntax-only -nostdlibinc %s
 // RUN: %dpclang -no-canonical-prefixes -fno-integrated-cc1 -fsyntax-only -nostdlibinc %s
-// RUN: %dpclangxx -canonical-prefixes -fno-integrated-cc1 -fsyntax-only -nostdlibinc -x c++ %s
-// RUN: %dpclangxx -no-canonical-prefixes -fno-integrated-cc1 -fsyntax-only -nostdlibinc -x c++ %s
+// RUN: %if clang++ %{ %dpclangxx -canonical-prefixes -fno-integrated-cc1 -fsyntax-only -nostdlibinc -x c++ %s %}
+// RUN: %if clang++ %{ %dpclangxx -no-canonical-prefixes -fno-integrated-cc1 -fsyntax-only -nostdlibinc -x c++ %s %}
 
 #include <stddef.h>
 size_t size;
