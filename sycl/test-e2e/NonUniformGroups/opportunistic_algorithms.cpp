@@ -1,24 +1,29 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-//
+// RUN-IF: sg-8, %{build} -DSG_SIZE=8 -o %t8.out && %{run} %t8.out
+// RUN-IF: sg-16, %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// RUN-IF: sg-32, %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out
+
 // Test CPU AOT as well when possible.
-// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
-// RUN-IF: cpu, %{run} %t.x86.out
-//
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -DSG_SIZE=8 -o %t8.x86.out %s
+// RUN-IF: sg-8 && cpu && opencl-aot, %{run} %t8.x86.out
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -DSG_SIZE=16 -o %t16.x86.out %s
+// RUN-IF: sg-16 && cpu && opencl-aot, %{run} %t16.x86.out
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -DSG_SIZE=32 -o %t32.x86.out %s
+// RUN-IF: sg-32 && cpu && opencl-aot, %{run} %t32.x86.out
+
 // REQUIRES: cpu || gpu
-// REQUIRES: sg-32
+// REQUIRES: sg-8 || sg-16 || sg-32
 // REQUIRES: aspect-ext_oneapi_fragment
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
-#include <vector>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class TestKernel;
 
-constexpr uint32_t SGSize = 32;
+constexpr uint32_t SGSize = SG_SIZE;
 constexpr uint32_t ArbitraryItem = 5;
 
 int main() {
@@ -33,6 +38,10 @@ int main() {
   sycl::buffer<bool, 1> ReduceBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ExScanBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> IncScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanFloatBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanFloatBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanInitBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanInitBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> SelectBuf{sycl::range{SGSize}};
@@ -49,6 +58,10 @@ int main() {
     sycl::accessor ReduceAcc{ReduceBuf, CGH, sycl::write_only};
     sycl::accessor ExScanAcc{ExScanBuf, CGH, sycl::write_only};
     sycl::accessor IncScanAcc{IncScanBuf, CGH, sycl::write_only};
+    sycl::accessor ExScanFloatAcc{ExScanFloatBuf, CGH, sycl::write_only};
+    sycl::accessor IncScanFloatAcc{IncScanFloatBuf, CGH, sycl::write_only};
+    sycl::accessor ExScanInitAcc{ExScanInitBuf, CGH, sycl::write_only};
+    sycl::accessor IncScanInitAcc{IncScanInitBuf, CGH, sycl::write_only};
     sycl::accessor ShiftLeftAcc{ShiftLeftBuf, CGH, sycl::write_only};
     sycl::accessor ShiftRightAcc{ShiftRightBuf, CGH, sycl::write_only};
     sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
@@ -107,6 +120,24 @@ int main() {
                 OpportunisticGroup, 1, sycl::plus<>());
             IncScanAcc[WI] = (IncScanResult == LID + 1);
 
+            float ExScanFloatResult = sycl::exclusive_scan_over_group(
+                OpportunisticGroup, 1.0f, sycl::plus<>());
+            ExScanFloatAcc[WI] = (ExScanFloatResult == static_cast<float>(LID));
+
+            float IncScanFloatResult = sycl::inclusive_scan_over_group(
+                OpportunisticGroup, 1.0f, sycl::plus<>());
+            IncScanFloatAcc[WI] =
+                (IncScanFloatResult == static_cast<float>(LID + 1));
+
+            constexpr uint32_t Init = 42;
+            uint32_t ExScanInitResult = sycl::exclusive_scan_over_group(
+                OpportunisticGroup, 1, Init, sycl::plus<>());
+            ExScanInitAcc[WI] = (ExScanInitResult == Init + LID);
+
+            uint32_t IncScanInitResult = sycl::inclusive_scan_over_group(
+                OpportunisticGroup, 1, sycl::plus<>(), Init);
+            IncScanInitAcc[WI] = (IncScanInitResult == Init + LID + 1);
+
             uint32_t ShiftLeftResult =
                 sycl::shift_group_left(OpportunisticGroup, LID, 2);
             ShiftLeftAcc[WI] = (LID + 2 >= OpportunisticGroupSize ||
@@ -135,6 +166,10 @@ int main() {
             ReduceAcc[WI] = false;
             ExScanAcc[WI] = false;
             IncScanAcc[WI] = false;
+            ExScanFloatAcc[WI] = false;
+            IncScanFloatAcc[WI] = false;
+            ExScanInitAcc[WI] = false;
+            IncScanInitAcc[WI] = false;
             ShiftLeftAcc[WI] = false;
             ShiftRightAcc[WI] = false;
             SelectAcc[WI] = false;
@@ -152,11 +187,15 @@ int main() {
   sycl::host_accessor ReduceAcc{ReduceBuf, sycl::read_only};
   sycl::host_accessor ExScanAcc{ExScanBuf, sycl::read_only};
   sycl::host_accessor IncScanAcc{IncScanBuf, sycl::read_only};
+  sycl::host_accessor ExScanFloatAcc{ExScanFloatBuf, sycl::read_only};
+  sycl::host_accessor IncScanFloatAcc{IncScanFloatBuf, sycl::read_only};
+  sycl::host_accessor ExScanInitAcc{ExScanInitBuf, sycl::read_only};
+  sycl::host_accessor IncScanInitAcc{IncScanInitBuf, sycl::read_only};
   sycl::host_accessor ShiftLeftAcc{ShiftLeftBuf, sycl::read_only};
   sycl::host_accessor ShiftRightAcc{ShiftRightBuf, sycl::read_only};
   sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
   sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
-  for (uint32_t WI = 0; WI < 32; ++WI) {
+  for (uint32_t WI = 0; WI < SGSize; ++WI) {
     bool ExpectedResult = (WI == ArbitraryItem);
     assert(BarrierAcc[WI] == ExpectedResult);
     assert(BroadcastAcc[WI] == ExpectedResult);
@@ -166,6 +205,10 @@ int main() {
     assert(ReduceAcc[WI] == ExpectedResult);
     assert(ExScanAcc[WI] == ExpectedResult);
     assert(IncScanAcc[WI] == ExpectedResult);
+    assert(ExScanFloatAcc[WI] == ExpectedResult);
+    assert(IncScanFloatAcc[WI] == ExpectedResult);
+    assert(ExScanInitAcc[WI] == ExpectedResult);
+    assert(IncScanInitAcc[WI] == ExpectedResult);
     assert(ShiftLeftAcc[WI] == ExpectedResult);
     assert(ShiftRightAcc[WI] == ExpectedResult);
     assert(SelectAcc[WI] == ExpectedResult);
