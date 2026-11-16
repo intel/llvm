@@ -272,7 +272,11 @@ kernel names.
 
 ### [SYCL/offload arch metadata]
 
-Module-wide metadata about the `--offload-arch` compilation mode:
+Module-wide metadata about the new `--offload-arch` mode, in which a single
+binary holds device code for several IGCA targets. This is not the existing
+behavior of `--offload-arch`, which selects an AOT target and produces
+binaries indistinguishable from those built with `-fsycl-targets`; such
+binaries do not get this property set.
 
 | Key                 | Value type            | Value                                                                          |
 | ------------------- | --------------------- | ------------------------------------------------------------------------------ |
@@ -281,17 +285,10 @@ Module-wide metadata about the `--offload-arch` compilation mode:
 __Notes:__
 
 1. Every property in this set describes the binary as a whole and is never
-derived from the code inside kernels. A binary built in `--offload-arch` mode
-may hold device code for several IGCA targets, and properties derived from
-kernel contents can differ between those targets, so such properties do not
-belong here.
+derived from the code inside kernels. Properties derived from kernel contents
+can differ between the IGCA targets in the binary, so they do not belong here.
 2. If this property set is missing, the binary was not built in
 `--offload-arch` mode.
-3. "Built in `--offload-arch` mode" refers to the mode in which a single
-binary holds device code for several IGCA targets. It does not refer to the
-existing behavior of `--offload-arch`, which selects an AOT target and
-produces binaries indistinguishable from those built with `-fsycl-targets`.
-Those binaries do not get this property set.
 
 
 ### [SYCLBIN/global metadata]
