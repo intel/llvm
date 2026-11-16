@@ -272,23 +272,29 @@ kernel names.
 
 ### [SYCL/offload arch metadata]
 
-Module-wide metadata about the new `--offload-arch` mode, in which a single
-binary holds device code for several IGCA targets. This is not the existing
-behavior of `--offload-arch`, which selects an AOT target and produces
-binaries indistinguishable from those built with `-fsycl-targets`; such
-binaries do not get this property set.
+Metadata about the new `--offload-arch` mode, in which a single binary holds
+device code for several IGCA targets. This is not the existing behavior of
+`--offload-arch`, which selects an AOT target and produces binaries
+indistinguishable from those built with `-fsycl-targets`; such binaries do not
+get this property set.
 
-| Key                 | Value type            | Value                                                                          |
-| ------------------- | --------------------- | ------------------------------------------------------------------------------ |
-| "isOffloadArchMode" | 32 bit integer. ("1") | 1 if the binary was built in `--offload-arch` mode and 0 or missing otherwise. |
+| Key                                   | Value type            | Value                                                                                               |
+| ------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------- |
+| "isOffloadArchMode"                   | 32 bit integer. ("1") | 1 if the binary was built in `--offload-arch` mode and 0 or missing otherwise.                      |
+| `igca_X` + "@no-embed-virtual-arch"   | 32 bit integer. ("1") | 1 if the virtual architecture sub-module was dropped for the IGCA target `igca_X`, 0 or missing otherwise. |
 
 __Notes:__
 
-1. Every property in this set describes the binary as a whole and is never
-derived from the code inside kernels. Properties derived from kernel contents
-can differ between the IGCA targets in the binary, so they do not belong here.
-2. If this property set is missing, the binary was not built in
+1. No property in this set is derived from the code inside kernels. Properties
+that are derived from kernel contents can differ between the IGCA targets in
+the binary and are stored per target instead, so they do not belong here.
+2. A key is either module-wide, such as "isOffloadArchMode", or qualified by
+IGCA target name in the form `igca_X` + "@" + property name.
+3. If this property set is missing, the binary was not built in the new
 `--offload-arch` mode.
+4. When "no-embed-virtual-arch" is 1 for a target, that target has no virtual
+architecture sub-module, so specialization constants for it must be emulated
+rather than native.
 
 
 ### [SYCLBIN/global metadata]

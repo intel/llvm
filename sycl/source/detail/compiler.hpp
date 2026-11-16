@@ -81,6 +81,10 @@
 #define __SYCL_PROPERTY_SET_SYCL_OFFLOAD_ARCH_METADATA                         \
   "SYCL/offload arch metadata"
 
+/// Offload arch metadata tags. The tag must appear after the IGCA target.
+#define __SYCL_OFFLOAD_ARCH_METADATA_TAG_NO_EMBED_VIRTUAL_ARCH                 \
+  "@no-embed-virtual-arch"
+
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
 #define __SYCL_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE "@reqd_work_group_size"
