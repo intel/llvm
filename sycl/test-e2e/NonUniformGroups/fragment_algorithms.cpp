@@ -70,104 +70,101 @@ int main() {
     sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
     sycl::accessor PermuteXorAcc{PermuteXorBuf, CGH, sycl::write_only};
 
-    const auto KernelFunc =
-        [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SGSize)]] {
-          auto WI = item.get_global_id();
-          auto SG = item.get_sub_group();
+    const auto KernelFunc = [=](sycl::nd_item<1>
+                                    item) [[sycl::reqd_sub_group_size(
+                                SGSize)]] {
+      auto WI = item.get_global_id();
+      auto SG = item.get_sub_group();
 
-          // Split into odd and even work-items.
-          bool Predicate = WI % 2 == 0;
-          auto BallotGroup = syclex::binary_partition(SG, Predicate);
-          uint32_t BallotGroupSize = BallotGroup.get_local_linear_range();
+      // Split into odd and even work-items.
+      bool Predicate = WI % 2 == 0;
+      auto BallotGroup = syclex::binary_partition(SG, Predicate);
+      uint32_t BallotGroupSize = BallotGroup.get_local_linear_range();
 
-          // Check all other members' writes are visible after a barrier.
-          TmpAcc[WI] = 1;
-          sycl::group_barrier(BallotGroup);
-          size_t Visible = 0;
-          for (size_t Other = 0; Other < SGSize; ++Other) {
-            if (WI % 2 == Other % 2) {
-              Visible += TmpAcc[Other];
-            }
-          }
-          BarrierAcc[WI] = (Visible == BallotGroup.get_local_linear_range());
+      // Check all other members' writes are visible after a barrier.
+      TmpAcc[WI] = 1;
+      sycl::group_barrier(BallotGroup);
+      size_t Visible = 0;
+      for (size_t Other = 0; Other < SGSize; ++Other) {
+        if (WI % 2 == Other % 2) {
+          Visible += TmpAcc[Other];
+        }
+      }
+      BarrierAcc[WI] = (Visible == BallotGroup.get_local_linear_range());
 
-          // Simple check of group algorithms.
-          uint32_t OriginalLID = SG.get_local_linear_id();
-          uint32_t LID = BallotGroup.get_local_linear_id();
+      // Simple check of group algorithms.
+      uint32_t OriginalLID = SG.get_local_linear_id();
+      uint32_t LID = BallotGroup.get_local_linear_id();
 
-          uint32_t BroadcastResult =
-              sycl::group_broadcast(BallotGroup, OriginalLID, 0);
-          if (Predicate) {
-            BroadcastAcc[WI] = (BroadcastResult == 0);
-          } else {
-            BroadcastAcc[WI] = (BroadcastResult == 1);
-          }
+      uint32_t BroadcastResult =
+          sycl::group_broadcast(BallotGroup, OriginalLID, 0);
+      if (Predicate) {
+        BroadcastAcc[WI] = (BroadcastResult == 0);
+      } else {
+        BroadcastAcc[WI] = (BroadcastResult == 1);
+      }
 
-          bool AnyResult = sycl::any_of_group(BallotGroup, (LID == 0));
-          AnyAcc[WI] = (AnyResult == true);
+      bool AnyResult = sycl::any_of_group(BallotGroup, (LID == 0));
+      AnyAcc[WI] = (AnyResult == true);
 
-          bool AllResult = sycl::all_of_group(BallotGroup, Predicate);
-          if (Predicate) {
-            AllAcc[WI] = (AllResult == true);
-          } else {
-            AllAcc[WI] = (AllResult == false);
-          }
+      bool AllResult = sycl::all_of_group(BallotGroup, Predicate);
+      if (Predicate) {
+        AllAcc[WI] = (AllResult == true);
+      } else {
+        AllAcc[WI] = (AllResult == false);
+      }
 
-          bool NoneResult = sycl::none_of_group(BallotGroup, Predicate);
-          if (Predicate) {
-            NoneAcc[WI] = (NoneResult == false);
-          } else {
-            NoneAcc[WI] = (NoneResult == true);
-          }
+      bool NoneResult = sycl::none_of_group(BallotGroup, Predicate);
+      if (Predicate) {
+        NoneAcc[WI] = (NoneResult == false);
+      } else {
+        NoneAcc[WI] = (NoneResult == true);
+      }
 
-          uint32_t ReduceResult =
-              sycl::reduce_over_group(BallotGroup, 1, sycl::plus<>());
-          ReduceAcc[WI] = (ReduceResult == BallotGroupSize);
+      uint32_t ReduceResult =
+          sycl::reduce_over_group(BallotGroup, 1, sycl::plus<>());
+      ReduceAcc[WI] = (ReduceResult == BallotGroupSize);
 
-          uint32_t ExScanResult =
-              sycl::exclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
-          ExScanAcc[WI] = (ExScanResult == LID);
+      uint32_t ExScanResult =
+          sycl::exclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
+      ExScanAcc[WI] = (ExScanResult == LID);
 
-          uint32_t IncScanResult =
-              sycl::inclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
-          IncScanAcc[WI] = (IncScanResult == LID + 1);
+      uint32_t IncScanResult =
+          sycl::inclusive_scan_over_group(BallotGroup, 1, sycl::plus<>());
+      IncScanAcc[WI] = (IncScanResult == LID + 1);
 
-          float ExScanFloatResult = sycl::exclusive_scan_over_group(
-              BallotGroup, 1.0f, sycl::plus<>());
-          ExScanFloatAcc[WI] = (ExScanFloatResult == static_cast<float>(LID));
+      float ExScanFloatResult =
+          sycl::exclusive_scan_over_group(BallotGroup, 1.0f, sycl::plus<>());
+      ExScanFloatAcc[WI] = (ExScanFloatResult == static_cast<float>(LID));
 
-          float IncScanFloatResult = sycl::inclusive_scan_over_group(
-              BallotGroup, 1.0f, sycl::plus<>());
-          IncScanFloatAcc[WI] =
-              (IncScanFloatResult == static_cast<float>(LID + 1));
+      float IncScanFloatResult =
+          sycl::inclusive_scan_over_group(BallotGroup, 1.0f, sycl::plus<>());
+      IncScanFloatAcc[WI] = (IncScanFloatResult == static_cast<float>(LID + 1));
 
-          constexpr uint32_t Init = 42;
-          uint32_t ExScanInitResult = sycl::exclusive_scan_over_group(
-              BallotGroup, 1, Init, sycl::plus<>());
-          ExScanInitAcc[WI] = (ExScanInitResult == Init + LID);
+      constexpr uint32_t Init = 42;
+      uint32_t ExScanInitResult =
+          sycl::exclusive_scan_over_group(BallotGroup, 1, Init, sycl::plus<>());
+      ExScanInitAcc[WI] = (ExScanInitResult == Init + LID);
 
-          uint32_t IncScanInitResult = sycl::inclusive_scan_over_group(
-              BallotGroup, 1, sycl::plus<>(), Init);
-          IncScanInitAcc[WI] = (IncScanInitResult == Init + LID + 1);
+      uint32_t IncScanInitResult =
+          sycl::inclusive_scan_over_group(BallotGroup, 1, sycl::plus<>(), Init);
+      IncScanInitAcc[WI] = (IncScanInitResult == Init + LID + 1);
 
-          uint32_t ShiftLeftResult =
-              sycl::shift_group_left(BallotGroup, LID, 2);
-          ShiftLeftAcc[WI] =
-              (LID + 2 >= BallotGroupSize || ShiftLeftResult == LID + 2);
+      uint32_t ShiftLeftResult = sycl::shift_group_left(BallotGroup, LID, 2);
+      ShiftLeftAcc[WI] =
+          (LID + 2 >= BallotGroupSize || ShiftLeftResult == LID + 2);
 
-          uint32_t ShiftRightResult =
-              sycl::shift_group_right(BallotGroup, LID, 2);
-          ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
+      uint32_t ShiftRightResult = sycl::shift_group_right(BallotGroup, LID, 2);
+      ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
 
-          uint32_t SelectResult = sycl::select_from_group(
-              BallotGroup, LID,
-              (BallotGroup.get_local_id() + 2) % BallotGroupSize);
-          SelectAcc[WI] = (SelectResult == (LID + 2) % BallotGroupSize);
+      uint32_t SelectResult = sycl::select_from_group(
+          BallotGroup, LID, (BallotGroup.get_local_id() + 2) % BallotGroupSize);
+      SelectAcc[WI] = (SelectResult == (LID + 2) % BallotGroupSize);
 
-          uint32_t PermuteXorResult =
-              sycl::permute_group_by_xor(BallotGroup, LID, 2);
-          PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ 2));
-        };
+      uint32_t PermuteXorResult =
+          sycl::permute_group_by_xor(BallotGroup, LID, 2);
+      PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ 2));
+    };
 
     CGH.parallel_for<TestKernel>(NDR, KernelFunc);
   });
