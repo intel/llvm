@@ -250,21 +250,18 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
-  // dpllvm supplies the public name for diagnostics without changing argv[0].
-  // Consume the override before even the early -cc1 dispatch so that it cannot
-  // affect tools launched by this invocation.
+  // dpllvm supplies the dp-prefixed name invoked by the user for diagnostics
+  // without changing argv[0]. Try to clear it before even the early -cc1
+  // dispatch to avoid affecting tools launched by this invocation. Cleanup is
+  // best-effort: a diagnostic-name override must not prevent compilation.
   std::optional<std::string> DPCPPDriverName =
       llvm::sys::Process::GetEnv("DPCPP_DRIVER_NAME");
   if (DPCPPDriverName) {
 #ifdef _WIN32
-    int Err = ::_putenv_s("DPCPP_DRIVER_NAME", "");
+    (void)::_putenv_s("DPCPP_DRIVER_NAME", "");
 #else
-    int Err = ::unsetenv("DPCPP_DRIVER_NAME");
+    (void)::unsetenv("DPCPP_DRIVER_NAME");
 #endif
-    if (Err) {
-      llvm::errs() << "error: couldn't unset DPCPP_DRIVER_NAME\n";
-      return 1;
-    }
   }
 
   llvm::InitializeAllTargets();

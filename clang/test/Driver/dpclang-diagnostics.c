@@ -12,7 +12,7 @@
 // DIAG-CPP: {{^}}dpclang-cpp: error: unknown argument: '--dpclang-test-invalid-option'
 // DIAG-DIRECT: {{^}}clang{{(-[0-9]+)?}}: error: no input files
 
-// The public name must not change language or driver-mode selection.
+// The dp-prefixed name must not change language or driver-mode selection.
 // RUN: %dpclang -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-C
 // RUN: %dpclangxx -### -fsyntax-only %s 2>&1 | FileCheck %s --check-prefix=MODE-CXX
 // RUN: %dpclang_cl -### /Zs -- %s 2>&1 | FileCheck %s --check-prefix=MODE-CL

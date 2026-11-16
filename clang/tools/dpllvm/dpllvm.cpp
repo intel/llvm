@@ -75,18 +75,16 @@ int main(int argc, char *argv[]) {
   StringRef BinaryPath = *BinaryPathOrErr;
 
   // Keep the real argv[0] for executable and resource discovery. Pass the
-  // public Clang name separately: on Windows, InitLLVM restores the real
-  // executable's basename even if we supply a different argv[0]. The driver
-  // consumes this variable before launching any subprocesses.
+  // dp-prefixed name invoked by the user separately: on Windows, InitLLVM
+  // restores the real executable's basename even if we supply a different
+  // argv[0]. This is best-effort because it only affects diagnostic prefixes.
   if (RealName == "clang" || RealName == "clang++" || RealName == "clang-cl" ||
       RealName == "clang-cpp") {
 #ifdef _WIN32
-    int Err = ::_putenv_s("DPCPP_DRIVER_NAME", Alias.str().c_str());
+    (void)::_putenv_s("DPCPP_DRIVER_NAME", Alias.str().c_str());
 #else
-    int Err = ::setenv("DPCPP_DRIVER_NAME", Alias.str().c_str(), 1);
+    (void)::setenv("DPCPP_DRIVER_NAME", Alias.str().c_str(), 1);
 #endif
-    if (Err)
-      Exit(createStringError("couldn't set DPCPP_DRIVER_NAME."));
   }
 
   SmallVector<StringRef, 128> Args = {BinaryPath};
