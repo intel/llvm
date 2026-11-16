@@ -379,54 +379,6 @@ int main() {
 
 == Issues
 
-* I know the Level Zero team suggested that `programmatic_serialization` should
-  be the default whenever the kernel's static call tree contains a call to
-  `programmatic_wait`, and we should instead add a property that disables this
-  feature.
-  I decided not to do this for several reasons:
-+
---
-** CUDA has an opt-in property, and I think it's desirable to be similar to CUDA
-   in order to make code migration easier.
-** I don't think it's a good idea to assume that IGC can build the complete
-   static call tree for each kernel.
-   We are planning to add support for function pointers and virtual function
-   calls, and in these cases it will not be possible to build a static call tree
-   unless we add some additional metadata into the SPIR-V / PISA module which
-   indicates the potential target(s) of each indirect call site.
-   Note that it is not sufficient for IGC to determine whether the SPIR-V / PISA
-   _module_ contains a call to `programmatic_wait` because the module may
-   contain several kernels.
-   Therefore, IGC would need to determine the complete static call tree for a
-   kernel in order to determine whether it "contains" a call to
-   `programmatic_wait`.
-** CUDA has two types of programmatic launch:
-   `cudaLaunchAttributeProgrammaticStreamSerialization` and
-   `cudaLaunchAttributeProgrammaticEvent`.
-   This extension only provides an equivalent of the first one, but I think we
-   should be prepared to extend this extension in the future to provide an
-   equivalent of `cudaLaunchAttributeProgrammaticEvent` too.
-   If we do that, we will need an opt-in property for this type of programmatic
-   launch.
-   It would be weird if "programmatic serialization" was opt-out but
-   "programmatic event" was opt-in.
-   Therefore, I think we should structure "programmatic serialization" as opt-in
-   now in order to retain consistency with a possible future "programmatic
-   event" launch.
---
-+
-This does not preclude Level Zero from implementing a limited form of
-programmatic serialization by default if we think this is desirable.
-If we decide to do this, it could work as follows.
-If the user launches a kernel *without* the `programmatic_serialization`
-property, Level Zero could still launch the kernel before its predecessor
-kernel completes.
-In this case, Level Zero would behave as though there was an implicit call
-to `programmatic_wait` by each work-item immediately before the work-item
-executes any of the user's code.
-As a result, the launch latency of the kernel would still be overlapped with
-the execution of the predecessor kernel.
-
 * We need document how this extension interacts with graphs.
   The team responsible for the graph extension plans a separate PR which will
   document this interaction in the graph extension specification.
