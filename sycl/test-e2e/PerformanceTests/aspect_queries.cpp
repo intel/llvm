@@ -1,40 +1,29 @@
 // RUN: %{build} -O3 -DSYCL_DISABLE_IMAGE_ASPECT_WARNING=1 -o %t.out
 // RUN: %{run} %t.out
-#include <iostream>
 
-#include <chrono>
+// PERF-DESCRIPTION: Time of one sycl::device::has() call for every aspect.
+
+#include "perf_harness.hpp"
+
 #include <sycl/detail/core.hpp>
 
-struct SimpleTimer {
-  using clock = std::chrono::high_resolution_clock;
-  SimpleTimer() : start(clock::now()) {}
-  ~SimpleTimer() {
-    auto d = std::chrono::duration_cast<std::chrono::nanoseconds>(clock::now() -
-                                                                  start)
-                 .count();
-    std::cout << d << "ns" << " ";
-  }
+int main(int argc, char **argv) {
+  constexpr int Calls = 100;
 
-  std::chrono::time_point<clock> start;
-};
-
-int main() {
-  sycl::device d;
-
-#define ASPECT(A)                                                              \
-  {                                                                            \
-    std::cout << "aspect::" << #A << ": ";                                     \
-    for (int i = 0; i < 10; ++i) {                                             \
-      SimpleTimer t;                                                           \
-      (void)d.has(sycl::aspect::A);                                            \
-    }                                                                          \
-    std::cout << std::endl;                                                    \
-  }
-
-#define __SYCL_ASPECT(A, ID) ASPECT(A)
-#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MSG) __SYCL_ASPECT(ASPECT, ID)
+#define __SYCL_ASPECT(A, ID)                                                   \
+  perf::add_case("has(" #A ")", "ns", [](perf::State &S) {                     \
+    static sycl::device D;                                                     \
+    S.items(Calls);                                                            \
+    S.measure([&] {                                                            \
+      for (int I = 0; I < Calls; ++I)                                          \
+        (void)D.has(sycl::aspect::A);                                          \
+    });                                                                        \
+  });
+#define __SYCL_ASPECT_DEPRECATED(A, ID, MSG) __SYCL_ASPECT(A, ID)
 #include <sycl/info/aspects.def>
 #include <sycl/info/aspects_deprecated.def>
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
+
+  return perf::main(argc, argv);
 }

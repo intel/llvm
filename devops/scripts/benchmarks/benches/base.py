@@ -37,6 +37,7 @@ benchmark_tags = [
     BenchmarkTag("image", "Image processing benchmark"),
     BenchmarkTag("simulation", "Physics or scientific simulation benchmark"),
     BenchmarkTag("pytorch", "Tests workloads close to Pytorch ones"),
+    BenchmarkTag("compile", "Compiler (build) time measurements"),
 ]
 
 benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}

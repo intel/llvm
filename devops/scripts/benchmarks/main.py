@@ -17,6 +17,7 @@ from benches.llamacpp import *
 from benches.umf import *
 from benches.pytorch import PytorchBenchSuite
 from benches.benchdnn import OneDnnBench
+from benches.sycl_perf import SyclPerfSuite
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -288,6 +289,7 @@ def main(directory, additional_env_vars, compare_names, filter, execution_stats)
         PytorchBenchSuite(),
         GromacsBench(),
         OneDnnBench(),
+        SyclPerfSuite(),
     ]
 
     # Collect metadata from all benchmarks without setting them up
@@ -537,6 +539,14 @@ if __name__ == "__main__":
         "OffloadAPI.h in include/offload. The resolved paths are passed as "
         "LIBOFFLOAD_LIBRARY_DIR and LIBOFFLOAD_INCLUDE_DIR.",
         default=options.offload_prefix,
+    )
+    parser.add_argument(
+        "--sycl-perf-tests-dir",
+        type=str,
+        help="Directory with the SYCL E2E PerformanceTests sources for the "
+        "'SYCL Performance Tests' suite. Defaults to "
+        "sycl/test-e2e/PerformanceTests in the checkout containing this script.",
+        default=options.sycl_perf_tests_dir,
     )
     parser.add_argument(
         "--env",
@@ -867,6 +877,10 @@ if __name__ == "__main__":
         options.offload_prefix = offload_prefix
         options.offload_lib_dir = str(candidates[0].parent)
         options.extra_ld_libraries.append(options.offload_lib_dir)
+    if args.sycl_perf_tests_dir is not None:
+        if not os.path.isdir(args.sycl_perf_tests_dir):
+            parser.error("Specified --sycl-perf-tests-dir is not a valid path")
+        options.sycl_perf_tests_dir = os.path.abspath(args.sycl_perf_tests_dir)
     # Initialize GitHub summary tracking
     execution_stats = {
         "total_tests": 0,

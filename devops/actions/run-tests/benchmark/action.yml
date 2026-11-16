@@ -175,9 +175,9 @@ runs:
     env:
       BUILD_REF: ${{ inputs.build_ref }}
     run: |
-      # Update benchmark scripts to build_ref
+      # Update benchmark scripts and the SYCL performance tests they build to build_ref
       git fetch origin "$BUILD_REF"
-      git checkout FETCH_HEAD -- devops/scripts/benchmarks
+      git checkout FETCH_HEAD -- devops/scripts/benchmarks sycl/test-e2e/PerformanceTests
       echo "Benchmark scripts checked out at ref:"
       git -C devops/scripts/benchmarks show FETCH_HEAD --no-patch --format='%H %s'
   - name: Establish results branch, repo path, and workdir

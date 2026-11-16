@@ -1,22 +1,28 @@
-// RUN: %{build} '-DPCH_DIR="%/t.dir"' -O3 -o %t.out
-// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
+// RUN: %{build} -O3 -o %t.out
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out --pch-dir=%/t.dir
 
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
+// PERF-DESCRIPTION: kernel_compiler SYCL build time per headers and PCH mode.
+
+#include "../perf_harness.hpp"
+
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
-#include <chrono>
 #include <filesystem>
-#include <iostream>
+#include <optional>
 #include <sstream>
-#include <string_view>
+#include <string>
+#include <utility>
+#include <vector>
 
-using namespace std::string_view_literals;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-void run(std::vector<std::string_view> ExtraHeaders) {
+enum class PCHMode { None, Auto, Persistent };
+
+void add_cases(std::vector<std::string> ExtraHeaders) {
   std::string preamble = [&]() {
     std::stringstream preamble;
 
@@ -26,18 +32,18 @@ void run(std::vector<std::string_view> ExtraHeaders) {
 #include <sycl/ext/oneapi/kernel_properties.hpp>
 )""";
 
-    for (std::string_view Header : ExtraHeaders)
+    for (const std::string &Header : ExtraHeaders)
       preamble << "#include <" << Header << ">\n";
 
     preamble << "void preamble_stop();\n";
     return preamble.str();
   }();
 
-  // Each iteration will have
+  // Each build will have
   //
-  //   #define VAL <iteration>
+  //   #define VAL <unique number>
   //
-  // between preamble and body
+  // between preamble and body so that in-memory caches miss.
 
   std::string body = R"""(
 namespace syclext = sycl::ext::oneapi;
@@ -51,56 +57,66 @@ void iota(float start, float *ptr) {
 }
 )""";
 
-  sycl::queue q;
+  std::string Headers;
+  for (const std::string &Header : ExtraHeaders)
+    Headers += (Headers.empty() ? "" : " ") + Header;
+  if (Headers.empty())
+    Headers = "<none>";
 
-  auto Run = [&](auto props) {
-    for (int i = 0; i < 5; ++i) {
-      std::string src_str =
-          preamble + "#define VAL " + std::to_string(i) + "\n" + body;
-      auto t1 = std::chrono::high_resolution_clock::now();
-      sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
-          syclexp::create_kernel_bundle_from_source(
-              q.get_context(), syclexp::source_language::sycl, src_str);
-      sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
-          syclexp::build(kb_src, props);
-      auto t2 = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double, std::milli> iter_duration = t2 - t1;
-      std::cout << static_cast<int>(iter_duration.count()) << "ms" << " ";
-    }
-  };
+  for (auto [Mode, ModeName] :
+       {std::pair{PCHMode::None, "none"}, std::pair{PCHMode::Auto, "auto"},
+        std::pair{PCHMode::Persistent, "persistent"}}) {
+    perf::add_case(
+        "create+build, headers=" + Headers + ", pch=" + ModeName, "ms",
+        [=, Mode = Mode](perf::State &S) {
+          static int Counter = 0;
+          static sycl::queue q;
 
-  if (ExtraHeaders.empty())
-    std::cout << "<none> ";
-  for (std::string_view Header : ExtraHeaders)
-    std::cout << Header << " ";
-  std::cout << "| ";
-  Run(syclexp::properties{});
-  std::cout << "| ";
-  Run(syclexp::properties{
-      syclexp::build_options{std::vector<std::string>{"--auto-pch"}}});
-  std::error_code ec;
-  std::filesystem::remove_all(PCH_DIR, ec);
+          std::vector<std::string> Opts;
+          if (Mode == PCHMode::Auto)
+            Opts.push_back("--auto-pch");
+          if (Mode == PCHMode::Persistent) {
+            std::string Dir = perf::arg("pch-dir");
+            // Start from an empty directory so the first (warm-up) build
+            // creates the PCH and the timed ones reuse it.
+            if (S.iteration() == 0) {
+              std::error_code ec;
+              std::filesystem::remove_all(Dir, ec);
+            }
+            Opts.push_back("--persistent-auto-pch=" + Dir);
+          }
 
-  std::cout << "| ";
-  Run(syclexp::properties{syclexp::build_options{
-      std::vector<std::string>{"--persistent-auto-pch=" PCH_DIR}}});
-  std::cout << std::endl;
+          std::string src_str = preamble + "#define VAL " +
+                                std::to_string(Counter++) + "\n" + body;
+          // Kept alive past measure() so destruction isn't timed.
+          std::optional<
+              sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>>
+              kb_src;
+          std::optional<sycl::kernel_bundle<sycl::bundle_state::executable>>
+              kb_exe;
+          S.measure([&] {
+            kb_src = syclexp::create_kernel_bundle_from_source(
+                q.get_context(), syclexp::source_language::sycl, src_str);
+            kb_exe = syclexp::build(
+                *kb_src, syclexp::properties{syclexp::build_options{Opts}});
+          });
+          perf::check(kb_exe->ext_oneapi_has_kernel("iota"),
+                      "built bundle has kernel iota");
+        },
+        perf::Options{1, 5});
+  }
 }
 
 int main(int argc, char **argv) {
-  // So that output could be copy-pasted into GH comments and rendered as a
-  // table:
-  std::cout << "Extra Headers | Without PCH | With Auto-PCH | With Persistent "
-               "Auto-PCH"
-            << std::endl;
-  std::cout << "-|-|-|-" << std::endl;
-  run({});
-  run({"sycl/half_type.hpp"});
-  run({"sycl/ext/oneapi/bfloat16.hpp"});
-  run({"sycl/marray.hpp"});
-  run({"sycl/vector.hpp"});
-  run({"sycl/multi_ptr.hpp"});
-  run({"sycl/builtins.hpp"});
-  run({"sycl/ext/oneapi/matrix/matrix.hpp"});
-  run({"sycl/sycl.hpp"});
+  add_cases({});
+  add_cases({"sycl/half_type.hpp"});
+  add_cases({"sycl/ext/oneapi/bfloat16.hpp"});
+  add_cases({"sycl/marray.hpp"});
+  add_cases({"sycl/vector.hpp"});
+  add_cases({"sycl/multi_ptr.hpp"});
+  add_cases({"sycl/builtins.hpp"});
+  add_cases({"sycl/ext/oneapi/matrix/matrix.hpp"});
+  add_cases({"sycl/sycl.hpp"});
+
+  return perf::main(argc, argv);
 }

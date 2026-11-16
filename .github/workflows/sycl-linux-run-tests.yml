@@ -264,6 +264,7 @@ jobs:
           devops/actions
           devops/scripts
           sycl/cts_exclude_filter
+          sycl/test-e2e/PerformanceTests
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Reset Intel GPU

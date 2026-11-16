@@ -1,5 +1,7 @@
-// RUN: time -f "Elapsed real time: %es" %{build} -fsycl-device-only -fsyntax-only
-// RUN: time -f "Elapsed real time: %es" %{build} -fsycl-device-only -fsyntax-only -DSUBMIT
+// RUN: python3 %S/../perf_compile.py --name "single_task 400 kernels, device syntax-only" -- %{build} -fsycl-device-only -fsyntax-only
+// RUN: python3 %S/../perf_compile.py --name "single_task 400 kernels, device syntax-only, submit" -- %{build} -fsycl-device-only -fsyntax-only -DSUBMIT
+
+// PERF-DESCRIPTION: Device compile time of 400 template-heavy single_tasks.
 
 #include <sycl/detail/core.hpp>
 

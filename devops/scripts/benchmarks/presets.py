@@ -14,6 +14,7 @@ presets: dict[str, list[str]] = {
         # "Gromacs Bench",
         # "llama.cpp bench",
         "SYCL-Bench",
+        "SYCL Performance Tests",
         "Velocity Bench",
         "UMF",
     ],
@@ -21,6 +22,7 @@ presets: dict[str, list[str]] = {
         "Compute Benchmarks",
         # "llama.cpp bench",
         "SYCL-Bench",
+        "SYCL Performance Tests",
         "Velocity Bench",
     ],
     "Minimal": [
@@ -47,6 +49,9 @@ presets: dict[str, list[str]] = {
     ],
     "Pytorch": [
         "PyTorch Benchmarks",
+    ],
+    "SYCLPerf": [
+        "SYCL Performance Tests",
     ],
 }
 

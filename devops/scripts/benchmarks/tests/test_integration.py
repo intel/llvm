@@ -5,6 +5,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,14 @@ VERBOSE_LOGS = False
 # LLVM install prefix providing liboffload, passed as --offload-prefix to
 # every case. OFFLOAD (ol) tests are skipped when it's not set.
 OFFLOAD_PREFIX = os.environ.get("OFFLOAD_PREFIX")
+
+# Results of the "SYCL Performance Tests" suite (sycl/test-e2e/PerformanceTests).
+# Runtime: label = "<benchmark name> <case>"; compile: label = benchmark name.
+SYCL_PERF_RUNTIME_BENCH = "sycl_perf aspect_queries"
+SYCL_PERF_RUNTIME_LABEL = "sycl_perf aspect_queries has(fp64)"
+SYCL_PERF_RUNTIME_GROUP = "aspect_queries"
+SYCL_PERF_COMPILE_LABEL = "sycl_compile core.hpp, device syntax-only"
+SYCL_PERF_COMPILE_GROUP = "CompileTime/core_hpp"
 
 
 def skipIfNoOffload(test):
@@ -68,7 +77,7 @@ class App:
             if d is not None:
                 shutil.rmtree(d, ignore_errors=True)
 
-    def run_main(self, *args) -> subprocess.CompletedProcess:
+    def run_main(self, *args, preset: str = "Minimal") -> subprocess.CompletedProcess:
 
         # TODO: not yet tested: "--detect-version", "sycl,compute_runtime"
         extra_args = []
@@ -88,7 +97,7 @@ class App:
                 "--output-dir",
                 self.OUTPUT_DIR,
                 "--preset",
-                "Minimal",
+                preset,
                 "--stddev-threshold",
                 "999999999.9",
                 "--iterations",
@@ -192,10 +201,21 @@ class TestE2E(unittest.TestCase):
         groupName: str,
         tags: set[str],
         expected_in_output: str = None,
+        preset: str = "Minimal",
+        benchName: str = None,
     ):
-        print(f"\n  [checkCase] filter='{caseName}$'")
+        """Run the benchmark producing result caseName and check its metadata.
+
+        benchName is the benchmark's name() when it differs from the result
+        label (e.g. a benchmark producing one result per case). It is matched
+        literally, while caseName is used as a regex.
+        """
+        filter = re.escape(benchName) + "$" if benchName else caseName + "$"
+        print(f"\n  [checkCase] filter='{filter}'")
         offload_args = ["--offload-prefix", OFFLOAD_PREFIX] if OFFLOAD_PREFIX else []
-        return_proc = self.app.run_main("--filter", caseName + "$", *offload_args)
+        return_proc = self.app.run_main(
+            "--filter", filter, *offload_args, preset=preset
+        )
         if return_proc.returncode != 0:
             print("  [checkCase] FAILED.")
         self.assertEqual(return_proc.returncode, 0, "Subprocess did not exit cleanly")
@@ -206,9 +226,10 @@ class TestE2E(unittest.TestCase):
         out = self.app.get_benchmark_output_data()
         self._checkResultsExist(caseName, out)
 
-        metadata = out.metadata[caseName]
+        metadata = out.metadata[benchName or caseName]
         self.assertEqual(set(metadata.tags), tags)
         self._checkGroup(groupName, metadata, out)
+        return out
 
     def test_record_and_replay(self):
         self._checkCase(
@@ -252,6 +273,25 @@ class TestE2E(unittest.TestCase):
             "UsmFillImmediate Device, small fill",
             {"memory", "latency", "L0", "micro"},
         )
+
+    def test_sycl_perf_runtime(self):
+        self._checkCase(
+            SYCL_PERF_RUNTIME_LABEL,
+            SYCL_PERF_RUNTIME_GROUP,
+            {"SYCL", "micro", "latency"},
+            preset="SYCLPerf",
+            benchName=SYCL_PERF_RUNTIME_BENCH,
+        )
+
+    def test_sycl_perf_compile(self):
+        out = self._checkCase(
+            SYCL_PERF_COMPILE_LABEL,
+            SYCL_PERF_COMPILE_GROUP,
+            {"SYCL", "compile"},
+            preset="SYCLPerf",
+            benchName=SYCL_PERF_COMPILE_LABEL,
+        )
+        self._checkResultsExist(SYCL_PERF_COMPILE_LABEL + ", CPU time", out)
 
     @skipIfNoOffload
     def test_submit_kernel_ol(self):
