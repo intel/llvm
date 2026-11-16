@@ -367,12 +367,12 @@ int main() {
   sycl::nd_range<1> ndr{GLOBAL, LOCAL};
 
   // Launch the first kernel in the programmatic serialization pair.
-  syclex::nd_launch(q, ndr, syclex::kernel_function<primary>, /*args*/);
+  syclex::nd_launch(q, ndr, syclex::kernel_function<primary> /*, args*/);
 
   // Launch the second kernel in the programmatic serialization pair.
   syclex::launch_config cfg{ndr,
                             syclex::properties{syclex::programmatic_serialization{}}};
-  syclex::nd_launch(q, cfg, syclex::kernel_function<dependent>, /*args*/);
+  syclex::nd_launch(q, cfg, syclex::kernel_function<dependent> /*, args*/);
 }
 ----
 
@@ -427,4 +427,6 @@ executes any of the user's code.
 As a result, the launch latency of the kernel would still be overlapped with
 the execution of the predecessor kernel.
 
-* How do these APIs interact with graphs?
+* We need document how this extension interacts with graphs.
+  The team responsible for the graph extension plans a separate PR which will
+  document this interaction in the graph extension specification.
