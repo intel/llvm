@@ -254,8 +254,8 @@ private:
   }
 };
 
-inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
-                                           std::string name,
+inline std::unique_ptr<Sink> sink_from_str(const std::string &logger_name,
+                                           const std::string &name,
                                            filesystem::path file_path = "",
                                            bool skip_prefix = false,
                                            bool skip_linebreak = false) {

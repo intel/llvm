@@ -28,7 +28,7 @@ inline constexpr auto level_to_str(ur_logger_level_t level) {
   }
 }
 
-inline auto str_to_level(std::string name) {
+inline auto str_to_level(const std::string &name) {
   struct level_name {
     std::string name;
     ur_logger_level_t level;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate clang-offload-bundler-magic-collision.co.
+"""Regenerate magic-collision.co.
 
 This input reproduces a magic-byte collision in the compressed offload bundle
 (CCOB) reader. The reader used to find the boundary between concatenated
@@ -18,7 +18,7 @@ that advances by FileSize handles this file correctly; a reader that scans for
 "CCOB" truncates and fails.
 
 Usage:
-  clang-offload-bundler-magic-collision.py <clang-offload-bundler> [output.co]
+  magic-collision.py <clang-offload-bundler> [output.co]
 """
 
 import os
@@ -41,7 +41,7 @@ def main():
         if len(sys.argv) > 2
         else os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            "clang-offload-bundler-magic-collision.co",
+            "magic-collision.co",
         )
     )
 

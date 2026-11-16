@@ -12,7 +12,10 @@
 #include <fstream>
 #include <mutex> // std::mutex, std::unique_lock
 #include <numeric>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #if GRAPH_TESTS_VERBOSE_PRINT
 #include <chrono>
@@ -450,6 +453,43 @@ private:
   std::condition_variable cv;
   std::size_t threadNum;
 };
+
+/// Creates a graph for the context and device of Q, with native recording
+/// enabled if GRAPH_E2E_NATIVE_RECORDING is defined before this header is
+/// included.
+inline exp_ext::command_graph<> makeTestGraph(const queue &Q) {
+#ifdef GRAPH_E2E_NATIVE_RECORDING
+  return exp_ext::command_graph<>{
+      Q.get_context(),
+      Q.get_device(),
+      {exp_ext::property::graph::enable_native_recording{}}};
+#else
+  return exp_ext::command_graph<>{Q.get_context(), Q.get_device()};
+#endif
+}
+
+/// Events a submission to Q needs to run after Prev. In-order queues order
+/// submissions implicitly, so none are returned and tests exercise that
+/// implicit ordering rather than masking it with explicit dependencies.
+inline std::vector<event> orderAfter(const queue &Q, const event &Prev) {
+  if (Q.is_in_order())
+    return {};
+  return {Prev};
+}
+
+/// Queue properties selected by the test's first argument, "in_order" or
+/// "out_of_order", so each ordering gets its own RUN line. Asserts on anything
+/// else so a typo can't silently test the wrong ordering.
+inline property_list queuePropsFromArgs(int argc, char **argv) {
+  const std::string_view Ordering = argc > 1 ? argv[1] : "";
+  if (Ordering == "in_order")
+    return {property::queue::in_order{}};
+  if (Ordering != "out_of_order") {
+    std::cerr << "usage: " << argv[0] << " in_order|out_of_order" << std::endl;
+    assert(false && "Unknown queue ordering");
+  }
+  return {};
+}
 
 // Verify recording states of one or more queues
 template <size_t N> class QueueStateVerifier {

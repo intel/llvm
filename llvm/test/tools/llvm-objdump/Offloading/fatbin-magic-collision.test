@@ -8,7 +8,7 @@
 ## compressed region embeds the bytes "CCOB" inside a zstd skippable frame
 ## (ignored by the decompressor); a reader that advances by the header's FileSize
 ## handles it correctly. Regenerate the bundle with
-## clang/test/Driver/Inputs/clang-offload-bundler-magic-collision.py.
+## clang/test/OffloadTools/clang-offload-bundler/Inputs/magic-collision.py.
 
 # REQUIRES: zstd
 # RUN: yaml2obj %s -o %t.elf
