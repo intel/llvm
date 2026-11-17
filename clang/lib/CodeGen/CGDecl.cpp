@@ -513,19 +513,18 @@ void CodeGenFunction::EmitWorkGroupScopeVarDecl(const VarDecl &D) {
     // work_group_static storage, zero-initialized like a static object.
     GV->setInitializer(CGM.EmitNullConstant(D.getType()));
     break;
-  case CGSYCLRuntime::WorkGroupVarKind::HoistedAutomatic:
-    {
-      // PFWG local: shared by the work group but with automatic storage duration,
-      // so it is initialized and destroyed every time its scope is entered and
-      // exited.
-      AutoVarEmission Emission(D);
-      Emission.Addr = GetAddrOfLocalVar(&D);
-      EmitAutoVarInit(Emission);
-      EmitAutoVarCleanups(Emission);
-    }
+  case CGSYCLRuntime::WorkGroupVarKind::HoistedAutomatic: {
+    // PFWG local: shared by the work group but with automatic storage duration,
+    // so it is initialized and destroyed every time its scope is entered and
+    // exited.
+    AutoVarEmission Emission(D);
+    Emission.Addr = GetAddrOfLocalVar(&D);
+    EmitAutoVarInit(Emission);
+    EmitAutoVarCleanups(Emission);
     // The variable is initialized by stores, so it cannot be a constant.
     GV->setConstant(false);
     break;
+  }
   default:
     llvm_unreachable("This function should only be called with a work group "
                      "scoped variable");
