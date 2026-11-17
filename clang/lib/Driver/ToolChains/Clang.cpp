@@ -10822,7 +10822,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfoList &Inputs,
                                   const llvm::opt::ArgList &TCArgs,
                                   const char *LinkingOutput) const {
-  // Construct offload-wrapper command.  Also calls llc to generate the
+  // Construct offload-wrapper command.  Also calls clang to generate the
   // object that is fed to the linker from the wrapper generated bc file
   assert(isa<OffloadWrapperJobAction>(JA) && "Expecting wrapping job!");
 
