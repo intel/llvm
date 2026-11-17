@@ -11,6 +11,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/device_filter.hpp>
 
+#include <cassert>
 #include <cstring>
 #include <sstream>
 #include <string_view>
@@ -23,10 +24,13 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
                                        const std::string &Delim,
                                        bool ProhibitEmptyTokens = false) {
   std::vector<std::string_view> Tokens;
-  size_t Pos = 0;
   size_t LastPos = 0;
 
-  while ((Pos = Filter.find(Delim, LastPos)) != std::string::npos) {
+  while (true) {
+    const size_t Pos = Filter.find(Delim, LastPos);
+    if (Pos == std::string_view::npos)
+      break;
+    assert(Pos >= LastPos && "find() returned a position before LastPos");
     std::string_view Tok(Filter.data() + LastPos, (Pos - LastPos));
 
     if (!Tok.empty()) {
