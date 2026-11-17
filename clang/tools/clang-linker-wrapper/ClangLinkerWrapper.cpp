@@ -930,7 +930,7 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
 getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
-                             const llvm::Triple Triple) {
+                             const llvm::Triple Triple, StringRef Arch) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
@@ -941,7 +941,7 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
             : "-spirv-allow-unknown-intrinsics=llvm.genx.");
 
   // Disable all the extensions by default
-  static constexpr char ExtArg[] =
+  static const std::string BaseExtArg =
       "-spirv-ext=-all"
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
@@ -971,7 +971,13 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
       ",+SPV_INTEL_fp_max_error"
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
-  TranslatorArgs.push_back(ExtArg);
+
+  // Function-local statics: initialized once, thread-safe, and outlive the
+  // StringRefs stored in TranslatorArgs.
+  static const std::string CRIExtArg =
+      BaseExtArg + ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
+  TranslatorArgs.push_back(
+      llvm::offloading::supportsBFloat16(Arch) ? CRIExtArg : BaseExtArg);
 }
 
 /// Run LLVM to SPIR-V translation.
@@ -989,7 +995,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getTripleBasedSPIRVTransOpts(CmdArgs, Triple);
+  getTripleBasedSPIRVTransOpts(CmdArgs, Triple,
+                               Args.getLastArgValue(OPT_arch_EQ));
   for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ))
     CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");
