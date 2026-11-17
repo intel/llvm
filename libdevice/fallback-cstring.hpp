@@ -11,7 +11,7 @@
 #include <cstdint>
 
 #ifdef __LIBDEVICE_TARGET_SUPPORT
-
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 static void *__devicelib_memcpy_uint8_aligned(void *dest, const void *src,
                                               size_t n) {
   if (dest == NULL || src == NULL || n == 0)
@@ -200,4 +200,5 @@ static inline int __devicelib_memcmp(const void *s1, const void *s2, size_t n) {
 
   return head_cmp;
 }
+#endif // !__SPIR__ && !__SPIRV__
 #endif // __LIBDEVICE_TARGET_SUPPORT

@@ -77,7 +77,6 @@ class ComputeBenchmark(Benchmark):
         parsed_results = self.__parse_output(result)
         ret = []
         for median, stddev in parsed_results:
-            unit = "instr" if self._profiler_type == PROFILERS.CPU_COUNTER else "μs"
             ret.append(
                 Result(
                     label=self.name(),
@@ -85,7 +84,7 @@ class ComputeBenchmark(Benchmark):
                     stddev=stddev,
                     command=command,
                     env=env_vars,
-                    unit=unit,
+                    unit=self._unit(),
                     git_url=self._suite.git_url(),
                     git_hash=self._suite.git_hash(),
                 )
@@ -133,6 +132,10 @@ class ComputeBenchmark(Benchmark):
 
     def _extra_env_vars(self) -> dict:
         return {}
+
+    def _unit(self) -> str:
+        """Unit of the reported values, can be overridden."""
+        return "instr" if self._profiler_type == PROFILERS.CPU_COUNTER else "μs"
 
     def _bin_args(self, flamegraph_enabled: bool = False) -> list[str]:
         # Subclasses must implement this and include all flags except --iterations;

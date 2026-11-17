@@ -27,6 +27,9 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
+#include <llvm/Support/VirtualFileSystem.h>
+
+#include <optional>
 
 namespace llvm {
 class TargetMachine;
@@ -48,7 +51,9 @@ class PassMachinery {
 public:
   PassMachinery(llvm::LLVMContext &Ctx, llvm::TargetMachine *TM,
                 bool VerifyEach = false,
-                DebugLogging debugLogLevel = DebugLogging::None);
+                DebugLogging debugLogLevel = DebugLogging::None,
+                llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS =
+                    llvm::vfs::getRealFileSystem());
 
   virtual ~PassMachinery();
 
@@ -99,15 +104,20 @@ public:
   llvm::FunctionAnalysisManager &getFAM() { return FAM; }
   const llvm::FunctionAnalysisManager &getFAM() const { return FAM; }
 
-  llvm::PassBuilder &getPB() { return PB; }
-  const llvm::PassBuilder &getPB() const { return PB; }
+  llvm::PassBuilder &getPB() { return *PB; }
+  const llvm::PassBuilder &getPB() const { return *PB; }
 
   llvm::TargetMachine *getTM() { return TM; }
   const llvm::TargetMachine *getTM() const { return TM; }
 
 protected:
+  /// @brief LLVMContext the PassBuilder reads library options from. Must
+  /// outlive this object.
+  llvm::LLVMContext &LLVMCtx;
   /// @brief TargetMachine to be used for passes. May be nullptr.
   llvm::TargetMachine *TM;
+  /// @brief File system used by the PassBuilder. Must be declared before PB.
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
   // Note: the order here is important! They must be destructed in this order.
   /// @brief Holds state for Loop analyses.
   llvm::LoopAnalysisManager LAM;
@@ -121,8 +131,9 @@ protected:
   std::unique_ptr<llvm::StandardInstrumentations> SI;
   /// @brief Provides an interface to register callbacks.
   llvm::PassInstrumentationCallbacks PIC;
-  /// @brief Helper to build and parse pass pipelines.
-  llvm::PassBuilder PB;
+  /// @brief Helper to build and parse pass pipelines. Set by initializeStart;
+  /// PassBuilder is not assignable.
+  std::optional<llvm::PassBuilder> PB;
 };
 
 /// Helper functions for pass printing.

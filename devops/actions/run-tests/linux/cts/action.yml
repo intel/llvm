@@ -124,7 +124,9 @@ runs:
       if [ -f "$cts_exclude_filter" ]; then
         while IFS= read -r line; do
           if [[ $line != \#* ]]; then
-            rm "./build-cts/bin/test_$line"
+            # Not every configuration builds every category, so the binary a
+            # filter names may legitimately be absent.
+            rm -f "./build-cts/bin/test_$line"
           fi
         done < "$cts_exclude_filter"
       fi

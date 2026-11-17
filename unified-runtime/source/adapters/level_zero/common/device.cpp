@@ -113,23 +113,17 @@ ur_result_t urDeviceGet(
   std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
   bool DeviceDefaultGPU = false;
 
-  bool isCombinedMode =
-      std::any_of(Platform->URDevicesCache.begin(),
-                  Platform->URDevicesCache.end(), [](const auto &D) {
-                    if (D->isSubDevice())
-                      return false;
-                    ze_device_handle_t RootDev = nullptr;
-                    // Query Root Device for root-devices.
-                    // We cannot use ZE2UR_CALL because under some circumstances
-                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
-                    // and ZE2UR_CALL will abort because it's not
-                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
-                    // check manually that the result is either
-                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
-                                                (D->ZeDevice, &RootDev));
-                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
-                  });
+  bool isCombinedMode = false;
+  for (const auto &D : Platform->URDevicesCache) {
+    if (D->isSubDevice())
+      continue;
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Platform->getRootDevice(D->ZeDevice, &RootDev));
+    if (RootDev != nullptr) {
+      isCombinedMode = true;
+      break;
+    }
+  }
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -241,6 +235,15 @@ supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
   std::ignore = Platform;
   return false;
 #endif
+}
+
+static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
+  constexpr const char *ExtensionName = UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
 }
 
 static std::optional<uint64_t>
@@ -1215,15 +1218,11 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
-    ur_device_handle_t UrRootDev = nullptr;
-    ze_device_handle_t DevHandle = Device->ZeDevice;
-    ze_device_handle_t RootDev;
-    // Query Root Device.
-    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (DevHandle, &RootDev));
-    UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
-    if (errc != ZE_RESULT_SUCCESS &&
-        errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-      return ze2urResult(errc);
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Device->Platform->getRootDevice(Device->ZeDevice, &RootDev));
+    ur_device_handle_t UrRootDev =
+        RootDev ? Device->Platform->getDeviceFromNativeHandle(RootDev)
+                : nullptr;
     return ReturnValue(UrRootDev);
   }
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
@@ -1636,11 +1635,26 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     return ReturnValue(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
-  // TODO: Level Zero does not report IGCA yet. Report the queries as
-  // unsupported until an extension to zeDeviceGetProperties exposes it.
   case UR_DEVICE_INFO_IGCA_TARGET:
-  case UR_DEVICE_INFO_IGCA_FEATURE_SET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
+    if (supportsDeviceIgcaTargetExtension(Device->Platform)) {
+      const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
+      // A device implementing no IGCA feature set has no IGCA target.
+      if (IgcaProperties.featureSets != 0) {
+        if (ParamName == UR_DEVICE_INFO_IGCA_TARGET)
+          return ReturnValue(uint32_t{IgcaProperties.target});
+
+        ur_device_igca_feature_flags_t FeatureSets = 0;
+        if (IgcaProperties.featureSets &
+            UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_COMPUTE)
+          FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+        if (IgcaProperties.featureSets & UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER)
+          FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+        return ReturnValue(FeatureSets);
+      }
+    }
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -2136,6 +2150,22 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         if (ZeResult != ZE_RESULT_SUCCESS)
           UR_LOG(DEBUG,
                  "zeDeviceGetModuleProperties failed to query float atomic "
+                 "properties, error code: {}",
+                 ZeResult);
+      };
+
+  ZeDeviceIgcaTargetProperties.Compute =
+      [ZeDevice, Platform = Platform](
+          ZexStruct<ur_ze_device_igca_target_ext_properties_t> &Properties) {
+        if (!supportsDeviceIgcaTargetExtension(Platform))
+          return; // leave the target and the feature sets zero-initialized
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query the IGCA target "
                  "properties, error code: {}",
                  ZeResult);
       };

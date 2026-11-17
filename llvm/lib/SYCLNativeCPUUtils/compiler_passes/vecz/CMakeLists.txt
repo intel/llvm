@@ -29,6 +29,7 @@ set(COMMON_SRCS
   ${VECZ_PRIVATE_INCLUDE_DIR}/transform/scalarization_pass.h
   ${VECZ_PRIVATE_INCLUDE_DIR}/transform/scalarizer.h
   ${VECZ_PRIVATE_INCLUDE_DIR}/transform/ternary_transform_pass.h
+  ${VECZ_PRIVATE_INCLUDE_DIR}/transform/unify_function_exit_nodes_pass.h
   ${VECZ_PRIVATE_INCLUDE_DIR}/control_flow_boscc.h
   ${VECZ_PRIVATE_INCLUDE_DIR}/control_flow_roscc.h
   ${VECZ_PRIVATE_INCLUDE_DIR}/debugging.h
@@ -74,6 +75,7 @@ set(COMMON_SRCS
   ${VECZ_PRIVATE_SOURCE_DIR}/transform/simplify_infinite_loop_pass.cpp
   ${VECZ_PRIVATE_SOURCE_DIR}/transform/squash_small_vectors_pass.cpp
   ${VECZ_PRIVATE_SOURCE_DIR}/transform/ternary_transform_pass.cpp
+  ${VECZ_PRIVATE_SOURCE_DIR}/transform/unify_function_exit_nodes_pass.cpp
   ${VECZ_PRIVATE_SOURCE_DIR}/transform/uniform_reassociation_pass.cpp
   ${VECZ_PRIVATE_SOURCE_DIR}/control_flow_boscc.cpp
   ${VECZ_PRIVATE_SOURCE_DIR}/control_flow_roscc.cpp

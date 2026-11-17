@@ -38,6 +38,8 @@ int main() {
     cl_command_queue cq = get_native<backend::opencl>(Queue);
     device dev = Queue.get_device();
     bool expected_result = isQueueInOrder(cq);
+    const cl_int ReleaseResult = clReleaseCommandQueue(cq);
+    assert(ReleaseResult == CL_SUCCESS);
 
     if (expected_result != result) {
       std::cout << "Resulting queue order is OOO but expected order is inorder"

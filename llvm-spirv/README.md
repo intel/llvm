@@ -96,8 +96,8 @@ Building clang from sources takes time and resources and it can be avoided:
 
 ### Build with SPIRV-Tools
 
-The translator can use [SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools) to generate assembly with widely adopted syntax.
-This feature can be enabled by passing `-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=ON` option.
+The translator can use [SPIRV-Tools](https://github.com/KhronosGroup/SPIRV-Tools) to generate assembly with widely adopted syntax, or to validate SPIR-V before reverse translation.
+These features can be enabled with `-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=ON` and `-DLLVM_SPIRV_ENABLE_LIBSPIRV_VAL=ON`, respectively.
 If SPIRV-Tools have been installed prior to the build it will be detected and
 used automatically. However it is also possible to enable use of SPIRV-Tools
 from a custom location using the following instructions:

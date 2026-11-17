@@ -16,6 +16,8 @@
 // FileCheck: piping loses output from this slow/large-input invocation
 // under lit's internal shell.
 // UNSUPPORTED: system-windows
+// The link runs the old offload model device tools.
+// REQUIRES: llvm-spirv, sycl-post-link, file-table-tform, spirv-to-ir-wrapper
 
 // RUN: %python -c "open(r'%t-big.o', 'wb').truncate(1100000000)"
 // RUN: %python -c "open(r'%t-small.o', 'wb').truncate(1000)"

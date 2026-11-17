@@ -549,7 +549,7 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void enqueueUnblockedCommands(events_range ToEnqueue,
+  static void retryEnqueueBlockedUsers(events_range ToEnqueue,
                                        ReadLockT &GraphReadLock,
                                        std::vector<Command *> &ToCleanUp);
 

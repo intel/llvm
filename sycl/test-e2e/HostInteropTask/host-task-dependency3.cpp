@@ -4,9 +4,6 @@
 
 // RUN: %{run} %t.out 10
 
-// UNSUPPORTED: hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17235
-
 #include <chrono>
 #include <iostream>
 #include <sycl/detail/core.hpp>

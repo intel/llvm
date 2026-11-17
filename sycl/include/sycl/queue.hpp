@@ -16,6 +16,7 @@
 #include <sycl/buffer.hpp>                    // for buffer
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
+#include <sycl/detail/defines.hpp>            // for __SYCL_STANDALONE_DEBUG
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/kernel_arg_view.hpp>    // for KernelArgView
@@ -210,21 +211,26 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr::property {
 namespace key {
-struct enable_profiling : detail::runtime_property_key {};
-struct in_order : detail::runtime_property_key {};
+struct enable_profiling : detail::runtime_property_key<enable_profiling> {};
+struct in_order : detail::runtime_property_key<in_order> {};
 } // namespace key
 
-struct enable_profiling : detail::runtime_property<key::enable_profiling> {
-  constexpr enable_profiling(bool v = true) : value{v} {}
+struct enable_profiling
+    : detail::runtime_property<enable_profiling, key::enable_profiling> {
+  constexpr enable_profiling() : value{true} {}
+  constexpr explicit enable_profiling(bool v) : value{v} {}
   bool value;
 };
-struct in_order : detail::runtime_property<key::in_order> {
-  constexpr in_order(bool v = true) : value{v} {}
+struct in_order : detail::runtime_property<in_order, key::in_order> {
+  constexpr in_order() : value{true} {}
+  constexpr explicit in_order(bool v) : value{v} {}
   bool value;
 };
 } // namespace khr::property
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
+// Keep the full definition in every -g TU: the public ctors all delegate into
+// libsycl, so constructor homing would otherwise leave gdb a forward decl.
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
 /// A SYCL queue can be used to submit command groups to be executed by the SYCL
@@ -236,7 +242,8 @@ struct in_order : detail::runtime_property<key::in_order> {
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT queue
+    : public detail::OwnerLessBase<queue> {
   friend sycl::detail::ImplUtils;
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS

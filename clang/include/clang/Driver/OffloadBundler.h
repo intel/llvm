@@ -99,6 +99,14 @@ struct OffloadTargetInfo {
 
 llvm::Expected<bool> CheckBundledSection(const OffloadBundlerConfig&);
 
+/// Checks if a code object \p CodeObjectInfo is compatible with a given
+/// target \p TargetInfo, see
+/// https://clang.llvm.org/docs/ClangOffloadBundler.html#bundle-entry-id.
+/// In addition, a SYCL code object without a target ID is compatible with
+/// any target ID of the same triple, and the other way around.
+bool isCodeObjectCompatible(const OffloadTargetInfo &CodeObjectInfo,
+                            const OffloadTargetInfo &TargetInfo);
+
 /// Check whether the bundle id is in the following format:
 /// <kind>-<triple>[-<target id>[:target features]]
 /// <triple> := <arch>-<vendor>-<os>-<env>

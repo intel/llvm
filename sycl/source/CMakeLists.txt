@@ -41,6 +41,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     HAS_INST_AFTER_SPEC)
   check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS_FLAG)
   check_cxx_compiler_flag(-fdata-sections HAS_DATA_SECTIONS_FLAG)
+  # GCC 16 warns about std::reference_wrapper of forward-declared *_impl
+  # classes; this is harmless as they have no nested typedefs it checks for.
+  # Check the positive form since GCC accepts any unknown -Wno-* flag.
+  check_cxx_compiler_flag(-Wsfinae-incomplete HAS_SFINAE_INCOMPLETE_WARNING)
 
   target_compile_options(
     ${LIB_OBJ_NAME}
@@ -49,6 +53,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       $<$<BOOL:${HAS_INST_AFTER_SPEC}>:-Winstantiation-after-specialization>
       $<$<BOOL:${HAS_FUNCTION_SECTIONS_FLAG}>:-ffunction-sections>
       $<$<BOOL:${HAS_DATA_SECTIONS_FLAG}>:-fdata-sections>
+      $<$<BOOL:${HAS_SFINAE_INCOMPLETE_WARNING}>:-Wno-sfinae-incomplete>
     PUBLIC
       $<$<NOT:$<BOOL:${MSVC}>>:-fvisibility=hidden -fvisibility-inlines-hidden>
       # Sycl math built-in macros cause a GCC 4.6 'note' to be output

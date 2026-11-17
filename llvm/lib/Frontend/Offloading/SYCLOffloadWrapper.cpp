@@ -16,6 +16,7 @@
 
 #include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -794,6 +795,12 @@ struct Wrapper {
 Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          const SmallVector<SYCLImage> &Images,
                                          SYCLWrappingOptions Options) {
+  if (llvm::all_of(Images, [](const SYCLImage &Image) {
+        return Image.Image->getBufferSize() == 0 &&
+               !Triple(Image.Target).isNativeCPU();
+      }))
+    return Error::success();
+
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)
@@ -853,9 +860,10 @@ llvm::offloading::readSYCLImages(MemoryBufferRef Buffer) {
     if (!PropertiesOrErr)
       return PropertiesOrErr.takeError();
 
-    SYCLImage Image(MemoryBuffer::getMemBuffer(
-                        Binary->getImage(), Buffer.getBufferIdentifier(),
-                        /*RequiresNullTerminator=*/false),
+    // The storage behind getImage() is owned by the OffloadBinary objects,
+    // which are destroyed when this function returns, so copy the image.
+    SYCLImage Image(MemoryBuffer::getMemBufferCopy(
+                        Binary->getImage(), Buffer.getBufferIdentifier()),
                     **PropertiesOrErr, Binary->getString(EntriesKey),
                     Binary->getString(TargetKey),
                     Binary->getString(CompileOptionsKey),
