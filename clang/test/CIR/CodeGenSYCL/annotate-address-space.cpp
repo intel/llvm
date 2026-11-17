@@ -21,7 +21,10 @@
 // table's address space.
 // LLVM-DAG: @llvm.global.annotations = appending addrspace(1) global [2 x { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }] [{ ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) } { ptr addrspace(1) @g, ptr addrspace(1) [[GLOBAL]], ptr addrspace(1) [[FILE]], i32 {{[0-9]+}}, ptr addrspace(1) null }, { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) } { ptr addrspace(1) addrspacecast (ptr @_Z3usei to ptr addrspace(1)), ptr addrspace(1) [[FUNC]], ptr addrspace(1) [[FILE]], i32 {{[0-9]+}}, ptr addrspace(1) null }], section "llvm.metadata"
 
-int g __attribute__((annotate("on_global")));
+// sycl-web rejects uses of non-const globals in SYCL device code
+// (err_sycl_restrict), so g is const volatile to keep it referenced and
+// emitted.
+const volatile int g __attribute__((annotate("on_global"))) = 5;
 
 [[clang::sycl_external]] __attribute__((annotate("on_func"))) int use(int p __attribute__((annotate("on_param")))) {
   int x __attribute__((annotate("on_local", 7)));
