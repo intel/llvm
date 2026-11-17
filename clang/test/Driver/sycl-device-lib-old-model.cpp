@@ -132,6 +132,21 @@
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libc.bc"
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: "{{.*}}libclang_rt.builtins.bc"
 
+/// ###########################################################################
+/// test behavior of linking libsycl-asan-dg2 for BMG target AOT compilation when asan flag is applied.
+/// BMG has the same device USM address layout as DG2, so it shares the DG2 library.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g21 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_1_4 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
+
+/// BMG G31 has not been validated with the DG2 library yet, so it still uses
+/// the fallback JIT ASAN device library.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g31 --no-offload-new-driver %s -ccc-install-dir %{clang_install_dir} -resource-dir=%{resource_dir} \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN
+
 
 /// ###########################################################################
 /// test behavior of libsycl-msan.bc linking when -fsanitize=memory is available

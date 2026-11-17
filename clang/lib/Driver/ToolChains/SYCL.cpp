@@ -581,7 +581,12 @@ static void addSYCLDeviceSanitizerLibs(
     if (GenDevice == "pvc")
       return AOT_PVC;
 
-    if (GenDevice == "dg2" || GenDevice.starts_with("acm_g"))
+    // BMG has the same device USM virtual address layout as DG2, and the
+    // sanitizer runtime detects it as a DG2 device, so it shares the DG2
+    // library.
+    // TODO: Add bmg_g31 once it has been validated.
+    if (GenDevice == "dg2" || GenDevice.starts_with("acm_g") ||
+        GenDevice == "bmg" || GenDevice == "bmg_g21")
       return AOT_DG2;
 
     if (SYCLTargetStr.starts_with("spir64_gen")) {
