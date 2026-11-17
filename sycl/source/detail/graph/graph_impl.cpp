@@ -961,7 +961,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   const bool xptiEnabled = xptiTraceEnabled();
-  xpti_td *CmdTraceEvent = nullptr;
+  sycl::detail::XPTIEventPtr CmdTraceEvent;
   uint64_t InstanceID = 0;
   uint8_t StreamID = 0;
   if (xptiEnabled) {
@@ -976,8 +976,9 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
         CGExec->MDeviceKernelInfo, nullptr, CGExec->MNDRDesc,
         CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
-      sycl::detail::emitInstrumentationGeneral(
-          StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+      sycl::detail::emitInstrumentationGeneral(StreamID, InstanceID,
+                                               CmdTraceEvent.get(),
+                                               xpti::trace_task_begin, nullptr);
   }
 #endif
 
@@ -998,8 +999,9 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiEnabled && CmdTraceEvent)
-    sycl::detail::emitInstrumentationGeneral(
-        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
+    sycl::detail::emitInstrumentationGeneral(StreamID, InstanceID,
+                                             CmdTraceEvent.get(),
+                                             xpti::trace_task_end, nullptr);
 #endif
 
   // Linear (in-order) graphs do not return a sync point as the dependencies of

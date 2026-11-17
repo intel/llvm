@@ -690,7 +690,14 @@ private:
 // Method used to emit data in cases when we do not create node in graph.
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
+struct XPTIEventDeleter {
+  void operator()(xpti_td *Event) const;
+};
+using XPTIEventPtr = std::unique_ptr<xpti_td, XPTIEventDeleter>;
+
+// The caller owns the event through the final enqueue notification. Separate
+// events keep per-submission metadata independent across concurrent enqueues.
+std::pair<XPTIEventPtr, uint64_t> emitKernelInstrumentationData(
     xpti::stream_id_t StreamID, const kernel_impl *SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,

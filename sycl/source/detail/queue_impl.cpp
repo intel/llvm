@@ -420,7 +420,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 
   auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    xpti_td *CmdTraceEvent = nullptr;
+    XPTIEventPtr CmdTraceEvent;
     uint64_t InstanceID = 0;
     uint8_t StreamID = 0;
     // Only enable instrumentation if there are subscribes to the SYCL
@@ -432,7 +432,8 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
           StreamID, KernelImplPtr, CodeLoc, IsTopCodeLoc,
           *KData.getDeviceKernelInfoPtr(), this, KData.getNDRDesc(),
           KernelBundleImpPtr, KData.getArgs());
-      detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+      detail::emitInstrumentationGeneral(StreamID, InstanceID,
+                                         CmdTraceEvent.get(),
                                          xpti::trace_task_begin, nullptr);
     }
 #endif
@@ -453,10 +454,11 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
       // Emit signal only when event is created
       if (!DiscardEvent) {
         detail::emitInstrumentationGeneral(
-            StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+            StreamID, InstanceID, CmdTraceEvent.get(), xpti::trace_signal,
             static_cast<const void *>(ResultEvent->getHandle()));
       }
-      detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+      detail::emitInstrumentationGeneral(StreamID, InstanceID,
+                                         CmdTraceEvent.get(),
                                          xpti::trace_task_end, nullptr);
     }
 #endif
