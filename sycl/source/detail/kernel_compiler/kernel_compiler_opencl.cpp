@@ -108,14 +108,23 @@ void loadOclocLibrary(const std::vector<uint32_t> &IPVersionVec) {
 }
 
 bool OpenCLC_Compilation_Available(const std::vector<uint32_t> &IPVersionVec) {
-  // Already loaded?
-  if (OclocLibrary != nullptr)
-    return true;
+  // Load ocloc if it's not already loaded. Return false if no ocloc found.
+  if (OclocLibrary == nullptr) {
+    try {
+      // loads and checks version
+      loadOclocLibrary(IPVersionVec);
+    } catch (...) {
+      return false;
+    }
+  }
 
+  // ocloc query may return success even when it cannot target the devices
+  // passed via -device; it then prints an error instead of the OpenCL C
+  // versions supported by the devices.
+  // FIXME: Rely on the return code once ocloc reports such errors through it.
   try {
-    // loads and checks version
-    loadOclocLibrary(IPVersionVec);
-    return true;
+    return InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS")
+               .find("OpenCL C") != std::string::npos;
   } catch (...) {
     return false;
   }
@@ -208,14 +217,7 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   int MemFreeError =
       OclocFreeOutputFunc(&NumOutputs, &Outputs, &OutputLengths, &OutputNames);
 
-  // ocloc query may return success even when it cannot target the device
-  // passed via -device, so check the log as well.
-  // FIXME: Workaround for CMPLRLLVM-79648. Ideally, ocloc should
-  // return a non-zero return code when the device is not targetable.
-  // Nevertheless, we'd still need this check to maintain backwards
-  // compatibility with older driver versions.
-  if (InvokeError ||
-      QueryLog.find("Could not determine device target") != std::string::npos)
+  if (InvokeError)
     throw sycl::exception(the_errc,
                           "ocloc reported errors: {\n" + QueryLog + "\n}");
 
@@ -484,6 +486,10 @@ bool OpenCLC_Supports_Extension(
 }
 
 std::string OpenCLC_Profile(uint32_t IPVersion) {
+  // ocloc reports a profile even for devices it cannot target.
+  if (!OpenCLC_Compilation_Available({IPVersion}))
+    return "";
+
   try {
     std::string result = InvokeOclocQuery({IPVersion}, "CL_DEVICE_PROFILE");
     // NOTE: result has \n\n amended. Clean it up.
