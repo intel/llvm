@@ -69,10 +69,10 @@ struct LocalMemoryUpdateTestBase
     addArg(uur::MakePointerArgProp(nextIdx(), shared_ptrs[2]));
   }
 
-  void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t A,
-                size_t length, size_t local_size) {
+  void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t expected_A,
+                size_t length, size_t expected_local_size) {
     for (size_t i = 0; i < length; i++) {
-      uint32_t result = A * X[i] + Y[i] + local_size;
+      uint32_t result = expected_A * X[i] + Y[i] + expected_local_size;
       ASSERT_EQ(result, output[i]);
     }
   }

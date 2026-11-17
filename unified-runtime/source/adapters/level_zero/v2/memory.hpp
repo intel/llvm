@@ -216,10 +216,10 @@ struct ur_mem_sub_buffer_t : ur_mem_buffer_t {
                       device_access_mode_t accessMode);
   ~ur_mem_sub_buffer_t();
 
-  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t relOffset,
                      size_t size, ze_command_list_handle_t cmdList,
                      wait_list_view &waitListView) override;
-  void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
+  void *mapHostPtr(ur_map_flags_t, size_t relOffset, size_t size,
                    ze_command_list_handle_t cmdList,
                    wait_list_view &waitListView) override;
   void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,

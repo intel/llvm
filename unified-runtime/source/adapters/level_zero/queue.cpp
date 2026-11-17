@@ -595,9 +595,9 @@ ur_result_t urQueueCreate(
     UR_CALL(warmupQueueGroup(false, QueueGroup.UpperIndex -
                                         QueueGroup.LowerIndex + 1));
     if (Q->useCopyEngine()) {
-      const auto &QueueGroup = Q->CopyQueueGroupsByTID.get();
-      UR_CALL(warmupQueueGroup(true, QueueGroup.UpperIndex -
-                                         QueueGroup.LowerIndex + 1));
+      const auto &CopyQueueGroup = Q->CopyQueueGroupsByTID.get();
+      UR_CALL(warmupQueueGroup(true, CopyQueueGroup.UpperIndex -
+                                         CopyQueueGroup.LowerIndex + 1));
     }
     // TODO: warmup event pools. Both host-visible and device-only.
   }
@@ -692,7 +692,7 @@ ur_result_t urQueueRelease(
         }
       }
       if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
-        std::scoped_lock<ur_mutex> Lock(Context->ZeCommandListCacheMutex);
+        std::scoped_lock<ur_mutex> CacheLock(Context->ZeCommandListCacheMutex);
         const ur_command_list_info_t &MapEntry = it->second;
         if (MapEntry.CanReuse) {
           // Add commandlist to the cache for future use.
@@ -760,7 +760,6 @@ ur_result_t urQueueGetNativeHandle(
     auto ZeQueue = ur_cast<ze_command_queue_handle_t *>(NativeQueue);
 
     // Extract a Level Zero compute queue handle from the given PI queue
-    auto &QueueGroup = Queue->getQueueGroup(false /*compute*/);
     uint32_t QueueGroupOrdinalUnused;
     *ZeQueue = QueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
     // TODO: How to pass this up in the urQueueGetNativeHandle interface?
@@ -927,7 +926,7 @@ ur_result_t urQueueFinish(
     // We can only do so if nothing else was submitted to the queue
     // while we were synchronizing it.
     if (!HoldLock) {
-      std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+      std::scoped_lock<ur_shared_mutex> ReacquiredLock(Queue->Mutex);
       if (LastCommandEvent == Queue->LastCommandEvent) {
         Queue->LastCommandEvent = nullptr;
       }
@@ -1893,7 +1892,6 @@ ur::level_zero::v1::ur_queue_handle_t_::getEventFromQueueCache(
   std::list<ur_event_handle_t> *Cache;
 
   if (!IsMultiDevice) {
-    auto Device = this->Device;
     Cache = HostVisible ? &EventCaches[EventCachesDeviceMap[0][Device]]
                         : &EventCaches[EventCachesDeviceMap[1][Device]];
     if (!Cache) {

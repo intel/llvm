@@ -151,10 +151,10 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
     const void *src = pPattern;
 
     for (uint32_t step = 0; step < numOfCopySteps; ++step) {
-      void *dst = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pDst) +
-                                           step * patternSize);
+      void *pStepDst = reinterpret_cast<void *>(
+          reinterpret_cast<uint8_t *>(pDst) + step * patternSize);
       ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                 (zeCommandList.get(), dst, src, patternSize,
+                 (zeCommandList.get(), pStepDst, src, patternSize,
                   step == numOfCopySteps - 1 ? zeSignalEvent : nullptr,
                   waitListView.num, waitListView.handles));
       waitListView.clear();
@@ -1106,12 +1106,12 @@ ur_command_list_manager::appendEventsWait(wait_list_view &waitListView,
 }
 
 ur_result_t ur_command_list_manager::appendEventsWaitWithBarrier(
-    wait_list_view &waitList, ur_event_handle_t phEvent) {
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendEventsWaitWithBarrier");
 
   auto zeSignalEvent =
       getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);
-  auto [pWaitEvents, numWaitEvents, _] = waitList;
+  auto [pWaitEvents, numWaitEvents, _] = waitListView;
 
   ZE2UR_CALL(zeCommandListAppendBarrier,
              (zeCommandList.get(), zeSignalEvent, numWaitEvents, pWaitEvents));
@@ -1137,21 +1137,21 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
     wait_list_view &waitListView, ur_event_handle_t phEvent) {
   {
     std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-    ur_device_handle_t hDevice = this->hDevice.get();
+    ur_device_handle_t hRawDevice = this->hDevice.get();
     for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
       switch (pArgs[argIndex].type) {
       case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
+        UR_CALL(hKernel->setArgValue(hRawDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr, nullptr));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(hKernel->setArgValue(hDevice, pArgs[argIndex].index,
+        UR_CALL(hKernel->setArgValue(hRawDevice, pArgs[argIndex].index,
                                      pArgs[argIndex].size, nullptr,
                                      pArgs[argIndex].value.value));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(hKernel->setArgPointer(hDevice, pArgs[argIndex].index, nullptr,
-                                       pArgs[argIndex].value.pointer));
+        UR_CALL(hKernel->setArgPointer(hRawDevice, pArgs[argIndex].index,
+                                       nullptr, pArgs[argIndex].value.pointer));
         break;
       case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
         // TODO: import helper for converting ur flags to internal equivalent
@@ -1162,7 +1162,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpOld(
         break;
       case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
         UR_CALL(hKernel->setArgValue(
-            hDevice, argIndex, sizeof(void *), nullptr,
+            hRawDevice, argIndex, sizeof(void *), nullptr,
             &ur::level_zero::common_cast(pArgs[argIndex].value.sampler)
                  ->ZeSampler));
         break;

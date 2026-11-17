@@ -118,10 +118,12 @@ inline std::vector<pool_descriptor> pool_descriptor::createFromDevices(
     ur_usm_pool_handle_t poolHandle, ur_context_handle_t hContext,
     const std::vector<ur_device_handle_t> &devices) {
   std::vector<pool_descriptor> descriptors;
-  pool_descriptor &desc = descriptors.emplace_back();
-  desc.poolHandle = poolHandle;
-  desc.hContext = hContext;
-  desc.type = UR_USM_TYPE_HOST;
+  {
+    pool_descriptor &desc = descriptors.emplace_back();
+    desc.poolHandle = poolHandle;
+    desc.hContext = hContext;
+    desc.type = UR_USM_TYPE_HOST;
+  }
 
   for (auto &device : devices) {
     {

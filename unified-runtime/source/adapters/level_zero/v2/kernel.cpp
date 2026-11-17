@@ -596,7 +596,8 @@ ur_result_t urKernelGetInfo(::ur_kernel_handle_t hKernelOpque,
   case UR_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(uint32_t{hKernel->getCommonProperties().numKernelArgs});
   case UR_KERNEL_INFO_SPILL_MEM_SIZE: {
-    std::shared_lock<ur_shared_mutex> Guard(hKernel->getProgramHandle()->Mutex);
+    std::shared_lock<ur_shared_mutex> programGuard(
+        hKernel->getProgramHandle()->Mutex);
     auto devices = hKernel->getProgramHandle()->AssociatedDevices;
     std::vector<uint32_t> spills(devices.size());
     for (size_t i = 0; i < spills.size(); ++i) {

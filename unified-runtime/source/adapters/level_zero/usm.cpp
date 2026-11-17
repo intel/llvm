@@ -1227,11 +1227,10 @@ v1::ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
   return std::make_pair(Allocation->Ptr, Event);
 }
 
-ur_result_t v1::ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
-                                                ur_device_handle_t Device,
-                                                const ur_usm_desc_t *USMDesc,
-                                                ur_usm_type_t Type, size_t Size,
-                                                void **RetMem) {
+ur_result_t v1::ur_usm_pool_handle_t_::allocate(
+    ur_context_handle_t AllocContext, ur_device_handle_t Device,
+    const ur_usm_desc_t *USMDesc, ur_usm_type_t Type, size_t Size,
+    void **RetMem) {
   uint32_t Alignment = USMDesc ? USMDesc->align : 0;
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
@@ -1251,7 +1250,7 @@ ur_result_t v1::ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
   }
 
   ur_platform_handle_t Plt =
-      (Device) ? Device->Platform : Context->getPlatform();
+      (Device) ? Device->Platform : AllocContext->getPlatform();
   // If indirect access tracking is enabled then lock the mutex which is
   // guarding contexts container in the platform. This prevents new kernels from
   // being submitted in any context while we are in the process of allocating a
@@ -1259,7 +1258,7 @@ ur_result_t v1::ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
   // indirect access. This lock also protects access to the context's data
   // structures. If indirect access tracking is not enabled then lock context
   // mutex to protect access to context's data structures.
-  std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex,
+  std::shared_lock<ur_shared_mutex> ContextLock(AllocContext->Mutex,
                                                 std::defer_lock);
   std::unique_lock<ur_shared_mutex> IndirectAccessTrackingLock(
       Plt->ContextsMutex, std::defer_lock);
@@ -1268,13 +1267,13 @@ ur_result_t v1::ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
-    UR_CALL(ur::level_zero::v1::urContextRetain(v1_cast(Context)));
+    UR_CALL(ur::level_zero::v1::urContextRetain(v1_cast(AllocContext)));
   } else {
     ContextLock.lock();
   }
 
   auto *Pool = getPool(usm::pool_descriptor{
-      reinterpret_cast<::ur_usm_pool_handle_t>(this), v1_cast(Context),
+      reinterpret_cast<::ur_usm_pool_handle_t>(this), v1_cast(AllocContext),
       common_cast(Device), Type, DeviceReadOnly});
   if (!Pool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -1291,9 +1290,9 @@ ur_result_t v1::ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
 
   if (IndirectAccessTrackingEnabled) {
     // Keep track of all memory allocations in the context
-    Context->MemAllocs.emplace(std::piecewise_construct,
-                               std::forward_as_tuple(*RetMem),
-                               std::forward_as_tuple(Context));
+    AllocContext->MemAllocs.emplace(std::piecewise_construct,
+                                    std::forward_as_tuple(*RetMem),
+                                    std::forward_as_tuple(AllocContext));
   }
 
   size_t UsableSize = 0;

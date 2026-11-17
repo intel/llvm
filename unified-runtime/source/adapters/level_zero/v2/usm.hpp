@@ -63,7 +63,8 @@ struct ur_usm_pool_handle_t_ : v2::ur_object_t {
 
   ur_context_handle_t getContextHandle() const;
 
-  ur_result_t allocate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+  ur_result_t allocate(ur_context_handle_t hAllocContext,
+                       ur_device_handle_t hDevice,
                        const ur_usm_desc_t *pUSMDesc, ur_usm_type_t type,
                        size_t size, void **ppRetMem);
   ur_result_t free(void *ptr, umf_memory_pool_handle_t umfPool = nullptr);
@@ -71,7 +72,7 @@ struct ur_usm_pool_handle_t_ : v2::ur_object_t {
   bool hasPool(const umf_memory_pool_handle_t hPool);
 
   std::optional<std::pair<void *, ur_event_handle_t>>
-  allocateEnqueued(ur_context_handle_t hContext, void *hQueue,
+  allocateEnqueued(ur_context_handle_t hAllocContext, void *hQueue,
                    bool isInOrderQueue, ur_device_handle_t hDevice,
                    ur_usm_type_t type, size_t size);
 

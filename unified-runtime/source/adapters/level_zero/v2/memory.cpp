@@ -563,18 +563,18 @@ ur_mem_sub_buffer_t::~ur_mem_sub_buffer_t() {
 
 void *ur_mem_sub_buffer_t::getDevicePtr(ur_device_handle_t hDevice,
                                         device_access_mode_t access,
-                                        size_t offset, size_t size,
+                                        size_t relOffset, size_t size,
                                         ze_command_list_handle_t cmdList,
                                         wait_list_view &waitListView) {
-  return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, cmdList, waitListView);
+  return hParent->getBuffer()->getDevicePtr(hDevice, access, relOffset + offset,
+                                            size, cmdList, waitListView);
 }
 
-void *ur_mem_sub_buffer_t::mapHostPtr(ur_map_flags_t flags, size_t offset,
+void *ur_mem_sub_buffer_t::mapHostPtr(ur_map_flags_t flags, size_t relOffset,
                                       size_t size,
                                       ze_command_list_handle_t cmdList,
                                       wait_list_view &waitListView) {
-  return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
+  return hParent->getBuffer()->mapHostPtr(flags, relOffset + offset, size,
                                           cmdList, waitListView);
 }
 

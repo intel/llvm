@@ -535,7 +535,7 @@ ur_result_t ur_queue_batched_t::enqueueUSMFill2D(
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMPrefetch(
-    const void *pMem, size_t size, ur_usm_migration_flags_t flags,
+    const void *pMem, size_t size, ur_usm_migration_flags_t migrationFlags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   wait_list_view waitListView =
@@ -544,7 +544,7 @@ ur_result_t ur_queue_batched_t::enqueueUSMPrefetch(
   markIssuedCommandInBatch(lockedBatch);
 
   return lockedBatch->getListManager().appendUSMPrefetch(
-      pMem, size, flags, waitListView, getEvent(lockedBatch, phEvent));
+      pMem, size, migrationFlags, waitListView, getEvent(lockedBatch, phEvent));
 }
 
 ur_result_t ur_queue_batched_t::enqueueMemBufferCopyRect(

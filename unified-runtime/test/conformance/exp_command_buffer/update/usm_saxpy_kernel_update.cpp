@@ -63,10 +63,10 @@ struct USMSaxpyKernelTestBase
                      {shared_ptrs[2]}};
   }
 
-  void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t A,
+  void Validate(uint32_t *output, uint32_t *X, uint32_t *Y, uint32_t expected_A,
                 size_t length) {
     for (size_t i = 0; i < length; i++) {
-      uint32_t result = A * X[i] + Y[i];
+      uint32_t result = expected_A * X[i] + Y[i];
       ASSERT_EQ(result, output[i]);
     }
   }

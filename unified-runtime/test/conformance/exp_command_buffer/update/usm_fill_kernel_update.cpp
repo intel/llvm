@@ -54,9 +54,9 @@ struct USMFillCommandTest
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   }
 
-  void Validate(uint32_t *pointer, size_t length, uint32_t val) {
+  void Validate(uint32_t *pointer, size_t length, uint32_t expected_val) {
     for (size_t i = 0; i < length; i++) {
-      ASSERT_EQ(pointer[i], val);
+      ASSERT_EQ(pointer[i], expected_val);
     }
   }
 
@@ -304,9 +304,9 @@ struct USMMultipleFillCommandTest
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   }
 
-  void Validate(uint32_t *pointer, size_t length, uint32_t val) {
+  void Validate(uint32_t *pointer, size_t length, uint32_t expected_val) {
     for (size_t i = 0; i < length; i++) {
-      ASSERT_EQ(pointer[i], val);
+      ASSERT_EQ(pointer[i], expected_val);
     }
   }
 

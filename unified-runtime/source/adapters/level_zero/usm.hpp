@@ -65,9 +65,9 @@ struct ur_usm_pool_handle_t_ : ur_object_t {
   ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
                         ur_usm_pool_desc_t *PoolDesc);
 
-  ur_result_t allocate(ur_context_handle_t Context, ur_device_handle_t Device,
-                       const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
-                       size_t Size, void **RetMem);
+  ur_result_t allocate(ur_context_handle_t AllocContext,
+                       ur_device_handle_t Device, const ur_usm_desc_t *USMDesc,
+                       ur_usm_type_t Type, size_t Size, void **RetMem);
   ur_result_t free(void *Mem, umf_memory_pool_handle_t hPool);
 
   std::optional<std::pair<void *, ur_event_handle_t>>

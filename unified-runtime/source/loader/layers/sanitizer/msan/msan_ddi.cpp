@@ -1402,10 +1402,10 @@ ur_result_t urEnqueueUSMFill(
     const auto &DeviceInfo = getMsanInterceptor()->getDeviceInfo(hDevice);
     uptr MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
-    ur_event_handle_t Event = nullptr;
-    UR_CALL(
-        EnqueueUSMSetZero(hQueue, (void *)MemShadow, size, 0, nullptr, &Event));
-    Events.push_back(Event);
+    ur_event_handle_t ShadowEvent = nullptr;
+    UR_CALL(EnqueueUSMSetZero(hQueue, (void *)MemShadow, size, 0, nullptr,
+                              &ShadowEvent));
+    Events.push_back(ShadowEvent);
   }
 
   // NOTE: No need to set origin, since its shadow is clean
@@ -1466,10 +1466,10 @@ ur_result_t urEnqueueUSMMemcpy(
       const auto SrcShadow = SrcDI->Shadow->MemToShadow((uptr)pSrc);
       const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
 
-      ur_event_handle_t Event = nullptr;
+      ur_event_handle_t ShadowEvent = nullptr;
       UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstShadow,
-                           (void *)SrcShadow, size, 0, nullptr, &Event));
-      Events.push_back(Event);
+                           (void *)SrcShadow, size, 0, nullptr, &ShadowEvent));
+      Events.push_back(ShadowEvent);
     }
     if (getContext()->Options.MsanCheckHostAndSharedUSM ||
         (IsDeviceUSM(hContext, pSrc) && IsDeviceUSM(hContext, pDst))) {
@@ -1479,11 +1479,11 @@ ur_result_t urEnqueueUSMMemcpy(
           MSAN_ORIGIN_GRANULARITY;
       const auto DstOrigin = DstDI->Shadow->MemToOrigin((uptr)pDst);
 
-      ur_event_handle_t Event = nullptr;
-      UR_CALL(pfnUSMMemcpy(hQueue, blocking, (void *)DstOrigin,
-                           (void *)SrcOriginBegin,
-                           SrcOriginEnd - SrcOriginBegin, 0, nullptr, &Event));
-      Events.push_back(Event);
+      ur_event_handle_t ShadowEvent = nullptr;
+      UR_CALL(pfnUSMMemcpy(
+          hQueue, blocking, (void *)DstOrigin, (void *)SrcOriginBegin,
+          SrcOriginEnd - SrcOriginBegin, 0, nullptr, &ShadowEvent));
+      Events.push_back(ShadowEvent);
     }
   } else if (IsDstUSM) {
     // FIXME: Assume host memory is always initialized memory, but the better
@@ -1493,10 +1493,10 @@ ur_result_t urEnqueueUSMMemcpy(
     const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
     {
       const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
-      ur_event_handle_t Event = nullptr;
+      ur_event_handle_t ShadowEvent = nullptr;
       UR_CALL(EnqueueUSMSetZero(hQueue, (void *)DstShadow, size, 0, nullptr,
-                                &Event));
-      Events.push_back(Event);
+                                &ShadowEvent));
+      Events.push_back(ShadowEvent);
     }
   }
 
@@ -1555,10 +1555,10 @@ ur_result_t urEnqueueUSMFill2D(
     const auto MemShadow = DeviceInfo->Shadow->MemToShadow((uptr)pMem);
 
     const char Pattern = 0;
-    ur_event_handle_t Event = nullptr;
+    ur_event_handle_t ShadowEvent = nullptr;
     UR_CALL(pfnUSMFill2D(hQueue, (void *)MemShadow, pitch, 1, &Pattern, width,
-                         height, 0, nullptr, &Event));
-    Events.push_back(Event);
+                         height, 0, nullptr, &ShadowEvent));
+    Events.push_back(ShadowEvent);
   }
 
   // NOTE: No need to set origin, since its shadow is clean
@@ -1627,11 +1627,11 @@ ur_result_t urEnqueueUSMMemcpy2D(
       const auto SrcShadow = SrcDI->Shadow->MemToShadow((uptr)pSrc);
       const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
 
-      ur_event_handle_t Event = nullptr;
+      ur_event_handle_t ShadowEvent = nullptr;
       UR_CALL(pfnUSMMemcpy2D(hQueue, blocking, (void *)DstShadow, dstPitch,
                              (void *)SrcShadow, srcPitch, width, height, 0,
-                             nullptr, &Event));
-      Events.push_back(Event);
+                             nullptr, &ShadowEvent));
+      Events.push_back(ShadowEvent);
     }
 
     if (getContext()->Options.MsanCheckHostAndSharedUSM ||
@@ -1639,7 +1639,7 @@ ur_result_t urEnqueueUSMMemcpy2D(
       auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
 
       for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
-        ur_event_handle_t Event = nullptr;
+        ur_event_handle_t ShadowEvent = nullptr;
         const auto DstOrigin =
             DstDI->Shadow->MemToOrigin((uptr)pDst + dstPitch * HeightIndex);
         const auto SrcOrigin =
@@ -1650,8 +1650,8 @@ ur_result_t urEnqueueUSMMemcpy2D(
             MSAN_ORIGIN_GRANULARITY;
         pfnUSMMemcpy(hQueue, false, (void *)DstOrigin, (void *)SrcOrigin,
                      SrcOriginEnd - SrcOrigin, numEventsInWaitList,
-                     phEventWaitList, &Event);
-        Events.push_back(Event);
+                     phEventWaitList, &ShadowEvent);
+        Events.push_back(ShadowEvent);
       }
     }
   } else if (IsDstUSM) {
@@ -1662,11 +1662,11 @@ ur_result_t urEnqueueUSMMemcpy2D(
     const auto DstDI = getMsanInterceptor()->getDeviceInfo(DstDevice);
     const auto DstShadow = DstDI->Shadow->MemToShadow((uptr)pDst);
     const char Pattern = 0;
-    ur_event_handle_t Event = nullptr;
+    ur_event_handle_t ShadowEvent = nullptr;
     UR_CALL(urEnqueueUSMFill2DFallback(hQueue, (void *)DstShadow, dstPitch, 1,
                                        &Pattern, width, height, 0, nullptr,
-                                       &Event));
-    Events.push_back(Event);
+                                       &ShadowEvent));
+    Events.push_back(ShadowEvent);
   }
 
   UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(

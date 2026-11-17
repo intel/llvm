@@ -133,7 +133,7 @@ namespace ur_tracing_layer
     ${x}_result_t
     context_t::init(ur_dditable_t *dditable,
                     const std::set<std::string> &enabledLayerNames,
-                    codeloc_data codelocData) {
+                    codeloc_data codeloc) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
         
         if(!enabledLayerNames.count(name)) {
@@ -144,7 +144,7 @@ namespace ur_tracing_layer
         // program launch and the call to `urLoaderInit`
         logger = logger::create_logger("tracing", true, true);
 
-        ur_tracing_layer::getContext()->codelocData = codelocData;
+        ur_tracing_layer::getContext()->codelocData = codeloc;
 
     %for tbl in th.get_pfntables(specs, meta, n, tags):
 %if 'guard' in tbl:
