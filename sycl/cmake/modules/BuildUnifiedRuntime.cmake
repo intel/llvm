@@ -259,8 +259,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endif()
 
   # This creates a subbuild which can be used in dependencies with the
-  # unified-runtimed target. It invokes the install-unified-runtime-libraries
-  # target to install the UR runtime libraries.
+  # unified-runtimed target. It builds all targets and then invokes the
+  # install-unified-runtime-libraries target to install the UR runtime
+  # libraries. The full build is required because the install target does not
+  # depend on everything it installs, e.g. umfd.lib.
+  #
+  # Both steps are part of the build step, rather than the install step, so
+  # that the installed files can be declared with BUILD_BYPRODUCTS
+  # (INSTALL_BYPRODUCTS requires CMake 3.26).
   #
   # BUILD_ALWAYS makes the subbuild run on every build, so that it checks
   # whether its own sources are out of date. Without it, the build step only
@@ -273,7 +279,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     INSTALL_DIR ${URD_INSTALL_DIR}
     BUILD_ALWAYS ON
     BUILD_BYPRODUCTS ${URD_BYPRODUCTS}
-    BUILD_COMMAND ${CMAKE_COMMAND}
+    BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Debug
+    COMMAND ${CMAKE_COMMAND}
       --build <BINARY_DIR> --config Debug
       --target install-unified-runtime-libraries
     INSTALL_COMMAND ""
