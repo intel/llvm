@@ -103,7 +103,7 @@ endif()
 # "opencl"), skip it entirely: nothing needs it at build time or at runtime.
 if (UR_UMF_REQUIRED)
   if(UR_USE_EXTERNAL_UMF)
-    find_package(umf 1.2.0 QUIET)
+    find_package(umf 1.3.0 QUIET)
   endif()
   if(umf_FOUND)
     message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
@@ -116,11 +116,11 @@ if (UR_UMF_REQUIRED)
   else()
     set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-    # commit d0e5e35f975e1c59e9a4aaa29a176303de5e9892
+    # commit 57eeb61d5ceb36b4f292f4790e39b5f22cddb90a
     # Author: Lukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-    # Date:   Mon Nov 9 17:05:39 2026 +0100
-    # 1.3.0 release
-    set(UMF_TAG v1.3.0)
+    # Date:   Mon Nov 16 18:49:52 2026 +0100
+    # 1.3.1 release
+    set(UMF_TAG v1.3.1)
 
     if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
       message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
