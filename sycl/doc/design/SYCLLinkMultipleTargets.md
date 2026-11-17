@@ -24,6 +24,59 @@ Anti-goals (would be a failure even if the issue's repro passes)
 
 ## Current state
 
+This section first describes upstream llvm/llvm-project, as the reference, and then intel/llvm, which
+this design changes.
+
+### llvm/llvm-project (reference)
+
+Upstream `clang-linker-wrapper` handles every offload kind with the same two-step structure in
+`linkAndWrapDeviceFiles` ([L1104](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1104)):
+1. **Link each target group, in parallel, without wrapping** ([L1117](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1117)). The device linker runs
+   per group (`linkDevice`, [L621](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L621)). For SYCL it runs clang with `--sycl-link`, which calls
+   `clang-sycl-linker` ([L586-L590](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L586-L590)) and produces one blob per group. A group can't mix SYCL
+   with other offload kinds ([L1135-L1141](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1135-L1141)). Each result is stored as an
+   `OffloadingImage{triple, arch}` in `Images[Kind]` ([L1185-L1187](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1185-L1187)).
+2. **After the loop, bundle and wrap once per offload kind** ([L1198-L1240](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1198-L1240)): sort by
+   triple/arch, `bundleLinkedOutput`, then `wrapDeviceImages`, which gives one wrapper object per
+   kind.
+
+How the kinds use step 2:
+- **OpenMP (the reference model for this design).** `bundleOmpAcc` ([L907-L914](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L907-L914)) writes each
+  target's image as its own `OffloadBinary` entry with triple, arch and kind. `wrapOpenMPBinaries`
+  ([L804-L807](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L804-L807)) → `createBinDesc` ([`OffloadWrapper.cpp` L129-L197](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L129-L197)) puts all of them into **one**
+  `__tgt_bin_desc`, an array of device images, and libomptarget picks the compatible image for each
+  device. That is the shape of the SYCL descriptor too: an array of device images, each with its own
+  target.
+- **CUDA / HIP (not applicable to SYCL).** The architectures are merged by a vendor tool:
+  `bundleCuda` ([L931-L954](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L931-L954)) runs NVIDIA's `fatbinary`, and `bundleHIP` ([L957-L981](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L957-L981))
+  makes an AMD fat binary. The wrapper embeds that one opaque buffer (`wrapCudaBinary` /
+  `wrapHIPBinary`, [L816-L825](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L816-L825)), and the vendor runtime picks the architecture. SYCL targets
+  (SPIR-V, Intel AOT, NVPTX, AMDGCN, NativeCPU) have no common container like this.
+- **SYCL (follows the CUDA/HIP shape, so multiple targets don't work).** `bundleSYCL`
+  ([L917-L928](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L917-L928)) passes the per-group blobs through, and `case OFK_SYCL` in `wrapDeviceImages`
+  wraps only `BuffersToWrap.front()` ([L826-L834](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L826-L834)). `wrapSYCLBinaries` ([`OffloadWrapper.cpp` L776](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L776)) embeds
+  the raw blob and adds a constructor that calls `__sycl_register_lib(start, size)`
+  ([`OffloadWrapper.cpp` L652-L665](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L652-L665)). There is no per-image descriptor in the wrapper; the runtime parses the blob.
+  - With more than one SYCL target group, every image after the first is dropped without an error,
+    for a normal link and for `-r`.
+  - With `--emit-fatbin-only`, it fails with "Expected a single bundled image for direct fat binary
+    output" ([L1217-L1220](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1217-L1220)). The upstream driver already rejects `-fno-sycl-rdc` with more
+    than one SYCL target ([`Driver.cpp` L1231-L1242](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/lib/Driver/Driver.cpp#L1231-L1242)).
+
+Ahead-of-time device linking:
+- Upstream has no `-fsycl-link`. It uses a relocatable link: `clang++ -fsycl -r`, or
+  `--offload-link -r` without an offload flag ([`OffloadingDesign.md` L482-L510](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/docs/OffloadingDesign.md#L482-L510)). `runLinker` ([L357](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L357)) does
+  the host relocatable link, then `relocateOffloadSection` ([L306](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L306), [L383-L384](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L383-L384))
+  renames the offloading sections so a later link doesn't process them again.
+- SYCL support for `-r` landed in [llvm/llvm-project#242098](https://github.com/llvm/llvm-project/pull/242098)
+  (2026-11-14): the linked image goes into `.sycl_fatbin` ([`OffloadWrapper.cpp` L644](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L644)).
+- Differences from `-fsycl-link`: the `-r` output also contains the host code, and `-r` isn't
+  supported for COFF ([L311](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L311)).
+
+What this design takes from upstream: the structure (link per group, then wrap all images of a kind
+once) and the OpenMP model of one descriptor holding one entry per target. It doesn't take the
+upstream SYCL wrap, which wraps only one blob.
+
 ### intel/llvm new model, `linkAndWrapDeviceFiles` ([L3034](https://github.com/intel/llvm/blob/c74ecddc2fd0542450e31e45bcc46cda98214058/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L3034))
 1. `main` calls `linkAndWrapDeviceFiles` ([L3925](https://github.com/intel/llvm/blob/c74ecddc2fd0542450e31e45bcc46cda98214058/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L3925)). The input groups come from `getDeviceInput`
    ([L3577](https://github.com/intel/llvm/blob/c74ecddc2fd0542450e31e45bcc46cda98214058/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L3577), grouping in a `MapVector` at [L3694](https://github.com/intel/llvm/blob/c74ecddc2fd0542450e31e45bcc46cda98214058/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L3694)), in a deterministic order.
