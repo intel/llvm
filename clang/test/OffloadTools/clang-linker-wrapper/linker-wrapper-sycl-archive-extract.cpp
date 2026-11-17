@@ -28,6 +28,17 @@
 // CHK-ONE-IMAGE: sycl-post-link
 // CHK-ONE-IMAGE-NOT: sycl-post-link
 
+/// Objects providing device code of another offload kind only: the archive
+/// SYCL device code is still extracted.
+// RUN: llvm-offload-binary -o %t_omp.out \
+// RUN:   --image=file=%t_host.o,kind=openmp,triple=amdgcn-amd-amdhsa,arch=gfx90a
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t_omp.o -fembed-offload-object=%t_omp.out
+// RUN: clang-linker-wrapper --dry-run --wrapper-verbose --linker-path=/usr/bin/ld -o /dev/null %t_omp.o %t.a 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OMP %s
+// CHK-OMP-DAG: clang{{.*}} --target=amdgcn-amd-amdhsa -mcpu=gfx90a
+// CHK-OMP-DAG: sycl-post-link
+// CHK-OMP-DAG: offload-wrapper: output:
+
 /// Host only objects without archives: no device link.
 // RUN: clang-linker-wrapper --dry-run --linker-path=/usr/bin/ld -o /dev/null %t_host.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-EXTRACT %s

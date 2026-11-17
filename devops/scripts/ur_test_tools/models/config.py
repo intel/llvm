@@ -8,6 +8,9 @@ class TestConfig:
     target: str
     log_file: str
     lit_filter_out: Optional[str] = None
+    lit_timeout: Optional[int] = None
+    lit_jobs: Optional[int] = None
+    extra_lit_opts: str = ""
 
     def __post_init__(self):
         if not all([self.target, self.log_file]):

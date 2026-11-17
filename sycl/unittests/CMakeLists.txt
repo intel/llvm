@@ -22,6 +22,11 @@ check_cxx_compiler_flag("-Winconsistent-missing-override" SYCL_CXX_SUPPORTS_INCO
 if (SYCL_CXX_SUPPORTS_INCONSISTENT_MISSING_OVERRIDE_FLAG)
   add_compile_options("-Wno-inconsistent-missing-override")
 endif()
+# Same as the SYCL runtime, see sycl/source/CMakeLists.txt.
+check_cxx_compiler_flag(-Wsfinae-incomplete HAS_SFINAE_INCOMPLETE_WARNING)
+if (HAS_SFINAE_INCOMPLETE_WARNING)
+  add_compile_options("-Wno-sfinae-incomplete")
+endif()
 
 if (MSVC)
   add_compile_options("/WX")

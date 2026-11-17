@@ -353,6 +353,10 @@ function(_get_common_compile_options output_var flags)
       endif()
     elseif(LIBC_TARGET_ARCHITECTURE_IS_AMDGPU)
       list(APPEND compile_options "SHELL:-Xclang -mcode-object-version=none")
+    # TODO: remove usage of 'spirv-default-addr-space-is-generic' when default addr space
+    # ambiguity for SPIR targets is removed in upstream.
+    elseif(LIBC_TARGET_ARCHITECTURE_IS_SPIRV)
+      list(APPEND compile_options "SHELL:-Xclang -fspirv-default-addr-space-is-generic")
     endif()
   endif()
   set(${output_var} ${compile_options} PARENT_SCOPE)

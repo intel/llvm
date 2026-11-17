@@ -30,7 +30,7 @@ std::optional<fs::path> getLoaderLibPath() {
   return std::nullopt;
 }
 
-std::optional<fs::path> getAdapterNameAsPath(std::string adapterName) {
+std::optional<fs::path> getAdapterNameAsPath(const std::string &adapterName) {
   return fs::path(adapterName);
 }
 

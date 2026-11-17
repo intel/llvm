@@ -124,7 +124,7 @@ inline std::optional<uint64_t> getenv_to_unsigned(const char *name) try {
 }
 
 static void throw_wrong_format_vec(const char *env_var_name,
-                                   std::string env_var_value) {
+                                   const std::string &env_var_value) {
   std::stringstream ex_ss;
   ex_ss << "Wrong format of the " << env_var_name
         << " environment variable value: '" << env_var_value << "'\n"
@@ -134,7 +134,7 @@ static void throw_wrong_format_vec(const char *env_var_name,
 }
 
 static void throw_wrong_format_map(const char *env_var_name,
-                                   std::string env_var_value) {
+                                   const std::string &env_var_value) {
   std::stringstream ex_ss;
   ex_ss << "Wrong format of the " << env_var_name
         << " environment variable value: '" << env_var_value << "'\n"

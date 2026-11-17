@@ -41,3 +41,21 @@ TEST_P(urGraphEmptyExpTest, InvalidNullPtrResult) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urGraphIsEmptyExp(graph, nullptr));
 }
+
+using urGraphIsEmptyExpMultiQueueTest = uur::urGraphMultiQueueCaptureExpTest;
+
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urGraphIsEmptyExpMultiQueueTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
+
+TEST_P(urGraphIsEmptyExpMultiQueueTest, InvalidGraphUnjoinedForks) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphForkErrorsMinL0DriverVersion);
+
+  UUR_RETURN_ON_FATAL_FAILURE(recordGraphWithUnjoinedForks());
+
+  bool isEmpty = false;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_GRAPH,
+                   urGraphIsEmptyExp(graph1, &isEmpty));
+}
