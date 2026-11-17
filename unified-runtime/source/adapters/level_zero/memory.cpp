@@ -1627,7 +1627,8 @@ ur_result_t urMemImageCreate(
     // zeCommandListAppendImageCopyFromMemory must not be called from
     // simultaneous threads with the same command list handle, so we need
     // exclusive lock.
-    std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+    std::scoped_lock<ur_mutex> ImmCmdListLock(
+        Context->ImmediateCommandListMutex);
     ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
                (Context->ZeCommandListInit, ZeImage, Host, nullptr, nullptr, 0,
                 nullptr));
@@ -1938,7 +1939,8 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     Buffer->DeviceMappedHostNativePtr = Ptr;
     // zeCommandListAppendMemoryCopy must not be called from simultaneous
     // threads with the same command list handle, so we need exclusive lock.
-    std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+    std::scoped_lock<ur_mutex> ImmCmdListLock(
+        Context->ImmediateCommandListMutex);
     ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                (Context->ZeCommandListInit, ZeHandleDst, Ptr, Size, nullptr, 0,
                 nullptr));
@@ -2246,7 +2248,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
     // host ptr, or in case of interop buffer.
     if (!HostAllocation.ZeHandle) {
       if (DisjointPoolConfigInstance.EnableBuffers) {
-        HostAllocation.ReleaseAction = allocation_t::free;
+        HostAllocation.ReleaseAction = allocation_t::free_pooled;
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
@@ -2272,7 +2274,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
   if (!Allocation.ZeHandle) {
     // Create device allocation
     if (DisjointPoolConfigInstance.EnableBuffers) {
-      Allocation.ReleaseAction = allocation_t::free;
+      Allocation.ReleaseAction = allocation_t::free_pooled;
       ur_usm_desc_t USMDesc{};
       USMDesc.align = getAlignment();
       ur_usm_pool_handle_t Pool{};
@@ -2370,7 +2372,7 @@ ur_result_t ur_buffer::getBufferZeHandle(char *&ZeHandle,
         if (!HostAllocation.ZeHandle) {
           void *ZeHandleHost;
           if (DisjointPoolConfigInstance.EnableBuffers) {
-            HostAllocation.ReleaseAction = allocation_t::free;
+            HostAllocation.ReleaseAction = allocation_t::free_pooled;
             ur_usm_desc_t USMDesc{};
             USMDesc.align = getAlignment();
             ur_usm_pool_handle_t Pool{};
@@ -2434,7 +2436,7 @@ ur_result_t ur_buffer::free() {
     switch (Alloc.second.ReleaseAction) {
     case allocation_t::keep:
       break;
-    case allocation_t::free: {
+    case allocation_t::free_pooled: {
       ur_platform_handle_t Plt = UrContext->getPlatform();
       std::scoped_lock<ur_shared_mutex> Lock(IndirectAccessTrackingEnabled
                                                  ? Plt->ContextsMutex
@@ -2446,7 +2448,8 @@ ur_result_t ur_buffer::free() {
       if (DeviceMappedHostNativePtr != nullptr) {
         // zeCommandListAppendMemoryCopy must not be called from simultaneous
         // threads with the same command list handle, so we need exclusive lock.
-        std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
+        std::scoped_lock<ur_mutex> ImmCmdListLock(
+            UrContext->ImmediateCommandListMutex);
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                    (UrContext->ZeCommandListInit, DeviceMappedHostNativePtr,
                     ZeHandle, Size, nullptr, 0, nullptr));

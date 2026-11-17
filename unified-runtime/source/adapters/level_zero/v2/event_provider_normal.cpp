@@ -70,11 +70,12 @@ provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
 
   freelist.resize(EVENTS_BURST);
   for (int i = 0; i < EVENTS_BURST; ++i) {
-    ZeStruct<ze_event_desc_t> desc;
-    desc.index = i;
-    desc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-    desc.wait = 0;
-    ZE2UR_CALL_THROWS(zeEventCreate, (pool.get(), &desc, freelist[i].ptr()));
+    ZeStruct<ze_event_desc_t> eventDesc;
+    eventDesc.index = i;
+    eventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+    eventDesc.wait = 0;
+    ZE2UR_CALL_THROWS(zeEventCreate,
+                      (pool.get(), &eventDesc, freelist[i].ptr()));
   }
 }
 

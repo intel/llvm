@@ -85,8 +85,8 @@ public:
                      v2::event_flags_t flags);
 
   // Set the queue and command that this event is associated with
-  void setQueue(ur_queue_t_ *hQueue);
-  void setCommandType(ur_command_t commandType);
+  void setQueue(ur_queue_t_ *hNewQueue);
+  void setCommandType(ur_command_t newCommandType);
 
   // For batched queues
   // Set the batch that this event is associated with

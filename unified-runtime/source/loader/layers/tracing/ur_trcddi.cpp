@@ -13096,7 +13096,7 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames,
-                            codeloc_data codelocData) {
+                            codeloc_data codeloc) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
   if (!enabledLayerNames.count(name)) {
@@ -13107,7 +13107,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   // program launch and the call to `urLoaderInit`
   logger = logger::create_logger("tracing", true, true);
 
-  ur_tracing_layer::getContext()->codelocData = codelocData;
+  ur_tracing_layer::getContext()->codelocData = codeloc;
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,

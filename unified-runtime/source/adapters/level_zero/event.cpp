@@ -1049,15 +1049,15 @@ ur_result_t urIPCOpenEventHandleExp(::ur_context_handle_t /*hContext*/,
 
 ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     ze_event_handle_t &ZeHostVisibleEvent) {
-  auto UrQueue = this->UrQueue;
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(UrQueue->Mutex,
+  auto *Queue = UrQueue;
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           this->Mutex);
 
   if (!HostVisibleEvent) {
     HostProxyCreatorThread.store(std::this_thread::get_id());
     OnScopeExit ResetCreator(
         [this]() { HostProxyCreatorThread.store(std::thread::id{}); });
-    if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
+    if (Queue->ZeEventsScope != OnDemandHostVisibleProxy)
       die("getOrCreateHostVisibleEvent: missing host-visible event");
 
     // Submit the command(s) signalling the proxy event to the queue.
@@ -1069,28 +1069,28 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     // We want to batch these commands to avoid extra submissions (costly)
     bool OkToBatch = true;
 
-    ur_command_list_ptr_t CommandList{};
-    UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch,
-        nullptr /*ForcedCmdQueue*/))
+    ur_command_list_ptr_t ProxyCommandList{};
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, ProxyCommandList, false /* UseCopyEngine */, 0, nullptr,
+        OkToBatch, nullptr /*ForcedCmdQueue*/))
 
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
-        UrQueue, &HostVisibleEvent, UR_EXT_COMMAND_TYPE_USER, CommandList,
+        Queue, &HostVisibleEvent, UR_EXT_COMMAND_TYPE_USER, ProxyCommandList,
         /* IsInternal */ false, /* IsMultiDevice */ false,
         /* HostVisible */ true));
 
     if (this->IsInnerBatchedEvent) {
       ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (CommandList->first, ZeEvent, 0, nullptr));
+                 (ProxyCommandList->first, ZeEvent, 0, nullptr));
     } else {
       ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                 (CommandList->first, 1, &ZeEvent));
+                 (ProxyCommandList->first, 1, &ZeEvent));
     }
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (CommandList->first, HostVisibleEvent->ZeEvent));
+               (ProxyCommandList->first, HostVisibleEvent->ZeEvent));
 
-    UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
+    UR_CALL(Queue->executeCommandList(ProxyCommandList, false, OkToBatch))
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -1743,7 +1743,8 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
 
           // Acquire lock of newly created MultiDeviceEvent to increase it's
           // RefCount
-          std::shared_lock<ur_shared_mutex> Lock(MultiDeviceEvent->Mutex);
+          std::shared_lock<ur_shared_mutex> MultiDeviceEventLock(
+              MultiDeviceEvent->Mutex);
 
           this->ZeEventList[TmpListLength] = MultiDeviceZeEvent;
           this->UrEventList[TmpListLength] = MultiDeviceEvent;
@@ -1786,9 +1787,9 @@ ur_result_t ur_ze_event_list_t::insert(ur_ze_event_list_t &Other) {
     ur_event_handle_t *PreUrEventList = this->UrEventList;
 
     // allocate new memory
-    uint32_t Length = PreLength + Other.Length;
-    this->ZeEventList = new ze_event_handle_t[Length];
-    this->UrEventList = new ur_event_handle_t[Length];
+    uint32_t NewLength = PreLength + Other.Length;
+    this->ZeEventList = new ze_event_handle_t[NewLength];
+    this->UrEventList = new ur_event_handle_t[NewLength];
 
     // copy elements
     uint32_t TmpListLength = 0;

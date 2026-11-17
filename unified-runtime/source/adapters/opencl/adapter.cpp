@@ -30,9 +30,9 @@ ur::opencl::ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
     return;
   }
   // Probe for platforms: a stub ICD may load successfully but expose none.
-  cl_uint NumPlatforms = 0;
-  cl_int Result = ocl::clGetPlatformIDs_ptr(0, nullptr, &NumPlatforms);
-  if (Result != CL_SUCCESS || NumPlatforms == 0) {
+  cl_uint ProbedNumPlatforms = 0;
+  cl_int Result = ocl::clGetPlatformIDs_ptr(0, nullptr, &ProbedNumPlatforms);
+  if (Result != CL_SUCCESS || ProbedNumPlatforms == 0) {
     UR_LOG(INFO, "OpenCL: No platforms found (Result = {})", Result);
     // No platforms found — unload immediately. This adapter never escapes
     // urAdapterGet, so no teardown paths can hold function pointers yet.

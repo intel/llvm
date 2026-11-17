@@ -474,17 +474,17 @@ struct urHostPipeTest : urMultiQueueTypeTest {
 
     UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueTypeTest::SetUp());
 
-    size_t size = 0;
+    size_t info_size = 0;
     ASSERT_SUCCESS(urDeviceGetInfo(device,
                                    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT,
-                                   0, nullptr, &size));
-    ASSERT_NE(size, 0);
-    ASSERT_EQ(sizeof(ur_bool_t), size);
+                                   0, nullptr, &info_size));
+    ASSERT_NE(info_size, 0);
+    ASSERT_EQ(sizeof(ur_bool_t), info_size);
 
-    void *info_data = alloca(size);
+    void *info_data = alloca(info_size);
     ASSERT_SUCCESS(urDeviceGetInfo(device,
                                    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT,
-                                   size, info_data, nullptr));
+                                   info_size, info_data, nullptr));
     ASSERT_NE(info_data, nullptr);
 
     bool supported;

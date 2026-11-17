@@ -66,7 +66,7 @@ struct ur_command_list_manager {
   /************ Generic queue methods *************/
   ur_result_t appendEventsWait(wait_list_view &waitListView,
                                ur_event_handle_t phEvent);
-  ur_result_t appendEventsWaitWithBarrier(wait_list_view &waitList,
+  ur_result_t appendEventsWaitWithBarrier(wait_list_view &waitListView,
                                           ur_event_handle_t phEvent);
   ur_result_t appendMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
                                   size_t offset, size_t size, void *pDst,

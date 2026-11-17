@@ -874,18 +874,18 @@ bool ur_platform_handle_t_::isDriverVersionNewerOrSimilar(
     DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
     DriverVersionBuild = DriverVersion & 0x0000FFFF;
   } else {
-    std::string ZeDriverVersion;
+    std::string DriverVersionStr;
     size_t sizeOfDriverString = 0;
     ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
                                                  nullptr, &sizeOfDriverString);
-    ZeDriverVersion.resize(sizeOfDriverString);
+    DriverVersionStr.resize(sizeOfDriverString);
     ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
-                                                 ZeDriverVersion.data(),
+                                                 DriverVersionStr.data(),
                                                  &sizeOfDriverString);
 
     // Intel driver version string is in the format:
     // Major.Minor.Build+Hotfix where hotfix is optional.
-    std::stringstream VersionString(ZeDriverVersion);
+    std::stringstream VersionString(DriverVersionStr);
 
     std::string VersionValue;
     std::vector<std::string> VersionValues;
@@ -997,10 +997,10 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
 
       // Wrap the Level Zero sub-devices into PI sub-devices, and add them to
       // cache.
-      for (uint32_t I = 0; I < SubDevicesCount; ++I) {
+      for (uint32_t SubI = 0; SubI < SubDevicesCount; ++SubI) {
         std::unique_ptr<ur_device_handle_t_> UrSubDevice(
-            new ur_device_handle_t_(ZeSubdevices[I], (ur_platform_handle_t)this,
-                                    Device.get()));
+            new ur_device_handle_t_(ZeSubdevices[SubI],
+                                    (ur_platform_handle_t)this, Device.get()));
         auto Result = UrSubDevice->initialize();
         if (Result != UR_RESULT_SUCCESS) {
           delete[] ZeSubdevices;
@@ -1046,7 +1046,7 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
             for (uint32_t K = 0;
                  K < QueueGroupProperties[Ordinals[J]].numQueues; ++K) {
               std::unique_ptr<ur_device_handle_t_> URSubSubDevice(
-                  new ur_device_handle_t_(ZeSubdevices[I],
+                  new ur_device_handle_t_(ZeSubdevices[SubI],
                                           (ur_platform_handle_t)this,
                                           UrSubDevice.get()));
               UR_CALL(URSubSubDevice->initialize(Ordinals[J], K));

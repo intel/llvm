@@ -211,11 +211,11 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     return DeviceType::CPU;
   case UR_DEVICE_TYPE_GPU: {
     uptr Ptr;
-    [[maybe_unused]] ur_result_t Result =
+    [[maybe_unused]] ur_result_t UsmResult =
         getContext()->urDdiTable.USM.pfnDeviceAlloc(Context, Device, nullptr,
                                                     nullptr, 4, (void **)&Ptr);
     UR_LOG_L(getContext()->logger, DEBUG, "GetDeviceType: {}", (void *)Ptr);
-    assert(Result == UR_RESULT_SUCCESS &&
+    assert(UsmResult == UR_RESULT_SUCCESS &&
            "getDeviceType() failed at allocating device USM");
     // FIXME: There's no API querying the address bits of device, so we guess it
     // by the value of device USM pointer (see "USM Allocation Range" in
@@ -229,8 +229,8 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     } else {
       Type = DeviceType::GPU_DG2;
     }
-    Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Ptr);
-    assert(Result == UR_RESULT_SUCCESS &&
+    UsmResult = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Ptr);
+    assert(UsmResult == UR_RESULT_SUCCESS &&
            "getDeviceType() failed at releasing device USM");
     return Type;
   }

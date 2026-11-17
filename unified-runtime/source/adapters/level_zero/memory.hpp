@@ -164,11 +164,11 @@ struct ur_buffer final : ur_mem_handle_t_ {
     // Specifies the action that needs to be taken for this
     // allocation at buffer destruction.
     enum {
-      keep,       // do nothing, the allocation is not owned by us
-      unimport,   // release of the imported allocation
-      free,       // free from the pooling context (default)
-      free_native // free with a native call
-    } ReleaseAction{free};
+      keep,        // do nothing, the allocation is not owned by us
+      unimport,    // release of the imported allocation
+      free_pooled, // free from the pooling context (default)
+      free_native  // free with a native call
+    } ReleaseAction{free_pooled};
   };
 
   // We maintain multiple allocations on possibly all devices in the context.

@@ -206,19 +206,19 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 // Trace a call to Level-Zero RT.
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \
   {                                                                            \
-    ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ::ur::level_zero::ZeCall().doCall(ZeResult, #ZeName,     \
-                                                        #ZeArgs, true))        \
-      return ::ur::level_zero::ze2urResult(Result);                            \
+    ze_result_t ZeCallResult = ZeName ZeArgs;                                  \
+    if (auto ZeCallChecked = ::ur::level_zero::ZeCall().doCall(                \
+            ZeCallResult, #ZeName, #ZeArgs, true))                             \
+      return ::ur::level_zero::ze2urResult(ZeCallChecked);                     \
   }
 
 // Trace a call to Level-Zero RT, throw on error
 #define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
   {                                                                            \
-    ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ::ur::level_zero::ZeCall().doCall(ZeResult, #ZeName,     \
-                                                        #ZeArgs, true)) {      \
-      throw ::ur::level_zero::ze2urResult(Result);                             \
+    ze_result_t ZeCallResult = ZeName ZeArgs;                                  \
+    if (auto ZeCallChecked = ::ur::level_zero::ZeCall().doCall(                \
+            ZeCallResult, #ZeName, #ZeArgs, true)) {                           \
+      throw ::ur::level_zero::ze2urResult(ZeCallChecked);                      \
     }                                                                          \
   }
 
