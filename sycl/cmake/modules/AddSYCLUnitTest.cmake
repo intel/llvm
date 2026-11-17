@@ -119,7 +119,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
 
   set(unittest_ur_mock unified-runtime::mock)
 
-  if(WIN32 AND UR_STATIC_LOADER AND build_type_lower MATCHES "debug")
+  if(WIN32 AND build_type_lower MATCHES "debug")
     set(unittest_ur_mock
       "${CMAKE_BINARY_DIR}/unified-runtimed/lib/ur_mockd.lib")
 
