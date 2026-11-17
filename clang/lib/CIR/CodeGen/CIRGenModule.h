@@ -739,6 +739,7 @@ public:
                             clang::ASTContext &ctx);
 
   void addSYCLModuleIdAttr(cir::FuncOp fn);
+
   void emitGlobalVarDefinition(const clang::VarDecl *vd,
                                bool isTentative = false);
 
