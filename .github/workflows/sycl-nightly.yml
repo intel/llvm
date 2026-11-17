@@ -123,7 +123,7 @@ jobs:
       toolchain_artifact: sycl_linux_libcxx
       toolchain_artifact_filename: sycl_linux_libcxx.tar.zst
 
-  build_linux_debug_all_backends:
+  build_linux_debug_all_backends_static:
     needs: get_date
     if: github.repository == 'intel/llvm'
     strategy:
@@ -134,7 +134,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_cache_root: "/__w/"
-      build_cache_suffix: debug-backends-static-${{ matrix.static }}
+      build_cache_suffix: linux-debug-all-backends
       build_target: all
       build_configure_extra_args: >-
         -t Debug
@@ -386,7 +386,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
-  build_win_debug_all_backends:
+  build_win_debug_all_backends_static:
     needs: get_date
     if: github.repository == 'intel/llvm'
     strategy:
@@ -396,7 +396,7 @@ jobs:
 
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      build_cache_suffix: debug-backends-static-${{ matrix.static }}
+      build_cache_suffix: windows-debug-all-backends
       build_target: all
       build_configure_extra_args: >-
         -t Debug
