@@ -150,7 +150,13 @@
 // RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_nvl_s %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_s -DMAC_STR=NVL_S
 
+// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_30_4_0 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_s -DMAC_STR=NVL_S
+
 // RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_nvl_u %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_u -DMAC_STR=NVL_U
+
+// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_30_5_0 %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=nvl_u -DMAC_STR=NVL_U
 
 // RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_nvl_p %s 2>&1 | \
@@ -164,6 +170,17 @@
 
 // RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_35_11_0 %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU-OPTS -DDEV_STR=cri -DMAC_STR=CRI
+
+// Mixed -fsycl-targets: every Intel GPU device must get its own image, even
+// when one of them has no OffloadArch entry (bmg_g31). Previously such a device
+// was silently dropped when combined with another target.
+// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_bmg_g31 %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=MIXED-GPU
+// RUN: %clangxx -### --offload-new-driver -ccc-install-dir %{clang_install_dir} -fsycl -fsycl-targets=intel_gpu_bmg_g31,intel_gpu_pvc %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=MIXED-GPU
+// MIXED-GPU: llvm-offload-binary
+// MIXED-GPU-DAG: "--image={{[^"]*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl
+// MIXED-GPU-DAG: "--image={{[^"]*}}triple=spir64_gen-unknown-unknown,arch=bmg_g31,kind=sycl
 
 // TARGET-TRIPLE-GPU: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // TARGET-TRIPLE-GPU: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
