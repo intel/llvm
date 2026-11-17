@@ -342,7 +342,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                                      FileHeader->NativeDeviceCodeImageCount;
   const size_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
                                  IRMHeaderBlockSize + NDCIHeaderBlockSize;
-  // Ensure the sizes are all legal. That the buffer is bigger than its header, 
+  // Ensure the sizes are all legal. That the buffer is bigger than its header,
   // that the metadata fits into what remains. Same for the binary table.
   const size_t BufferSize = Source.getBufferSize();
   if (BufferSize < HeaderBlockSize ||
