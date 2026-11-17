@@ -36,6 +36,10 @@ static_assert(std::is_trivially_copyable_v<kp::enable_profiling> &&
               std::is_trivially_copyable_v<kp::in_order>);
 // The khr constructors are explicit, like the property_list ones.
 static_assert(!std::is_convertible_v<kp::in_order, sycl::queue>);
+// The bool constructors of the properties are explicit.
+static_assert(!std::is_convertible_v<bool, kp::enable_profiling> &&
+              !std::is_convertible_v<bool, kp::in_order>);
+static_assert(kp::in_order{}.value && !kp::in_order{false}.value);
 
 TEST(KhrQueueProperties, SingleProperty) {
   sycl::unittest::UrMock<> Mock;
@@ -90,4 +94,23 @@ TEST(KhrQueueProperties, OldStyleConstructors) {
           .is_in_order());
   EXPECT_TRUE(sycl::queue{sycl::property::queue::enable_profiling{}}
                   .khr_is_profiling_enabled());
+}
+
+TEST(KhrQueueProperties, OldStyleQueries) {
+  sycl::unittest::UrMock<> Mock;
+  using sycl::property::queue::enable_profiling;
+  using sycl::property::queue::in_order;
+  // A true value behaves as though the queue contains the old style property.
+  sycl::queue Q1{properties{kp::in_order{}, kp::enable_profiling{}}};
+  EXPECT_TRUE(Q1.has_property<in_order>());
+  EXPECT_TRUE(Q1.has_property<enable_profiling>());
+  EXPECT_NO_THROW(Q1.get_property<in_order>());
+  EXPECT_NO_THROW(Q1.get_property<enable_profiling>());
+  // A false value behaves as though it does not.
+  sycl::queue Q2{properties{kp::in_order{false}, kp::enable_profiling{false}}};
+  EXPECT_FALSE(Q2.has_property<in_order>());
+  EXPECT_FALSE(Q2.has_property<enable_profiling>());
+  sycl::queue Q3{kp::in_order{true}};
+  EXPECT_TRUE(Q3.has_property<in_order>());
+  EXPECT_FALSE(Q3.has_property<enable_profiling>());
 }

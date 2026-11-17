@@ -71,7 +71,7 @@ void StrideAnalysisResult::manifestAll(IRBuilder<> &B) {
   for (auto &info : analyzed) {
     info.second.manifest(B, *this);
   }
-  B.SetInsertPoint(saved->getParent(), saved);
+  B.SetInsertPoint(saved);
 }
 
 Value *StrideAnalysisResult::buildMemoryStride(IRBuilder<> &B, llvm::Value *Ptr,

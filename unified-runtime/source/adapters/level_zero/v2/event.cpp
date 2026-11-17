@@ -453,9 +453,12 @@ ur_result_t urEventCreateExp(::ur_context_handle_t hContextOpque,
   assert(eventPool);
 
   // IPC events must not be recycled (their native handle may outlive this
-  // process's reference), so they get a detached, self-owning event.
-  *phEvent = (flags & v2::EVENT_FLAGS_IPC) ? eventPool->allocateDetached()
-                                           : eventPool->allocate();
+  // process's reference), and unpooled events are never recycled by request,
+  // so both get a detached, self-owning event.
+  *phEvent = (flags & v2::EVENT_FLAGS_IPC) ||
+                     (pEventDesc->flags & UR_EXP_EVENT_FLAG_UNPOOLED)
+                 ? eventPool->allocateDetached()
+                 : eventPool->allocate();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

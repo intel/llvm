@@ -179,6 +179,41 @@ class LITLogParserTest(unittest.TestCase):
 
         self.assertEqual(result["Passed"], 5)
 
+    def test_extracts_time_summary_with_lit_count_suffix(self):
+        # lit appends a dynamic "(N of M)"/"(N)" suffix to these headers.
+        lines = [
+            "Slowest Tests (20 of 2022):\n",
+            "-" * 70 + "\n",
+            "41.86s: SYCL :: WorkGroupMemory/basic_usage.cpp\n",
+            "\n",
+            "Test Times (2022):\n",
+            "-" * 70 + "\n",
+            "[40.0s,42.0s) :: [] :: [   1/2022]\n",
+            "-" * 70 + "\n",
+        ]
+
+        slowest, histogram = LITLogParser(lines).extract_time_summary()
+
+        self.assertEqual(slowest, ["41.86s: SYCL :: WorkGroupMemory/basic_usage.cpp"])
+        self.assertEqual(
+            histogram,
+            ["[40.0s,42.0s) :: [] :: [   1/2022]", "-" * 70],
+        )
+
+    def test_error_details_stop_at_lit_count_suffixed_slowest_header(self):
+        lines = [
+            "FAIL: Suite :: test.cpp (1 of 1)\n",
+            "some failure output\n",
+            "Slowest Tests (1 of 1):\n",
+            "0.10s: Suite :: test.cpp\n",
+        ]
+
+        details = LITLogParser(lines).extract_error_details()
+
+        self.assertEqual(
+            details, ["FAIL: Suite :: test.cpp (1 of 1)\n", "some failure output\n"]
+        )
+
     def test_sums_repeated_category_counts(self):
         lines = [
             "Passed Tests (1):\n",
@@ -380,7 +415,7 @@ class SummaryReporterTest(unittest.TestCase):
         self.assertIn("  Unsupported: 3", output)
         self.assertIn("Testing Time: 1.25s", output)
 
-    def test_step_summary_lists_only_statuses_needing_attention(self):
+    def test_step_summary_lists_every_status_in_full(self):
         lines = [
             "Failed Tests (1):\n",
             "suite :: fail.cpp\n",
@@ -405,16 +440,19 @@ class SummaryReporterTest(unittest.TestCase):
             SummaryReporter(result).generate_github_step_summary()
 
         output = stdout.getvalue()
-        self.assertIn("Failed Tests (1):", output)
+        self.assertIn("Failed (1)", output)
         self.assertIn("suite :: fail.cpp", output)
-        self.assertNotIn("suite :: pass-1.cpp", output)
-        self.assertNotIn("suite :: unsupported.cpp", output)
+        self.assertIn("Passed (2)", output)
+        self.assertIn("suite :: pass-1.cpp", output)
+        self.assertIn("suite :: pass-2.cpp", output)
+        self.assertIn("Unsupported (1)", output)
+        self.assertIn("suite :: unsupported.cpp", output)
         self.assertIn("Testing Time: 1.50s", output)
         self.assertIn("Total Discovered Tests: 4", output)
         self.assertIn("(25.00%)", output)
         self.assertIn("(50.00%)", output)
 
-    def test_step_summary_caps_listed_tests(self):
+    def test_step_summary_does_not_truncate_long_lists(self):
         lines = ["Failed Tests (60):\n"]
         lines.extend(f"suite :: fail-{i}.cpp\n" for i in range(60))
         lines.append("\n")
@@ -427,8 +465,8 @@ class SummaryReporterTest(unittest.TestCase):
 
         output = stdout.getvalue()
         self.assertIn("suite :: fail-49.cpp", output)
-        self.assertNotIn("suite :: fail-50.cpp", output)
-        self.assertIn("... and 10 more", output)
+        self.assertIn("suite :: fail-59.cpp", output)
+        self.assertNotIn("more", output)
 
 
 class PathValidatorTest(unittest.TestCase):

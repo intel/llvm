@@ -58,7 +58,7 @@ ur_result_t urAdapterGet(
 
     if (NumAdapters)
       *NumAdapters = 0;
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    return UR_RESULT_SUCCESS;
   }
 
   if (!ur_getenv("UR_ADAPTERS_FORCE_LOAD").has_value()) {

@@ -376,8 +376,13 @@ runs:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       LLVM_BENCHMARKS_UNIT_TESTING: 1
       COMPUTE_BENCHMARKS_BUILD_PATH: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}/compute-benchmarks-build
+      LIBOFFLOAD_ARTIFACT: ${{ inputs.liboffload_artifact }}
     run: |
       # Run benchmarks' integration tests
+
+      if [ -n "$LIBOFFLOAD_ARTIFACT" ]; then
+        export OFFLOAD_PREFIX="$(realpath ./liboffload)"
+      fi
 
       # NOTE: Each integration test prints its own group name as part of test script
       python3 ./devops/scripts/benchmarks/tests/test_integration.py

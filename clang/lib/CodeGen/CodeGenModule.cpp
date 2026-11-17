@@ -1378,6 +1378,17 @@ void CodeGenModule::Release() {
                                 : "buffered");
       getModule().addModuleFlag(llvm::Module::Error, "amdgpu_printf_kind",
                                 MDStr);
+    } else if (LangOpts.SYCLIsDevice) {
+      // SYCL device code on AMDGPU always uses the buffered printf scheme: the
+      // hostcall scheme relies on ROCm's hostcall runtime service (and PCIe
+      // atomics), which the SYCL/UR HIP runtime does not set up. The buffered
+      // scheme only needs the printf buffer implicit kernarg, which the HIP
+      // runtime allocates and parses automatically from the code object's
+      // printf metadata. This flag tells AMDGPUPrintfRuntimeBinding to lower
+      // printf using the buffered layout expected by the runtime.
+      getModule().addModuleFlag(
+          llvm::Module::Error, "amdgpu_printf_kind",
+          llvm::MDString::get(getLLVMContext(), "buffered"));
     }
 
     const TargetOptions &TargetOpts = getTarget().getTargetOpts();
@@ -7006,14 +7017,10 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AS;
   }
 
-  if (LangOpts.SYCLIsDevice && D) {
-    auto *Scope = D->getAttr<SYCLScopeAttr>();
-    if (!Scope)
-      if (auto *RD = D->getType()->getAsCXXRecordDecl())
-        Scope = RD->getAttr<SYCLScopeAttr>();
-    if (Scope && Scope->isWorkGroup())
-      return LangAS::sycl_local;
-  }
+  if (LangOpts.SYCLIsDevice && D &&
+      CGSYCLRuntime::getWorkGroupVarKind(*D) !=
+          CGSYCLRuntime::WorkGroupVarKind::None)
+    return LangAS::sycl_local;
 
   if (LangOpts.SYCLIsDevice &&
       (!D || D->getType().getAddressSpace() == LangAS::Default))
