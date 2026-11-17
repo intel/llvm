@@ -135,7 +135,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_cache_root: "/__w/"
-      build_cache_suffix: linux-debug-all-backends (static ${{ matrix.static }})
+      build_cache_suffix: linux-debug-all-backends-static-${{ matrix.static }}
       build_target: all
       build_configure_extra_args: >-
         -t Debug
@@ -398,7 +398,7 @@ jobs:
 
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      build_cache_suffix: windows_debug_all_backends (static ${{ matrix.static }})
+      build_cache_suffix: windows_debug_all_backends-static-${{ matrix.static }}
       build_target: all
       build_configure_extra_args: >-
         -t Debug
