@@ -176,6 +176,7 @@ bool transformAccessChain(Function *F) {
     // Insert GEP right before the __spirv_AccessChain call
     {
       IRBuilder Builder(CI);
+      Builder.disableGEPCanonicalization();
       Value *NewGEP =
           Builder.CreateInBoundsGEP(WrapperMatrixTy, CI->getArgOperand(0),
                                     {Builder.getInt64(0), Builder.getInt32(0)});
