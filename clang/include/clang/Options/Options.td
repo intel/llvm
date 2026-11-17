@@ -1455,6 +1455,9 @@ defm gpu_exclude_wrong_side_overloads : BoolFOption<"gpu-exclude-wrong-side-over
   NegFlag<SetFalse, [], [ClangOption], "Exclude wrong side overloads only if there are same side overloads">,
   BothFlags<[HelpHidden], [], " in overloading resolution for CUDA/HIP">>;
 
+// TODO: If upstreamed, check whether this help text should also mention that
+// CUDA/HIP use the CUID to name device stubs of internal-linkage __global__
+// functions.
 def cuid_EQ : Joined<["-"], "cuid=">, Visibility<[ClangOption, CC1Option]>,
   HelpText<"An ID for compilation unit, which should be the same for the same "
            "compilation unit but different for different compilation units. "
