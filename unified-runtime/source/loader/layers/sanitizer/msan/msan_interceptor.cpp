@@ -150,6 +150,24 @@ ur_result_t MsanInterceptor::releaseMemory(ur_context_handle_t Context,
   return getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
 }
 
+ur_result_t MsanInterceptor::registerMemory(ur_context_handle_t Context,
+                                            ur_device_handle_t Device,
+                                            uptr Addr, size_t Size) {
+  auto EnqueueUnpoison = [&](ur_device_handle_t Device) {
+    ManagedQueue Queue(Context, Device);
+    return getDeviceInfo(Device)->Shadow->EnqueuePoisonShadow(
+        Queue, Addr, Size, &kMemInitializedMagic);
+  };
+  if (Device) {
+    UR_CALL(EnqueueUnpoison(Device));
+  } else {
+    auto ContextInfo = getContextInfo(Context);
+    for (ur_device_handle_t Device : ContextInfo->DeviceList)
+      UR_CALL(EnqueueUnpoison(Device));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                              ur_queue_handle_t Queue,
                                              LaunchInfo &LaunchInfo) {
