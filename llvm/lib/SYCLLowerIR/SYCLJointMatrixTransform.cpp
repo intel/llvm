@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/IR/IRBuilder.h"
 
@@ -54,6 +55,11 @@ Value *stripPointerCastsAndOffsets(Value *V, bool StopOnGEP = false) {
       if (StopOnGEP && isa<GetElementPtrInst>(GEP))
         return V;
       V = GEP->getPointerOperand();
+    } else if (auto *ABP = sycl::utils::getAddressBasePointer(V)) {
+      // llvm.intel.subscript / llvm.intel.struct.fieldaccess
+      if (StopOnGEP)
+        return V;
+      V = ABP;
     } else if (auto *BC = dyn_cast<BitCastOperator>(V)) {
       Value *NewV = BC->getOperand(0);
       if (!NewV->getType()->isPointerTy())
@@ -107,12 +113,11 @@ bool transformAccessChain(Function *F) {
     // instruction, but a zero GEP. This zero GEP is no-op, but can confuse a
     // SPIR-V consumer, so lets remove it here.
     auto *Unique = CI->getUniqueUndroppableUser();
-    if (auto *GEP = dyn_cast_or_null<GetElementPtrInst>(Unique)) {
-      if (GEP->hasAllZeroIndices()) {
-        GEP->replaceAllUsesWith(CI);
-        GEP->dropAllReferences();
-        GEP->eraseFromParent();
-      }
+    if (Unique && sycl::utils::isZeroGEP(Unique)) {
+      auto *Inst = cast<Instruction>(Unique);
+      Inst->replaceAllUsesWith(CI);
+      Inst->dropAllReferences();
+      Inst->eraseFromParent();
     }
 
     // It can happen that the optimizer can remove duplicated or dead uses

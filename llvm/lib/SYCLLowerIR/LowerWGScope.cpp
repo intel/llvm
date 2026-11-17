@@ -77,15 +77,17 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/TargetParser/Triple.h"
 
 #ifndef NDEBUG
 #include "llvm/IR/CFG.h"
@@ -658,7 +660,7 @@ static void dumpIR(const Function &F, const Twine &Suff) {
 }
 #endif // NDEBUG
 
-using CaptureDesc = std::pair<AllocaInst *, GetElementPtrInst *>;
+using CaptureDesc = std::pair<AllocaInst *, StoreInst *>;
 
 // This function handles locals of kind 1 (see comments at the top of file) -
 // captures of private_memory<T> variables. It basically adds (*) instruction in
@@ -688,16 +690,16 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
     LambdaObj = Cast->getOperand(0);
 
   for (auto *U : LambdaObj->users()) {
-    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(U);
-
-    if (!GEP)
+    // The field address may be a GEP or an llvm.intel.subscript /
+    // llvm.intel.struct.fieldaccess call.
+    if (llvm::sycl::utils::getAddressBasePointer(U) != LambdaObj)
       continue;
-    assert(GEP->hasOneUse());
-    StoreInst *CaptureInit = dyn_cast<StoreInst>(*(GEP->users().begin()));
+    assert(U->hasOneUse());
+    StoreInst *CaptureInit = dyn_cast<StoreInst>(*(U->users().begin()));
 
-    if (!CaptureInit)
+    if (!CaptureInit || CaptureInit->getPointerOperand() != U)
       // this can't be private_memory<T> capture, which is always captured by
-      // address via the StoreInst instruction
+      // address via the StoreInst instruction into the lambda object field
       continue;
     Value *StoredVal = CaptureInit->getValueOperand();
     // '[=]' capture of a private_memory<T> instance is not permitted, there is
@@ -725,23 +727,29 @@ static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
     // are of interest here:
     if (!AI || !AI->getMetadata(WI_SCOPE_MD))
       continue;
-    PrivMemCaptures.push_back(CaptureDesc{AI, GEP});
+    // The field address is cloned before PFWICall (the original may be in a
+    // leader-only block), so all of its operands must be available there:
+    // only the lambda object itself and constants are allowed.
+    if (!all_of(U->operands(), [&](const Use &Op) {
+          return Op.get() == LambdaObj || isa<Constant>(Op.get());
+        }))
+      reportFatalInternalError(
+          "LowerWGScope: private_memory capture field address has operands "
+          "that may not dominate the PFWI call");
+    PrivMemCaptures.push_back(CaptureDesc{AI, CaptureInit});
   }
   // now rewrite the captured address of a private_memory variables within the
   // PFWI lambda object:
-  for (auto &C : PrivMemCaptures) {
-    GetElementPtrInst *NewGEP = cast<GetElementPtrInst>(C.second->clone());
-    NewGEP->insertBefore(PFWICall->getIterator());
+  for (auto &[AI, Init] : PrivMemCaptures) {
+    Instruction *NewInst =
+        cast<Instruction>(Init->getPointerOperand())->clone();
+    NewInst->insertBefore(PFWICall->getIterator());
     IRBuilder<> Bld(PFWICall->getContext());
     Bld.SetInsertPoint(PFWICall);
-    Value *Val = C.first;
-    auto ValAS = cast<PointerType>(Val->getType())->getAddressSpace();
-    auto PtrAS =
-        cast<PointerType>(NewGEP->getResultElementType())->getAddressSpace();
-
-    if (ValAS != PtrAS)
-      Val = Bld.CreateAddrSpaceCast(Val, NewGEP->getResultElementType());
-    Bld.CreateStore(Val, NewGEP);
+    Type *FieldTy = Init->getValueOperand()->getType();
+    // No-op if AI is already in the field's address space.
+    Value *Val = Bld.CreateAddrSpaceCast(AI, FieldTy);
+    Bld.CreateStore(Val, NewInst);
   }
 }
 
