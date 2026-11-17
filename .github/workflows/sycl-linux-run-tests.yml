@@ -261,7 +261,8 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         sparse-checkout: |
-          devops
+          devops/actions
+          devops/scripts
           sycl/cts_exclude_filter
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
@@ -366,13 +367,14 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         extra_lit_opts: ${{ inputs.extra_lit_opts }}
         retention-days: ${{ inputs.retention-days }}
+        job_name: ${{ inputs.name }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/linux/cts
       # Normally this job takes less than 10m. But sometimes it hangs up and
       # reaches the 360m limit. Set a lower limit to free up the runner earlier.
-      timeout-minutes: 35
+      timeout-minutes: 40
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}

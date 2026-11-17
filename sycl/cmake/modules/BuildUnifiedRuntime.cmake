@@ -186,12 +186,16 @@ add_custom_target(UnifiedRuntimeAdapters)
 function(add_sycl_ur_adapter NAME)
   add_dependencies(UnifiedRuntimeAdapters ur_adapter_${NAME})
 
-  install(TARGETS ur_adapter_${NAME}
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
-    RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
+  ur_adapter_is_static(${NAME} adapter_is_static)
+  # A static adapter is linked into the UR loader, so do not install it.
+  if(NOT adapter_is_static)
+    install(TARGETS ur_adapter_${NAME}
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
+      RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
 
-  set_property(GLOBAL APPEND PROPERTY
-    SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+    set_property(GLOBAL APPEND PROPERTY
+      SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+  endif()
 endfunction()
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)

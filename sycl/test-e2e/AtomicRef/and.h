@@ -63,82 +63,69 @@ void and_local_test(queue q) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <template <typename, memory_order, memory_scope,
-                    access::address_space> class AtomicRef,
-          access::address_space space, typename T,
-          memory_order order = memory_order::relaxed,
-          memory_scope scope = memory_scope::device>
-void and_global_test(queue q) {
-  const size_t N = std::min<size_t>(32, sizeof(T) * 8);
-  const T initial = T((1ll << N) - 1);
-  T cum = initial;
-  std::vector<T> output(N);
-  std::fill(output.begin(), output.end(), T(0));
-  {
-    buffer<T> cum_buf(&cum, 1);
-    buffer<T> output_buf(output.data(), output.size());
-
-    q.submit([&](handler &cgh) {
-      auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
-      auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
-      cgh.parallel_for(range<1>(N), [=](item<1> it) {
-        size_t gid = it.get_id(0);
-        auto atm = AtomicRef<T,
-                             (order == memory_order::acquire ||
-                              order == memory_order::release)
-                                 ? memory_order::relaxed
-                                 : order,
-                             scope, space>(cum[0]);
-        out[gid] = atm.fetch_and(~T(1ll << gid), order);
-      });
-    });
-  }
-
-  // Final value should be equal to 0
+template <typename T> void and_check(const T &cum, T *output, size_t N) {
   assert(cum == 0);
 
-  // All other values should be unique; each work-item sets one bit to 0
-  std::sort(output.begin(), output.end());
-  assert(std::unique(output.begin(), output.end()) == output.end());
+  T *output_end = output + N;
+  std::sort(output, output_end);
+  assert(std::unique(output, output_end) == output_end);
+}
+
+template <template <typename, memory_order, memory_scope,
+                    access::address_space> class AtomicRef,
+          access::address_space space, typename T, memory_order order,
+          memory_scope scope, typename CumT, typename OutT>
+void and_global_body(CumT &cum, OutT &out, size_t gid) {
+  auto atm = AtomicRef<T,
+                       (order == memory_order::acquire ||
+                        order == memory_order::release)
+                           ? memory_order::relaxed
+                           : order,
+                       scope, space>(cum[0]);
+  out[gid] = atm.fetch_and(~T(1ll << gid), order);
 }
 
 template <template <typename, memory_order, memory_scope,
                     access::address_space> class AtomicRef,
           access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
-          memory_scope scope = memory_scope::device>
-void and_global_test_usm_shared(queue q) {
+          memory_scope scope = memory_scope::device, bool WithUsm = true>
+void and_global_test(queue q) {
   const size_t N = std::min<size_t>(32, sizeof(T) * 8);
   const T initial = T((1ll << N) - 1);
-  T *cum = malloc_shared<T>(1, q);
-  cum[0] = initial;
-  T *output = malloc_shared<T>(N, q);
-  T *output_begin = &output[0], *output_end = &output[N];
-  std::fill(output_begin, output_end, T(0));
+  T cum = initial;
+  std::vector<T> output(N);
+  std::fill(output.begin(), output.end(), T(0));
+  T *usm_cum = nullptr;
+  T *usm_output = nullptr;
+  if constexpr (WithUsm) {
+    usm_cum = malloc_shared<T>(1, q);
+    usm_cum[0] = initial;
+    usm_output = malloc_shared<T>(N, q);
+    std::fill(usm_output, usm_output + N, T(0));
+  }
   {
+    buffer<T> cum_buf(&cum, 1);
+    buffer<T> output_buf(output.data(), output.size());
+
     q.submit([&](handler &cgh) {
+       auto cum = cum_buf.template get_access<access_mode::read_write>(cgh);
+       auto out = output_buf.get_access(cgh, sycl::write_only, sycl::no_init);
        cgh.parallel_for(range<1>(N), [=](item<1> it) {
          size_t gid = it.get_id(0);
-         auto atm = AtomicRef<T,
-                              (order == memory_order::acquire ||
-                               order == memory_order::release)
-                                  ? memory_order::relaxed
-                                  : order,
-                              scope, space>(cum[0]);
-         output[gid] = atm.fetch_and(~T(1ll << gid), order);
+         and_global_body<AtomicRef, space, T, order, scope>(cum, out, gid);
+         if constexpr (WithUsm)
+           and_global_body<AtomicRef, space, T, order, scope>(usm_cum,
+                                                              usm_output, gid);
        });
      }).wait_and_throw();
   }
-
-  // Final value should be equal to 0.
-  assert(cum[0] == 0);
-
-  // All other values should be unique; each work-item sets one bit to 0.
-  std::sort(output_begin, output_end);
-  assert(std::unique(output_begin, output_end) == output_end);
-
-  free(cum, q);
-  free(output, q);
+  and_check<T>(cum, output.data(), N);
+  if constexpr (WithUsm) {
+    and_check<T>(usm_cum[0], usm_output, N);
+    free(usm_cum, q);
+    free(usm_output, q);
+  }
 }
 
 template <access::address_space space, typename T,
@@ -166,18 +153,20 @@ void and_test(queue q) {
   if constexpr (do_global_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
-      and_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
-          q);
-      if (do_usm_tests) {
-        and_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
-                                   order, scope>(q);
-      }
+      if (do_usm_tests)
+        and_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope,
+                        /*WithUsm=*/true>(q);
+      else
+        and_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope,
+                        /*WithUsm=*/false>(q);
     }
 #else
-    and_global_test<::sycl::atomic_ref, space, T, order, scope>(q);
-    if (do_usm_tests) {
-      and_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(q);
-    }
+    if (do_usm_tests)
+      and_global_test<::sycl::atomic_ref, space, T, order, scope,
+                      /*WithUsm=*/true>(q);
+    else
+      and_global_test<::sycl::atomic_ref, space, T, order, scope,
+                      /*WithUsm=*/false>(q);
 #endif
   }
 }

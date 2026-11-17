@@ -10,6 +10,10 @@
 // UNSUPPORTED: arch-intel_gpu_pvc
 // UNSUPPORTED-INTENDED: Our PVC runners don't have the userspace Vulkan driver installed
 
+// No Vulkan driver supports Crescent Island (0x674c) yet.
+// XFAIL: arch-intel_gpu_cri
+// XFAIL-TRACKER: CMPLRTST-29868
+
 // clang-format on
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}

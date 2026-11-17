@@ -60,6 +60,23 @@
 // CHECK-NO-TARGET: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
 // CHECK-NO-TARGET: call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
 
+// NativeCPU's empty image represents a table of host kernel pointers, so it
+// still needs the entry table and runtime registration.
+// RUN: touch %t/empty.bin
+// RUN: llvm-offload-binary -o %t/native.syclfb \
+// RUN:   --image=file=%t/empty.bin,kind=sycl,triple=native_cpu,sycl-target=native_cpu,sycl-image-format=0,symbols=native_kernel
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -fsycl-is-host \
+// RUN:   -foffload-include-binary %t/native.syclfb -emit-llvm %t/host.cpp -o - \
+// RUN:   | FileCheck --check-prefix=CHECK-NATIVE %s
+// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -fsycl-is-host \
+// RUN:   -foffload-include-binary %t/native.syclfb -emit-llvm %t/host.cpp -o - \
+// RUN:   | FileCheck --check-prefix=CHECK-NATIVE %s
+// CHECK-NATIVE-DAG: @__sycl_native_cpu_decls = internal constant [2 x %__nativecpu_entry]
+// CHECK-NATIVE-DAG: ptr @native_kernel.SYCLNCPU
+// CHECK-NATIVE-DAG: c"__nativecpu_end\00"
+// CHECK-NATIVE: call void @__sycl_register_lib(
+// CHECK-NATIVE: call void @__sycl_unregister_lib(
+
 // Malformed runtime metadata is diagnosed.
 // RUN: llvm-offload-binary -o %t/no-format.syclfb \
 // RUN:   --image=file=%t/image.bin,kind=sycl,triple=spir64-unknown-unknown
