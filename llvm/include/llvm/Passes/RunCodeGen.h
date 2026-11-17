@@ -19,6 +19,7 @@ namespace llvm {
 
 class TargetLibraryInfoImpl;
 
+// PassPlugin::invokePreCodeGenCallback() wants to match the parameter list
 /// \p TLII, if non-null, replaces the TargetLibraryInfoImpl this would
 /// otherwise synthesize from \p TM. Frontends must pass it when they configure
 /// target library info beyond what TargetMachine carries (e.g. the alternate
