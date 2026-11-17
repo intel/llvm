@@ -208,7 +208,14 @@ std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
   int MemFreeError =
       OclocFreeOutputFunc(&NumOutputs, &Outputs, &OutputLengths, &OutputNames);
 
-  if (InvokeError)
+  // ocloc query may return success even when it cannot target the device
+  // passed via -device, so check the log as well.
+  // FIXME: Workaround for CMPLRLLVM-79648. Ideally, ocloc should
+  // return a non-zero return code when the device is not targetable.
+  // Nevertheless, we'd still need this check to maintain backwards
+  // compatibility with older driver versions.
+  if (InvokeError ||
+      QueryLog.find("Could not determine device target") != std::string::npos)
     throw sycl::exception(the_errc,
                           "ocloc reported errors: {\n" + QueryLog + "\n}");
 
