@@ -66,7 +66,7 @@ enum ModuleHeaderMode {
   HeaderMode_System
 };
 
-/// Options for specifying CUID used by CUDA/HIP for uniquely identifying
+/// Options for specifying CUID used by CUDA/HIP/SYCL for uniquely identifying
 /// compilation units.
 class CUIDOptions {
 public:
