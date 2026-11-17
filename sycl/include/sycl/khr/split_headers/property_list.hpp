@@ -11,6 +11,7 @@
 
 #include "version.hpp"
 
+#include <sycl/properties/property_traits.hpp>
 #include <sycl/property_list.hpp>
 
 #endif // __SYCL_KHR_SPLIT_HEADERS_PROPERTY_LIST
