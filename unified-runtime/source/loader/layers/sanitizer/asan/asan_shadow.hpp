@@ -67,6 +67,10 @@ struct ShadowMemory {
 
   uptr ShadowLowerBound = 0xffff'ffff'ffff'ffff;
   uptr ShadowUpperBound = 0;
+
+  // See AsanRuntimeData::LocalWindowSize. Unused on CPU, where local memory
+  // is shadowed like global memory.
+  uint32_t LocalWindowSize = 0;
 };
 
 struct ShadowMemoryCPU final : public ShadowMemory {
