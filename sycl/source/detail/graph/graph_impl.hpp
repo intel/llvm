@@ -318,7 +318,7 @@ public:
   /// @param Verbose If true (and native recording is not enabled), print
   /// additional information about the nodes such as kernel args or memory
   /// access where applicable.
-  void printGraphAsDot(const std::string FilePath, bool Verbose) const {
+  void printGraphAsDot(const std::string &FilePath, bool Verbose) const {
     if (MNativeGraphHandle) {
       context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
       sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
@@ -352,7 +352,7 @@ public:
   /// Throws an invalid exception if this function is called
   /// while a queue is recording commands to the graph.
   /// @param ExceptionMsg Message to append to the exception message
-  void throwIfGraphRecordingQueue(const std::string ExceptionMsg) const {
+  void throwIfGraphRecordingQueue(const std::string &ExceptionMsg) const {
     if (MRecordingQueues.size()) {
       throw sycl::exception(make_error_code(sycl::errc::invalid),
                             ExceptionMsg +
@@ -952,7 +952,7 @@ private:
   /// @param FilePath Path to the output file.
   /// @param Verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
-  void printGraphAsDot(const std::string FilePath, bool Verbose) const {
+  void printGraphAsDot(const std::string &FilePath, bool Verbose) const {
     /// Vector of nodes visited during the graph printing
     std::vector<node_impl *> VisitedNodes;
 

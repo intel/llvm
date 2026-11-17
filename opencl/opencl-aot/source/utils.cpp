@@ -379,7 +379,7 @@ createProgramWithIL(std::vector<char> IL, cl_context Context,
 }
 
 std::tuple<std::vector<char>, std::string, cl_int>
-readBinaryFile(std::string FileName) {
+readBinaryFile(const std::string &FileName) {
   std::ifstream FileStream(FileName,
                            std::ios::in | std::ios::binary | std::ios::ate);
   if (!FileStream.is_open()) {
