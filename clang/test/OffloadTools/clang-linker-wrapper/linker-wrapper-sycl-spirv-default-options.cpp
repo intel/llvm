@@ -29,6 +29,9 @@
 // CHECK-SAME:,+SPV_INTEL_cache_controls
 // CHECK-SAME:,+SPV_KHR_shader_clock
 // CHECK-SAME:,+SPV_INTEL_bindless_images
+// CHECK-SAME:,+SPV_INTEL_split_barrier
+// CHECK-SAME:,+SPV_INTEL_2d_block_io
+// CHECK-SAME:,+SPV_INTEL_subgroup_matrix_multiply_accumulate
 // CHECK-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-SAME:,+SPV_KHR_uniform_group_instructions
