@@ -275,10 +275,10 @@ kernel names.
 Set of information about a device code module containing one or more
 sub-modules, each targeting a specific IGCA target.
 
-| Key                                   | Value type            | Value                                                                                                                                                                                                        |
-| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| "isIgcaModule"                        | 32 bit integer. ("1") | 1 if the module contains one or more IGCA target sub-modules, 0 or missing otherwise.                                                                                                                        |
-| `igca_X` + "@no-embed-virtual-arch"   | 32 bit integer. ("1") | 1 if the virtual architecture sub-module was dropped for the IGCA target `igca_X`, 0 or missing otherwise. When 1, specialization constants for that target are emulated rather than native.                 |
+| Key                                   | Value type            | Value                                                                                                                                                                                                                                                                                      |
+| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "isIgcaModule"                        | 32 bit integer. ("1") | 1 if the module contains one or more IGCA target sub-modules, 0 or missing otherwise.                                                                                                                                                                                                      |
+| `igca_X` + "@no-embed-virtual-arch"   | 32 bit integer. ("1") | 1 if the virtual architecture sub-module was dropped for the IGCA target `igca_X`. Generated only when the user requests to drop, so a missing entry means the default behavior and is equivalent to 0. When 1, specialization constants for that target are emulated rather than native. |
 
 __Notes:__
 
