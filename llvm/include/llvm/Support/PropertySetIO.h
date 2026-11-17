@@ -228,8 +228,7 @@ public:
   static constexpr char SYCL_WORK_GROUP_DYNAMIC_LOCAL_MEM[] =
       "SYCL/work group dynamic local mem";
   static constexpr char SYCL_REGISTERED_KERNELS[] = "SYCL/registered kernels";
-  static constexpr char SYCL_OFFLOAD_ARCH_METADATA[] =
-      "SYCL/offload arch metadata";
+  static constexpr char SYCL_IGCA_METADATA[] = "SYCL/igca metadata";
 
   static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
       "reqd_work_group_size_uint64_t";
