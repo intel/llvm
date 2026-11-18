@@ -19,6 +19,17 @@
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 
+#include <cstdio>
+
+static int Failures = 0;
+#define CHECK(Cond)                                                            \
+  do {                                                                         \
+    if (!(Cond)) {                                                             \
+      std::printf("FAIL WI=%d: %s\n", static_cast<int>(WI), #Cond);            \
+      ++Failures;                                                              \
+    }                                                                          \
+  } while (0)
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class TestKernel;
@@ -197,22 +208,23 @@ int main() {
   sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
   for (uint32_t WI = 0; WI < SGSize; ++WI) {
     bool ExpectedResult = (WI == ArbitraryItem);
-    assert(BarrierAcc[WI] == ExpectedResult);
-    assert(BroadcastAcc[WI] == ExpectedResult);
-    assert(AnyAcc[WI] == ExpectedResult);
-    assert(AllAcc[WI] == ExpectedResult);
-    assert(NoneAcc[WI] == ExpectedResult);
-    assert(ReduceAcc[WI] == ExpectedResult);
-    assert(ExScanAcc[WI] == ExpectedResult);
-    assert(IncScanAcc[WI] == ExpectedResult);
-    assert(ExScanFloatAcc[WI] == ExpectedResult);
-    assert(IncScanFloatAcc[WI] == ExpectedResult);
-    assert(ExScanInitAcc[WI] == ExpectedResult);
-    assert(IncScanInitAcc[WI] == ExpectedResult);
-    assert(ShiftLeftAcc[WI] == ExpectedResult);
-    assert(ShiftRightAcc[WI] == ExpectedResult);
-    assert(SelectAcc[WI] == ExpectedResult);
-    assert(PermuteXorAcc[WI] == ExpectedResult);
+    CHECK(BarrierAcc[WI] == ExpectedResult);
+    CHECK(BroadcastAcc[WI] == ExpectedResult);
+    CHECK(AnyAcc[WI] == ExpectedResult);
+    CHECK(AllAcc[WI] == ExpectedResult);
+    CHECK(NoneAcc[WI] == ExpectedResult);
+    CHECK(ReduceAcc[WI] == ExpectedResult);
+    CHECK(ExScanAcc[WI] == ExpectedResult);
+    CHECK(IncScanAcc[WI] == ExpectedResult);
+    CHECK(ExScanFloatAcc[WI] == ExpectedResult);
+    CHECK(IncScanFloatAcc[WI] == ExpectedResult);
+    CHECK(ExScanInitAcc[WI] == ExpectedResult);
+    CHECK(IncScanInitAcc[WI] == ExpectedResult);
+    CHECK(ShiftLeftAcc[WI] == ExpectedResult);
+    CHECK(ShiftRightAcc[WI] == ExpectedResult);
+    CHECK(SelectAcc[WI] == ExpectedResult);
+    CHECK(PermuteXorAcc[WI] == ExpectedResult);
   }
-  return 0;
+  std::printf("Total failures: %d\n", Failures);
+  return Failures != 0;
 }

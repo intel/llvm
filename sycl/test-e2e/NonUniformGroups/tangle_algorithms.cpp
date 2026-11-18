@@ -18,6 +18,17 @@
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 
+#include <cstdio>
+
+static int Failures = 0;
+#define CHECK(Cond)                                                            \
+  do {                                                                         \
+    if (!(Cond)) {                                                             \
+      std::printf("FAIL WI=%d: %s\n", static_cast<int>(WI), #Cond);            \
+      ++Failures;                                                              \
+    }                                                                          \
+  } while (0)
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class TestKernel;
@@ -198,22 +209,23 @@ int main() {
   sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
   sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
   for (int WI = 0; WI < SGSize; ++WI) {
-    assert(BarrierAcc[WI] == true);
-    assert(BroadcastAcc[WI] == true);
-    assert(AnyAcc[WI] == true);
-    assert(AllAcc[WI] == true);
-    assert(NoneAcc[WI] == true);
-    assert(ReduceAcc[WI] == true);
-    assert(ExScanAcc[WI] == true);
-    assert(IncScanAcc[WI] == true);
-    assert(ExScanFloatAcc[WI] == true);
-    assert(IncScanFloatAcc[WI] == true);
-    assert(ExScanInitAcc[WI] == true);
-    assert(IncScanInitAcc[WI] == true);
-    assert(ShiftLeftAcc[WI] == true);
-    assert(ShiftRightAcc[WI] == true);
-    assert(SelectAcc[WI] == true);
-    assert(PermuteXorAcc[WI] == true);
+    CHECK(BarrierAcc[WI] == true);
+    CHECK(BroadcastAcc[WI] == true);
+    CHECK(AnyAcc[WI] == true);
+    CHECK(AllAcc[WI] == true);
+    CHECK(NoneAcc[WI] == true);
+    CHECK(ReduceAcc[WI] == true);
+    CHECK(ExScanAcc[WI] == true);
+    CHECK(IncScanAcc[WI] == true);
+    CHECK(ExScanFloatAcc[WI] == true);
+    CHECK(IncScanFloatAcc[WI] == true);
+    CHECK(ExScanInitAcc[WI] == true);
+    CHECK(IncScanInitAcc[WI] == true);
+    CHECK(ShiftLeftAcc[WI] == true);
+    CHECK(ShiftRightAcc[WI] == true);
+    CHECK(SelectAcc[WI] == true);
+    CHECK(PermuteXorAcc[WI] == true);
   }
-  return 0;
+  std::printf("Total failures: %d\n", Failures);
+  return Failures != 0;
 }
