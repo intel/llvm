@@ -19,6 +19,7 @@
 #ifndef LLVM_TRANSFORMS_IPO_DEADARGUMENTELIMINATION_H
 #define LLVM_TRANSFORMS_IPO_DEADARGUMENTELIMINATION_H
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Constants.h"
@@ -126,6 +127,14 @@ public:
   bool CheckSYCLKernels = false;
 
 private:
+  FunctionAnalysisManager *FAM = nullptr;
+
+  /// The functions whose bodies were changed.
+  SmallSetVector<Function *, 8> ChangedFunctions;
+
+  /// Erase \p F, which was replaced by \p NF, and its analyses.
+  void eraseReplacedFunction(Function &F, const Function &NF);
+
   Liveness markIfNotLive(RetOrArg Use, UseVector &MaybeLiveUses);
   Liveness surveyUse(const Use *U, UseVector &MaybeLiveUses,
                      unsigned RetValNum = -1U);

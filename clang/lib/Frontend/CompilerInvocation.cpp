@@ -349,6 +349,7 @@ static void denormalizeStringImpl(ArgumentConsumer Consumer,
                                   const Twine &Value) {
   switch (OptClass) {
   case Option::SeparateClass:
+  case Option::SeparateOrEqClass:
   case Option::JoinedOrSeparateClass:
   case Option::JoinedAndSeparateClass:
     Consumer(Spelling);
@@ -495,6 +496,7 @@ static void denormalizeStringVector(ArgumentConsumer Consumer,
   }
   case Option::JoinedClass:
   case Option::SeparateClass:
+  case Option::SeparateOrEqClass:
   case Option::JoinedOrSeparateClass:
     for (const std::string &Value : Values)
       denormalizeString(Consumer, SpellingOffset, OptClass, TableIndex, Value);

@@ -4635,6 +4635,11 @@ void Sema::DiagnoseExceptionUse(SourceLocation Loc, bool IsTry) {
     return;
   }
 
+  if (getLangOpts().HLSL) {
+    targetDiag(Loc, diag::err_hlsl_exceptions) << IsTry;
+    return;
+  }
+
   // Exceptions aren't allowed in SYCL device code.
   if (getLangOpts().SYCLIsDevice)
     SYCL().DiagIfDeviceCode(Loc, diag::err_sycl_restrict)

@@ -19,15 +19,20 @@
 #ifndef LLVM_CLANG_CODEGENUTILS_BACKENDDIAGNOSTICHANDLER_H
 #define LLVM_CLANG_CODEGENUTILS_BACKENDDIAGNOSTICHANDLER_H
 
+#include "clang/Basic/FileEntry.h"
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DiagnosticHandler.h"
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace llvm {
+class DIFile;
 class DiagnosticInfo;
 class DiagnosticInfoDontCall;
 class DiagnosticInfoInlineAsm;
@@ -85,6 +90,15 @@ public:
   std::optional<FullSourceLoc>
   getFunctionSourceLocation(const llvm::Function &F) const;
 
+  /// Set the source file of each DIFile that clang created, or std::nullopt
+  /// for a DIFile shared by several files, which identifies none of them.
+  /// Debug locations in other DIFiles, e.g. from LLVM IR input, are matched to
+  /// source files by name.
+  void setDIFileSources(
+      llvm::DenseMap<const llvm::DIFile *, OptionalFileEntryRef> Sources) {
+    DIFileSources = std::move(Sources);
+  }
+
   /// Get the best possible source location to represent a diagnostic that
   /// may have associated debug info.
   const FullSourceLoc
@@ -140,6 +154,11 @@ private:
   void SYCLIllegalVirtualCallDiagHandler(
       const llvm::DiagnosticInfoIllegalVirtualCall &D);
 
+  /// Find the source file for a debug location in \p File, falling back to
+  /// looking up \p Names in order if \p File is not in DIFileSources.
+  OptionalFileEntryRef getSourceFile(const llvm::DIFile *File,
+                                     ArrayRef<StringRef> Names) const;
+
   DiagnosticsEngine &Diags;
   const CodeGenOptions &CodeGenOpts;
   SourceManager *SM = nullptr;
@@ -154,6 +173,8 @@ private:
   // because we optimize for time building this map rather than time
   // retrieving an entry, as backend diagnostics are uncommon.
   std::vector<std::pair<llvm::hash_code, FullSourceLoc>> ManglingFullSourceLocs;
+
+  llvm::DenseMap<const llvm::DIFile *, OptionalFileEntryRef> DIFileSources;
 };
 
 } // namespace clang
