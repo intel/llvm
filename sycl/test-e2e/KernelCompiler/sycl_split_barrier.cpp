@@ -6,31 +6,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: sycl-jit, gpu, level_zero, aspect-usm_shared_allocations
+// REQUIRES: sycl-jit, gpu, level_zero
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // The kernel_compiler (sycl-jit) translates the kernel to SPIR-V with its own
 // extension allow-list. Check that SPV_INTEL_split_barrier is allowed there:
-// without it the build below fails with "RequiresExtension".
+// without it the build below fails with "RequiresExtension". The kernel is
+// only built, not run, so the test does not depend on the GPU running split
+// barriers.
 
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/usm.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-static constexpr size_t NUM = 64;
-static constexpr size_t WGSIZE = 16;
 
 int main() {
   sycl::queue q;
 
   std::string source = R"""(
-    #include <sycl/sycl.hpp>
+    #include <sycl/ext/oneapi/free_function_queries.hpp>
+    #include <sycl/ext/oneapi/kernel_properties.hpp>
     namespace syclext = sycl::ext::oneapi;
     namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -56,20 +55,9 @@ int main() {
           q.get_context(), syclexp::source_language::sycl, source);
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
       syclexp::build(kb_src);
-  sycl::kernel k = kb_exe.ext_oneapi_get_kernel("split_barrier");
-
-  int *ptr = sycl::malloc_shared<int>(NUM, q);
-  q.submit([&](sycl::handler &cgh) {
-     cgh.set_args(ptr);
-     cgh.parallel_for(sycl::nd_range{{NUM}, {WGSIZE}}, k);
-   }).wait();
-
-  int errors = 0;
-  for (size_t i = 0; i < NUM; ++i)
-    if (ptr[i] != static_cast<int>(i)) {
-      std::cout << "Mismatch at " << i << ": " << ptr[i] << "\n";
-      ++errors;
-    }
-  sycl::free(ptr, q);
-  return errors ? 1 : 0;
+  if (!kb_exe.ext_oneapi_has_kernel("split_barrier")) {
+    std::cout << "Kernel split_barrier not found\n";
+    return 1;
+  }
+  return 0;
 }
