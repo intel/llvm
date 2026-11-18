@@ -28,9 +28,16 @@ extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
                         uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
                         uint64_t);
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((weak)) void __assertfail(const char *__message, const char *__file,
+                                  unsigned __line, const char *__function,
+                                  size_t charSize);
+#endif
 #undef assert
 #if defined(NDEBUG)
 #define assert(e) ((void)0)
+#elif defined(__NVPTX__) || defined(__AMDGCN__)
+#define assert(e) ((e) ? void(0) : __assertfail(#e, __FILE__, __LINE__, nullptr, 1))
 #else
 #define assert(e)                                                              \
   ((e) ? void(0)                                                               \

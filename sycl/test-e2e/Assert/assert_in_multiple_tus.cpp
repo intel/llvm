@@ -1,24 +1,34 @@
+//===----------------------assert_in_multiple_tus.cpp----------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests device-side assertion failures in kernels defined in two translation
+/// units. Defines NDEBUG in the first translation unit only. Verifies that an
+/// assertion diagnostic from the first translation unit is printed, none from
+/// the second is printed, and the program does not reach normal completion.
+/// Windows version of test: assert_in_multiple_tus_win.cpp
+///
+//===----------------------------------------------------------------------===//
 // REQUIRES: linux
 
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/7634
-//
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/8832
-//
+
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 
-// XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+// RUN: %{build} %cxx_std_optionc++20 %S/Inputs/kernels_in_file2.cpp -o %t.out
+// RUN: %{run} %t.out &> %t.txt ; \
+// RUN: FileCheck %s --input-file %t.txt --check-prefixes=CHECK,%if native_cpu %{NATIVE%} %else %{OTHER%}
 
-// RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out
-// RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
-//
-// CUDA uses block/thread vs global/local id for SYCL, also it shows the
-// position of a thread within the block, not the absolute ID.
-// CHECK:      {{.*}}kernels_in_file2.cpp:15: int calculus(int): {{global id: \[5|block: \[1}},0,0], {{local id|thread}}: [1,0,0]
-// CHECK-SAME: Assertion `X && "this message from calculus"` failed
+// NATIVE:     {{.*}}kernels_in_file2.cpp:28: int calculus(int):
+// OTHER:      {{.*}}kernels_in_file2.cpp:28: int calculus(int): {{.*}} [15,0,0]
+// CHECK-SAME: Assertion `X && "this message from calculus"{{[`']}} failed
 // CHECK-NOT:  this message from file2
 // CHECK-NOT:  The test ended.
 

@@ -1,8 +1,20 @@
+//===-----------------------assert_in_one_kernel.hpp-----------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests device assertion handling in an application with a single kernel.
+/// Each work-item triggers an assertion.
+///
+//===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
-#include <sycl/detail/core.hpp>
-
 #include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -22,12 +34,12 @@ void assertTest() {
     auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class TheKernel>(
-        numOfItems, [=](item<1> Item) { kernelFunc(&Acc[0], Item[0]); });
+        numOfItems, [=](sycl::id<1> wiID) { kernelFunc(&Acc[0], wiID); });
   });
   Q.wait();
 }
 
-int main(int Argc, const char *Argv[]) {
+int main() {
 
   assertTest();
 
