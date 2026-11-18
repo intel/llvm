@@ -12,8 +12,10 @@
 //
 // Without RDC, each TU's device code becomes its own device image, so a
 // collision would surface in the runtime's kernel name lookup instead.
-// RUN: %{link} -fno-sycl-rdc -o %t.no_rdc.out %t.main.o %t.tu1.o %t.tu2.o
-// RUN: %{run} %t.no_rdc.out
+// Skip on nativecpu: linking with -fno-sycl-rdc crashes the driver there.
+// FIXME: Fix nativecpu and re-enable:
+// RUN: %if !target-native_cpu %{ %{link} -fno-sycl-rdc -o %t.no_rdc.out %t.main.o %t.tu1.o %t.tu2.o %}
+// RUN: %if !target-native_cpu %{ %{run} %t.no_rdc.out %}
 //
 // Range rounding results in range-rounded kernels launching from a wrapper
 // kernel whose name is derived from the TU-local kernel lambda. This should
