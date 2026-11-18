@@ -2,8 +2,7 @@
 /// that compiles the wrapper.
 // REQUIRES: system-linux, x86-registered-target
 
-// RUN: touch %t.device.bc
-// RUN: llvm-offload-binary -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
+// RUN: touch %t.fat
 // RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.fat \
 // RUN:   --sycl-host-compiler-arg=-march=skylake --sycl-host-compiler-arg=-mcmodel=large 2>&1 \
 // RUN:   | FileCheck %s
