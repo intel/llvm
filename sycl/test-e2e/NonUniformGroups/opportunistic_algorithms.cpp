@@ -1,12 +1,15 @@
 // RUN-IF: sg-8, %{build} -DSG_SIZE=8 -o %t8.out && %{run} %t8.out
-// RUN-IF: sg-16, %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// On AVX-512 CPUs the opencl:cpu float exclusive scan at sub-group size 16
+// ignores group membership; only the i7-1165G7 CI runner is excluded since lit
+// has no AVX-512 feature: https://github.com/intel/llvm/issues/23769
+// RUN-IF: sg-16 && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{build} -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
 // RUN-IF: sg-32, %{build} -DSG_SIZE=32 -o %t32.out && %{run} %t32.out
 
 // Test CPU AOT as well when possible.
 // RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -DSG_SIZE=8 -o %t8.x86.out %s
 // RUN-IF: sg-8 && cpu && opencl-aot, %{run} %t8.x86.out
 // RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -DSG_SIZE=16 -o %t16.x86.out %s
-// RUN-IF: sg-16 && cpu && opencl-aot, %{run} %t16.x86.out
+// RUN-IF: sg-16 && cpu && opencl-aot && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{run} %t16.x86.out
 // RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -DSG_SIZE=32 -o %t32.x86.out %s
 // RUN-IF: sg-32 && cpu && opencl-aot, %{run} %t32.x86.out
 
@@ -18,17 +21,6 @@
 #include <sycl/ext/oneapi/experimental/fragment.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
-
-#include <cstdio>
-
-static int Failures = 0;
-#define CHECK(Cond)                                                            \
-  do {                                                                         \
-    if (!(Cond)) {                                                             \
-      std::printf("FAIL WI=%d: %s\n", static_cast<int>(WI), #Cond);            \
-      ++Failures;                                                              \
-    }                                                                          \
-  } while (0)
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -208,23 +200,22 @@ int main() {
   sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
   for (uint32_t WI = 0; WI < SGSize; ++WI) {
     bool ExpectedResult = (WI == ArbitraryItem);
-    CHECK(BarrierAcc[WI] == ExpectedResult);
-    CHECK(BroadcastAcc[WI] == ExpectedResult);
-    CHECK(AnyAcc[WI] == ExpectedResult);
-    CHECK(AllAcc[WI] == ExpectedResult);
-    CHECK(NoneAcc[WI] == ExpectedResult);
-    CHECK(ReduceAcc[WI] == ExpectedResult);
-    CHECK(ExScanAcc[WI] == ExpectedResult);
-    CHECK(IncScanAcc[WI] == ExpectedResult);
-    CHECK(ExScanFloatAcc[WI] == ExpectedResult);
-    CHECK(IncScanFloatAcc[WI] == ExpectedResult);
-    CHECK(ExScanInitAcc[WI] == ExpectedResult);
-    CHECK(IncScanInitAcc[WI] == ExpectedResult);
-    CHECK(ShiftLeftAcc[WI] == ExpectedResult);
-    CHECK(ShiftRightAcc[WI] == ExpectedResult);
-    CHECK(SelectAcc[WI] == ExpectedResult);
-    CHECK(PermuteXorAcc[WI] == ExpectedResult);
+    assert(BarrierAcc[WI] == ExpectedResult);
+    assert(BroadcastAcc[WI] == ExpectedResult);
+    assert(AnyAcc[WI] == ExpectedResult);
+    assert(AllAcc[WI] == ExpectedResult);
+    assert(NoneAcc[WI] == ExpectedResult);
+    assert(ReduceAcc[WI] == ExpectedResult);
+    assert(ExScanAcc[WI] == ExpectedResult);
+    assert(IncScanAcc[WI] == ExpectedResult);
+    assert(ExScanFloatAcc[WI] == ExpectedResult);
+    assert(IncScanFloatAcc[WI] == ExpectedResult);
+    assert(ExScanInitAcc[WI] == ExpectedResult);
+    assert(IncScanInitAcc[WI] == ExpectedResult);
+    assert(ShiftLeftAcc[WI] == ExpectedResult);
+    assert(ShiftRightAcc[WI] == ExpectedResult);
+    assert(SelectAcc[WI] == ExpectedResult);
+    assert(PermuteXorAcc[WI] == ExpectedResult);
   }
-  std::printf("Total failures: %d\n", Failures);
-  return Failures != 0;
+  return 0;
 }

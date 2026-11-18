@@ -1,12 +1,15 @@
 // RUN-IF: sg-8, %{build} -fno-sycl-early-optimizations -DSG_SIZE=8 -o %t8.out && %{run} %t8.out
-// RUN-IF: sg-16, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// On AVX-512 CPUs the opencl:cpu float exclusive scan at sub-group size 16
+// ignores group membership; only the i7-1165G7 CI runner is excluded since lit
+// has no AVX-512 feature: https://github.com/intel/llvm/issues/23769
+// RUN-IF: sg-16 && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
 // RUN-IF: sg-32, %{build} -fno-sycl-early-optimizations -DSG_SIZE=32 -o %t32.out && %{run} %t32.out
 
 // Test CPU AOT as well when possible.
 // RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -DSG_SIZE=8 -o %t8.x86.out %s
 // RUN-IF: sg-8 && cpu && opencl-aot, %{run} %t8.x86.out
 // RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.x86.out %s
-// RUN-IF: sg-16 && cpu && opencl-aot, %{run} %t16.x86.out
+// RUN-IF: sg-16 && cpu && opencl-aot && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{run} %t16.x86.out
 // RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -DSG_SIZE=32 -o %t32.x86.out %s
 // RUN-IF: sg-32 && cpu && opencl-aot, %{run} %t32.x86.out
 
@@ -17,17 +20,6 @@
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
-
-#include <cstdio>
-
-static int Failures = 0;
-#define CHECK(Cond)                                                            \
-  do {                                                                         \
-    if (!(Cond)) {                                                             \
-      std::printf("FAIL WI=%d: %s\n", static_cast<int>(WI), #Cond);            \
-      ++Failures;                                                              \
-    }                                                                          \
-  } while (0)
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -209,23 +201,22 @@ int main() {
   sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
   sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
   for (int WI = 0; WI < SGSize; ++WI) {
-    CHECK(BarrierAcc[WI] == true);
-    CHECK(BroadcastAcc[WI] == true);
-    CHECK(AnyAcc[WI] == true);
-    CHECK(AllAcc[WI] == true);
-    CHECK(NoneAcc[WI] == true);
-    CHECK(ReduceAcc[WI] == true);
-    CHECK(ExScanAcc[WI] == true);
-    CHECK(IncScanAcc[WI] == true);
-    CHECK(ExScanFloatAcc[WI] == true);
-    CHECK(IncScanFloatAcc[WI] == true);
-    CHECK(ExScanInitAcc[WI] == true);
-    CHECK(IncScanInitAcc[WI] == true);
-    CHECK(ShiftLeftAcc[WI] == true);
-    CHECK(ShiftRightAcc[WI] == true);
-    CHECK(SelectAcc[WI] == true);
-    CHECK(PermuteXorAcc[WI] == true);
+    assert(BarrierAcc[WI] == true);
+    assert(BroadcastAcc[WI] == true);
+    assert(AnyAcc[WI] == true);
+    assert(AllAcc[WI] == true);
+    assert(NoneAcc[WI] == true);
+    assert(ReduceAcc[WI] == true);
+    assert(ExScanAcc[WI] == true);
+    assert(IncScanAcc[WI] == true);
+    assert(ExScanFloatAcc[WI] == true);
+    assert(IncScanFloatAcc[WI] == true);
+    assert(ExScanInitAcc[WI] == true);
+    assert(IncScanInitAcc[WI] == true);
+    assert(ShiftLeftAcc[WI] == true);
+    assert(ShiftRightAcc[WI] == true);
+    assert(SelectAcc[WI] == true);
+    assert(PermuteXorAcc[WI] == true);
   }
-  std::printf("Total failures: %d\n", Failures);
-  return Failures != 0;
+  return 0;
 }
