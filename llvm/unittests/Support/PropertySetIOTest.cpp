@@ -96,10 +96,26 @@ static std::string serialize(const PropertySetRegistry &Reg) {
 }
 
 TEST(PropertySetFold, PerTargetSetName) {
-  EXPECT_EQ(getPerTargetSetName("igca_10", "SYCL/device requirements"),
+  using Reg = PropertySetRegistry;
+  // Everything after the namespace is kept verbatim, spaces included.
+  EXPECT_EQ(getPerTargetSetName("igca_10", Reg::SYCL_DEVICE_REQUIREMENTS),
             "SYCL/igca_10/device requirements");
-  // A name without a namespace component still gets a target.
-  EXPECT_EQ(getPerTargetSetName("igca_10", "flat"), "igca_10/flat");
+  EXPECT_EQ(getPerTargetSetName("igca_20", Reg::SYCL_KERNEL_PARAM_OPT_INFO),
+            "SYCL/igca_20/kernel param opt");
+  EXPECT_EQ(
+      getPerTargetSetName("igca_30", Reg::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES),
+      "SYCL/igca_30/specialization constants default values");
+  // Namespaces other than SYCL are treated the same way.
+  EXPECT_EQ(getPerTargetSetName("igca_10", Reg::SYCLBIN_GLOBAL_METADATA),
+            "SYCLBIN/igca_10/global metadata");
+  // The target name is copied verbatim, whatever it looks like.
+  EXPECT_EQ(getPerTargetSetName("igca_10r", Reg::SYCL_MISC_PROP),
+            "SYCL/igca_10r/misc properties");
+  EXPECT_EQ(getPerTargetSetName("igca_20ca", Reg::SYCL_MISC_PROP),
+            "SYCL/igca_20ca/misc properties");
+  // Two targets of the same set differ in that component.
+  EXPECT_NE(getPerTargetSetName("igca_10", Reg::SYCL_MISC_PROP),
+            getPerTargetSetName("igca_20", Reg::SYCL_MISC_PROP));
 }
 
 TEST(PropertySetFold, UniformPropertiesStayFlat) {

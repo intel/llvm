@@ -237,8 +237,6 @@ static const PropertyValue *lookup(const PropertySetRegistry &Reg,
 
 std::string getPerTargetSetName(StringRef Target, StringRef SetName) {
   auto [Namespace, Rest] = SetName.split('/');
-  if (Rest.empty())
-    return (Target + Twine('/') + SetName).str();
   return (Namespace + Twine('/') + Target + Twine('/') + Rest).str();
 }
 
