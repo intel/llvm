@@ -2860,8 +2860,8 @@ inline property_list khrReductionToPropertyList(const PropertyOrList &Props) {
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForReduction =
-    khr::property::detail::is_property_or_list_for_v<
-        PropertyOrList, khr::property::tag::reduction>;
+    khr::is_property_or_list_for_v<PropertyOrList,
+                                   khr::property::tag::reduction>;
 } // namespace detail
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 

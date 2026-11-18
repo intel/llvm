@@ -16,7 +16,7 @@
 
 using namespace sycl::khr;
 
-static_assert(is_property_list_for_v<empty_properties_t, sycl::context>);
+static_assert(is_property_or_list_for_v<empty_properties_t, sycl::context>);
 static_assert(std::is_constructible_v<sycl::context, empty_properties_t>);
 static_assert(std::is_constructible_v<sycl::context, sycl::device,
                                       sycl::async_handler, properties<>>);

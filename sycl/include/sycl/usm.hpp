@@ -344,18 +344,18 @@ struct usm_shared; // tag type, never defined
 namespace detail {
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForUsmDevice =
-    khr::property::detail::is_property_or_list_for_v<
-        PropertyOrList, khr::property::tag::usm_device>;
+    khr::is_property_or_list_for_v<PropertyOrList,
+                                   khr::property::tag::usm_device>;
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForUsmHost =
-    khr::property::detail::is_property_or_list_for_v<
-        PropertyOrList, khr::property::tag::usm_host>;
+    khr::is_property_or_list_for_v<PropertyOrList,
+                                   khr::property::tag::usm_host>;
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForUsmShared =
-    khr::property::detail::is_property_or_list_for_v<
-        PropertyOrList, khr::property::tag::usm_shared>;
+    khr::is_property_or_list_for_v<PropertyOrList,
+                                   khr::property::tag::usm_shared>;
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForUsmAny =
