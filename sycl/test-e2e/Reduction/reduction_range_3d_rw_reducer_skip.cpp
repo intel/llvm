@@ -9,6 +9,29 @@
 
 using namespace sycl;
 
+// Forward-declare the test kernel type names.
+// Required per specification as complete, stable type in the namespace scope.
+class A1;
+class A2;
+class A3;
+class A4;
+class A5;
+class A6;
+class A7;
+class A8;
+class A9;
+class B1;
+class B2;
+class C1;
+class C2;
+class C3;
+class C4;
+class C5;
+class C6;
+class C7;
+class C8;
+class C9;
+
 int NumErrors = 0;
 
 template <typename T> class SkipEvenName;

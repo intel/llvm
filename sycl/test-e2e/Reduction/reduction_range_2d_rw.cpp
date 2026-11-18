@@ -8,6 +8,35 @@
 
 using namespace sycl;
 
+// Forward-declare the test kernel type names.
+// Required per specification as complete, stable type in the namespace scope.
+class A1;
+class A2;
+class A3;
+class A4;
+class A5;
+class A6;
+class A7;
+class A8;
+class B1;
+class B2;
+class B3;
+class B4;
+class B5;
+class B6;
+class B7;
+class B8;
+class C1;
+class C2;
+class D1;
+class D2;
+class D3;
+class D4;
+class D5;
+class D6;
+class D7;
+class D8;
+
 int NumErrors = 0;
 
 template <typename Name, typename T, typename... ArgTys>
