@@ -352,7 +352,7 @@
 // RUN: touch %t.libdir/libsycl-asan.bc %t.libdir/libsycl-asan-pvc.bc
 // RUN: mkdir -p %t.rtdir
 // RUN: touch %t.rtdir/libclang_rt.builtins.bc
-// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir -sycl-device-library-location=%t.rtdir --device-compiler=spir64=-fsanitize=address --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-JIT %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir --device-compiler=spir64=-fsanitize=address --device-compiler=spir64=--sycl-compiler-rt-dir=%t.rtdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-JIT %s
 // CHK-DEFAULT-LIBS-JIT: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc {{.*}}libsycl-itt-user-wrappers.bc {{.*}}libsycl-itt-compiler-wrappers.bc {{.*}}libsycl-itt-stubs.bc {{.*}}libsycl-asan.bc {{.*}}libclang_rt.builtins.bc
 // CHK-DEFAULT-LIBS-JIT-NOT: bfloat16.bc
 

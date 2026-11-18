@@ -12035,72 +12035,41 @@ static const char *renderSYCLBackendOption(const ArgList &Args,
   return Args.MakeArgString(WrapperOption + Key + "=" + Prefix + Value);
 }
 
-/// Resolve which sanitizer (if any) SYCL device compilation needs, mirroring
-/// the detection in SYCL.cpp's addSYCLDeviceSanitizerLibs. Returns "address",
-/// "memory", "thread", or an empty string.
-static std::string getSYCLDeviceSanitizerKind(const llvm::opt::ArgList &Args) {
-  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
-                               options::OPT_fno_sanitize_EQ)) {
-    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1)
-      return A->getValue();
-    return {};
-  }
-
-  // -fsanitize= can also reach the device compiler via -Xsycl-target-frontend
-  // or -Xarch_device.
-  auto HasSanitizeArg = [&](options::ID OptID, StringRef Kind) {
-    for (StringRef V : Args.getAllArgValues(OptID))
-      if (V.contains((Twine("-fsanitize=") + Kind).str()))
-        return true;
-    return false;
-  };
-  for (StringRef Kind : {"address", "memory", "thread"})
-    if (HasSanitizeArg(options::OPT_Xsycl_frontend, Kind) ||
-        HasSanitizeArg(options::OPT_Xsycl_frontend_EQ, Kind) ||
-        HasSanitizeArg(options::OPT_Xarch_device, Kind))
-      return Kind.str();
-  return {};
-}
-
-/// Forward device-lib selection signals (--no-offloadlib,
-/// -fno-sycl-instrument-device-code, -fsanitize=) to clang-linker-wrapper, so
-/// getDefaultSYCLDeviceLibNames (ClangLinkerWrapper.cpp) can resolve, for
-/// old-model SPIR objects, the same device libraries the old offloading
-/// model would have linked in at its own link step. This closes the same
-/// "Undefined function ... found in ..." warning the base fix addresses, for
-/// sanitizer/ITT/bfloat16 symbols instead of just cacos/libsycl-cmath.
-///
-/// SPIR never reaches a real device-compile step in clang-linker-wrapper
-/// (generic::clang only handles NVPTX/AMD/NativeCPU), so reusing
-/// --device-compiler=<arch>=<value> here is safe: these values are never
-/// parsed as compiler flags, only read back by getDefaultSYCLDeviceLibNames.
+/// Forward offloadlib/instrument-device-code/sanitize/compiler-rt-dir to
+/// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>; SPIR
+/// never reaches a real device-compile step, so this is safe to reuse.
+/// Scoped by arch name, not full triple: old-model AOT triples embed an
+/// extra device component (getInputBitcodeLibrary) that breaks exact match.
 static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
                                           ArrayRef<std::string> SPIRArchNames,
+                                          const ToolChain *SPIRTC,
                                           ArgStringList &CmdArgs) {
   if (SPIRArchNames.empty())
     return;
 
-  bool NoOffloadLib =
-      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
-  bool InstrumentDeviceCode =
-      Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true);
-  std::string SanitizeKind = getSYCLDeviceSanitizerKind(Args);
+  ArgStringList Selectors;
+  for (auto [Pos, Neg] :
+       {std::pair{options::OPT_offloadlib, options::OPT_no_offloadlib},
+        {options::OPT_fsycl_instrument_device_code,
+         options::OPT_fno_sycl_instrument_device_code},
+        {options::OPT_fsanitize_EQ, options::OPT_fno_sanitize_EQ}})
+    if (Arg *A = Args.getLastArg(Pos, Neg))
+      A->render(Args, Selectors);
 
-  for (const std::string &ArchName : SPIRArchNames) {
-    if (NoOffloadLib)
-      CmdArgs.push_back(Args.MakeArgString(Twine("--device-compiler=") +
-                                           ArchName + "=--no-offloadlib"));
-    if (!InstrumentDeviceCode)
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("--device-compiler=") + ArchName +
-                             "=-fno-sycl-instrument-device-code"));
-    if (!SanitizeKind.empty())
-      CmdArgs.push_back(Args.MakeArgString(Twine("--device-compiler=") +
-                                           ArchName +
-                                           "=-fsanitize=" + SanitizeKind));
+  // libclang_rt.builtins.bc lives elsewhere; forward it as its own sentinel
+  // (keeps -sycl-device-library-location= last-one-wins, as used elsewhere).
+  if (SPIRTC) {
+    SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
+    llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
+    if (llvm::sys::fs::exists(CompilerRTPath))
+      Selectors.push_back(Args.MakeArgString(Twine("--sycl-compiler-rt-dir=") +
+                                             CompilerRTPath));
   }
+
+  for (StringRef Selector : Selectors)
+    for (const std::string &ArchName : SPIRArchNames)
+      CmdArgs.push_back(Args.MakeArgString(Twine("--device-compiler=") +
+                                           ArchName + "=" + Selector));
 }
 
 void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
@@ -12453,7 +12422,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
-    forwardSYCLDeviceLibSelectors(Args, SPIRArchNames, CmdArgs);
+    forwardSYCLDeviceLibSelectors(Args, SPIRArchNames, SPIRTC, CmdArgs);
 
     // -sycl-device-library-location=<dir> provides the location of the
     // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
@@ -12465,18 +12434,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       DeviceLibDir = llvm::sys::path::parent_path(*FullLibName);
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
-
-    // libclang_rt.builtins.bc lives in the resource-dir compiler-rt path, so
-    // it's forwarded as a second (repeatable) -sycl-device-library-location=.
-    bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
-                                      options::OPT_no_offloadlib, true);
-    if (!NoOffloadLib && SPIRTC) {
-      SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
-      llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
-      if (llvm::sys::fs::exists(CompilerRTPath))
-        CmdArgs.push_back(Args.MakeArgString(
-            Twine("-sycl-device-library-location=") + CompilerRTPath));
-    }
 
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;
