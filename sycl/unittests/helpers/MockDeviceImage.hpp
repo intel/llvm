@@ -20,6 +20,8 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <deque>
+
 namespace sycl {
 inline namespace _V1 {
 namespace unittest {
@@ -207,7 +209,9 @@ private:
         MMockProperties.back().end()});
   }
 
-  std::vector<std::string> MNames;
+  // MProperties keeps raw pointers into these names. A deque does not move
+  // existing elements, so the pointers stay valid.
+  std::deque<std::string> MNames;
   std::vector<internal::LifetimeExtender<MockProperty>> MMockProperties;
   std::vector<_sycl_device_binary_property_set_struct> MProperties;
 };
