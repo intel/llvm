@@ -617,7 +617,40 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
   llvm::raw_string_ostream Out(Buffer);
   Ctx->mangleCanonicalTypeName(Ty, Out);
 
+  maybeAddCUIDQualifier(Context, Ty, Buffer);
   return Buffer;
+}
+
+void SYCLUniqueStableNameExpr::maybeAddCUIDQualifier(const ASTContext &Context,
+                                                     QualType Ty,
+                                                     std::string &TypeName) {
+  StringRef CUIDHash = Context.getCUIDHash();
+  if (CUIDHash.empty() || isExternallyVisible(Ty->getLinkage()))
+    return;
+
+  // A type declared inside a function is mangled relative to that function,
+  // so its name is already unique across the program if the enclosing function
+  // is externally visible, and no CUID is needed.
+  if (const TagDecl *TD = Ty->getAsTagDecl())
+    if (const DeclContext *DC = TD->getParentFunctionOrMethod())
+      if (const auto *FD =
+              dyn_cast_or_null<FunctionDecl>(DC->getNonClosureAncestor());
+          FD && FD->isExternallyVisible())
+        return;
+
+  constexpr StringRef TypeInfoPrefix = "_ZTS";
+  if (!StringRef(TypeName).starts_with(TypeInfoPrefix))
+    return;
+
+  // Insert a vendor-extended qualifier with CUID hash to distinguish between
+  // entities with internal linkage across different TUs:
+  //
+  //   _ZTS<type>  ->  _ZTSU<length>cuid_<hash><type>
+  //
+  // We don't use a '.' suffix since ptxas rejects identifiers containing '.'.
+  std::string Qualifier = ("cuid_" + CUIDHash).str();
+  TypeName.insert(TypeInfoPrefix.size(),
+                  "U" + std::to_string(Qualifier.size()) + Qualifier);
 }
 
 SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(EmptyShell Empty,

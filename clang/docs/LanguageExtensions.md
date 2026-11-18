@@ -4366,6 +4366,15 @@ the SYCL kernel and emits a stable local ordering of the respective lambdas.
 The resulting pattern is demanglable. When non-lambda types are passed to the
 builtin, the mangler emits their usual pattern without any special treatment.
 
+To prevent name collisions across translation units, names of types that are
+only guaranteed to be unique within their translation unit, but not necessarily
+across multiple translation units (for example, a type in an unnamed namespace,
+or a lambda in a function with internal linkage) are given a vendor-extended
+type qualifier containing a hash of the compilation unit ID, if one is provided
+with `-cuid=`: For example, `_ZTS<type>` becomes
+`_ZTSU<length>cuid_<hash><type>`, where `<hash>` is the hexadecimal MD5 hash of
+the `-cuid=` value.
+
 **Syntax**:
 
 ```c

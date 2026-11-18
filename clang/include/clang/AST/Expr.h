@@ -2223,6 +2223,20 @@ public:
   // Get the generated name of the type.  Note that this only works after all
   // kernels have been instantiated.
   static std::string ComputeName(ASTContext &Context, QualType Ty);
+
+  // If \p Ty is only guaranteed to be unique within its own TU (it is not
+  // externally visible, and not declared in an externally visible function) and
+  // a compilation unit ID (-cuid) is provided, insert a vendor-extended
+  // qualifier containing a hash of the CUID into the Itanium typeinfo name
+  // \p TypeName ("_ZTS..."), such that the resulting name is unique across
+  // translation units. Otherwise, \p TypeName is left unchanged.
+  //
+  // This is necessary since kernels do not keep internal linkage: Without
+  // being able to distinguish mangled names between TUs, TU-local entities
+  // across separate TUs may end up with the same mangled name, causing
+  // conflicts at device code link time.
+  static void maybeAddCUIDQualifier(const ASTContext &Context, QualType Ty,
+                                    std::string &TypeName);
 };
 
 class SYCLUniqueStableIdExpr final : public Expr {

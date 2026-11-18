@@ -1320,6 +1320,8 @@ constructKernelName(SemaSYCL &S, const FunctionDecl *KernelCallerFunc,
 
   MC.mangleCanonicalTypeName(KernelNameType, Out);
   std::string MangledName(Out.str());
+  SYCLUniqueStableNameExpr::maybeAddCUIDQualifier(S.getASTContext(),
+                                                  KernelNameType, MangledName);
 
   std::string StableName =
       SYCLUniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType);
