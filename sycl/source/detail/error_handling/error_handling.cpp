@@ -336,7 +336,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       // TODO: Decide what checks (if any) we need for the other backends
     }
 
-    size_t result[3] = {0, 0, 0};
+    size_t result[3]{};
     Adapter.call<UrApiKind::urDeviceGetInfo>(Device,
                                              UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
                                              sizeof(result), &result, nullptr);
