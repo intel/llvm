@@ -2753,7 +2753,7 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   auto UpdatedKernelFunc = [=](auto NDId, auto &...Reducers) {
     auto Group = NDId.get_group();
     size_t GroupId = Group.get_group_linear_id();
-    size_t NumGroups = Group.get_group_linear_range();
+    size_t NumGroups = NWorkGroups;
     size_t Stride = NDId.get_local_range(0);
     auto GetDelinearized = [&](size_t I) {
       auto Id = getDelinearizedId(Range, I);
