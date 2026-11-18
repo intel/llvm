@@ -2,7 +2,7 @@
 """Times a compiler command and prints PERF_RESULT lines.
 
 Usage:
-  perf_compile.py --name "<name>" [--reps N] [--warmup N] -- <command...>
+  perf_compile.py --benchmark-name "<name>" [--reps N] [--warmup N] -- <command...>
 
 The command is run warmup + reps times. For each timed repetition the wall
 time and the CPU time (user + sys of the whole child process tree) are
@@ -49,15 +49,15 @@ def main(argv):
     command = argv[split + 1 :]
 
     parser = argparse.ArgumentParser(prog="perf_compile.py")
-    parser.add_argument("--name", required=True)
+    parser.add_argument("--benchmark-name", required=True)
     parser.add_argument("--reps", type=int, default=3)
     parser.add_argument("--warmup", type=int, default=1)
     args = parser.parse_args(argv[:split])
 
-    if not LABEL_RE.fullmatch(args.name + ", CPU time"):
+    if not LABEL_RE.fullmatch(args.benchmark_name + ", CPU time"):
         sys.exit(
-            "perf_compile.py: error: --name %r is empty, too long or contains "
-            "characters outside [A-Za-z0-9 _.,:;<>()=+/*&#-]" % args.name
+            "perf_compile.py: error: --benchmark-name %r is empty, too long or contains "
+            "characters outside [A-Za-z0-9 _.,:;<>()=+/*&#-]" % args.benchmark_name
         )
     if args.reps < 1 or args.warmup < 0:
         sys.exit("perf_compile.py: error: need --reps >= 1 and --warmup >= 0")
@@ -84,8 +84,8 @@ def main(argv):
             wall.append(elapsed)
             cpu.append(cpu_elapsed)
 
-    print(result_line(args.name, wall))
-    print(result_line(args.name + ", CPU time", cpu))
+    print(result_line(args.benchmark_name, wall))
+    print(result_line(args.benchmark_name + ", CPU time", cpu))
     sys.stdout.flush()
 
 

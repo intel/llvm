@@ -24,6 +24,10 @@ from utils.logger import log
 from utils.result import BenchmarkMetadata, Result
 from utils.utils import run
 
+# File stems of runtime tests that get a looser stddev threshold. The
+# kernel_compiler (auto-pch) test runs full compiler invocations, so it is
+# noisier. Matched by stem so the rule survives moving the test file.
+NOISY_RUNTIME_TESTS = frozenset({"auto-pch"})
 PERF_RESULT_PREFIX = "PERF_RESULT "
 PERF_RESULT_KEYS = (
     "name",
@@ -50,6 +54,8 @@ COMPILE_RE = re.compile(
     r"python3\s+%S/(?P<script>(?:[A-Za-z0-9_.-]+/)*perf_compile\.py)"
     r"(?P<opts>(?:\s.*?)?)\s+--\s+(?P<cmd>%\{build\}(?:\s.*)?)"
 )
+# `echo` RUN lines only print a label in the lit log; the suite skips them.
+ECHO_RE = re.compile(r"echo(?:\s.*)?")
 DIRECTIVE_RE = re.compile(r"^\s*//\s*(?P<key>[A-Z][A-Z_-]*):(?P<val>.*)$")
 # Directive names (and prefixes) that lit or the E2E format interpret.
 LIT_DIRECTIVES = (
@@ -62,6 +68,23 @@ LIT_DIRECTIVES = (
     "ALLOW_RETRIES",
     "END",
 )
+# Tokens of the C++ source: comments and literals are recognised so that
+# `//` inside a string is not taken for a comment.
+CPP_TOKEN_RE = re.compile(
+    r"""(?P<ws>\s+)
+    |(?P<comment>//[^\n]*|/\*.*?\*/)
+    |(?P<string>"[^"\n]*")
+    |(?P<number>\.?[0-9](?:[A-Za-z0-9_.']|[eEpP][+-])*)
+    |(?P<ident>[A-Za-z_][A-Za-z0-9_]*)
+    |(?P<char>'(?:\\.|[^'\\\n])*')
+    |(?P<scope>::)
+    |(?P<punct>.)""",
+    re.VERBOSE | re.DOTALL,
+)
+UNITS = ("s", "ms", "us", "ns")
+MAX_NAME_LEN = 120
+MAX_DESCRIPTION_LEN = 200
+DESCRIPTION_RE = re.compile(r"[ !#-\[\]-~]*")  # printable ASCII except " and \
 SUBST_RE = re.compile(r"%(\{[A-Za-z0-9_-]+\}|/t|[tsS])")
 FEATURE_TOKEN_RE = re.compile(r"\s*(&&|\|\||!|\(|\)|[-+=._a-zA-Z0-9]+)")
 
@@ -124,6 +147,7 @@ class PerfResult:
 def parse_perf_results(output: str) -> list[PerfResult]:
     """Return the PERF_RESULT lines in output; other lines are ignored.
 
+    Extra keys (e.g. "batch", "mad") are ignored, as are PERF_INFO lines.
     Raises ValueError for a malformed PERF_RESULT line or if there are none.
     """
     results = []
@@ -279,6 +303,11 @@ class PerfTest:
     path: Path
     test_id: str  # path relative to the tests dir, without .cpp
     description: str = ""
+    # Runtime tests: from the perf::Benchmark constructor.
+    bench_name: str = ""
+    unit: str = ""
+    # Line of the BENCHMARK-DESCRIPTION directive (0 if none).
+    description_line: int = 0
     requires: list[tuple[int, str]] = field(default_factory=list)
     unsupported: list[tuple[int, str]] = field(default_factory=list)
     xfail: list[str] = field(default_factory=list)
@@ -380,9 +409,10 @@ def read_perf_test(path: Path, test_id: str) -> PerfTest:
             test.unsupported.append((lineno, val))
         elif key == "XFAIL":
             test.xfail.append(val.strip())
-        elif key == "PERF-DESCRIPTION":
-            if not test.description:
+        elif key == "BENCHMARK-DESCRIPTION":
+            if not test.description_line:
                 test.description = val.strip()
+                test.description_line = lineno
         elif key.endswith("-TRACKER") or key == "UNSUPPORTED-INTENDED":
             pass
         elif key in LIT_DIRECTIVES or key.startswith(
@@ -402,6 +432,8 @@ def read_perf_test(path: Path, test_id: str) -> PerfTest:
             raise RunLineError(path, lineno, f"{e}: {text}")
         if not text:
             continue  # the line was only %if segments
+        if ECHO_RE.fullmatch(text):
+            continue
         if m := BUILD_RE.fullmatch(text):
             sfx = m.group("sfx")
             prev = last_build.get(sfx)
@@ -433,7 +465,135 @@ def read_perf_test(path: Path, test_id: str) -> PerfTest:
             )
         else:
             raise RunLineError(path, lineno, f"unsupported RUN line: {text}")
+    if test.runs:
+        _read_benchmark_declaration(test, text_lines=lines)
     return test
+
+
+def _cpp_tokens(lines: list[str]) -> list[tuple[str, str, int]]:
+    """Tokenize C++ source as (kind, text, line); comments and blanks dropped."""
+    source = "\n".join(lines)
+    tokens = []
+    line = 1
+    for m in CPP_TOKEN_RE.finditer(source):
+        kind = m.lastgroup
+        if kind not in ("ws", "comment"):
+            tokens.append((kind, m.group(), line))
+        line += m.group().count("\n")
+    return tokens
+
+
+def _read_benchmark_declaration(test: PerfTest, text_lines: list[str]) -> None:
+    """Fill test.bench_name/description/unit from the perf::Benchmark
+    constructor of a runtime test. Raises RunLineError.
+    """
+    path = test.path
+    tokens = _cpp_tokens(text_lines)
+    found = [
+        i
+        for i in range(len(tokens) - 2)
+        if [t[1] for t in tokens[i : i + 3]] == ["perf", "::", "Benchmark"]
+        and tokens[i][0] == "ident"
+        # `perf::Benchmark &b` (a parameter) is a use, not a declaration.
+        and not (i + 3 < len(tokens) and tokens[i + 3][1] in ("&", "*"))
+        and not (i + 3 < len(tokens) and tokens[i + 3][1] in (")", ","))
+    ]
+    if not found:
+        if test.description_line:
+            raise RunLineError(
+                path,
+                test.description_line,
+                "BENCHMARK-DESCRIPTION is not supported in runtime tests, "
+                "use a perf::Benchmark constructor",
+            )
+        raise RunLineError(
+            path, test.runs[0].line, "no perf::Benchmark constructor in a runtime test"
+        )
+    if len(found) > 1:
+        raise RunLineError(
+            path,
+            tokens[found[1]][2],
+            f"more than one perf::Benchmark (first at line {tokens[found[0]][2]})",
+        )
+    if test.description_line:
+        raise RunLineError(
+            path,
+            test.description_line,
+            "BENCHMARK-DESCRIPTION must not be combined with a perf::Benchmark "
+            "constructor (it provides the description)",
+        )
+
+    start = found[0]
+    line = tokens[start][2]
+
+    def bad(msg: str):
+        return RunLineError(path, line, f"malformed perf::Benchmark: {msg}")
+
+    pos = start + 3
+    if not (
+        pos + 1 < len(tokens)
+        and tokens[pos][0] == "ident"
+        and tokens[pos + 1][1] == "("
+    ):
+        raise bad("expected 'perf::Benchmark <name>(<args>);'")
+    pos += 2
+    args: list[list[tuple[str, str, int]]] = [[]]
+    depth = 0
+    while True:
+        if pos >= len(tokens):
+            raise bad("unterminated argument list")
+        kind, text, _ = tokens[pos]
+        pos += 1
+        if text in "([{" and kind == "punct":
+            depth += 1
+        elif text in ")]}" and kind == "punct":
+            if depth == 0:
+                if text != ")":
+                    raise bad("unbalanced brackets")
+                break
+            depth -= 1
+        elif text == "," and depth == 0 and kind == "punct":
+            args.append([])
+            continue
+        args[-1].append(tokens[pos - 1])
+    if not (pos < len(tokens) and tokens[pos][1] == ";"):
+        raise bad("expected ';' after the constructor")
+    if len(args) != 5:
+        raise bad(f"expected 5 arguments, got {len(args)}")
+
+    def literal(arg, what: str) -> str:
+        if not arg or any(t[0] != "string" for t in arg):
+            raise bad(f"{what} must be a string literal")
+        parts = [t[1][1:-1] for t in arg]
+        if any("\\" in p for p in parts):
+            raise bad(f"{what} must not contain escape sequences")
+        return "".join(parts)
+
+    name = literal(args[2], "name")
+    description = literal(args[3], "description")
+    if not name or len(name) > MAX_NAME_LEN or not NAME_RE.fullmatch(name):
+        raise bad(
+            f"name '{name}' must be 1-{MAX_NAME_LEN} characters from "
+            "[A-Za-z0-9 _.,:;<>()=+/*&#-]"
+        )
+    if (
+        not description
+        or len(description) > MAX_DESCRIPTION_LEN
+        or not DESCRIPTION_RE.fullmatch(description)
+    ):
+        raise bad(
+            f"description must be 1-{MAX_DESCRIPTION_LEN} printable ASCII characters"
+        )
+    unit_tokens = [t[1] for t in args[4]]
+    if (
+        len(unit_tokens) != 5
+        or unit_tokens[:4] != ["perf", "::", "Unit", "::"]
+        or unit_tokens[4] not in UNITS
+    ):
+        raise bad(f"unit must be perf::Unit::<{'|'.join(UNITS)}>")
+    test.bench_name = name
+    test.description = description
+    test.unit = unit_tokens[4]
 
 
 def _variant_of(path: Path, lineno: int, args: str) -> str:
@@ -452,7 +612,7 @@ def _variant_of(path: Path, lineno: int, args: str) -> str:
 
 
 def _compile_name(path: Path, lineno: int, opts: str) -> str:
-    """The --name of a perf_compile.py line, validating its other options."""
+    """The --benchmark-name of a perf_compile.py line, validating its other options."""
     if "%" in opts:
         raise RunLineError(
             path,
@@ -468,7 +628,7 @@ def _compile_name(path: Path, lineno: int, opts: str) -> str:
     while i < len(tokens):
         tok = tokens[i]
         opt, eq, val = tok.partition("=")
-        if opt not in ("--name", "--reps", "--warmup"):
+        if opt not in ("--benchmark-name", "--reps", "--warmup"):
             raise RunLineError(
                 path, lineno, f"unsupported perf_compile.py option '{tok}'"
             )
@@ -477,13 +637,13 @@ def _compile_name(path: Path, lineno: int, opts: str) -> str:
                 raise RunLineError(path, lineno, f"missing value for {opt}")
             i += 1
             val = tokens[i]
-        if opt == "--name":
+        if opt == "--benchmark-name":
             name = val
         elif not val.isdigit():
             raise RunLineError(path, lineno, f"{opt} needs an integer, got '{val}'")
         i += 1
     if not name:
-        raise RunLineError(path, lineno, "perf_compile.py line has no --name")
+        raise RunLineError(path, lineno, "perf_compile.py line has no --benchmark-name")
     if not NAME_RE.fullmatch(name):
         raise RunLineError(path, lineno, f"invalid characters in name '{name}'")
     return name
@@ -652,7 +812,12 @@ class SyclPerfSuite(Suite):
         for b in self.benchmarks():
             group = groups.setdefault(
                 b.explicit_group(),
-                BenchmarkMetadata(type="group", description=b.description(), tags=[]),
+                BenchmarkMetadata(
+                    type="group",
+                    description=b.description(),
+                    display_name=b.test.bench_name or None,
+                    tags=[],
+                ),
             )
             group.tags = sorted(set(group.tags) | set(b.get_tags()))
         return groups
@@ -748,11 +913,20 @@ class SyclPerfRuntimeBench(SyclPerfBenchmark):
         name = f"sycl_perf {self.test.test_id}"
         return f"{name} {self.step.variant}" if self.step.variant else name
 
+    def display_name(self) -> str:
+        name = self.test.bench_name
+        return f"{name} {self.step.variant}" if self.step.variant else name
+
+    @property
+    def unit(self) -> str:
+        """The unit declared by the test's perf::Benchmark constructor."""
+        return self.test.unit
+
     def get_tags(self) -> list[str]:
         return ["SYCL", "micro", "latency"]
 
     def stddev_threshold(self):
-        return 0.05 if self.test.test_id.startswith("KernelCompiler/") else None
+        return 0.05 if Path(self.test.test_id).name in NOISY_RUNTIME_TESTS else None
 
     def args(self) -> list[str]:
         return self.suite.substitutions(self.test).expand(
@@ -792,6 +966,11 @@ class SyclPerfRuntimeBench(SyclPerfBenchmark):
                     f"{self.name()}: case '{r.name}' reports variant '{r.variant}', "
                     f"expected '{self.step.variant}'"
                 )
+            if r.unit != self.unit:
+                log.warning(
+                    f"{self.name()}: case '{r.name}' reports unit '{r.unit}', "
+                    f"the test declares '{self.unit}'"
+                )
             if r.name in seen:
                 raise ValueError(f"{self.name()}: case '{r.name}' reported twice")
             seen.add(r.name)
@@ -802,7 +981,7 @@ class SyclPerfRuntimeBench(SyclPerfBenchmark):
 
 
 class SyclCompileBench(SyclPerfBenchmark):
-    """One `python3 %S/.../perf_compile.py --name <n> -- %{build} ...` line."""
+    """One `python3 %S/.../perf_compile.py --benchmark-name <n> -- %{build} ...` line."""
 
     step: CompileStep
 
@@ -846,7 +1025,7 @@ class SyclCompileBench(SyclPerfBenchmark):
         command = [
             "python3",
             str(self.script()),
-            "--name",
+            "--benchmark-name",
             self.step.name,
             "--warmup",
             "0",

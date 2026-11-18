@@ -140,9 +140,24 @@ the `PERF_RESULT` lines they print.
 - Each `%{run} %t<sfx>.out [args]` line is a benchmark named
   `sycl_perf <test path>[ <variant>]`, built by its preceding `%{build}` line.
   Its results are labeled `<benchmark name> <case>`.
-- Each `python3 %S/.../perf_compile.py --name "<name>" -- %{build} ...` line is
+- Each `python3 %S/.../perf_compile.py --benchmark-name "<name>" -- %{build} ...` line is
   a compile-time benchmark named `sycl_compile <name>`, with a wall time result
   (`sycl_compile <name>`) and a CPU time result (`sycl_compile <name>, CPU time`).
+- Runtime tests declare their display name, description and unit with exactly
+  one `perf::Benchmark <id>(argc, argv, "<name>", "<description>",
+  perf::Unit::<s|ms|us|ns>);` declaration (adjacent string literals are
+  joined; the name is at most 120 characters from `[A-Za-z0-9 _.,:;<>()=+/*&#-]`,
+  the description at most 200 printable ASCII characters). The dashboard shows
+  `<name>[ <variant>]` as the benchmark's display name and uses the description
+  for the benchmark and its group; a `PERF_RESULT` unit differing from the
+  declared one is logged as a warning. A missing, duplicated or malformed
+  declaration (or a leftover `// BENCHMARK-DESCRIPTION:` in a runtime test) fails the
+  suite setup with the offending `file:line`. Compile-time tests (only
+  `perf_compile.py` RUN lines) have no harness and keep a
+  `// BENCHMARK-DESCRIPTION: <text>` comment instead. Extra `PERF_RESULT` keys
+  (`batch`, `mad`) and `PERF_INFO` lines printed by the harness are ignored.
+  The history key (`sycl_perf <test path>[ <variant>]`) does not depend on the
+  declared name.
 - Results are grouped per test file; `REQUIRES`/`UNSUPPORTED` are evaluated
   against `linux`, `gpu`, `level_zero`, `enable-perf-tests` and the detected
   device architecture. Unsupported RUN-line syntax fails the suite setup with

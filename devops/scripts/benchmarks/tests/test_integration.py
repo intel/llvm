@@ -23,9 +23,9 @@ OFFLOAD_PREFIX = os.environ.get("OFFLOAD_PREFIX")
 
 # Results of the "SYCL Performance Tests" suite (sycl/test-e2e/PerformanceTests).
 # Runtime: label = "<benchmark name> <case>"; compile: label = benchmark name.
-SYCL_PERF_RUNTIME_BENCH = "sycl_perf aspect_queries"
-SYCL_PERF_RUNTIME_LABEL = "sycl_perf aspect_queries has(fp64)"
-SYCL_PERF_RUNTIME_GROUP = "aspect_queries"
+SYCL_PERF_RUNTIME_BENCH = "sycl_perf RunTime/aspect_queries"
+SYCL_PERF_RUNTIME_LABEL = "sycl_perf RunTime/aspect_queries aspect::fp64"
+SYCL_PERF_RUNTIME_GROUP = "RunTime/aspect_queries"
 SYCL_PERF_COMPILE_LABEL = "sycl_compile core.hpp, device syntax-only"
 SYCL_PERF_COMPILE_GROUP = "CompileTime/core_hpp"
 
