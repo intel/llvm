@@ -427,7 +427,6 @@ int ur_program_create_with_il(TestState &state) {
 // Call loader init and teardown exactly once.
 static struct UrLoader {
   UrLoader() {
-    LoaderConfig config;
     ur_result_t res = urLoaderInit(0, config.handle);
     if (res != UR_RESULT_SUCCESS) {
       exit(0);

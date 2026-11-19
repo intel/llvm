@@ -139,8 +139,8 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
   if (DeviceInfo) { // Device/Shared USM
     DeviceInfo->insertAllocInfo(AI);
   } else { // Host USM
-    for (const auto &Device : ContextInfo->DeviceList)
-      getDeviceInfo(Device)->insertAllocInfo(AI);
+    for (const auto &CtxDevice : ContextInfo->DeviceList)
+      getDeviceInfo(CtxDevice)->insertAllocInfo(AI);
   }
 
   // For memory release
@@ -294,8 +294,8 @@ ur_result_t AsanInterceptor::registerMemory(ur_context_handle_t Context,
   if (Device) {
     getDeviceInfo(Device)->insertAllocInfo(AI);
   } else {
-    for (const auto &Device : getContextInfo(Context)->DeviceList)
-      getDeviceInfo(Device)->insertAllocInfo(AI);
+    for (const auto &CtxDevice : getContextInfo(Context)->DeviceList)
+      getDeviceInfo(CtxDevice)->insertAllocInfo(AI);
   }
 
   // For memory release

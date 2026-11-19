@@ -383,7 +383,7 @@ public:
   }
 
   ur_result_t enqueueUSMPrefetch(const void *pMem, size_t size,
-                                 ur_usm_migration_flags_t flags,
+                                 ur_usm_migration_flags_t migrationFlags,
                                  uint32_t numEventsInWaitList,
                                  const ur_event_handle_t *phEventWaitList,
                                  ur_event_handle_t *phEvent) override {
@@ -393,7 +393,7 @@ public:
     auto commandListId =
         getNextCommandListId(phEventWaitList, numEventsInWaitList);
     return commandListManagers.lock()[commandListId].appendUSMPrefetch(
-        pMem, size, flags, waitListView,
+        pMem, size, migrationFlags, waitListView,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 

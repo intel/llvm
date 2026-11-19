@@ -170,8 +170,8 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
     auto DI = getDeviceInfo(Device);
     DI->insertAllocInfo(std::move(AI));
   } else {
-    for (const auto &Device : CI->DeviceList) {
-      auto DI = getDeviceInfo(Device);
+    for (const auto &CtxDevice : CI->DeviceList) {
+      auto DI = getDeviceInfo(CtxDevice);
       DI->insertAllocInfo(AI);
     }
   }
@@ -207,8 +207,8 @@ ur_result_t TsanInterceptor::registerMemory(ur_context_handle_t Context,
     getDeviceInfo(Device)->insertAllocInfo(std::move(AI));
   } else {
     auto CI = getContextInfo(Context);
-    for (const auto &Device : CI->DeviceList)
-      getDeviceInfo(Device)->insertAllocInfo(AI);
+    for (const auto &CtxDevice : CI->DeviceList)
+      getDeviceInfo(CtxDevice)->insertAllocInfo(AI);
   }
   return UR_RESULT_SUCCESS;
 }

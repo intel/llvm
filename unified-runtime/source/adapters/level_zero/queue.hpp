@@ -298,9 +298,9 @@ struct ur_queue_handle_t_ : ur_object_t {
 
     // Make the specified queue group be the master
     void set(const ur_queue_group_t &QueueGroup) {
-      const auto &Device = QueueGroup.Queue->Device;
-      PerThread =
-          Device->ImmCommandListUsed == ur_device_handle_t_::PerThreadPerQueue;
+      const auto &QueueDevice = QueueGroup.Queue->Device;
+      PerThread = QueueDevice->ImmCommandListUsed ==
+                  ur_device_handle_t_::PerThreadPerQueue;
       assert(empty());
       insert({tid(), QueueGroup});
     }

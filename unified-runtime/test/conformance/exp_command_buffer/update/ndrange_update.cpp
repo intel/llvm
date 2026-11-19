@@ -41,25 +41,26 @@ struct NDRangeUpdateTest
   // For each work-item the kernel prints the global id and local id in each
   // of the 3 dimensions to an offset in the output based on global linear
   // id.
-  void Validate(std::array<size_t, 3> global_size,
-                std::optional<std::array<size_t, 3>> local_size,
-                std::array<size_t, 3> global_offset) {
+  void Validate(std::array<size_t, 3> expected_global_size,
+                std::optional<std::array<size_t, 3>> expected_local_size,
+                std::array<size_t, 3> expected_global_offset) {
 
     // DPC++ swaps the X & Z dimension for 3 Dimensional kernels
     // between those set by user and SPIR-V builtins.
     // See `ReverseRangeDimensionsForKernel()` in commands.cpp
-    std::swap(global_size[0], global_size[2]);
-    if (local_size.has_value()) {
-      std::swap(local_size.value()[0], local_size.value()[2]);
+    std::swap(expected_global_size[0], expected_global_size[2]);
+    if (expected_local_size.has_value()) {
+      std::swap(expected_local_size.value()[0], expected_local_size.value()[2]);
     }
-    std::swap(global_offset[0], global_offset[2]);
+    std::swap(expected_global_offset[0], expected_global_offset[2]);
 
     // Verify global ID and local ID of each work item
-    for (size_t x = 0; x < global_size[0]; x++) {
-      for (size_t y = 0; y < global_size[1]; y++) {
-        for (size_t z = 0; z < global_size[2]; z++) {
+    for (size_t x = 0; x < expected_global_size[0]; x++) {
+      for (size_t y = 0; y < expected_global_size[1]; y++) {
+        for (size_t z = 0; z < expected_global_size[2]; z++) {
           const size_t global_linear_id =
-              z + (y * global_size[2]) + (x * global_size[1] * global_size[0]);
+              z + (y * expected_global_size[2]) +
+              (x * expected_global_size[1] * expected_global_size[0]);
           int *wi_ptr =
               (int *)shared_ptr + (elements_per_id * global_linear_id);
 
@@ -67,18 +68,18 @@ struct NDRangeUpdateTest
           const int global_id_y = wi_ptr[1];
           const int global_id_z = wi_ptr[2];
 
-          EXPECT_EQ(global_id_x, x + global_offset[0]);
-          EXPECT_EQ(global_id_y, y + global_offset[1]);
-          EXPECT_EQ(global_id_z, z + global_offset[2]);
+          EXPECT_EQ(global_id_x, x + expected_global_offset[0]);
+          EXPECT_EQ(global_id_y, y + expected_global_offset[1]);
+          EXPECT_EQ(global_id_z, z + expected_global_offset[2]);
 
-          if (local_size.has_value()) {
+          if (expected_local_size.has_value()) {
             const int local_id_x = wi_ptr[3];
             const int local_id_y = wi_ptr[4];
             const int local_id_z = wi_ptr[5];
 
-            EXPECT_EQ(local_id_x, x % local_size.value()[0]);
-            EXPECT_EQ(local_id_y, y % local_size.value()[1]);
-            EXPECT_EQ(local_id_z, z % local_size.value()[2]);
+            EXPECT_EQ(local_id_x, x % expected_local_size.value()[0]);
+            EXPECT_EQ(local_id_y, y % expected_local_size.value()[1]);
+            EXPECT_EQ(local_id_z, z % expected_local_size.value()[2]);
           }
         }
       }

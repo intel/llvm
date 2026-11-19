@@ -11,6 +11,7 @@
 
 #include <exception>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <ze_api.h>
 
@@ -226,9 +227,7 @@ struct ze_handle_wrapper {
   }
 
   std::pair<ZeHandleT, bool> release() {
-    auto handle = this->handle;
-    this->handle = nullptr;
-    return {handle, ownZeHandle};
+    return {std::exchange(handle, nullptr), ownZeHandle};
   }
 
   ZeHandleT get() const { return handle; }

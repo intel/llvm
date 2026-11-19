@@ -267,7 +267,7 @@ static ur_usm_device_mem_flags_t getDeviceFlags(const ur_usm_desc_t *pUSMDesc) {
 
 ur_result_t ur_usm_pool_handle_t_::allocate(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ur_context_handle_t hAllocContext,
     /// [in] handle of the device object
     ur_device_handle_t hDevice, const ur_usm_desc_t *pUSMDesc,
     ur_usm_type_t type, size_t size, void **ppRetMem) {
@@ -284,7 +284,7 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
   auto deviceFlags = getDeviceFlags(pUSMDesc);
 
   auto pool = getPool(usm::pool_descriptor{
-      v2_cast(this), v2_cast(hContext), common_cast(hDevice), type,
+      v2_cast(this), v2_cast(hAllocContext), common_cast(hDevice), type,
       bool(deviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY)});
   if (!pool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -350,12 +350,13 @@ bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t umfPool) {
 }
 
 std::optional<std::pair<void *, ur_event_handle_t>>
-ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hContext,
+ur_usm_pool_handle_t_::allocateEnqueued(ur_context_handle_t hAllocContext,
                                         void *hQueue, bool isInOrderQueue,
                                         ur_device_handle_t hDevice,
                                         ur_usm_type_t type, size_t size) {
-  auto umfPool = getPool(usm::pool_descriptor{
-      v2_cast(this), v2_cast(hContext), common_cast(hDevice), type, false});
+  auto umfPool =
+      getPool(usm::pool_descriptor{v2_cast(this), v2_cast(hAllocContext),
+                                   common_cast(hDevice), type, false});
   if (!umfPool) {
     return std::nullopt;
   }

@@ -96,9 +96,9 @@ inline bool stringPropertyIsValid(const char *property,
 #ifndef ASSERT_SUCCESS_OR_OPTIONAL_QUERY
 #define ASSERT_SUCCESS_OR_OPTIONAL_QUERY(CALL, QUERY)                          \
   do {                                                                         \
-    auto result = CALL;                                                        \
-    if (result != UR_RESULT_SUCCESS) {                                         \
-      ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);       \
+    auto query_result = CALL;                                                  \
+    if (query_result != UR_RESULT_SUCCESS) {                                   \
+      ASSERT_EQ_RESULT(query_result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION); \
       ASSERT_TRUE(uur::isQueryOptional(QUERY));                                \
       GTEST_SKIP() << "Query " << #QUERY                                       \
                    << " is not supported by this adapter";                     \

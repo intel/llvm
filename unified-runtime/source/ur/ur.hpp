@@ -40,11 +40,11 @@
   {                                                                            \
     if (PrintTrace)                                                            \
       UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
-    ur_result_t Result = (Call);                                               \
+    ur_result_t UrCallResult = (Call);                                         \
     if (PrintTrace)                                                            \
-      UR_LOG(QUIET, "UR <--- {}({})", #Call, Result);                          \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, UrCallResult);                    \
+    if (UrCallResult != UR_RESULT_SUCCESS)                                     \
+      return UrCallResult;                                                     \
   }
 
 // Trace an internal UR call; throw in case of an error.
@@ -52,11 +52,11 @@
   {                                                                            \
     if (PrintTrace)                                                            \
       UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
-    ur_result_t Result = (Call);                                               \
+    ur_result_t UrCallResult = (Call);                                         \
     if (PrintTrace)                                                            \
-      UR_LOG(QUIET, "UR <--- {}({})", #Call, Result);                          \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      throw Result;                                                            \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, UrCallResult);                    \
+    if (UrCallResult != UR_RESULT_SUCCESS)                                     \
+      throw UrCallResult;                                                      \
   }
 
 // Trace an internal UR call; ignore errors (useful in destructors).

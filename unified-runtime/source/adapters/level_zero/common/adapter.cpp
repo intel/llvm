@@ -104,9 +104,7 @@ ur_result_t checkDeviceIntelGPUIpVersionOrNewer(uint32_t ipVersion) {
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
       if (device_properties.type == ZE_DEVICE_TYPE_GPU &&
           device_properties.vendorId == 0x8086) {
-        ze_device_ip_version_ext_t *ipVersionExt =
-            (ze_device_ip_version_ext_t *)device_properties.pNext;
-        if (ipVersionExt->ipVersion >= ipVersion) {
+        if (ipVersionExt.ipVersion >= ipVersion) {
           return UR_RESULT_SUCCESS;
         }
       }
@@ -503,15 +501,15 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     auto LoaderVersionString = std::to_string(loader_version.major) + "." +
                                std::to_string(loader_version.minor) + "." +
                                std::to_string(loader_version.patch);
-    for (const auto &version : LoaderSkiplist.value()) {
+    for (const auto &SkiplistEntry : LoaderSkiplist.value()) {
       UR_LOG(DEBUG, "Checking loader version {} against skiplist entry {}",
-             LoaderVersionString, version);
-      if (version == LoaderVersionString) {
+             LoaderVersionString, SkiplistEntry);
+      if (SkiplistEntry == LoaderVersionString) {
         UR_LOG(WARN,
                "Skipping Level Zero adapter due to the loader version: {} "
                "matches a skiplist entry (set SYCL_UR_L0_LOADER_SKIPLIST to "
                "override)",
-               version);
+               SkiplistEntry);
         // Return 0 platforms
         return;
       }

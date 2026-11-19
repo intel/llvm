@@ -108,13 +108,13 @@ ur_event_handle_t_::ur_event_handle_t_(
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
       flags(flags), profilingData(getZeEvent()) {}
 
-void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
-  this->hQueue = hQueue;
+void ur_event_handle_t_::setQueue(ur_queue_t_ *hNewQueue) {
+  this->hQueue = hNewQueue;
 
-  if (hQueue) {
-    UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                        reinterpret_cast<void *>(&hDevice),
-                                        nullptr));
+  if (hNewQueue) {
+    UR_CALL_THROWS(
+        hNewQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
+                                reinterpret_cast<void *>(&hDevice), nullptr));
   } else {
     hDevice = nullptr;
   }
@@ -131,8 +131,8 @@ void ur_event_handle_t_::setBatch(ur_event_generation_t batch_generation) {
   this->batchGeneration = batch_generation;
 }
 
-void ur_event_handle_t_::setCommandType(ur_command_t commandType) {
-  this->commandType = commandType;
+void ur_event_handle_t_::setCommandType(ur_command_t newCommandType) {
+  this->commandType = newCommandType;
 }
 
 // Enqueue batch execution if the event is created by the batched queue as part

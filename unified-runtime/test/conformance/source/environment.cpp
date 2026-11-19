@@ -137,8 +137,8 @@ DevicesEnvironment::DevicesEnvironment() : PlatformEnvironment() {
                       sizeof(ur_adapter_handle_t), &adapter, nullptr);
     // query out platform and adapter for each device, push back device tuple
     // appropriately
-    for (auto device : platform_devices) {
-      devices.push_back(DeviceTuple({device, platform, adapter}));
+    for (auto platform_device : platform_devices) {
+      devices.push_back(DeviceTuple({platform_device, platform, adapter}));
     }
   }
 

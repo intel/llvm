@@ -400,12 +400,12 @@ ur_result_t urProgramLinkExp(
   // We do not support any link flags at this time because the Level Zero API
   // does not have any way to pass flags that are specific to linking.
   if (pOptions && *pOptions != '\0') {
-    std::string ErrorMessage(
+    std::string LinkErrorMessage(
         "Level Zero does not support kernel link flags: \"");
-    ErrorMessage.append(pOptions);
-    ErrorMessage.push_back('\"');
+    LinkErrorMessage.append(pOptions);
+    LinkErrorMessage.push_back('\"');
     ur_program_handle_t_ *UrProgram = new ur_program_handle_t_(
-        ur_program_handle_t_::Invalid, hContextOpque, ErrorMessage);
+        ur_program_handle_t_::Invalid, hContextOpque, LinkErrorMessage);
     *phProgram = common_cast(UrProgram);
     return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
   }
