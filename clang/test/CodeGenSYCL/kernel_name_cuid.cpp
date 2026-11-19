@@ -43,16 +43,13 @@
 
 #include "sycl.hpp"
 
-// Used here to expose strings computed by __builtin_sycl_unique_stable_name:
-extern "C" int puts(const char *);
-
 static void staticUnnamed(sycl::queue &q) {
   // Unnamed kernel in a function with internal linkage:
   auto k = [] {};
   q.submit([&](sycl::handler &h) { h.single_task(k); });
   // Compute k's kernel name as SYCL headers would do on host, in order to
   // find the kernel by name later:
-  puts(__builtin_sycl_unique_stable_name(decltype(k)));
+  (void) __builtin_sycl_unique_stable_name(decltype(k));
   // Host, device, and integration header all need to agree:
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]ZL13staticUnnamedRN4sycl3_V15queueEEUlvE_(
   // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]ZL13staticUnnamedRN4sycl3_V15queueEEUlvE_"; }
@@ -65,7 +62,7 @@ void extUnnamed(sycl::queue &q) {
   // Unnamed kernel in an externally visible function, don't add CUID:
   auto k = [] {};
   q.submit([&](sycl::handler &h) { h.single_task(k); });
-  puts(__builtin_sycl_unique_stable_name(decltype(k)));
+  (void) __builtin_sycl_unique_stable_name(decltype(k));
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZ10extUnnamedRN4sycl3_V15queueEEUlvE_(
   // INT-HEADER-DAG: getName() { return "_ZTSZ10extUnnamedRN4sycl3_V15queueEEUlvE_"; }
   // HOST-DAG: c"_ZTSZ10extUnnamedRN4sycl3_V15queueEEUlvE_\00"
@@ -87,7 +84,7 @@ inline void inlineFn(sycl::queue &q) {
   // every TU that includes it, so don't add CUID:
   auto k = [] {};
   q.submit([&](sycl::handler &h) { h.single_task(k); });
-  puts(__builtin_sycl_unique_stable_name(decltype(k)));
+  (void) __builtin_sycl_unique_stable_name(decltype(k));
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_(
   // INT-HEADER-DAG: getName() { return "_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_"; }
   // HOST-DAG: c"_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_\00"
@@ -103,7 +100,7 @@ void funcObjects(sycl::queue &q) {
   // Unnamed kernel given as a function object whose type is in an unnamed
   // namespace:
   q.submit([&](sycl::handler &h) { h.single_task(AnonFunc{}); });
-  puts(__builtin_sycl_unique_stable_name(AnonFunc));
+  (void) __builtin_sycl_unique_stable_name(AnonFunc);
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_18AnonFuncE(
   // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_18AnonFuncE"; }
   // HOST-DAG: c"_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_18AnonFuncE\00"
@@ -111,7 +108,7 @@ void funcObjects(sycl::queue &q) {
 
   // This time the function object is externally visible, so don't add CUID:
   q.submit([&](sycl::handler &h) { h.single_task(ExtFunc{}); });
-  puts(__builtin_sycl_unique_stable_name(ExtFunc));
+  (void) __builtin_sycl_unique_stable_name(ExtFunc);
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTS7ExtFunc(
   // INT-HEADER-DAG: getName() { return "_ZTS7ExtFunc"; }
   // HOST-DAG: c"_ZTS7ExtFunc\00"
@@ -164,7 +161,7 @@ template <typename T> class KTmpl;
 template <typename T> void templateFn(sycl::queue &q) {
   auto k = [] {};
   q.submit([&](sycl::handler &h) { h.single_task(k); });
-  puts(__builtin_sycl_unique_stable_name(decltype(k)));
+  (void) __builtin_sycl_unique_stable_name(decltype(k));
 
   // If instantiated with a type in an unnamed namespace
   // (templateFn<Anonymous>), add CUID: Otherwise another TU doing the same with
@@ -184,7 +181,7 @@ template <typename T> void templateFn(sycl::queue &q) {
 
   // Same for an explicit kernel name that is a template specialization:
   q.submit([&](sycl::handler &h) { h.single_task<KTmpl<T>>([] {}); });
-  puts(__builtin_sycl_unique_stable_name(KTmpl<T>));
+  (void) __builtin_sycl_unique_stable_name(KTmpl<T>);
 
   // With templateFn<Anonymous>:
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]5KTmplIN12_GLOBAL__N_19AnonymousEE(
@@ -212,7 +209,7 @@ class KExt;
 void explicitNames(sycl::queue &q) {
   // Named kernel, but name is in an unnamed namespace, so add CUID:
   q.submit([&](sycl::handler &h) { h.single_task<KAnon>([] {}); });
-  puts(__builtin_sycl_unique_stable_name(KAnon));
+  (void) __builtin_sycl_unique_stable_name(KAnon);
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_15KAnonE(
   // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_15KAnonE"; }
   // HOST-DAG: c"_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_15KAnonE\00"
@@ -224,7 +221,7 @@ void explicitNames(sycl::queue &q) {
 
   // Externally visible kernel name, don't add CUID:
   q.submit([&](sycl::handler &h) { h.single_task<KExt>([] {}); });
-  puts(__builtin_sycl_unique_stable_name(KExt));
+  (void) __builtin_sycl_unique_stable_name(KExt);
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTS4KExt(
   // INT-HEADER-DAG: getName() { return "_ZTS4KExt"; }
   // HOST-DAG: c"_ZTS4KExt\00"
