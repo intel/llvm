@@ -242,12 +242,15 @@ std::string getPerTargetSetName(StringRef Target, StringRef SetName) {
 
 PropertySetRegistry
 foldPerTargetProperties(ArrayRef<PerTargetPropertySets> Inputs) {
+  // Every entry of Inputs is one IGCA target together with the property sets
+  // generated for that target.
   PropertySetRegistry Result;
   if (Inputs.empty())
     return Result;
 
-  // Visit set and property names in first-seen order so that the fold is
-  // deterministic regardless of how the underlying maps are laid out.
+  // Collect the names of all sets any target has, in first-seen order, so that
+  // the fold visits them deterministically regardless of how the underlying
+  // maps are laid out.
   SmallVector<StringRef> SetNames;
   StringSet<> SeenSets;
   for (const PerTargetPropertySets &In : Inputs)
@@ -255,9 +258,11 @@ foldPerTargetProperties(ArrayRef<PerTargetPropertySets> Inputs) {
       if (SeenSets.insert(SetEntry.first).second)
         SetNames.push_back(SetEntry.first);
 
+  // Fold one set at a time; each one is independent of the others.
   for (StringRef SetName : SetNames) {
     SmallVector<StringRef> Keys;
     StringSet<> SeenKeys;
+    // Collect this set's keys from every target that has the set at all.
     for (const PerTargetPropertySets &In : Inputs) {
       const auto &Sets = In.Props->getPropSets();
       auto SetIt = Sets.find(SmallString<16>(SetName));
@@ -268,8 +273,10 @@ foldPerTargetProperties(ArrayRef<PerTargetPropertySets> Inputs) {
           Keys.push_back(PropEntry.first);
     }
 
+    // Each key is decided on its own: flat or per target.
     for (StringRef Key : Keys) {
       SmallVector<std::pair<StringRef, const PropertyValue *>> Found;
+      // Gather the targets that define this key, along with their values.
       for (const PerTargetPropertySets &In : Inputs)
         if (const PropertyValue *V = lookup(*In.Props, SetName, Key))
           Found.emplace_back(In.Target, V);
