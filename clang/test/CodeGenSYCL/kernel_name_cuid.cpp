@@ -90,6 +90,19 @@ inline void inlineFn(sycl::queue &q) {
   // HOST-DAG: c"_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_\00"
 }
 
+static inline void staticInlineFn(sycl::queue &q) {
+  // 'inline' doesn't make a function with internal linkage shared between TUs:
+  // each TU has its own staticInlineFn, so add CUID:
+  auto k = [] {};
+  q.submit([&](sycl::handler &h) { h.single_task(k); });
+  (void) __builtin_sycl_unique_stable_name(decltype(k));
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]ZL14staticInlineFnRN4sycl3_V15queueEEUlvE_(
+  // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]ZL14staticInlineFnRN4sycl3_V15queueEEUlvE_"; }
+  // HOST-DAG: c"_ZTSU21cuid_[[HASH]]ZL14staticInlineFnRN4sycl3_V15queueEEUlvE_\00"
+  // NOCUID-DAG: _ZTSZL14staticInlineFnRN4sycl3_V15queueEEUlvE_
+  // HOST-NOCUID-DAG: c"_ZTSZL14staticInlineFnRN4sycl3_V15queueEEUlvE_\00"
+}
+
 namespace {
 struct AnonFunc { void operator()() const {} };
 } // namespace
@@ -237,6 +250,7 @@ int main() {
   templateFn<External>(q);
   extUnnamed(q);
   inlineFn(q);
+  staticInlineFn(q);
   funcObjects(q);
   staticNamed(q);
   sameNamedLocals(q);
