@@ -1331,10 +1331,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         Fn->addFnAttr("referenced-indirectly");
 
   // Add vscale_range attribute if appropriate.
-  llvm::StringMap<bool> FeatureMap;
   auto IsArmStreaming = TargetInfo::ArmStreamingKind::NotStreaming;
   if (FD) {
-    getContext().getFunctionFeatureMap(FeatureMap, FD);
     if (const auto *T = FD->getType()->getAs<FunctionProtoType>())
       if (T->getAArch64SMEAttributes() &
           FunctionType::SME_PStateSMCompatibleMask)
@@ -1343,13 +1341,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (IsArmStreamingFunction(FD, true))
       IsArmStreaming = TargetInfo::ArmStreamingKind::Streaming;
   }
-  std::optional<std::pair<unsigned, unsigned>> VScaleRange =
-      getContext().getTargetInfo().getVScaleRange(getLangOpts(), IsArmStreaming,
-                                                  &FeatureMap);
-  if (VScaleRange) {
+  const auto *FeatureMap =
+      FD ? &getContext().getFunctionFeatureMap(FD) : nullptr;
+  if (auto VScaleRange = getContext().getTargetInfo().getVScaleRange(
+          getLangOpts(), IsArmStreaming, FeatureMap))
     CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
         getLLVMContext(), VScaleRange->first, VScaleRange->second));
-  }
 
   llvm::BasicBlock *EntryBB = createBasicBlock("entry", CurFn);
 

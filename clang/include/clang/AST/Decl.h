@@ -4920,6 +4920,9 @@ private:
   unsigned ManglingNumber = 0;
   Decl *ManglingContextDecl = nullptr;
 
+  /// The type of the captured 'this' pointer; null if not captured.
+  QualType CXXThisType;
+
 protected:
   BlockDecl(DeclContext *DC, SourceLocation CaretLoc);
 
@@ -4986,8 +4989,8 @@ public:
   capture_const_iterator capture_begin() const { return captures().begin(); }
   capture_const_iterator capture_end() const { return captures().end(); }
 
-  bool capturesCXXThis() const { return BlockDeclBits.CapturesCXXThis; }
-  void setCapturesCXXThis(bool B = true) { BlockDeclBits.CapturesCXXThis = B; }
+  bool capturesCXXThis() const { return !CXXThisType.isNull(); }
+  QualType getCXXThisType() const { return CXXThisType; }
 
   bool blockMissingReturnType() const {
     return BlockDeclBits.BlockMissingReturnType;
@@ -5018,7 +5021,7 @@ public:
   bool capturesVariable(const VarDecl *var) const;
 
   void setCaptures(ASTContext &Context, ArrayRef<Capture> Captures,
-                   bool CapturesCXXThis);
+                   QualType CXXThisType);
 
   unsigned getBlockManglingNumber() const { return ManglingNumber; }
 

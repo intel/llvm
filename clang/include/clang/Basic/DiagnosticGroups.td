@@ -1174,7 +1174,8 @@ def GNUVariableSizedTypeNotAtEnd : DiagGroup<"gnu-variable-sized-type-not-at-end
 def Varargs : DiagGroup<"varargs">;
 def XorUsedAsPow : DiagGroup<"xor-used-as-pow">;
 
-def Unsequenced : DiagGroup<"unsequenced">;
+def UnsequencedVolatile : DiagGroup<"unsequenced-volatile">;
+def Unsequenced : DiagGroup<"unsequenced", [UnsequencedVolatile]>;
 // GCC name for -Wunsequenced
 def : DiagGroup<"sequence-point", [Unsequenced]>;
 

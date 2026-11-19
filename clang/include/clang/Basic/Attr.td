@@ -493,6 +493,7 @@ def TargetAMDGPU : TargetArch<["amdgpu", "r600"]>;
 def TargetAnyArm : TargetArch<!listconcat(TargetARM.Arches, TargetAArch64.Arches)>;
 def TargetAVR : TargetArch<["avr"]>;
 def TargetBPF : TargetArch<["bpfel", "bpfeb"]>;
+def TargetHexagon : TargetArch<["hexagon"]>;
 def TargetLoongArch : TargetArch<["loongarch32", "loongarch64"]>;
 def TargetMips32 : TargetArch<["mips", "mipsel"]>;
 def TargetAnyMips : TargetArch<["mips", "mipsel", "mips64", "mips64el"]>;
@@ -4387,6 +4388,14 @@ def RISCVVLSCC: DeclOrTypeAttr, TargetSpecificAttr<TargetRISCV> {
 def NativeCPULibclcCall : DeclOrTypeAttr, TargetSpecificAttr<TargetNativeCPU> {
   let Spellings = [Clang<"libclc_call", 0>];
   let Documentation = [Undocumented];
+}
+
+def HexagonHLXVectorStackLimit : InheritableAttr,
+                                 TargetSpecificAttr<TargetHexagon> {
+  let Spellings = [Clang<"hlx_vector_stack_limit">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [UnsignedArgument<"Limit">];
+  let Documentation = [HexagonHLXVectorStackLimitDocs];
 }
 
 def Target : InheritableAttr {
