@@ -8,10 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/info_desc_traits.hpp> // for rt_traits_base, info_class
-
 #include <cstdint>     // for uint32_t
-#include <type_traits> // for false_type, void_t
+#include <type_traits> // for bool_constant
 
 namespace sycl {
 inline namespace _V1 {
@@ -31,12 +29,30 @@ enum class graph_recording_mode {
   native,  ///< Graph capture is delegated to the backend.
 };
 
+namespace info::graph {
+
+/// Reports whether native recording is in effect for this graph. Reports
+/// effective state, not property-list contents: a graph that records natively
+/// only because `SYCL_GRAPH_FORCE_NATIVE_RECORDING=1` is set still reports
+/// `graph_recording_mode::native`.
+struct recording_mode {
+  using return_type = graph_recording_mode;
+};
+
+/// Reports whether this executable graph can be updated, i.e. whether it was
+/// finalized with the `property::graph::updatable` property.
+struct updatable {
+  using return_type = bool;
+};
+
+} // namespace info::graph
+
 namespace detail {
 
 /// Selects which characteristic the templateless `getInfoImpl()` entry points
-/// of the two graph base classes should report. Every descriptor defined below
-/// is scalar and is returned widened to `uint64_t`, so adding a descriptor
-/// costs an enumerator rather than an exported symbol.
+/// of the two graph base classes should report. Every descriptor above is
+/// scalar and is returned widened to `uint64_t`, so adding a descriptor costs
+/// an enumerator rather than an exported symbol.
 ///
 /// These values are ABI: never reorder or reuse an enumerator.
 enum class graph_info_kind : uint32_t {
@@ -44,67 +60,38 @@ enum class graph_info_kind : uint32_t {
   updatable = 1,
 };
 
-} // namespace detail
-
-namespace info::graph {
-
-/// Reports whether native recording is in effect for this graph. Reports
-/// effective state, not property-list contents: a graph that records natively
-/// only because `SYCL_GRAPH_FORCE_NATIVE_RECORDING=1` is set still reports
-/// `graph_recording_mode::native`.
-struct recording_mode
-    : sycl::detail::rt_traits_base<sycl::detail::info_class::graph> {
-  using return_type = graph_recording_mode;
-  static constexpr auto info_kind =
-      experimental::detail::graph_info_kind::recording_mode;
-  static constexpr bool valid_in_modifiable = true;
-  static constexpr bool valid_in_executable = true;
+/// Maps an `info::graph` descriptor to its query kind, per graph state.
+/// Specialized only for the (descriptor, state) pairs the spec declares valid,
+/// so this is the single place recording which query applies in which state.
+///
+/// The primary template stays defined rather than left incomplete so that
+/// `get_info()` can read `valid` and `kind` for an arbitrary `Param` and
+/// diagnose it with a `static_assert` instead of a hard error.
+template <typename Param, graph_state State> struct graph_info_desc {
+  static constexpr bool valid = false;
+  static constexpr graph_info_kind kind{};
 };
 
-/// Reports whether this executable graph can be updated, i.e. whether it was
-/// finalized with the `property::graph::updatable` property.
-struct updatable
-    : sycl::detail::rt_traits_base<sycl::detail::info_class::graph> {
-  using return_type = bool;
-  static constexpr auto info_kind =
-      experimental::detail::graph_info_kind::updatable;
-  static constexpr bool valid_in_modifiable = false;
-  static constexpr bool valid_in_executable = true;
+template <graph_state State>
+struct graph_info_desc<info::graph::recording_mode, State> {
+  static constexpr bool valid = true;
+  static constexpr graph_info_kind kind = graph_info_kind::recording_mode;
 };
 
-} // namespace info::graph
+template <>
+struct graph_info_desc<info::graph::updatable, graph_state::executable> {
+  static constexpr bool valid = true;
+  static constexpr graph_info_kind kind = graph_info_kind::updatable;
+};
 
-namespace detail {
-
-/// Detects that `Param` is one of the `info::graph` descriptors above. Also
-/// checks for the per-state validity members so a descriptor missing them
-/// fails the family check rather than erroring inside `get_info()`.
-template <typename Param, typename = void>
-struct is_graph_info_desc : std::false_type {};
-
+/// Detects that `Param` is one of the `info::graph` descriptors, i.e. that it
+/// is valid in at least one graph state. Lets `get_info()` tell a descriptor
+/// from another family apart from one used in the wrong state.
 template <typename Param>
-struct is_graph_info_desc<Param,
-                          std::void_t<decltype(Param::info_kind),
-                                      decltype(Param::valid_in_modifiable),
-                                      decltype(Param::valid_in_executable)>>
-    : sycl::detail::is_info_desc_for<Param, sycl::detail::info_class::graph> {};
-
-// Read a descriptor's per-state validity without hard-erroring on a type that
-// is not a graph descriptor at all, so that `get_info()` diagnoses the family
-// mismatch instead of a missing member.
-template <typename Param, typename = void>
-struct graph_info_valid_in_modifiable : std::false_type {};
-
-template <typename Param>
-struct graph_info_valid_in_modifiable<
-    Param, std::enable_if_t<Param::valid_in_modifiable>> : std::true_type {};
-
-template <typename Param, typename = void>
-struct graph_info_valid_in_executable : std::false_type {};
-
-template <typename Param>
-struct graph_info_valid_in_executable<
-    Param, std::enable_if_t<Param::valid_in_executable>> : std::true_type {};
+struct is_graph_info_desc
+    : std::bool_constant<
+          graph_info_desc<Param, graph_state::modifiable>::valid ||
+          graph_info_desc<Param, graph_state::executable>::valid> {};
 
 } // namespace detail
 

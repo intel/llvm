@@ -70,11 +70,12 @@ public:
     static_assert(detail::is_graph_info_desc<Param>::value,
                   "Param must be one of the info descriptors in the "
                   "sycl::ext::oneapi::experimental::info::graph namespace.");
-    static_assert(detail::graph_info_valid_in_executable<Param>::value,
-                  "This info descriptor is not valid for a command_graph in "
-                  "the graph_state::executable state.");
-    return static_cast<typename Param::return_type>(
-        getInfoImpl(Param::info_kind));
+    static_assert(
+        detail::graph_info_desc<Param, graph_state::executable>::valid,
+        "This info descriptor is not valid for a command_graph in "
+        "the graph_state::executable state.");
+    return static_cast<typename Param::return_type>(getInfoImpl(
+        detail::graph_info_desc<Param, graph_state::executable>::kind));
   }
 
   /// Common Reference Semantics
