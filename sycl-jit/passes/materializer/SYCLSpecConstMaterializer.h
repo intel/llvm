@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 #include <map>
-#include <set>
 
 namespace llvm {
 class Function;
@@ -86,8 +86,10 @@ private:
   // at which the value is located.
   using TypeAtOffset = std::pair<Type *, uint64_t>;
 
-  // Unique uses of spec const (type and offset).
-  std::set<TypeAtOffset> TypesAndOffsets{};
+  // Unique uses of spec const (type and offset), in insertion order. Do not
+  // use an ordered container keyed on the Type pointer, as that would make the
+  // order undeterministic.
+  SetVector<TypeAtOffset> TypesAndOffsets{};
   // A map from type and offset to a specialization constant blob to a
   // GlobalVariable containing its value.
   std::map<TypeAtOffset, GlobalVariable *> TypesAndOffsetsToBlob{};

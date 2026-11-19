@@ -6683,6 +6683,8 @@ static bool isPlaceholderToRemoveAsArg(QualType type) {
 #include "clang/Basic/AMDGPUTypes.def"
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/HLSLIntangibleTypes.def"
+#define HLSL_PACKED_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/HLSLPackedTypes.def"
 #define SPIRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/SPIRVTypes.def"
 #define PLACEHOLDER_TYPE(ID, SINGLETON_ID)
@@ -7187,7 +7189,7 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
         NDecl = FDecl;
         Fn = DeclRefExpr::Create(
             Context, DRE->getQualifierLoc(), SourceLocation(), FDecl, false,
-            SourceLocation(), Fn->getType() /* BuiltinFnTy */,
+            DRE->getLocation(), Fn->getType() /* BuiltinFnTy */,
             Fn->getValueKind(), FDecl, nullptr, DRE->isNonOdrUse());
       }
     }
@@ -7745,30 +7747,55 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
   // C99 6.5.2.5
   //  "If the compound literal occurs outside the body of a function, the
   //  initializer list shall consist of constant expressions."
-  if (IsFileScope)
-    if (auto ILE = dyn_cast<InitListExpr>(LiteralExpr))
-      for (unsigned i = 0, j = ILE->getNumInits(); i != j; i++) {
-        Expr *Init = ILE->getInit(i);
-        if (!Init->isTypeDependent() && !Init->isValueDependent() &&
-            !Init->isConstantInitializer(Context)) {
-          Diag(Init->getExprLoc(), diag::err_init_element_not_constant)
-              << Init->getSourceBitField();
-          return ExprError();
-        }
-
-        ILE->setInit(i, ConstantExpr::Create(Context, Init));
+  if (IsFileScope) {
+    // An element with an immediate call or source_location is left for the
+    // use site, and for its rebuild too when the rebuilt default arguments
+    // could not be given the use-site location.
+    bool DeferImmediate =
+        isCheckingDefaultArgumentOrInitializer() ||
+        (currentEvaluationContext().DelayedDefaultInitializationContext &&
+         !OutermostDeclarationWithDelayedImmediateInvocations());
+    // Store the element's value so CodeGen does not re-evaluate it outside a
+    // constant context.
+    auto CheckElement = [&](Expr *Init) -> Expr * {
+      if (Init->isTypeDependent() || Init->isValueDependent())
+        return ConstantExpr::Create(Context, Init);
+      if (DeferImmediate) {
+        ImmediateCallVisitor V(Context);
+        V.TraverseStmt(Init);
+        if (V.HasImmediateCalls)
+          return ConstantExpr::Create(Context, Init);
       }
+      Expr::EvalResult Eval;
+      if (!Init->EvaluateAsConstantExpr(Eval, Context,
+                                        ConstantExprKind::Initializer)) {
+        Diag(Init->getExprLoc(), diag::err_init_element_not_constant)
+            << Init->getSourceBitField();
+        return nullptr;
+      }
+      // An immediate invocation already is a ConstantExpr.
+      if (isa<ConstantExpr>(Init))
+        return Init;
+      return ConstantExpr::Create(Context, Init, Eval.Val);
+    };
+    if (auto *ILE = dyn_cast<InitListExpr>(LiteralExpr)) {
+      for (unsigned i = 0, j = ILE->getNumInits(); i != j; i++) {
+        Expr *Init = CheckElement(ILE->getInit(i));
+        if (!Init)
+          return ExprError();
+        ILE->setInit(i, Init);
+      }
+    } else {
+      LiteralExpr = CheckElement(LiteralExpr);
+      if (!LiteralExpr)
+        return ExprError();
+    }
+  }
 
   auto *E = new (Context) CompoundLiteralExpr(LParenLoc, TInfo, literalType, VK,
                                               LiteralExpr, IsFileScope);
-  if (IsFileScope) {
-    if (!LiteralExpr->isTypeDependent() &&
-        !LiteralExpr->isValueDependent() &&
-        !literalType->isDependentType()) // C99 6.5.2.5p3
-      if (CheckForConstantInitializer(LiteralExpr))
-        return ExprError();
-  } else if (literalType.getAddressSpace() != LangAS::opencl_private &&
-             literalType.getAddressSpace() != LangAS::Default) {
+  if (!IsFileScope && literalType.getAddressSpace() != LangAS::opencl_private &&
+      literalType.getAddressSpace() != LangAS::Default) {
     // Embedded-C extensions to C99 6.5.2.5:
     //   "If the compound literal occurs inside the body of a function, the
     //   type name shall not be qualified by an address-space qualifier."
@@ -8171,6 +8198,14 @@ bool Sema::areVectorTypesSameSize(QualType SrcTy, QualType DestTy) {
   if (!breakDownVectorType(SrcTy, SrcLen, SrcEltTy))
     return false;
   if (!breakDownVectorType(DestTy, DestLen, DestEltTy))
+    return false;
+
+  // x87 long double has padding bits, so it cannot be bitcast to another type.
+  auto IsX87LongDouble = [&](QualType T) {
+    return T->isRealFloatingType() && &Context.getFloatTypeSemantics(T) ==
+                                          &llvm::APFloat::x87DoubleExtended();
+  };
+  if (IsX87LongDouble(SrcEltTy) != IsX87LongDouble(DestEltTy))
     return false;
 
   // ASTContext::getTypeSize will return the size rounded up to a
@@ -9068,8 +9103,7 @@ OpenCLCheckVectorConditional(Sema &S, ExprResult &Cond,
                               /*isCompAssign*/ false,
                               /*AllowBothBool*/ true,
                               /*AllowBoolConversions*/ false,
-                              /*AllowBooleanOperation*/ IsBoolVecLang,
-                              /*ReportInvalid*/ true);
+                              /*AllowBooleanOperation*/ IsBoolVecLang);
     if (VecResTy.isNull())
       return QualType();
     // The result type must match the condition type as specified in
@@ -9152,8 +9186,7 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
     return CheckVectorOperands(LHS, RHS, QuestionLoc, /*isCompAssign*/ false,
                                /*AllowBothBool*/ true,
                                /*AllowBoolConversions*/ false,
-                               /*AllowBooleanOperation*/ false,
-                               /*ReportInvalid*/ true);
+                               /*AllowBooleanOperation*/ false);
 
   QualType ResTy = UsualArithmeticConversions(LHS, RHS, QuestionLoc,
                                               ArithConvKind::Conditional);
@@ -10526,9 +10559,10 @@ AssignConvertType Sema::CheckSingleAssignmentConstraints(QualType LHSType,
       // a macro expansion because the use of a macro may indicate different
       // code between C and C++. Consider: char *s = NULL; where NULL is
       // defined as (void *)0 in C (which would be invalid in C++), but 0 in
-      // C++, which is valid in C++.
+      // C++, which is valid in C++. Ignore parentheses around the macro when
+      // checking where the expression originates.
       if (Kind != CK_NoOp && !getLangOpts().CPlusPlus &&
-          !RHS.get()->getBeginLoc().isMacroID()) {
+          !RHS.get()->IgnoreParens()->getBeginLoc().isMacroID()) {
         QualType CanRHS =
             RHS.get()->getType().getCanonicalType().getUnqualifiedType();
         QualType CanLHS = LHSType.getCanonicalType().getUnqualifiedType();
@@ -10963,8 +10997,7 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
                                    SourceLocation Loc, bool IsCompAssign,
                                    bool AllowBothBool,
                                    bool AllowBoolConversions,
-                                   bool AllowBoolOperation,
-                                   bool ReportInvalid) {
+                                   bool AllowBoolOperation) {
   if (!IsCompAssign) {
     LHS = DefaultFunctionArrayLvalueConversion(LHS.get());
     if (LHS.isInvalid())
@@ -10997,12 +11030,12 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
   if (!AllowBothBool && LHSVecType &&
       LHSVecType->getVectorKind() == VectorKind::AltiVecBool && RHSVecType &&
       RHSVecType->getVectorKind() == VectorKind::AltiVecBool)
-    return ReportInvalid ? InvalidOperands(Loc, LHS, RHS) : QualType();
+    return InvalidOperands(Loc, LHS, RHS);
 
   // This operation may not be performed on boolean vectors.
   if (!AllowBoolOperation &&
       (LHSType->isExtVectorBoolType() || RHSType->isExtVectorBoolType()))
-    return ReportInvalid ? InvalidOperands(Loc, LHS, RHS) : QualType();
+    return InvalidOperands(Loc, LHS, RHS);
 
   // If the vector types are identical, return.
   if (Context.hasSameType(LHSType, RHSType))
@@ -11493,8 +11526,7 @@ QualType Sema::CheckMultiplyDivideOperands(ExprResult &LHS, ExprResult &RHS,
     return CheckVectorOperands(LHS, RHS, Loc, IsCompAssign,
                                /*AllowBothBool*/ getLangOpts().AltiVec,
                                /*AllowBoolConversions*/ false,
-                               /*AllowBooleanOperation*/ false,
-                               /*ReportInvalid*/ true);
+                               /*AllowBooleanOperation*/ false);
   if (LHSTy->isSveVLSBuiltinType() || RHSTy->isSveVLSBuiltinType())
     return CheckSizelessVectorOperands(LHS, RHS, Loc, IsCompAssign,
                                        ArithConvKind::Arithmetic);
@@ -11556,8 +11588,7 @@ QualType Sema::CheckRemainderOperands(
       return CheckVectorOperands(LHS, RHS, Loc, IsCompAssign,
                                  /*AllowBothBool*/ getLangOpts().AltiVec,
                                  /*AllowBoolConversions*/ false,
-                                 /*AllowBooleanOperation*/ false,
-                                 /*ReportInvalid*/ true);
+                                 /*AllowBooleanOperation*/ false);
     return InvalidOperands(Loc, LHS, RHS);
   }
 
@@ -11882,8 +11913,7 @@ QualType Sema::CheckAdditionOperands(ExprResult &LHS, ExprResult &RHS,
         CheckVectorOperands(LHS, RHS, Loc, CompLHSTy,
                             /*AllowBothBool*/ getLangOpts().AltiVec,
                             /*AllowBoolConversions*/ getLangOpts().ZVector,
-                            /*AllowBooleanOperation*/ false,
-                            /*ReportInvalid*/ true);
+                            /*AllowBooleanOperation*/ false);
     if (CompLHSTy) *CompLHSTy = compType;
     return compType;
   }
@@ -12029,8 +12059,7 @@ QualType Sema::CheckSubtractionOperands(ExprResult &LHS, ExprResult &RHS,
         CheckVectorOperands(LHS, RHS, Loc, CompLHSTy,
                             /*AllowBothBool*/ getLangOpts().AltiVec,
                             /*AllowBoolConversions*/ getLangOpts().ZVector,
-                            /*AllowBooleanOperation*/ false,
-                            /*ReportInvalid*/ true);
+                            /*AllowBooleanOperation*/ false);
     if (CompLHSTy) *CompLHSTy = compType;
     return compType;
   }
@@ -13287,6 +13316,13 @@ QualType Sema::CheckCompareOperands(ExprResult &LHS, ExprResult &RHS,
         *CCT, Loc, ComparisonCategoryUsage::OperatorInExpression);
   };
 
+  if (LHSType->isMetaInfoType() && RHSType->isMetaInfoType()) {
+    if (!BinaryOperator::isEqualityOp(Opc)) {
+      return InvalidOperands(Loc, LHS, RHS);
+    }
+    return computeResultTy();
+  }
+
   if (!IsOrdered && LHSIsNull != RHSIsNull) {
     bool IsEquality = Opc == BO_EQ;
     if (RHSIsNull)
@@ -13756,8 +13792,7 @@ QualType Sema::CheckVectorCompareOperands(ExprResult &LHS, ExprResult &RHS,
       CheckVectorOperands(LHS, RHS, Loc, /*isCompAssign*/ false,
                           /*AllowBothBool*/ true,
                           /*AllowBoolConversions*/ getLangOpts().ZVector,
-                          /*AllowBooleanOperation*/ true,
-                          /*ReportInvalid*/ true);
+                          /*AllowBooleanOperation*/ true);
   if (vType.isNull())
     return vType;
 
@@ -14003,10 +14038,9 @@ QualType Sema::CheckVectorLogicalOperands(ExprResult &LHS, ExprResult &RHS,
   QualType vType = CheckVectorOperands(LHS, RHS, Loc, false,
                                        /*AllowBothBool*/ true,
                                        /*AllowBoolConversions*/ false,
-                                       /*AllowBooleanOperation*/ false,
-                                       /*ReportInvalid*/ false);
+                                       /*AllowBooleanOperation*/ false);
   if (vType.isNull())
-    return InvalidOperands(Loc, LHS, RHS);
+    return QualType();
   if (getLangOpts().OpenCL &&
       getLangOpts().getOpenCLCompatibleVersion() < 120 &&
       vType->hasFloatingRepresentation())
@@ -14160,11 +14194,11 @@ inline QualType Sema::CheckBitwiseOperands(ExprResult &LHS, ExprResult &RHS,
       RHS.get()->getType()->isVectorType()) {
     if (LHS.get()->getType()->hasIntegerRepresentation() &&
         RHS.get()->getType()->hasIntegerRepresentation())
-      return CheckVectorOperands(LHS, RHS, Loc, IsCompAssign,
-                                 /*AllowBothBool*/ true,
-                                 /*AllowBoolConversions*/ getLangOpts().ZVector,
-                                 /*AllowBooleanOperation*/ LegalBoolVecOperator,
-                                 /*ReportInvalid*/ true);
+      return CheckVectorOperands(
+          LHS, RHS, Loc, IsCompAssign,
+          /*AllowBothBool*/ true,
+          /*AllowBoolConversions*/ getLangOpts().ZVector,
+          /*AllowBooleanOperation*/ LegalBoolVecOperator);
     return InvalidOperands(Loc, LHS, RHS);
   }
 
@@ -16687,7 +16721,11 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
                          << resultType << Input.get()->getSourceRange());
       }
 
-      if (resultType->isScalarType() && !isScopedEnumerationType(resultType)) {
+      if (resultType->isScalarType() && !isScopedEnumerationType(resultType) &&
+          !resultType->isMetaInfoType()) {
+        // Before C++26, scalar types are contextually converted to bool,
+        // std::meta::info is a scalar type but not an arithmetic type.
+
         // C99 6.5.3.3p1: ok, fallthrough;
         if (Context.getLangOpts().CPlusPlus) {
           // C++03 [expr.unary.op]p8, C++0x [expr.unary.op]p9:
@@ -22486,6 +22524,8 @@ ExprResult Sema::CheckPlaceholderExpr(Expr *E) {
 #include "clang/Basic/AMDGPUTypes.def"
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/HLSLIntangibleTypes.def"
+#define HLSL_PACKED_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/HLSLPackedTypes.def"
 #define SPIRV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/SPIRVTypes.def"
 #define BUILTIN_TYPE(Id, SingletonId) case BuiltinType::Id:

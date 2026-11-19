@@ -224,7 +224,8 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
     NativePrograms.insert({Res, {ContextImpl.shared_from_this(), &Img}});
   }
 
-  ContextImpl.addDeviceGlobalInitializer(Res, Devices, &Img);
+  // No device_global registration here: this may be only a link input that is
+  // released once linked. The callers register the final built/linked program.
 
   if constexpr (DbgProgMgr > 1)
     std::cerr << "created program: " << Res

@@ -10,6 +10,7 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <sycl/detail/defines.hpp> // for __SYCL_STANDALONE_DEBUG
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -67,8 +68,12 @@ exception set_ur_error(exception &&e, int32_t ur_err);
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
 // exception handler.
+// Keep the full definition in every -g TU: exceptions are only constructed
+// inside libsycl, so constructor homing would otherwise leave gdb a forward
+// decl.
 /// \ingroup sycl_api
-class __SYCL_EXPORT exception : public virtual std::exception {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT exception
+    : public virtual std::exception {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL2020_DEPRECATED("The version of an exception constructor which takes "

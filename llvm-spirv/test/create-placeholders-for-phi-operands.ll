@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
-; RUN: llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv --spirv-ext=+SPV_INTEL_variable_length_array
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown -filetype=obj %s -o %t.llc.spv --spirv-ext=+SPV_INTEL_variable_length_array %}
 
 ; CHECK-LLVM: phi ptr [ [[savedstack:%.*]], {{.*}} ], [ [[savedstack_us:%.*]], {{.*}} ]
 
@@ -142,9 +142,9 @@ attributes #1 = { nofree nosync nounwind willreturn }
 !13 = !{!"llvm.loop.parallel_accesses", !9}
 !14 = !{!15, !17}
 !15 = distinct !{!15, !16}
-!16 = distinct !{!16}
+!16 = distinct !{!16, i1 false}
 !17 = distinct !{!17, !18}
-!18 = distinct !{!18}
+!18 = distinct !{!18, i1 false}
 !19 = !{!20, !21, !22, !23, !24, !25}
 !20 = distinct !{!20, !16}
 !21 = distinct !{!21, !16}

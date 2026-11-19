@@ -341,11 +341,15 @@ struct ur_device_handle_t_ : ur::level_zero::ur_object_t {
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
   ZeCache<ZeStruct<ze_float_atomic_ext_properties_t>>
       ZeDeviceFloatAtomicExtProperties;
+  ZeCache<ZexStruct<ur_ze_device_igca_target_ext_properties_t>>
+      ZeDeviceIgcaTargetProperties;
   ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
                     std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
+  ZeCache<ZeStruct<ze_device_external_memory_properties_t>>
+      ZeDeviceExternalMemoryProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
   ZeCache<ZeStruct<ze_device_cache_line_size_ext_t>>
       ZeDeviceCacheLinePropertiesExt;

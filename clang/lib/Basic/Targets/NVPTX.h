@@ -147,6 +147,8 @@ public:
     GPU = StringToOffloadArch(Name);
     return !GPU.isUnknown();
   }
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override;
 
   void setSupportedOpenCLOpts() override {
     auto &Opts = getSupportedOpenCLOpts();
@@ -205,13 +207,6 @@ public:
     if (HostTarget)
       return HostTarget->checkCallingConvention(CC);
     return CC == CC_DeviceKernel ? CCCR_OK : CCCR_Warning;
-  }
-
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
-              const TargetInfo *Aux) override {
-    TargetInfo::adjust(Diags, Opts, Aux);
-    // FIXME: Needed for compiling SYCL to PTX.
-    TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }
 
   bool hasBitIntType() const override { return true; }

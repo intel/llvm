@@ -21,3 +21,21 @@
 // CHECK-SUPPORTED-NEXT: file-table-tform{{.*}}
 // CHECK-SUPPORTED-NEXT: llvm-offload-binary{{.*}} "-o" "{{.*}}" "--image=file=@{{.*}}"
 // CHECK-SUPPORTED: clang-linker-wrapper{{.*}} "-sycl-thin-lto"
+
+// Verify host-only mode syntax-only compiles the source, not the ThinLTO foreach.
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -foffload-lto=thin \
+// RUN:   --offload-host-only --no-offloadlib -ccc-print-phases -c %s 2>&1 | \
+// RUN: FileCheck -check-prefix=HOST-ONLY-PHASES %s
+// HOST-ONLY-PHASES: [[#D:]]: input, "{{.+}}sycl-lto.cpp", c++, (device-sycl)
+// HOST-ONLY-PHASES-NEXT: [[#D+1]]: compiler, {[[#D]]}, none, (device-sycl)
+// HOST-ONLY-PHASES-NOT: foreach
+// HOST-ONLY-PHASES-NOT: linker
+
+// RUN: %clangxx -fsycl --offload-new-driver -ccc-install-dir %{clang_install_dir} -foffload-lto=thin \
+// RUN:   --offload-host-only --no-offloadlib -### -c %s 2>&1 | \
+// RUN: FileCheck -check-prefix=HOST-ONLY-CMDS %s
+// HOST-ONLY-CMDS: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" {{.*}} "-fsycl-is-device"
+// HOST-ONLY-CMDS-SAME: "-fsyntax-only"
+// HOST-ONLY-CMDS-NOT: sycl-post-link
+// HOST-ONLY-CMDS-NOT: llvm-foreach
+// HOST-ONLY-CMDS: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-host"

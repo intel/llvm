@@ -49,6 +49,21 @@ jobs:
       # prefer widespread gzip compression.
       toolchain_artifact_filename: sycl_linux.tar.gz
 
+  ubuntu2204_build_cuda12:
+    needs: get_date
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_configure_extra_args: '--cuda -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build_cuda12:latest
+
+      toolchain_artifact: sycl_linux_default_cuda12
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      toolchain_artifact_filename: sycl_linux.tar.gz
+
   # To validate compatibility with gcc 7.5.0
   sle15sp4_build:
     if: github.repository == 'intel/llvm'
@@ -295,6 +310,23 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
 
+  ubuntu2204_cuda12_test:
+    needs: [ubuntu2204_build_cuda12]
+    permissions:
+      contents: write
+      packages: read
+    if: ${{ !cancelled() && needs.ubuntu2204_build_cuda12.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: NVIDIA CUDA 12
+      runner: '["Linux", "cuda"]'
+      target_devices: cuda:gpu
+      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+      repo_ref: ${{ github.sha }}
+      toolchain_artifact: ${{ needs.ubuntu2204_build_cuda12.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.ubuntu2204_build_cuda12.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.ubuntu2204_build_cuda12.outputs.toolchain_decompress_command }}
+
   ubuntu2404_oneapi_test:
     needs: [ubuntu2404_oneapi_build]
     permissions:
@@ -323,7 +355,7 @@ jobs:
       # functionality, make sure Linux/Windows names follow the same pattern.
       toolchain_artifact_filename: sycl_windows.tar.gz
       # Disable the spirv-dis requirement as to not require SPIR-V Tools.
-      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
+      build_configure_extra_args: --cuda -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off -DSYCL_BUILD_INFO="Nightly ${{ needs.get_date.outputs.date }}"
       build_target: all
 
   e2e-win:
@@ -337,7 +369,7 @@ jobs:
       fail-fast: false
       matrix:
         enable_new_offload_model: ['False', 'True']
-        gpu_type: ['gen12', 'arc', 'bmg']
+        gpu_type: ['gen12', 'arc', 'bmg', 'cuda']
         include:
           - gpu_type: 'gen12'
             name: Intel Gen12 GPU
@@ -351,11 +383,16 @@ jobs:
             name: Intel Battlemage GPU
             runner: '["Windows", "bmg"]'
 
+          - gpu_type: 'cuda'
+            name: NVIDIA A100 GPU
+            runner: '["Windows", "cuda"]'
+            target_devices: cuda:gpu
+
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      target_devices: level_zero:gpu
+      target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       extra_lit_opts: --param enable_new_offload_model=${{ matrix.enable_new_offload_model }}
 
@@ -420,7 +457,7 @@ jobs:
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
       binaries_artifact: sycl_cts_bin_linux_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
-      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
+      extra_cmake_args: -DSYCL_CTS_ENABLE_EXT_ONEAPI_TESTS=ON -DSYCL_CTS_ENABLE_KHR_TESTS=ON ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
 
   run-sycl-cts-linux:
     needs: [ubuntu2204_build, build-sycl-cts-linux]
@@ -464,7 +501,7 @@ jobs:
       repo_ref: ${{ github.sha }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       binaries_artifact: sycl_cts_bin_win_${{ matrix.enable_new_offload_model == 'True' && 'new_offload' || 'old_offload' }}
-      extra_cmake_args: ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
+      extra_cmake_args: -DSYCL_CTS_ENABLE_EXT_ONEAPI_TESTS=ON -DSYCL_CTS_ENABLE_KHR_TESTS=ON ${{ matrix.enable_new_offload_model == 'True' && '-DDPCPP_FLAGS=--offload-new-driver' || '' }}
 
   run-sycl-cts-win:
     needs: [build-win, build-sycl-cts-win]

@@ -169,7 +169,7 @@ TEST(FailedCommandsTest, CheckUREventReleaseWithBarrier) {
 
 // Regression for the deferred-enqueue-failure hang identified in PR #22993
 // review. When Command::enqueue's re-attempt on a ThreadPool worker (via
-// NotifyHostTaskCompletion -> enqueueUnblockedCommands) fails, a caller
+// NotifyHostTaskCompletion -> retryEnqueueBlockedUsers) fails, a caller
 // that deferred via MBlockedUsers and parked in event_impl::waitInternal's
 // cv.wait must still wake. The failure itself surfaces via
 // reportAsyncException on the queue's async handler.

@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t_default.out
 // RUN: %t_default.out
-// RUN: %clangxx -fsycl -D__SYCL_USE_LIBSYCL8_VEC_IMPL=1 %s -o %t_vec.out
-// RUN: %t_vec.out
 // XFAIL: libcxx
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 

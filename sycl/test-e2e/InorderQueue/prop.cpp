@@ -36,6 +36,8 @@ int CheckQueueOrder(const queue &q) {
 
   cl_command_queue cq = get_native<backend::opencl>(q);
   bool expected_result = getQueueOrder(cq);
+  const cl_int ReleaseResult = clReleaseCommandQueue(cq);
+  assert(ReleaseResult == CL_SUCCESS);
   if (!expected_result)
     return -1;
 

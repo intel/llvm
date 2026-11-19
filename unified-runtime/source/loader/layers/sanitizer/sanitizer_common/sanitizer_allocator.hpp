@@ -23,7 +23,9 @@ enum class AllocType {
   HOST_USM,
   MEM_BUFFER,
   DEVICE_GLOBAL,
-  EXPORTABLE_MEM
+  EXPORTABLE_MEM,
+  IPC_MEM,
+  REGISTERED_HOST_MEM
 };
 
 struct AllocMemoryParams {
@@ -66,6 +68,10 @@ inline const char *ToString(AllocType Type) {
     return "Device Global";
   case AllocType::EXPORTABLE_MEM:
     return "Exportable Memory";
+  case AllocType::IPC_MEM:
+    return "IPC Memory";
+  case AllocType::REGISTERED_HOST_MEM:
+    return "Registered Host Memory";
   default:
     return "Unknown Type";
   }

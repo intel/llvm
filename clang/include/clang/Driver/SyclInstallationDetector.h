@@ -33,6 +33,12 @@ public:
 
   void getSYCLDeviceLibPath(
       llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
+
+  /// \brief Search the SYCL device library locations for \p LibName.
+  /// \return The full path to the library if found, otherwise std::nullopt.
+  std::optional<llvm::SmallString<128>>
+  findSYCLDeviceLib(llvm::StringRef LibName) const;
+
   void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const;
 

@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Passes/PassBuilder.h"
+#include "PassesOptions.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/StringTable.h"
 #include "llvm/Analysis/AliasAnalysisEvaluator.h"
@@ -216,6 +217,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/Passes/OptimizationLevel.h"
+#include "llvm/Passes/TriggerCrashPasses.h"
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
@@ -237,9 +239,7 @@
 #include "llvm/SYCLLowerIR/SYCLRemangleLibspirv.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
-#include "llvm/Passes/TriggerCrashPasses.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -435,7 +435,6 @@
 #include "llvm/Transforms/Utils/StripGCRelocates.h"
 #include "llvm/Transforms/Utils/StripNonLineTableDebugInfo.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
-#include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
 #include "llvm/Transforms/Utils/UnifyLoopExits.h"
 #include "llvm/Transforms/Vectorize/LoadStoreVectorizer.h"
 #include "llvm/Transforms/Vectorize/LoopIdiomVectorize.h"
@@ -447,32 +446,9 @@
 
 using namespace llvm;
 
-cl::opt<std::optional<PrintPipelinePassesFormat>, false,
-        PrintPipelinePassesFormatParser>
-    llvm::PrintPipelinePasses(
-        "print-pipeline-passes", cl::ValueOptional,
-        cl::desc(
-            "Print string describing the pipeline (best-effort only).\n"
-            "  - =text\tPrint a '-passes' compatible string describing the "
-            "pipeline.\n"
-            "  - =tree\tPrint a tree-like structure describing the pipeline."));
-
-bool PrintPipelinePassesFormatParser::parse(
-    cl::Option &O, StringRef ArgName, StringRef Arg,
-    std::optional<PrintPipelinePassesFormat> &Val) {
-  std::optional<PrintPipelinePassesFormat> Format =
-      StringSwitch<std::optional<PrintPipelinePassesFormat>>(Arg)
-          .Case("text", PrintPipelinePassesFormat::Text)
-          .Case("", PrintPipelinePassesFormat::Text)
-          .Case("tree", PrintPipelinePassesFormat::Tree)
-          .Default(std::nullopt);
-
-  if (!Format)
-    return O.error(formatv(
-        "'{0}' value invalid for print-pipeline-passes argument!", Arg));
-
-  Val = Format;
-  return false;
+std::optional<PrintPipelinePassesFormat>
+PassBuilder::getPrintPipelinePasses() const {
+  return Opts.print_pipeline_passes;
 }
 
 void llvm::printFormattedPipelinePasses(raw_ostream &OS, StringRef Pipeline,
@@ -616,7 +592,8 @@ PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
                          std::optional<PGOOptions> PGOOpt,
                          PassInstrumentationCallbacks *PIC,
                          IntrusiveRefCntPtr<vfs::FileSystem> FS)
-    : TM(TM), PTO(PTO), PGOOpt(PGOOpt), PIC(PIC), FS(std::move(FS)) {
+    : Opts(PassesOptions::Global), TM(TM), PTO(PTO), PGOOpt(PGOOpt), PIC(PIC),
+      FS(std::move(FS)) {
   if (TM)
     TM->registerPassBuilderCallbacks(*this);
   if (PIC) {

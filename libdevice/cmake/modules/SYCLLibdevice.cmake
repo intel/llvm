@@ -541,6 +541,7 @@ add_devicelibs(libsycl-native-bfloat16
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
+file(MAKE_DIRECTORY ${bc_binary_dir})
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
 set(imf_src_dir ${CMAKE_CURRENT_SOURCE_DIR})
 set(imf_fallback_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp imf_bf16.hpp

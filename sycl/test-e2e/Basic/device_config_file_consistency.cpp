@@ -11,9 +11,6 @@
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
-
-// UNSUPPORTED: spirv-backend
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21594
 #include <iostream>
 
 #include <algorithm>

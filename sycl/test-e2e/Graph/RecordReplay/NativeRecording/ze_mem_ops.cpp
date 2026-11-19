@@ -3,7 +3,7 @@
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not} %}
 
 // Test native recording with Level Zero memory operations.
 // Records L0 memset, device-to-device copy, and device-to-host copy

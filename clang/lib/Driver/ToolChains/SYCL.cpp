@@ -140,11 +140,20 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // Resource-dir libspirv libraries are laid out per architecture family,
   // not per subarch. Fall back to the subarch-stripped triple.
-  if (DeviceTriple.isAMDGCN() &&
-      DeviceTriple.getSubArch() != llvm::Triple::NoSubArch) {
-    llvm::Triple Family(DeviceTriple);
-    Family.setArch(llvm::Triple::amdgpu);
-    return TryTriple(Family);
+  if (DeviceTriple.isAMDGCN()) {
+    // Note that buildbot/configure.py uses amdgcn-amd-amdhsa-llvm,
+    // while plain CMake builds can use amdgcn-amd-amdhsa.
+    // Support both architecture spellings and libclc installation layouts
+    for (StringRef Arch : {"amdgpu", "amdgcn"}) {
+      llvm::Triple Family(DeviceTriple);
+      Family.setArchName(Arch);
+      Family.setOSAndEnvironmentName(DeviceTriple.getOSName());
+      if (const char *Path = TryTriple(Family))
+        return Path;
+      Family.setEnvironmentName("llvm");
+      if (const char *Path = TryTriple(Family))
+        return Path;
+    }
   }
 
   return nullptr;
@@ -196,6 +205,19 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   SmallString<128> Path(D.SysRoot);
   llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);
   DeviceLibPaths.emplace_back(Path.str());
+}
+
+std::optional<SmallString<128>>
+SYCLInstallationDetector::findSYCLDeviceLib(StringRef LibName) const {
+  SmallVector<SmallString<128>, 4> DeviceLibPaths;
+  getSYCLDeviceLibPath(DeviceLibPaths);
+  for (const auto &LibPath : DeviceLibPaths) {
+    SmallString<128> FullLibName(LibPath);
+    llvm::sys::path::append(FullLibName, LibName);
+    if (D.getVFS().exists(FullLibName))
+      return FullLibName;
+  }
+  return std::nullopt;
 }
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
@@ -909,6 +931,17 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
+      if (InputFilename == "libc.bc") {
+        std::optional<std::string> StdlibPath = getToolChain().getStdlibPath();
+        if (StdlibPath) {
+          llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
+          bool IsSamePath = false;
+          auto EC =
+              llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
+          return (!EC && IsSamePath);
+        }
+        return false;
+      }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
@@ -1544,13 +1577,15 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       // Native CPU can support options unsupported by other targets.
       if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
-      // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
-      if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
-          A->getValues().size() == 1) {
-        std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address" || SanitizeVal == "memory" ||
-            SanitizeVal == "thread")
+      // Sanitizers are not currently supported, except those returned by
+      // getSupportedSanitizers().
+      if (A->getOption().getID() == options::OPT_fsanitize_EQ) {
+        SanitizerMask Enabled;
+        for (StringRef Value : A->getValues())
+          Enabled |= expandSanitizerGroups(
+              parseSanitizerValue(Value, /*AllowGroups=*/true));
+        if (Enabled &&
+            !(Enabled & ~getSupportedSanitizers({}, Action::OFK_SYCL)))
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target_host_only)
@@ -1874,7 +1909,7 @@ llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
               .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
               .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"}, "mtl_s")
               .Cases({"mtl_h", "12_71_4"}, "mtl_p")
-              .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
+              .Cases({"arl_h", "12_74_4"}, "arl_h")
               .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
@@ -2075,9 +2110,6 @@ SYCLToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
-  SmallVector<SmallString<128>, 4> LibraryPaths;
-  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
-
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
@@ -2085,23 +2117,33 @@ SYCLToolChain::getDeviceLibs(
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
   for (const auto &DeviceLib : DeviceLibs) {
-    bool DeviceLibFound = false;
-    for (const auto &LibraryPath : LibraryPaths) {
-      SmallString<128> FullLibName(LibraryPath);
-      llvm::sys::path::append(FullLibName, DeviceLib.Path);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        BitCodeLibraryInfo BitCodeLibrary(
-            {FullLibName, DeviceLib.ShouldInternalize});
-        BCLibs.emplace_back(BitCodeLibrary);
-        DeviceLibFound = true;
-        break;
-      }
-    }
     // The device libraries are all known internal libraries.  If any are not
     // found, emit an error.
-    if (!DeviceLibFound)
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(DeviceLib.Path))
+      BCLibs.emplace_back(
+          BitCodeLibraryInfo({*FullLibName, DeviceLib.ShouldInternalize}));
+    else
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
+
+  bool NoOffloadLib = !DriverArgs.hasFlag(options::OPT_offloadlib,
+                                          options::OPT_no_offloadlib, true);
+  // Link device libc for spirv64 target.
+  if (getTriple().isSPIROrSPIRV() && getTriple().isArch64Bit() &&
+      !NoOffloadLib) {
+    bool LinkDeviceLibc = false;
+    if (std::optional<std::string> StdlibPath = getStdlibPath()) {
+      SmallString<128> FullLibcName(*StdlibPath);
+      llvm::sys::path::append(FullLibcName, "libc.bc");
+      if (getDriver().getVFS().exists(FullLibcName)) {
+        LinkDeviceLibc = true;
+        BCLibs.emplace_back(BitCodeLibraryInfo(FullLibcName, true));
+      }
+    }
+    if (!LinkDeviceLibc)
+      getDriver().Diag(diag::err_drv_no_sycl_device_lib) << "libc.bc";
+  }
+
   return BCLibs;
 }
 

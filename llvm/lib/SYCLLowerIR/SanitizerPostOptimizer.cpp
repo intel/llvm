@@ -56,14 +56,9 @@ private:
 
 static bool FixSanitizerKernelMetadata(Module &M) {
   SmallVector<GlobalVariable *, 4> KernelMetadatas;
-  for (GlobalVariable &GV : M.globals()) {
-    auto GVName = GV.getName();
-    if (GVName.starts_with(sycl::utils::ASAN_KERNEL_METADATA_PREFIX) ||
-        GVName.starts_with(sycl::utils::MSAN_KERNEL_METADATA_PREFIX) ||
-        GVName.starts_with(sycl::utils::TSAN_KERNEL_METADATA_PREFIX)) {
+  for (GlobalVariable &GV : M.globals())
+    if (sycl::utils::getSanitizerKernelMetadataModuleID(GV))
       KernelMetadatas.push_back(&GV);
-    }
-  }
 
   if (KernelMetadatas.empty())
     return false;

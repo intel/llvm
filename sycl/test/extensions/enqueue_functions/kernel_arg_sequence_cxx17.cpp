@@ -1,9 +1,10 @@
 // RUN: not %clangxx -fsycl -fsyntax-only -std=c++17 -DSEQUENCE=Vector %s 2>&1 | FileCheck %s
 // RUN: not %clangxx -fsycl -fsyntax-only -std=c++17 -DSEQUENCE=Array %s 2>&1 | FileCheck %s
 // RUN: not %clangxx -fsycl -fsyntax-only -std=c++17 -DSEQUENCE=Span %s 2>&1 | FileCheck %s
-// RUN: %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Vector %s
-// RUN: %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Array %s
-// RUN: %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Span %s
+// DEFINE: %{if_span} = %if !linux || cpp_lib_span
+// RUN: %{if_span} %{ %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Vector %s %}
+// RUN: %{if_span} %{ %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Array %s %}
+// RUN: %{if_span} %{ %clangxx -fsycl -fsyntax-only -std=c++20 -DSEQUENCE=Span %s %}
 
 // Before C++20 a trivially copyable sequence of raw_kernel_arg would bind as
 // one kernel argument, so nd_launch rejects a sequence.

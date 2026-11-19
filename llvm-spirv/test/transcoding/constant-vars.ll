@@ -57,7 +57,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: @astr = internal unnamed_addr addrspace(2) constant [7 x i8] c"string\00", align 4
 ; CHECK-LLVM: @i64arr = addrspace(1) constant [3 x i64] [i64 0, i64 1, i64 2]
 ; CHECK-LLVM: @struct = addrspace(1) global %structtype { ptr addrspace(2) @astr, ptr addrspace(1) @i64arr }
-; CHECK-LLVM: @array = addrspace(1) global [3 x ptr addrspace(1)] [ptr addrspace(1) @i64arr, ptr addrspace(1) @struct, ptr addrspace(1) getelementptr ([3 x i64], ptr addrspace(1) @i64arr, i64 0, i64 1)]
+; CHECK-LLVM: @array = addrspace(1) global [3 x ptr addrspace(1)] [ptr addrspace(1) @i64arr, ptr addrspace(1) @struct, ptr addrspace(1) getelementptr (i8, ptr addrspace(1) @i64arr, i32 8)]
 
 define spir_kernel void @foo() {
   %val = load i32, ptr addrspace(2) @astr, align 4
