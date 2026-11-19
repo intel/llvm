@@ -105,15 +105,17 @@ template <typename T>
 inline constexpr bool check_if_device_copyable_v =
     check_if_device_copyable<T>::value;
 
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
-template <typename T, typename> struct CheckBasesAreDeviceCopyable;
-
+// Retain the legacy kernel-argument rules for both lambda captures and explicit
+// arguments, without changing the public is_device_copyable trait.
 template <typename T>
 inline constexpr bool is_deprecated_device_copyable_v =
     check_if_device_copyable_v<T> ||
     (std::is_trivially_copy_constructible_v<T> &&
      std::is_trivially_destructible_v<T>);
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T, typename> struct CheckFieldsAreDeviceCopyable;
+template <typename T, typename> struct CheckBasesAreDeviceCopyable;
 
 template <typename T, unsigned... FieldIds>
 struct CheckFieldsAreDeviceCopyable<T, std::index_sequence<FieldIds...>> {
