@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 -isystem %S/Inputs/ -fsycl-is-device -triple spirv64 -aux-triple x86_64-pc-windows-msvc -fsyntax-only -verify %s
-// RUN: %clang_cc1 -isystem %S/Inputs/ -fsycl-is-device -triple spirv64 -fsyntax-only -verify=expected,no-aux %s
+// RUN: %clang_cc1 -isystem %S/Inputs/ -fsycl-is-device -triple spirv64 -aux-triple x86_64-pc-windows-msvc -fsyntax-only -verify=expected,x86-host,aux %s
+// RUN: %clang_cc1 -isystem %S/Inputs/ -fsycl-is-device -triple spirv64 -aux-triple x86_64-unknown-linux-gnu -fsyntax-only -verify=expected,x86-host,aux %s
+// RUN: %clang_cc1 -isystem %S/Inputs/ -fsycl-is-device -triple spirv64 -aux-triple aarch64-unknown-linux-gnu -fsyntax-only -verify=expected,aux,no-x86-host %s
+// RUN: %clang_cc1 -isystem %S/Inputs/ -fsycl-is-device -triple spirv64 -fsyntax-only -verify=expected,no-aux,no-x86-host %s
 
 // Check that there is no error/warning emitted for cdecl functions compiled for
 // SYCL device. Make sure variadic calls from within device code are diagnosed.
@@ -15,6 +17,10 @@ void bar() {
   printf("hello\n");
 }
 
+// Accepted when the auxiliary host target supports the calling convention and
+// diagnosed when neither the device nor the host does. The SPIR target here
+// supports regcall and vectorcall, so they are never diagnosed.
+void __attribute__((regcall)) rcall(int a, int b) {}
 void __attribute__((vectorcall)) vcall(float a, float b) {}
 
 // Check some weird calling convention that is not supported even by x86_64 aux.
@@ -68,8 +74,16 @@ int main() {
   //expected-error@+1 {{SYCL device code does not support variadic functions}}
   sycl_entry_point<class kn>([]() { printf("world\n");
      moo();
-  //expected-error@+1 {{SYCL device code does not support variadic functions}}
-     foo(1,2); });
+     //expected-error@+1 {{SYCL device code does not support variadic functions}}
+     foo(1,2);
+     // Calls from device code are diagnosed when the device does not support
+     // the calling convention, even if the host does. The SPIR target here
+     // supports regcall and vectorcall, so these calls are not diagnosed.
+     rcall(1, 2);
+     vcall(1.0f, 2.0f);
+     // The unsupported swiftasynccall was already diagnosed on the declaration
+     // and replaced with the default calling convention.
+     g(); });
 
   //expected-note@+2 {{in instantiation of}}
   //expected-error@+1 {{SYCL device code does not support variadic functions}}
