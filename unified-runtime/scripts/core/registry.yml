@@ -883,3 +883,6 @@ etors:
 - name: KERNEL_LAUNCH_WORKGROUP_PROPERTY
   desc: $x_kernel_launch_workgroup_property_t
   value: '41'
+- name: MEM_ALLOC_PROPERTIES
+  desc: $x_mem_alloc_properties_t
+  value: '42'

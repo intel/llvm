@@ -422,6 +422,15 @@ ur_result_t urPrintBufferAllocLocationProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintMemAllocProperties(const struct ur_mem_alloc_properties_t params,
+                          char *buffer, const size_t buff_size,
+                          size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBufferRegion(const struct ur_buffer_region_t params,
                                 char *buffer, const size_t buff_size,
                                 size_t *out_size) {
