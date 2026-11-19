@@ -38,6 +38,7 @@
 // RUN: %clangxx %t_host.o %t_device.o -Wno-unused-command-line-argument -o %t.out %sycl_options %{mathflags}
 // RUN: %{run} %t.out
 
+// REQUIRES: aspect-fp64
 // >> device build and intergation header generation...
 // RUN: %{build} -fsycl-link  %S/std_complex_math_fp64_test.cpp -o %t_fp64_device.o %{mathflags}
 // RUN: %clangxx %{sycl_target_opts} -fsycl-device-only             \

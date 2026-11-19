@@ -17,7 +17,7 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt && \
 // RUN: FileCheck %s --input-file %t.txt
 
 // CHECK-NOT: <--- urEnqueueKernelLaunchWithArgsExp({{.*}}.phEvent = nullptr
