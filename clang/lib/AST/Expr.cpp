@@ -652,7 +652,6 @@ bool SYCLUniqueStableNameExpr::addCUIDQualifier(StringRef CUIDHash,
     //
     //   _ZTS<type>  ->  _ZTSU<length>cuid_<hash><type>
     //
-    // We don't use a '.' suffix since ptxas rejects identifiers containing '.'.
     TypeName.insert(TypeInfoPrefix.size(),
                     "U" + std::to_string(Qualifier.size()) + Qualifier);
     return true;
