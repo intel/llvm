@@ -3913,6 +3913,13 @@ typedef struct ur_buffer_alloc_location_properties_t {
 ///       ::ur_image_desc_t, as part of a `pNext` chain.
 ///     - If not specified, the adapter chooses the device on which the memory
 ///       object's storage is allocated.
+///     - The adapter is not required to make the storage accessible from other
+///       devices in the context. The application must ensure that any device
+///       executing a kernel or command that accesses the memory object can do
+///       so, either by having peer-to-peer access to `hDevice` (see
+///       ::urUsmP2PPeerAccessGetInfoExp and ::urUsmP2PEnablePeerAccessExp), or
+///       by explicitly copying the data to a memory object allocated on the
+///       accessing device beforehand.
 typedef struct ur_mem_alloc_properties_t {
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_MEM_ALLOC_PROPERTIES

@@ -321,6 +321,13 @@ details:
       or in $xMemImageCreate via $x_image_desc_t, as part of a `pNext` chain.
     - "If not specified, the adapter chooses the device on which the memory
       object's storage is allocated."
+    - "The adapter is not required to make the storage accessible from other
+      devices in the context. The application must ensure that any device
+      executing a kernel or command that accesses the memory object can do so,
+      either by having peer-to-peer access to `hDevice` (see
+      $xUsmP2PPeerAccessGetInfoExp and $xUsmP2PEnablePeerAccessExp), or by
+      explicitly copying the data to a memory object allocated on the
+      accessing device beforehand."
 class: $xMem
 name: $x_mem_alloc_properties_t
 base: $x_base_properties_t
