@@ -319,8 +319,11 @@ __device__ void use_nondep_default_arg() {
 struct NestedDefaultArg { // #nested_struct
   const std::type_info *t = (default_arg(), nullptr);
 };
-// dev-error@#default_arg {{cannot use 'typeid' in __host__ __device__ function as RTTI is not available in device code}}
-// dev-note@#nested_struct {{default member initializer used here}}
+// FIXME: Without the deferred-diagnostic deduplication of upstream #185926
+// (see the FIXME at LambdaBody below), the error and note are emitted once
+// for nested_default_arg and once for wrapper. Upstream expects one of each.
+// dev-error@#default_arg 2 {{cannot use 'typeid' in __host__ __device__ function as RTTI is not available in device code}}
+// dev-note@#nested_struct 2 {{default member initializer used here}}
 __device__ void nested_default_arg() {
   NestedDefaultArg n;
   // dev-note@-1 {{called by 'nested_default_arg'}}
@@ -334,7 +337,7 @@ struct Wrapper { // #wrapper_struct
 // dev-note@#wrapper_struct {{called by 'Wrapper'}}
 __device__ void wrapper() {
   Wrapper n;
-  // dev-note@-1 {{which is called by 'wrapper'}}
+  // dev-note@-1 {{called by 'wrapper'}}
   (void)n;
 }
 
