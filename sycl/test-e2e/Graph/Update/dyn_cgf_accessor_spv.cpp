@@ -5,9 +5,6 @@
 
 // REQUIRES: level_zero
 
-// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/21769
-
 // Tests updating an accessor argument to a graph node created from SPIR-V
 // using dynamic command-groups.
 
@@ -41,7 +38,8 @@ int main(int, char **argv) {
 
   int PatternA = 42;
   int PatternB = 0xA;
-  int AccOffset = 0;
+  // Accessor offset argument expected by the kernels.
+  sycl::id<1> AccOffset{0};
 
   auto AccA = BufA.get_access();
   auto AccB = BufB.get_access();

@@ -67,6 +67,10 @@ struct ShadowMemory {
 
   uptr ShadowLowerBound = 0xffff'ffff'ffff'ffff;
   uptr ShadowUpperBound = 0;
+
+  // See AsanRuntimeData::LocalWindowSize. Unused on CPU, where local memory
+  // is shadowed like global memory.
+  uint32_t LocalWindowSize = 0;
 };
 
 struct ShadowMemoryCPU final : public ShadowMemory {
@@ -114,6 +118,10 @@ struct ShadowMemoryGPU : public ShadowMemory {
                                  uptr *&Base, uptr &Begin,
                                  uptr &End) override final;
 
+  // The pStart hint passed to urVirtualMemReserve when reserving shadow
+  // memory. 0 means no hint, and the driver picks the address.
+  virtual uptr GetStartAddress() { return 0; }
+
   ur_mutex VirtualMemMapsMutex;
 
   std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
@@ -147,6 +155,11 @@ struct ShadowMemoryPVC final : public ShadowMemoryGPU {
   uptr MemToShadow(uptr Ptr) override;
 
   size_t GetShadowSize() override { return 0x180000000000ULL; }
+
+  // To reserve very large amount of GPU virtual memory, the pStart param
+  // should be beyond the SVM range, so that GFX driver will automatically
+  // switch to reservation on the GPU heap.
+  uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };
 
 /// Shadow Memory layout of GPU DG2 device

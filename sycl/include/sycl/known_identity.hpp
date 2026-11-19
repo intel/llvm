@@ -11,12 +11,10 @@
 #include <sycl/aliases.hpp>                    // for half
 #include <sycl/detail/generic_type_traits.hpp> // for is_genbool, is_genint...
 #include <sycl/detail/half_type_impl.hpp>      // for half
-#include <sycl/functional.hpp>                 // for bit_and, bit_or, bit_xor
-#include <sycl/marray.hpp>                     // for marray
-#include <sycl/vector.hpp>                     // for vec
+#include <sycl/detail/known_op_traits.hpp>     // for known_op_traits
+#include <sycl/detail/type_traits.hpp>         // for vec, marray fwd decls
 
 #include <cstddef>     // for byte, size_t
-#include <functional>  // for logical_and, logical_or
 #include <limits>      // for numeric_limits
 #include <stdint.h>    // for uint16_t
 #include <type_traits> // for enable_if_t, bool_con...
@@ -25,48 +23,45 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// Forward declaration for deterministic reductions.
-template <typename BinaryOperation> struct DeterministicOperatorWrapper;
-
-template <typename T, class BinaryOperation,
-          template <typename> class... KnownOperation>
-using IsKnownOp = std::bool_constant<(
-    (std::is_same_v<BinaryOperation, KnownOperation<T>> ||
-     std::is_same_v<BinaryOperation, KnownOperation<void>> ||
-     std::is_same_v<BinaryOperation,
-                    DeterministicOperatorWrapper<KnownOperation<T>>> ||
-     std::is_same_v<BinaryOperation,
-                    DeterministicOperatorWrapper<KnownOperation<void>>>) ||
-    ...)>;
-
-template <typename T, class BinaryOperation>
-using IsPlus = IsKnownOp<T, BinaryOperation, sycl::plus>;
+// True iff BinaryOperation (possibly wrapped in DeterministicOperatorWrapper)
+// is one of the known operations of kind Kind, with operand type T or void.
+// Operations register themselves through known_op_traits specializations (see
+// sycl/functional.hpp), so sycl/functional.hpp must be included for them to be
+// recognized.
+template <typename T, class BinaryOperation, known_op_kind Kind>
+using IsKnownOp = std::bool_constant<
+    known_op_traits<BinaryOperation>::kind == Kind &&
+    (std::is_same_v<typename known_op_traits<BinaryOperation>::operand_type,
+                    T> ||
+     std::is_same_v<typename known_op_traits<BinaryOperation>::operand_type,
+                    void>)>;
 
 template <typename T, class BinaryOperation>
-using IsMultiplies = IsKnownOp<T, BinaryOperation, sycl::multiplies>;
+using IsPlus = IsKnownOp<T, BinaryOperation, known_op_kind::plus>;
 
 template <typename T, class BinaryOperation>
-using IsMinimum = IsKnownOp<T, BinaryOperation, sycl::minimum>;
+using IsMultiplies = IsKnownOp<T, BinaryOperation, known_op_kind::multiplies>;
 
 template <typename T, class BinaryOperation>
-using IsMaximum = IsKnownOp<T, BinaryOperation, sycl::maximum>;
+using IsMinimum = IsKnownOp<T, BinaryOperation, known_op_kind::minimum>;
 
 template <typename T, class BinaryOperation>
-using IsBitAND = IsKnownOp<T, BinaryOperation, sycl::bit_and>;
+using IsMaximum = IsKnownOp<T, BinaryOperation, known_op_kind::maximum>;
 
 template <typename T, class BinaryOperation>
-using IsBitOR = IsKnownOp<T, BinaryOperation, sycl::bit_or>;
+using IsBitAND = IsKnownOp<T, BinaryOperation, known_op_kind::bit_and>;
 
 template <typename T, class BinaryOperation>
-using IsBitXOR = IsKnownOp<T, BinaryOperation, sycl::bit_xor>;
+using IsBitOR = IsKnownOp<T, BinaryOperation, known_op_kind::bit_or>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalAND =
-    IsKnownOp<T, BinaryOperation, std::logical_and, sycl::logical_and>;
+using IsBitXOR = IsKnownOp<T, BinaryOperation, known_op_kind::bit_xor>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalOR =
-    IsKnownOp<T, BinaryOperation, std::logical_or, sycl::logical_or>;
+using IsLogicalAND = IsKnownOp<T, BinaryOperation, known_op_kind::logical_and>;
+
+template <typename T, class BinaryOperation>
+using IsLogicalOR = IsKnownOp<T, BinaryOperation, known_op_kind::logical_or>;
 
 // Use SFINAE so that the "true" branch could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's

@@ -36,7 +36,7 @@ class VectorizationUnit;
 
 /// @brief Combine groups of interleaved memory operations.
 class InterleavedGroupCombinePass
-    : public llvm::PassInfoMixin<InterleavedGroupCombinePass> {
+    : public llvm::OptionalPassInfoMixin<InterleavedGroupCombinePass> {
 public:
   /// @brief Create a new pass object.
   ///

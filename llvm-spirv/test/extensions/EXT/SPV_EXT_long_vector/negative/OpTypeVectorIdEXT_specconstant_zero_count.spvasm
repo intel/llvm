@@ -1,0 +1,33 @@
+; OpTypeVectorIdEXT: Component Count is treated as an unsigned value and must
+; be greater than zero. When the count is a specialization constant, this can
+; only be checked after the value is translated. Here the default (7) is valid
+; but a -spec-const override to 0 must be rejected by the reverse translator.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: not llvm-spirv -r -spec-const "42:i32:0" %t.spv -o %t.bc 2>&1 | FileCheck %s
+
+; CHECK: InvalidInstruction
+; CHECK: TypeVectorIdEXT: component count must be greater than zero
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn "test"
+               OpDecorate %fn LinkageAttributes "test" Export
+               OpDecorate %count SpecId 42
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+      %count = OpSpecConstant %uint 7
+      %float = OpTypeFloat 32
+        %vec = OpTypeVectorIdEXT %float %count
+    %fn_type = OpTypeFunction %void %vec
+         %fn = OpFunction %void None %fn_type
+        %arg = OpFunctionParameter %vec
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd

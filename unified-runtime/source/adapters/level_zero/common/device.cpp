@@ -111,23 +111,17 @@ ur_result_t urDeviceGet(
   std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
   bool DeviceDefaultGPU = false;
 
-  bool isCombinedMode =
-      std::any_of(Platform->URDevicesCache.begin(),
-                  Platform->URDevicesCache.end(), [](const auto &D) {
-                    if (D->isSubDevice())
-                      return false;
-                    ze_device_handle_t RootDev = nullptr;
-                    // Query Root Device for root-devices.
-                    // We cannot use ZE2UR_CALL because under some circumstances
-                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
-                    // and ZE2UR_CALL will abort because it's not
-                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
-                    // check manually that the result is either
-                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
-                                                (D->ZeDevice, &RootDev));
-                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
-                  });
+  bool isCombinedMode = false;
+  for (const auto &D : Platform->URDevicesCache) {
+    if (D->isSubDevice())
+      continue;
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Platform->getRootDevice(D->ZeDevice, &RootDev));
+    if (RootDev != nullptr) {
+      isCombinedMode = true;
+      break;
+    }
+  }
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -239,6 +233,15 @@ supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
   std::ignore = Platform;
   return false;
 #endif
+}
+
+static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
+  constexpr const char *ExtensionName = UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME;
+  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
+
+  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
+  return Extension != Platform->zeDriverExtensionMap.end() &&
+         Extension->second >= MinVersion;
 }
 
 static std::optional<uint64_t>
@@ -432,6 +435,18 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
+    if (Device->Platform->ZeDriverEuCountExtensionFound) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_eu_count_ext_t EuCountDesc = {};
+      EuCountDesc.stype = ZE_STRUCTURE_TYPE_EU_COUNT_EXT;
+      DeviceProp.pNext = (void *)&EuCountDesc;
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+      if (EuCountDesc.numTotalEUs > 0) {
+        return ReturnValue(uint32_t{EuCountDesc.numTotalEUs});
+      }
+    }
+
     uint32_t MaxComputeUnits =
         Device->ZeDeviceProperties->numEUsPerSubslice *
         Device->ZeDeviceProperties->numSubslicesPerSlice *
@@ -1054,14 +1069,16 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    // There are no explicit restrictions in L0 programming guide, so assume all
-    // are supported
     ur_memory_scope_capability_flags_t result =
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+
+    // System scope requires device atomics on host memory.
+    if (Device->ZeDeviceMemoryAccessProperties->hostAllocCapabilities &
+        ZE_MEMORY_ACCESS_CAP_FLAG_ATOMIC)
+      result |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
 
     return ReturnValue(result);
   }
@@ -1109,9 +1126,12 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
-    ur_queue_flags_t queue_flags = UR_QUEUE_FLAG_DISCARD_EVENTS |
-                                   UR_QUEUE_FLAG_SUBMISSION_BATCHED |
-                                   UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+    ur_queue_flags_t queue_flags =
+        UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+        UR_QUEUE_FLAG_PROFILING_ENABLE | UR_QUEUE_FLAG_DISCARD_EVENTS |
+        UR_QUEUE_FLAG_PRIORITY_LOW | UR_QUEUE_FLAG_PRIORITY_HIGH |
+        UR_QUEUE_FLAG_SUBMISSION_BATCHED | UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE |
+        UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP;
     return ReturnValue(queue_flags);
   }
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
@@ -1120,6 +1140,18 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     return ReturnValue(static_cast<ur_bool_t>(true));
+  }
+  case UR_DEVICE_INFO_FP16_ATOMIC: {
+    constexpr ze_device_fp_atomic_ext_flags_t Required =
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_GLOBAL_MIN_MAX |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_LOAD_STORE |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_ADD |
+        ZE_DEVICE_FP_ATOMIC_EXT_FLAG_LOCAL_MIN_MAX;
+    return ReturnValue(static_cast<ur_bool_t>(
+        (Device->ZeDeviceFloatAtomicExtProperties->fp16Flags & Required) ==
+        Required));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     return ReturnValue(static_cast<ur_bool_t>(true));
@@ -1184,15 +1216,11 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
-    ur_device_handle_t UrRootDev = nullptr;
-    ze_device_handle_t DevHandle = Device->ZeDevice;
-    ze_device_handle_t RootDev;
-    // Query Root Device.
-    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (DevHandle, &RootDev));
-    UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
-    if (errc != ZE_RESULT_SUCCESS &&
-        errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-      return ze2urResult(errc);
+    ze_device_handle_t RootDev = nullptr;
+    UR_CALL(Device->Platform->getRootDevice(Device->ZeDevice, &RootDev));
+    ur_device_handle_t UrRootDev =
+        RootDev ? Device->Platform->getDeviceFromNativeHandle(RootDev)
+                : nullptr;
     return ReturnValue(UrRootDev);
   }
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
@@ -1353,28 +1381,24 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
     const auto ZeDeviceBlockArrayFlags =
         Device->ZeDeviceBlockArrayProperties->flags;
 
     auto supportsFlags =
-        [&](ze_intel_device_block_array_exp_flags_t RequiredFlags) {
+        [&](ur_ze_intel_device_block_array_exp_flags_t RequiredFlags) {
           return (ZeDeviceBlockArrayFlags & RequiredFlags) == RequiredFlags;
         };
 
     ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities = 0;
-    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
+    if (supportsFlags(UR_ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_LOAD)) {
       BlockArrayCapabilities |=
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
     }
-    if (supportsFlags(ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
+    if (supportsFlags(UR_ZE_INTEL_DEVICE_EXP_FLAG_2D_BLOCK_STORE)) {
       BlockArrayCapabilities |=
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
     }
     return ReturnValue(BlockArrayCapabilities);
-#else
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-#endif
   }
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
 #ifdef _WIN32
@@ -1526,8 +1550,13 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
-  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP: {
+    // Only report support if the driver can export device allocations as at
+    // least one external memory type.
+    return ReturnValue(
+        Device->ZeDeviceExternalMemoryProperties->memoryAllocationExportTypes !=
+        0);
+  }
   case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
     // LUID and Device node mask are only available on Windows.
@@ -1604,6 +1633,26 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_LANES_PER_HW_THREAD:
     return ReturnValue(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
+  case UR_DEVICE_INFO_IGCA_TARGET:
+  case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
+    if (supportsDeviceIgcaTargetExtension(Device->Platform)) {
+      const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
+      // A device implementing no IGCA feature set has no IGCA target.
+      if (IgcaProperties.featureSets != 0) {
+        if (ParamName == UR_DEVICE_INFO_IGCA_TARGET)
+          return ReturnValue(uint32_t{IgcaProperties.target});
+
+        ur_device_igca_feature_flags_t FeatureSets = 0;
+        if (IgcaProperties.featureSets &
+            UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_COMPUTE)
+          FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
+        if (IgcaProperties.featureSets & UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER)
+          FeatureSets |= UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+        return ReturnValue(FeatureSets);
+      }
+    }
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -2052,6 +2101,38 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &Properties));
       };
 
+  ZeDeviceFloatAtomicExtProperties.Compute =
+      [ZeDevice,
+       Platform = Platform](ze_float_atomic_ext_properties_t &Properties) {
+        if (!Platform->zeDriverExtensionMap.count(ZE_FLOAT_ATOMICS_EXT_NAME))
+          return; // leave zero-initialized flags
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query float atomic "
+                 "properties, error code: {}",
+                 ZeResult);
+      };
+
+  ZeDeviceIgcaTargetProperties.Compute =
+      [ZeDevice, Platform = Platform](
+          ZexStruct<ur_ze_device_igca_target_ext_properties_t> &Properties) {
+        if (!supportsDeviceIgcaTargetExtension(Platform))
+          return; // leave the target and the feature sets zero-initialized
+        ZeStruct<ze_device_module_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS)
+          UR_LOG(DEBUG,
+                 "zeDeviceGetModuleProperties failed to query the IGCA target "
+                 "properties, error code: {}",
+                 ZeResult);
+      };
+
   ZeDeviceMemoryProperties.Compute =
       [ZeDevice](
           std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
@@ -2077,6 +2158,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceMemoryAccessProperties.Compute =
       [ZeDevice](ze_device_memory_access_properties_t &Properties) {
         ZE_CALL_NOCHECK(zeDeviceGetMemoryAccessProperties,
+                        (ZeDevice, &Properties));
+      };
+
+  ZeDeviceExternalMemoryProperties.Compute =
+      [ZeDevice](ze_device_external_memory_properties_t &Properties) {
+        // If the query fails, the export types remain zero-initialized and
+        // no export support is reported.
+        ZE_CALL_NOCHECK(zeDeviceGetExternalMemoryProperties,
                         (ZeDevice, &Properties));
       };
 
@@ -2124,16 +2213,38 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
-#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+  ZeQueuePriorityRange.Compute = [this,
+                                  ZeDevice](ze_queue_priority_range &Range) {
+    std::optional<std::pair<int32_t, int32_t>> DriverLevels;
+    int32_t Lowest = 0, Highest = 0;
+    auto GetPriorityLevels =
+        Platform->ZeQueuePriorityExt.zeDeviceGetPriorityLevels;
+    // The function is loaded directly from the driver, so it expects a driver
+    // handle rather than a loader handle.
+    ze_device_handle_t DriverDevice = nullptr;
+    if (GetPriorityLevels &&
+        ZE_CALL_NOCHECK(zelLoaderTranslateHandle,
+                        (ZEL_HANDLE_DEVICE, ZeDevice,
+                         reinterpret_cast<void **>(&DriverDevice))) ==
+            ZE_RESULT_SUCCESS &&
+        ZE_CALL_NOCHECK(GetPriorityLevels, (DriverDevice, &Lowest, &Highest)) ==
+            ZE_RESULT_SUCCESS)
+      DriverLevels = {Lowest, Highest};
+    // The UR API guarantees that the range contains the default priority 0.
+    if (DriverLevels && (Highest > 0 || Lowest < 0))
+      UR_LOG(WARN, "Ignoring queue priority range [{}, {}] without 0.", Highest,
+             Lowest);
+    Range = makeQueuePriorityRange(DriverLevels);
+  };
+
   ZeDeviceBlockArrayProperties.Compute =
-      [ZeDevice](
-          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+      [ZeDevice](ZexStruct<ur_ze_intel_device_block_array_exp_properties_t>
+                     &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;
         ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
-#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
   auto UrPlatform = this->Platform;
   ZeDeviceVectorWidthPropertiesExt.Compute =
@@ -2198,7 +2309,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       };
 
   ZeXEDeviceProperties.Compute =
-      [ZeDevice](ze_intel_xe_device_exp_properties_t &Properties) {
+      [ZeDevice](ur_ze_intel_xe_device_exp_properties_t &Properties) {
         // Set up default values of 0
         Properties.numXeStacks = 0;
         Properties.numXeRegionsPerStack = 0;

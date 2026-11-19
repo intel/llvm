@@ -29,13 +29,18 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   UR_CALL(getMsanInterceptor()->insertContext(Context, CI));
   for (uint32_t i = 0; i < numDevices; ++i) {
     auto hDevice = phDevices[i];
-    std::shared_ptr<DeviceInfo> DI;
-    UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
-    DI->Type = GetDeviceType(Context, hDevice);
-    if (DI->Type == DeviceType::UNKNOWN) {
+    // Reject unsupported devices before registering them: the interceptor
+    // teardown expects every device it knows about to have shadow memory.
+    auto Type = GetDeviceType(Context, hDevice);
+    if (Type == DeviceType::UNKNOWN) {
       UR_LOG_L(getContext()->logger, ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
+    UR_CALL(CheckDeviceBackendSupported(hDevice, Type));
+
+    std::shared_ptr<DeviceInfo> DI;
+    UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
+    DI->Type = Type;
     UR_LOG_L(getContext()->logger, INFO,
              "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
              (void *)DI->Handle, ToString(DI->Type),
@@ -1831,15 +1836,34 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   UR_CALL(getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp(
       hContext, hDevice, pIPCMemHandleData, ipcMemHandleDataSize, ppMem));
 
-  // Mark IPC memory as initialized in shadow memory
   size_t MemSize;
   UR_CALL(getContext()->urDdiTable.USM.pfnGetMemAllocInfo(
       hContext, *ppMem, UR_USM_ALLOC_INFO_SIZE, sizeof(MemSize), &MemSize,
       nullptr));
-  std::shared_ptr<DeviceInfo> DI = getMsanInterceptor()->getDeviceInfo(hDevice);
-  ManagedQueue Queue(hContext, hDevice);
-  UR_CALL(DI->Shadow->EnqueuePoisonShadow(Queue, reinterpret_cast<uptr>(*ppMem),
-                                          MemSize, &kMemInitializedMagic));
+  UR_CALL(getMsanInterceptor()->registerMemory(
+      hContext, hDevice, reinterpret_cast<uptr>(*ppMem), MemSize));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMHostAllocRegisterExp
+__urdlllocal ur_result_t UR_APICALL urUSMHostAllocRegisterExp(
+    /// [in] Handle of the context.
+    ur_context_handle_t hContext,
+    /// [in] Pointer to the host memory range to register.
+    void *pHostMem,
+    /// [in] Size in bytes of the host memory range to register, must be
+    /// page-aligned.
+    size_t size,
+    /// [in][optional] Pointer to host memory registration properties.
+    const ur_exp_usm_host_alloc_register_properties_t *pProperties) {
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAllocRegisterExp");
+
+  UR_CALL(getContext()->urDdiTable.USMExp.pfnHostAllocRegisterExp(
+      hContext, pHostMem, size, pProperties));
+  UR_CALL(getMsanInterceptor()->registerMemory(
+      hContext, nullptr, reinterpret_cast<uptr>(pHostMem), size));
 
   return UR_RESULT_SUCCESS;
 }
@@ -2074,6 +2098,25 @@ ur_result_t urGetIPCExpProcAddrTable(
   return result;
 }
 
+/// @brief Exported function for filling application's USMExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetUSMExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_usm_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // urUSMHostAllocUnregisterExp isn't intercepted: MSAN doesn't release shadow
+  // memory, and leaving it initialized can't cause false reports.
+  pDdiTable->pfnHostAllocRegisterExp =
+      ur_sanitizer_layer::msan::urUSMHostAllocRegisterExp;
+
+  return result;
+}
+
 ur_result_t urCheckVersion(ur_api_version_t version) {
   if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
           UR_MAJOR_VERSION(version) ||
@@ -2149,6 +2192,11 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result =
         ur_sanitizer_layer::msan::urGetIPCExpProcAddrTable(&dditable->IPCExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::msan::urGetUSMExpProcAddrTable(&dditable->USMExp);
   }
 
   if (result != UR_RESULT_SUCCESS) {

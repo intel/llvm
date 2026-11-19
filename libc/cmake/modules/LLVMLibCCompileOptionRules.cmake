@@ -189,6 +189,10 @@ function(_get_compile_options_from_config output_var)
     libc_add_definition(config_options "LIBC_COPT_PRINTF_DISABLE_BITINT")
   endif()
 
+  if(LIBC_COPT_BAREMETAL_HEAP_ENABLE_FREESTORE_ROTATION)
+    libc_add_definition(config_options "LIBC_COPT_BAREMETAL_HEAP_ENABLE_FREESTORE_ROTATION")
+  endif()
+
   if(LIBC_COPT_USE_C_ASSERT)
     list(APPEND config_options "-DLIBC_COPT_USE_C_ASSERT")
   endif()
@@ -196,7 +200,7 @@ function(_get_compile_options_from_config output_var)
   if(LIBC_COPT_HARDENING_MODE)
     libc_add_definition(config_options "LIBC_COPT_HARDENING_MODE=${LIBC_COPT_HARDENING_MODE}")
   endif()
-  
+
   if(LIBC_CONF_SCANF_PROVIDE_ISOC99_ALIASES)
     list(APPEND config_options "-DLIBC_COPT_SCANF_PROVIDE_ISOC99_ALIASES")
   endif()
@@ -349,6 +353,10 @@ function(_get_common_compile_options output_var flags)
       endif()
     elseif(LIBC_TARGET_ARCHITECTURE_IS_AMDGPU)
       list(APPEND compile_options "SHELL:-Xclang -mcode-object-version=none")
+    # TODO: remove usage of 'spirv-default-addr-space-is-generic' when default addr space
+    # ambiguity for SPIR targets is removed in upstream.
+    elseif(LIBC_TARGET_ARCHITECTURE_IS_SPIRV)
+      list(APPEND compile_options "SHELL:-Xclang -fspirv-default-addr-space-is-generic")
     endif()
   endif()
   set(${output_var} ${compile_options} PARENT_SCOPE)

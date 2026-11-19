@@ -179,6 +179,12 @@ std::string getLibPathSuffix() {
                        DPCPP_VERSION_MAJOR);
 #endif
 }
+
+std::string getCompilerRTSuffix() {
+  return llvm::formatv("/{0}/clang/{1}/lib/", CLANG_INSTALL_LIBDIR_BASENAME,
+                       CLANG_VERSION_MAJOR);
+}
+
 class SYCLToolchain {
   static auto &getToolchainFS() {
     // TODO: For some reason, removing `thread_local` results in data races
@@ -628,6 +634,7 @@ public:
   std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
   std::string_view getLibclcDir() const { return LibclcDir; }
+  std::string_view getLibDir() const { return LibDir; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
@@ -635,6 +642,7 @@ private:
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   std::string LibclcDir = GetResourcesPath(ClangXXExe) + "/lib/";
+  std::string LibDir = (Prefix + "/").str() + CLANG_INSTALL_LIBDIR_BASENAME;
 
   PrecompiledPreambles Preambles;
 };
@@ -795,11 +803,12 @@ static void getDeviceLibraries(const ArgList &Args,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt", "libsycl-cmath",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {
+      "libsycl-crt",       "libsycl-cmath",
 #if defined(_WIN32)
-                                             "libsycl-msvc-math",
+      "libsycl-msvc-math",
 #endif
-                                             "libsycl-imf"};
+      "libsycl-imf",       "libc",          "libclang_rt.builtins"};
 
   StringRef LibSuffix = ".bc";
   auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
@@ -846,16 +855,27 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
     LibNames.push_back(Libclc);
   }
 
-  std::string TripleName = (Format == BinaryFormat::PTX) ? "nvptx64-nvidia-cuda"
-                                                         : "amdgcn-amd-amdhsa";
-
   LLVMContext &Context = Module.getContext();
   SYCLToolchain &TC = SYCLToolchain::instance();
+  std::string TripleName;
+  if (Format == BinaryFormat::PTX)
+    TripleName = "nvptx64-nvidia-cuda";
+  else if (Format == BinaryFormat::AMDGCN)
+    TripleName = "amdgcn-amd-amdhsa";
+  else
+    TripleName = "spirv64-unknown-unknown";
   for (const std::string &LibName : LibNames) {
-    std::string LibPath =
-        (LibName.find("libspirv") != std::string::npos)
-            ? (TC.getLibclcDir() + TripleName + "/" + LibName).str()
-            : (TC.getPrefix() + getLibPathSuffix() + LibName).str();
+    std::string LibPath;
+    if (LibName.find("libspirv") != std::string::npos)
+      LibPath = (TC.getLibclcDir() + TripleName + "/" + LibName).str();
+    else if (LibName == "libc.bc")
+      LibPath = (TC.getLibDir() + "/" + TripleName + "/" + LibName).str();
+    else if (LibName == "libclang_rt.builtins.bc")
+      LibPath =
+          (TC.getPrefix() + getCompilerRTSuffix() + TripleName + "/" + LibName)
+              .str();
+    else
+      LibPath = (TC.getPrefix() + getLibPathSuffix() + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error =

@@ -90,6 +90,18 @@ if(WIN32)
   set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
   set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
 endif()
+
+
+# Initialize UR_STATIC_LOADER before the XPTI check.
+# If not set, UR initializes it later, inside add_subdirectory().
+option(UR_STATIC_LOADER "Build loader as a static library" ON)
+
+# The in-tree static UR libraries use /MD even in Debug configurations,
+# so force the release CRT XPTI library.
+if(WIN32 AND UR_STATIC_LOADER)
+  set(UR_XPTI_TARGET xpti)
+endif()
+
 add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 
 # Restore original flags
@@ -118,6 +130,18 @@ if(MSVC)
     endforeach()
   endfunction()
   _ur_force_release_crt(${UNIFIED_RUNTIME_SOURCE_DIR})
+
+  # UMF hard-codes /MD$<$<CONFIG:Debug>:d> in its compile options, which
+  # MSVC_RUNTIME_LIBRARY does not override.
+  foreach(_umf_target umf umf_ba umf_coarse umf_utils)
+    if(TARGET ${_umf_target})
+      get_target_property(_umf_compile_options ${_umf_target} COMPILE_OPTIONS)
+      string(REPLACE "/MD$<$<CONFIG:Debug>:d>" "/MD"
+        _umf_compile_options "${_umf_compile_options}")
+      set_target_properties(${_umf_target} PROPERTIES
+        COMPILE_OPTIONS "${_umf_compile_options}")
+    endif()
+  endforeach()
 endif()
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
@@ -142,12 +166,16 @@ target_include_directories(UnifiedRuntime-Headers
 find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
-  # Install the UR loader.
-  install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
-    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
-  )
+  get_target_property(_ur_loader_type ur_loader TYPE)
+  # If the UR loader is built as a static lib, it is linked into the SYCL
+  # runtime, so do not install it.
+  if(NOT _ur_loader_type STREQUAL "STATIC_LIBRARY")
+    install(TARGETS ur_loader
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+      RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
+    )
+  endif()
 
   # The loader dlopen()s its shared layers from its own directory, so they have
   # to be installed alongside it.
@@ -164,12 +192,16 @@ add_custom_target(UnifiedRuntimeAdapters)
 function(add_sycl_ur_adapter NAME)
   add_dependencies(UnifiedRuntimeAdapters ur_adapter_${NAME})
 
-  install(TARGETS ur_adapter_${NAME}
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
-    RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
+  ur_adapter_is_static(${NAME} adapter_is_static)
+  # A static adapter is linked into the UR loader, so do not install it.
+  if(NOT adapter_is_static)
+    install(TARGETS ur_adapter_${NAME}
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
+      RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
 
-  set_property(GLOBAL APPEND PROPERTY
-    SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+    set_property(GLOBAL APPEND PROPERTY
+      SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+  endif()
 endfunction()
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -233,6 +265,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       --target install-unified-runtime-libraries
     CMAKE_CACHE_ARGS
       -DCMAKE_BUILD_TYPE:STRING=Debug
+      -DCMAKE_MSVC_RUNTIME_LIBRARY:STRING=MultiThreadedDebugDLL
       -DCMAKE_INSTALL_PREFIX:STRING=<INSTALL_DIR>
       # Enable d suffix on libraries
       -DUR_USE_DEBUG_POSTFIX:BOOL=ON
@@ -259,8 +292,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
       -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
-      # Enable d suffix in UMF
-      -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
+      # Enable d suffix in UMF. This configures and builds UMF again in a nested
+      # Debug build, which is only needed for a shared UMF: its DLL can't just
+      # be renamed. A static UMF is copied from this subbuild below.
+      -DUMF_USE_DEBUG_POSTFIX:BOOL=${UMF_BUILD_SHARED_LIBRARY}
   )
 
   # Copy the debug UR runtime libraries to <build>/bin & <build>/lib for use in
@@ -357,20 +392,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     endif()
     urd_copy_library_to_build(ur_adapter_${adapter}d "${shared}")
   endforeach()
-  # Also copy umfd.dll/umfd.lib
-  urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
-  # A static umfd.lib doesn't absorb its private helper archives (umf_ba /
-  # umf_utils / umf_coarse), so a consumer linking umfd.lib must link them too.
-  # They aren't installed, but the debug sub-build produces them (debug CRT) at
-  # ${URD_BINARY_DIR}/lib without a 'd' postfix, so copy them under a 'd' name.
-  if(NOT UMF_BUILD_SHARED_LIBRARY)
-    foreach(_umfd_helper umf_ba umf_utils umf_coarse)
-      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib)
+  if(UMF_BUILD_SHARED_LIBRARY)
+    # Also copy umfd.dll/umfd.lib
+    urd_copy_library_to_build(umfd TRUE)
+  else()
+    # A static umf.lib doesn't absorb its private helper archives (umf_ba /
+    # umf_utils / umf_coarse), so a consumer linking umfd.lib must link them
+    # too. None of them are installed, but the debug sub-build produces them
+    # (debug CRT) at ${URD_BINARY_DIR}/lib without a 'd' postfix, so copy them
+    # under a 'd' name.
+    foreach(_umf_lib umf umf_ba umf_utils umf_coarse)
+      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib)
       add_custom_command(
-        OUTPUT ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+        OUTPUT ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
         COMMAND ${CMAKE_COMMAND} -E copy
-          ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib
-          ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+          ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
+          ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
         DEPENDS unified-runtimed
       )
     endforeach()
@@ -402,8 +439,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
 endif()
 
 if(TARGET umf)
-  install(TARGETS umf
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
-    RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+  get_target_property(_umf_type umf TYPE)
+  # If UMF is built as a static lib, it is linked into its consumers (the UR
+  # loader and adapters), so do not install it.
+  if(NOT _umf_type STREQUAL "STATIC_LIBRARY")
+    install(TARGETS umf
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+      RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
+  endif()
 endif()

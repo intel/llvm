@@ -1,0 +1,3 @@
+defusedxml==0.7.1
+# Required by lit's --timeout (kills hung test processes).
+psutil>=7.0.0

@@ -69,7 +69,7 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
 %if 'guard' in obj and 'guard' not in tbl:
 #if ${obj['guard']}
 %endif
-    pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = ${adapter_namespace + '::' if is_level_zero else ''}${th.make_func_name(n, tags, obj)};
+    pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 43)} = ${adapter_namespace}::${th.make_func_name(n, tags, obj)};
 %if 'guard' in obj and 'guard' not in tbl:
 #endif // ${obj['guard']}
 %endif

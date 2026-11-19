@@ -253,3 +253,9 @@ def sycl_suppress_undefined_func_warnings :
 def syclbin_EQ : Joined<["--", "-"], "syclbin=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Output in the SYCLBIN binary format in the state specified by <arg> (input, object or executable)">;
+
+// Target to link the device code from SYCLBIN input files for.
+def syclbin_link_target_EQ : Joined<["--", "-"], "syclbin-link-target=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<triple>[=<arch>]">,
+  HelpText<"Link the device code from SYCLBIN input files for <triple> and "
+           "optionally compile it for <arch>. May be repeated">;

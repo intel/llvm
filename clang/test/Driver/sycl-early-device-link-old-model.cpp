@@ -2,10 +2,12 @@
 // -c to create final device binaries during the link step when using -fsycl.
 // Behavior is restricted to spir64_gen targets for now.
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 // Create object that contains final device image
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
-// RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
+// RUN:          "-device skl" -ccc-install-dir %{clang_install_dir} -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE
 // CREATE_IMAGE: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BC:.+\.bc]]"
 // CREATE_IMAGE: llvm-link{{.*}} "-o" "[[LIB_DEVICE_BC:.+\.bc]]"
@@ -22,7 +24,7 @@
  
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
-// RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -ccc-print-phases %s \
+// RUN:          "-device skl" -ccc-install-dir %{clang_install_dir} -ccc-print-phases %s \
 // RUN:          -fsycl-instrument-device-code --no-offloadlib 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE_PHASES
 // CREATE_IMAGE_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
@@ -68,7 +70,7 @@
 // Mix and match JIT and AOT phases check.  Expectation is for AOT to perform
 // early device link, and JIT to just produce the LLVM-IR.
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen \
-// RUN:          --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
+// RUN:          --target=x86_64-unknown-linux-gnu -ccc-install-dir %{clang_install_dir} \
 // RUN:          -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:          -fsycl-instrument-device-code -ccc-print-phases %s --no-offloadlib 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=JIT_AOT_PHASES

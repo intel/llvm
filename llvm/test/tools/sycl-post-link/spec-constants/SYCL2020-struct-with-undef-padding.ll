@@ -77,10 +77,10 @@ attributes #4 = { convergent }
 !4 = !{i32 4, i32 100000}
 !5 = !{!"clang version 14.0.0"}
 !7 = !{i1 true}
-; CHECK-IR: ![[#MN0]] = !{!"ef880fa09cf7a9d7____ZL8coeff_id", i32 0, i32 0, i32 4, i32 1, i32 4, i32 4, i32 2, i32 8, i32 4, i32 3, i32 16, i32 8, i32 -1, i32 24, i32 8}
-; CHECK-IR: ![[#MN1]] = !{!"df991fa0adf9bad8____ZL8coeff_id2", i32 5, i32 0, i32 4, i32 6, i32 4, i32 4, i32 7, i32 8, i32 4, i32 8, i32 16, i32 8, i32 -1, i32 31, i32 1}
-; CHECK-IR: ![[#MN2]] = !{%struct.coeff_str_aligned_t { %"class.std::array" zeroinitializer, i64 0, [8 x i8] undef }}
-; CHECK-IR: ![[#MN3]] = !{%struct.coeff2_str_aligned_t { %"class.std::array" zeroinitializer, i64 0, [7 x i8] undef, i8 undef }}
+; CHECK-IR-DAG: ![[#MN0]] = !{!"ef880fa09cf7a9d7____ZL8coeff_id", i32 0, i32 0, i32 4, i32 1, i32 4, i32 4, i32 2, i32 8, i32 4, i32 3, i32 16, i32 8, i32 -1, i32 24, i32 8}
+; CHECK-IR-DAG: ![[#MN1]] = !{!"df991fa0adf9bad8____ZL8coeff_id2", i32 5, i32 0, i32 4, i32 6, i32 4, i32 4, i32 7, i32 8, i32 4, i32 8, i32 16, i32 8, i32 -1, i32 31, i32 1}
+; CHECK-IR-DAG: ![[#MN2]] = !{%struct.coeff_str_aligned_t { %"class.std::array" zeroinitializer, i64 0, [8 x i8] undef }}
+; CHECK-IR-DAG: ![[#MN3]] = !{%struct.coeff2_str_aligned_t { %"class.std::array" zeroinitializer, i64 0, [7 x i8] undef, i8 undef }}
 
 ; CHECK-PROP: [SYCL/specialization constants]
 ; CHECK-PROP-NEXT: ef880fa09cf7a9d7____ZL8coeff_id=2|

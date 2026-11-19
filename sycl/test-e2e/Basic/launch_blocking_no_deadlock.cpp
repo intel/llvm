@@ -5,7 +5,7 @@
 //
 // REQUIRES: aspect-usm_shared_allocations
 //
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out %threads_lib
 // RUN: env SYCL_LAUNCH_BLOCKING=1 %{run} %t.out
 
 #include <cassert>

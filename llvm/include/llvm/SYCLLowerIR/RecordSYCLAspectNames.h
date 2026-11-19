@@ -26,7 +26,7 @@
 namespace llvm {
 
 class RecordSYCLAspectNamesPass
-    : public PassInfoMixin<RecordSYCLAspectNamesPass> {
+    : public OptionalPassInfoMixin<RecordSYCLAspectNamesPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

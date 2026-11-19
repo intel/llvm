@@ -272,6 +272,8 @@ template <int dimensions = 1>
 class __SYCL_TYPE(group) group {
 public:
   group() = default; // fake constructor
+  template <typename WorkItemFunctionT>
+  void parallel_for_work_item(const WorkItemFunctionT &Func) const {}
 };
 
 class __SYCL_TYPE(kernel_handler) kernel_handler {
@@ -473,6 +475,15 @@ public:
 
 private:
   work_group_memory<DataT> LocalMem;
+};
+
+template <typename T, int Dimensions = 1>
+class __SYCL_TYPE(private_memory) private_memory {
+public:
+  private_memory(const group<Dimensions> &G) { (void)G; }
+
+private:
+  T Val; // device layout: one instance per work-item
 };
 
 namespace ext {

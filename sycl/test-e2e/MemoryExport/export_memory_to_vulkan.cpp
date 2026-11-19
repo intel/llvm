@@ -2,13 +2,17 @@
 // REQUIRES: target-spir
 // REQUIRES: vulkan
 
-// XFAIL: windows && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/21125
+// Fix for Windows SYCL to Vulkan memory export interop, landed in driver 39758.
+// REQUIRES-INTEL-DRIVER: lin: 39758
 
 // clang-format off
 
 // UNSUPPORTED: arch-intel_gpu_pvc
 // UNSUPPORTED-INTENDED: Our PVC runners don't have the userspace Vulkan driver installed
+
+// No Vulkan driver supports Crescent Island (0x674c) yet.
+// XFAIL: arch-intel_gpu_cri
+// XFAIL-TRACKER: CMPLRTST-29868
 
 // clang-format on
 

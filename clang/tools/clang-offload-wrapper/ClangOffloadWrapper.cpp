@@ -110,7 +110,10 @@ template <> struct DenseMapInfo<OldOffloadKind> {
 };
 } // namespace llvm
 
-static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
+// Anchor whose address is passed to sys::fs::getMainExecutable; it just needs
+// to be some symbol in this binary, since C++ does not allow taking the address
+// of ::main.
+static int MainAddrAnchor;
 
 static cl::opt<bool>
     PreviewBreakingChanges("fpreview-breaking-changes",
@@ -1014,6 +1017,7 @@ private:
     // Create initializer for the images array.
     SmallVector<Constant *, 4u> ImagesInits;
     unsigned ImgId = 0;
+    bool HasNonEmptyImage = false;
 
     for (const auto &ImgPtr : Pack) {
       const BinaryWrapper::Image &Img = *(ImgPtr.get());
@@ -1049,6 +1053,8 @@ private:
       if (!BinOrErr)
         return BinOrErr.takeError();
       MemoryBuffer *Bin = *BinOrErr;
+      HasNonEmptyImage |=
+          Bin->getBufferSize() != 0 || Triple(Img.Tgt).isNativeCPU();
       if (Img.File != "-" && Kind == OldOffloadKind::OpenMP &&
           AddOpenMPOffloadNotes) {
         // Adding ELF notes for STDIN is not supported yet.
@@ -1140,6 +1146,9 @@ private:
 
       ImgId++;
     }
+
+    if (Kind == OldOffloadKind::SYCL && !HasNonEmptyImage)
+      return nullptr;
 
     // Then create images array.
     auto *ImagesData =
@@ -1296,9 +1305,7 @@ public:
     // clang-offload-wrapper is invoked. This helps OpenMP offload
     // LIT tests.
 
-    // This just needs to be some symbol in the binary; C++ doesn't
-    // allow taking the address of ::main however.
-    void *P = (void *)(intptr_t)&Help;
+    void *P = (void *)(intptr_t)&MainAddrAnchor;
     std::string COWPath = sys::fs::getMainExecutable(ToolName.str().c_str(), P);
     if (!COWPath.empty()) {
       auto COWDir = sys::path::parent_path(COWPath);
@@ -1356,6 +1363,8 @@ public:
       Expected<GlobalVariable *> DescOrErr = createBinDesc(Kind, *Pack);
       if (!DescOrErr)
         return DescOrErr.takeError();
+      if (!*DescOrErr)
+        continue;
 
       if (EmitRegFuncs) {
         GlobalVariable *Desc = *DescOrErr;
@@ -1779,10 +1788,6 @@ int main(int argc, const char **argv) {
       "|...|                    |\n"
       "|...|                    |\n");
 
-  if (Help) {
-    cl::PrintHelpMessage();
-    return 0;
-  }
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };

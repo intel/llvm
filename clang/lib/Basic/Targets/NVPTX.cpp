@@ -68,6 +68,12 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   NoAsmVariants = true;
   GPU = OffloadArch::getUnused();
 
+  // Architectures are in the feature map only to gate builtins; the backend
+  // takes the architecture from `target-cpu`.
+#define NVPTX_GPU(NAME, KIND, VIRTUAL, SM_ID, MIN_VER, MAX_VER, SUFFIX)        \
+  ReadOnlyFeatures.insert(NAME);
+#include "llvm/TargetParser/NVPTXTargetParser.def"
+
   // PTX supports f16 as a fundamental type.
   HasFastHalfType = true;
   HasFloat16 = true;
@@ -211,6 +217,15 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
     if (IsNVIDIAFamilySpecificOffloadArch(GPU))
       Builder.defineMacro("__CUDA_ARCH_FAMILY_SPECIFIC__", llvm::Twine(ArchID));
   }
+}
+
+void NVPTXTargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+                             const TargetInfo *Aux) {
+  TargetInfo::adjust(Diags, Opts, Aux);
+  AtomicOpts = AtomicOptions(Opts);
+
+  // FIXME: Needed for compiling SYCL to PTX.
+  TLSSupported = TLSSupported || Opts.SYCLIsDevice;
 }
 
 llvm::SmallVector<Builtin::InfosShard>

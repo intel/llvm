@@ -253,6 +253,7 @@ device device_selector::select_device() const {
   return detail::select_device([&](const device &dev) { return (*this)(dev); });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 int default_selector::operator()(const device &dev) const {
   return default_selector_v(dev);
 }
@@ -268,6 +269,7 @@ int cpu_selector::operator()(const device &dev) const {
 int accelerator_selector::operator()(const device &dev) const {
   return accelerator_selector_v(dev);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 namespace ext::oneapi {
 

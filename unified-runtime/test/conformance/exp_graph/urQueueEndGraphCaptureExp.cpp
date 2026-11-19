@@ -31,6 +31,31 @@ TEST_P(urQueueEndGraphCaptureExpTest, SuccessAfterQueueOperations) {
   ASSERT_EQ(graph, capturedGraph);
 }
 
+// Regression test for out-of-order queue bug where a reusable event passed to
+// urEnqueueEventsWaitWithBarrierExt during capture was replaced with a newly
+// allocated event.
+TEST_P(urQueueEndGraphCaptureExpTest, SuccessBarrierExtWithReusableEvent) {
+  ur_exp_event_desc_t desc{UR_STRUCTURE_TYPE_EXP_EVENT_DESC, nullptr, 0};
+  uur::raii::Event reusable{};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urEventCreateExp(context, device, &desc, reusable.ptr()));
+  ur_event_handle_t original = reusable;
+
+  ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
+
+  ur_exp_enqueue_ext_properties_t props{
+      UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES, nullptr, 0};
+  ur_result_t result = urEnqueueEventsWaitWithBarrierExt(
+      queue, &props, 0, nullptr, reusable.ptr());
+
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &capturedGraph));
+  ASSERT_EQ(graph, capturedGraph);
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(result);
+  ASSERT_EQ(original, reusable.get());
+}
+
 TEST_P(urQueueEndGraphCaptureExpTest, InvalidNullHandleQueue) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urQueueEndGraphCaptureExp(nullptr, &graph));
@@ -39,4 +64,41 @@ TEST_P(urQueueEndGraphCaptureExpTest, InvalidNullHandleQueue) {
 TEST_P(urQueueEndGraphCaptureExpTest, InvalidNullPtrGraph) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urQueueEndGraphCaptureExp(queue, nullptr));
+}
+
+TEST_P(urQueueEndGraphCaptureExpTest, InvalidNotCapturing) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphCaptureErrorsMinL0DriverVersion);
+
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING,
+                   urQueueEndGraphCaptureExp(queue, &capturedGraph));
+}
+
+TEST_P(urQueueEndGraphCaptureExpTest, InvalidCaptureAlreadyEnded) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphCaptureErrorsMinL0DriverVersion);
+
+  ASSERT_SUCCESS(urQueueBeginCaptureIntoGraphExp(queue, graph));
+  ur_exp_graph_handle_t capturedGraph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &capturedGraph));
+
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_COMMAND_LIST_NOT_CAPTURING,
+                   urQueueEndGraphCaptureExp(queue, &capturedGraph));
+}
+
+using urQueueEndGraphCaptureExpMultiQueueTest =
+    uur::urGraphMultiQueueCaptureExpTest;
+
+UUR_DEVICE_TEST_SUITE_WITH_QUEUE_TYPES(
+    urQueueEndGraphCaptureExpMultiQueueTest,
+    ::testing::Values(0 /* In-Order */,
+                      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE));
+
+TEST_P(urQueueEndGraphCaptureExpMultiQueueTest, InvalidUnjoinedForks) {
+  UUR_GRAPH_SKIP_IF_L0_DRIVER_OLDER_THAN(
+      uur::graphForkErrorsMinL0DriverVersion);
+
+  // The helper asserts that ending the capture returns UNJOINED_FORKS.
+  UUR_RETURN_ON_FATAL_FAILURE(recordGraphWithUnjoinedForks());
 }

@@ -1,8 +1,8 @@
-// REQUIRES: level_zero_v2_adapter && level_zero_dev_kit && arch-intel_gpu_bmg_g21
+// REQUIRES: level_zero_v2_adapter && level_zero_dev_kit && (arch-intel_gpu_bmg_g21 || arch-intel_gpu_bmg_g31 || arch-intel_gpu_cri)
 // REQUIRES-INTEL-DRIVER: lin: 37561, win: 101.8724
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
-// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not} %}
 
 // Some libraries allocate resources for the graph which are tied to its
 // lifetime. For libraries directly writing L0, zeCommandListGetGraphExp +

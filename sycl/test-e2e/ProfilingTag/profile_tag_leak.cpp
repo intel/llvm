@@ -1,7 +1,12 @@
 // REQUIRES: level_zero
 //
+// TODO: The L0 loader on Windows CI does not count zeEventCounterBasedCreate,
+// so the matching zeEventDestroy calls are reported as a negative leak there.
+// Ignore negative leaks on Windows until the loader is updated.
+// DEFINE: %{leak_check_not} = %if windows %{"LEAK = {{[^-]}}"%} %else %{LEAK%}
+//
 // RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=%{leak_check_not}
 
 // Regression test to avoid the reintroduction of a leak in L0 in the profiling
 // tags when using barriers to ensure ordering on out-of-order queues.

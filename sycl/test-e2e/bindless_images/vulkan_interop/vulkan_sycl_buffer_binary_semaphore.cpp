@@ -6,8 +6,11 @@
 // REQUIRES-INTEL-DRIVER: lin: 38362 win: 101.9999
 
 // Binary semaphore sharing is broken in driver on linux.
-// UNSUPPORTED: linux
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: CMPLRLLVM-78008
+
+// UNSUPPORTED: windows && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23696
 
 // RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes %}
 // RUN: %{run} %t.out --no-sem
@@ -145,9 +148,8 @@ int main(int argc, char **argv) {
 
   // SYCL INTEROP
   try {
-    // Bindless image interop requires an in-order queue (per spec). External
-    // semaphore ops additionally require immediate command lists; see
-    // sycl_ext_oneapi_bindless_images.asciidoc.
+    // External semaphore operations require an in-order queue. This test also
+    // uses immediate command lists for its existing configuration.
     sycl::property_list qProps =
         useSemaphores ? sycl::property_list{sycl::property::queue::in_order{},
                                             sycl::ext::intel::property::queue::

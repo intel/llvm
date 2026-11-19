@@ -11,8 +11,11 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include <optional>
+
 namespace llvm {
 
+class GlobalVariable;
 class Module;
 
 namespace sycl {
@@ -25,6 +28,9 @@ constexpr StringRef TSAN_KERNEL_METADATA_PREFIX = "__TsanKernelMetadata";
 bool isModuleUsingAsan(const Module &M);
 bool isModuleUsingMsan(const Module &M);
 bool isModuleUsingTsan(const Module &M);
+
+std::optional<StringRef>
+getSanitizerKernelMetadataModuleID(const GlobalVariable &GV);
 
 } // namespace utils
 } // namespace sycl

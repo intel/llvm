@@ -3,8 +3,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "fixtures.h"
 #include "kernel.hpp"
-#include "uur/fixtures.h"
 #include "uur/raii.h"
 
 using cudaKernelTest = uur::urQueueTest;
@@ -68,19 +68,45 @@ const char *threeParamsTwoLocal = "\n\
 }\n\
 ";
 
-TEST_P(cudaKernelTest, CreateProgramAndKernel) {
-
-  uur::raii::Program program = nullptr;
-  auto Length = std::strlen(ptxSource);
-  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
-                                           (const uint8_t **)(&ptxSource),
-                                           nullptr, program.ptr()));
+namespace {
+void createProgramAndKernel(ur_context_handle_t context,
+                            ur_device_handle_t device,
+                            uur::raii::Program &program,
+                            uur::raii::Kernel &kernel) {
+  auto length = std::strlen(ptxSource);
+  const auto *binary = reinterpret_cast<const uint8_t *>(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &length,
+                                           &binary, nullptr, program.ptr()));
   ASSERT_NE(program, nullptr);
   ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 
-  uur::raii::Kernel kernel = nullptr;
   ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
   ASSERT_NE(kernel, nullptr);
+}
+} // namespace
+
+TEST_P(cudaKernelTest, CreateProgramAndKernel) {
+  uur::raii::Program program = nullptr;
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      createProgramAndKernel(context, device, program, kernel));
+}
+
+TEST_P(cudaKernelTest, GetNativeHandle) {
+  uur::raii::Program program = nullptr;
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_NO_FATAL_FAILURE(
+      createProgramAndKernel(context, device, program, kernel));
+
+  ur_native_handle_t nativeKernel = 0;
+  ASSERT_SUCCESS(urKernelGetNativeHandle(kernel, &nativeKernel));
+  ASSERT_NE(nativeKernel, 0);
+  CUfunction cudaFunction = reinterpret_cast<CUfunction>(nativeKernel);
+
+  int maxThreads = 0;
+  ASSERT_SUCCESS_CUDA(cuFuncGetAttribute(
+      &maxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, cudaFunction));
+  ASSERT_GT(maxThreads, 0);
 }
 
 TEST_P(cudaKernelTest, CreateProgramAndKernelWithMetadata) {

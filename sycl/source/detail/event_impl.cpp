@@ -9,6 +9,7 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
@@ -405,12 +406,23 @@ void event_impl::wait(bool *Success) {
 #endif
 
   auto EventHandle = getHandle();
+  bool ScanAuxiliaryResources = false;
   if (EventHandle)
     // presence of the native handle means the command has been enqueued, so no
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(*this, Success);
+    ScanAuxiliaryResources =
+        detail::Scheduler::getInstance().waitForEvent(*this, Success);
+
+  // Deferred resources are otherwise only released by later scheduler
+  // activity, i.e. possibly not before runtime shutdown. The check is
+  // lock-free so that wait() takes no lock when nothing is deferred.
+  auto SchedAccess = detail::GlobalHandler::getSchedulerAccess();
+  if (detail::Scheduler *Sched = SchedAccess.get()) {
+    if (Sched->hasDeferredResources())
+      Sched->releaseResourcesAfterWait(*this, ScanAuxiliaryResources);
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);

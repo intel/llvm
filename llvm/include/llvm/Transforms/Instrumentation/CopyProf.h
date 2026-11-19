@@ -20,32 +20,26 @@ namespace llvm {
 
 // Early-stage pass that instruments special member functions to call into the
 // CopyProf runtime.
-class CopyProfPass : public PassInfoMixin<CopyProfPass> {
+class CopyProfPass : public RequiredPassInfoMixin<CopyProfPass> {
 public:
   CopyProfPass() = default;
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
-
-  static bool isRequired() { return true; }
 };
 
 // Module-level pass that inserts the CopyProf runtime initialization
 // constructor and hooks it into @llvm.global_ctors.
-class ModuleCopyProfPass : public PassInfoMixin<ModuleCopyProfPass> {
+class ModuleCopyProfPass : public RequiredPassInfoMixin<ModuleCopyProfPass> {
 public:
   ModuleCopyProfPass() = default;
   LLVM_ABI PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
-
-  static bool isRequired() { return true; }
 };
 
 // Late-stage pass that instruments store instructions to detect whether an
 // object copy has been modified before it is destructed.
-class CopyProfStoresPass : public PassInfoMixin<CopyProfStoresPass> {
+class CopyProfStoresPass : public RequiredPassInfoMixin<CopyProfStoresPass> {
 public:
   CopyProfStoresPass() = default;
   LLVM_ABI PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
-
-  static bool isRequired() { return true; }
 };
 
 } // namespace llvm

@@ -586,6 +586,23 @@ endif()
 
 include(GetTargetsBuildingLLVMRuntime)
 get_targets_building_llvm_runtime(libclc libclc_targets)
+get_targets_building_llvm_runtime(compiler-rt compiler-rt_targets)
+get_targets_building_llvm_runtime(libc libc_targets)
+
+# Ensure that libc and compiler-rt are enabled for the spirv64 target, the SYCL
+# driver links libc.bc and libclang_rt.builtins.bc for spirv64 device code.
+# libc and compiler-rt for spirv64 are not enabled for Mac.
+if(NOT APPLE)
+  foreach(runtime IN ITEMS libc compiler-rt)
+    if(NOT ("spirv64-unknown-unknown" IN_LIST ${runtime}_targets))
+      message(FATAL_ERROR
+        "SYCL toolchain requires building \"${runtime}\" for the spirv64 target. "
+        "Add \"spirv64-unknown-unknown\" to the CMake argument "
+        "\"LLVM_RUNTIME_TARGETS\" and \"${runtime}\" to the CMake argument "
+        "\"RUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES\"")
+    endif()
+  endforeach()
+endif()
 
 foreach(target IN LISTS libclc_targets)
   add_dependencies(sycl-toolchain libclc-${target})
@@ -597,6 +614,18 @@ foreach(target IN LISTS libclc_targets)
   # build/runtimes/runtimes-<target>, then separated by "::" is the component name to install
   # from that sub-directory.
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libspirv-builtins)
+endforeach()
+
+# Currently, we only enable compiler-rt builtin library and libc for spirv64 targets.
+# TODO: enable libc and compiler-rt builtins for other targets including nvptx64.
+foreach(target IN LISTS libc_targets)
+  add_dependencies(sycl-toolchain runtimes-${target})
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS runtimes-${target}::libc)
+endforeach()
+
+foreach(target IN LISTS compiler-rt_targets)
+  add_dependencies(sycl-toolchain builtins-${target})
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS builtins-${target})
 endforeach()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -611,7 +640,8 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
-  if(NOT ("amdgcn-amd-amdhsa" IN_LIST libclc_targets))
+  if(NOT ("amdgcn-amd-amdhsa" IN_LIST libclc_targets OR
+          "amdgcn-amd-amdhsa-llvm" IN_LIST libclc_targets))
     message(FATAL_ERROR "HIP support requires building \"libclc\" for the AMDGCN target")
   endif()
 
@@ -665,8 +695,13 @@ foreach(component IN LISTS SYCL_TOOLCHAIN_DEPLOY_COMPONENTS)
   if("${component}" MATCHES "^runtimes-(.*)::(.*)")
     set(tgt "${CMAKE_MATCH_1}")
     set(component "${CMAKE_MATCH_2}")
-    set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
-    sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc-${tgt}")
+    if("${component}" STREQUAL "libc")
+      set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libc/cmake_install.cmake")
+      sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "runtimes-${tgt}")
+    else()
+      set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/runtimes/runtimes-${tgt}-bins/libclc/cmake_install.cmake")
+      sycl_add_install_command("${component}" "${component}_${tgt}" "${INSTALL_SCRIPT}" "libclc-${tgt}")
+    endif()
   else()
     set(INSTALL_SCRIPT "${CMAKE_BINARY_DIR}/cmake_install.cmake")
     set(COMPONENT_DEPS "")

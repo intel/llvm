@@ -39,6 +39,7 @@ public:
                                 uint32_t ordinal,
                                 ze_command_queue_priority_t priority,
                                 std::optional<int32_t> index,
+                                std::optional<int32_t> priorityLevel,
                                 event_flags_t eventFlags,
                                 ur_queue_flags_t flags);
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,

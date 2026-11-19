@@ -9,23 +9,44 @@
 
 ; RUN: llvm-spirv %s -spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED
 ; RUN: llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %s -spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -o %t.u.spv
+; RUN: llvm-spirv %t.u.spv -to-text -o %t.u.spt
+; RUN: FileCheck < %t.u.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED
+; RUN: llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.u.spv -o %t.ru.bc
+; RUN: llvm-dis %t.ru.bc -o %t.ru.ll
+; RUN: FileCheck < %t.ru.ll %s --check-prefix=CHECK-LLVM-UNTYPED
+
+; TODO: reader currently crashes with output of llc for this test with function pointers (for both typed and untyped pointers)
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers -filetype=obj %s -o %t.llc.spv %}
+; RUNx: %if spirv-backend %{ llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.llc.spv -o %t.llc.rev.bc %}
+
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -filetype=obj %s -o %t.llc.u.spv %}
+; RUNx: %if spirv-backend %{ llvm-spirv -r -spirv-emit-function-ptr-addr-space %t.llc.u.spv -o %t.llc.u.rev.bc %}
+
+; CHECK-SPIRV-UNTYPED: Capability UntypedPointersKHR
+; CHECK-SPIRV: Capability FunctionPointersINTEL
+; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
+; CHECK-SPIRV-UNTYPED: Extension "SPV_KHR_untyped_pointers"
 ; CHECK-SPIRV-DAG: TypeInt [[#I8:]] 8
 ; CHECK-SPIRV-DAG: TypeInt [[#I32:]] 32
 ; CHECK-SPIRV-DAG: TypeFunction [[#FOO_TY:]] [[#I8]] [[#I8]]
 ; CHECK-SPIRV-DAG: TypeFunction [[#DEST_TY:]] [[#I32]] [[#I32]]
-; CHECK-SPIRV-DAG: TypePointer [[#DEST_TY_PTR:]] [[#]] [[#DEST_TY]]
-; CHECK-SPIRV-DAG: TypePointer [[#FOO_TY_PTR:]] [[#]] [[#FOO_TY]]
-; CHECK-SPIRV: ConstantFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
+; CHECK-SPIRV-TYPED-DAG: TypePointer [[#DEST_TY_PTR:]] [[#]] [[#DEST_TY]]
+; CHECK-SPIRV-TYPED-DAG: TypePointer [[#FOO_TY_PTR:]] [[#]] [[#FOO_TY]]
+; CHECK-SPIRV-UNTYPED-DAG: TypeUntypedPointerKHR [[#PTR:]] 7
+; CHECK-SPIRV-TYPED: ConstantFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
+; CHECK-SPIRV-UNTYPED: ConstantFunctionPointerINTEL [[#PTR]] [[#FOO_PTR:]] [[#FOO:]]
 ; CHECK-SPIRV: Function [[#]] [[#FOO]] [[#]] [[#FOO_TY]]
-
-; CHECK-SPIRV: Bitcast [[#DEST_TY_PTR]] [[#]] [[#FOO_PTR]]
+; CHECK-SPIRV-TYPED: Bitcast [[#DEST_TY_PTR]] [[#]] [[#FOO_PTR]]
+; CHECK-SPIRV-UNTYPED: Bitcast [[#PTR]] [[#]] [[#FOO_PTR]]
 
 ; CHECK-LLVM: bitcast ptr addrspace(9) @foo to ptr addrspace(9)
+; CHECK-LLVM-UNTYPED: bitcast ptr addrspacecast (ptr addrspace(9) @foo to ptr) to ptr
 
 ; ModuleID = './example.c'
 source_filename = "./example.c"

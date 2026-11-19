@@ -146,16 +146,17 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
       << "Result of enqueueing blocked command should be BLOCKED.\n";
   ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
 
-  // But if the enqueue type is blocking we should not exit early.
+  // Blocking enqueue exits early too, rather than waiting under the graph lock,
+  // and registers the root to be enqueued once A is unblocked.
 
-  EXPECT_CALL(A, enqueue).Times(0);
-  EXPECT_CALL(B, enqueue).Times(1);
-
+  Res = detail::EnqueueResultT{};
   Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
-  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
+  ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueBlocked, Res.MResult)
       << "Result of enqueueing blocked command should be BLOCKED.\n";
-  ASSERT_EQ(&B, Res.MCmd) << "Expected different failed command.\n";
+  ASSERT_EQ(&A, Res.MCmd) << "Expected different failed command.\n";
+  ASSERT_EQ(1u, A.MBlockedUsers.size());
+  ASSERT_EQ(A.getEvent(), A.MBlockedUsers[0]);
 }
 
 // This unit test is for workaround described in GraphProcessor::enqueueCommand
@@ -202,4 +203,42 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   ASSERT_TRUE(Enqueued) << "The command should be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueSuccess, Res.MResult)
       << "Enqueue operation should return successfully.\n";
+}
+
+// When a blocked user is unblocked by A but is still blocked by B, it must be
+// re-registered on B, or its waiter is never woken up.
+TEST_F(SchedulerTest, BlockedUserReRegisteredOnNextBlockedCommand) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
+  sycl::detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Q);
+
+  //     Root
+  //     /  \
+  //    A    B   (both blocked, e.g. by live read host accessors)
+  MockCommand A(&QueueImpl), B(&QueueImpl), Root(&QueueImpl);
+  std::vector<detail::Command *> ToCleanUp;
+  for (MockCommand *Dep : {&A, &B}) {
+    Dep->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+    Dep->MIsBlockable = true;
+    auto DepEvent = detail::event_impl::create_device_event(QueueImpl);
+    DepEvent->setCommand(Dep);
+    (void)Root.addDep(DepEvent, ToCleanUp);
+  }
+
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
+  detail::EnqueueResultT Res;
+  ASSERT_FALSE(MockScheduler::enqueueCommand(&Root, Res, detail::BLOCKING));
+  ASSERT_EQ(1u, A.MBlockedUsers.size());
+  ASSERT_EQ(0u, B.MBlockedUsers.size());
+
+  A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  MockScheduler::retryEnqueueBlockedUsers(A.MBlockedUsers, Lock, ToCleanUp);
+  ASSERT_FALSE(Root.isSuccessfullyEnqueued());
+  ASSERT_EQ(1u, B.MBlockedUsers.size());
+  ASSERT_EQ(Root.getEvent(), B.MBlockedUsers[0]);
+
+  B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
+  MockScheduler::retryEnqueueBlockedUsers(B.MBlockedUsers, Lock, ToCleanUp);
+  ASSERT_TRUE(Root.isSuccessfullyEnqueued());
 }

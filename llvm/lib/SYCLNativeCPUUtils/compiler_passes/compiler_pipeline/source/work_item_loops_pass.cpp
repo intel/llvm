@@ -674,8 +674,7 @@ struct ScheduleGenerator {
 
                   // Materialize the scale factor at the beginning of the
                   // preheader
-                  IRBuilder<> irph(mainPreheaderBB,
-                                   mainPreheaderBB->getFirstInsertionPt());
+                  IRBuilder<> irph(mainPreheaderBB->getFirstInsertionPt());
                   auto *VF = irph.CreateElementCount(
                       compiler::utils::getSizeType(module),
                       barrierMain.getVFInfo().vf);
@@ -982,8 +981,7 @@ struct ScheduleGenerator {
 
                   // Materialize the scale factor at the beginning of the
                   // preheader
-                  IRBuilder<> irph(mainPreheaderBB,
-                                   mainPreheaderBB->getFirstInsertionPt());
+                  IRBuilder<> irph(mainPreheaderBB->getFirstInsertionPt());
                   auto *VF = irph.CreateElementCount(
                       compiler::utils::getSizeType(module),
                       barrierMain.getVFInfo().vf);

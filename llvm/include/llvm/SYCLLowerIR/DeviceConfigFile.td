@@ -109,6 +109,7 @@ def Aspectext_oneapi_register_host_memory : Aspect<"ext_oneapi_register_host_mem
 def Aspectext_oneapi_per_event_profiling : Aspect<"ext_oneapi_per_event_profiling">;
 def Aspectext_oneapi_ipc_event : Aspect<"ext_oneapi_ipc_event">;
 def Aspectext_intel_device_info_ip_version : Aspect<"ext_intel_device_info_ip_version">;
+def Aspectext_intel_igca : Aspect<"ext_intel_igca">;
 
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
@@ -199,7 +200,8 @@ def : TargetInfo<"__TestAspectList",
     Aspectext_oneapi_register_host_memory,
     Aspectext_oneapi_per_event_profiling,
     Aspectext_oneapi_ipc_event,
-    Aspectext_intel_device_info_ip_version],
+    Aspectext_intel_device_info_ip_version,
+    Aspectext_intel_igca],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -263,7 +265,8 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 // sizes to be 16 and 32, which corresponds to PVC having 16 and 32 
 // as sub-group sizes the supported sub-group sizes. 
 
-def : IntelTargetInfo<"intel_gpu_cri", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_cri",
+    Fp16Fp64Atomic64 # [AspectExt_oneapi_atomic16], Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_p", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_u", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_nvl_s", Fp16Fp64Atomic64, Sg16_32>;

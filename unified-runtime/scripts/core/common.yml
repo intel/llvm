@@ -292,12 +292,13 @@ etors:
     - name: ERROR_GRAPH_CAPTURE_MERGE_ATTEMPT
       desc: "An operation failed because it would merge two graph capture sessions."
     - name: ERROR_COMMAND_LIST_NOT_CAPTURING
-      desc: "The command list is not in graph capture mode."
+      desc: "The queue is not in graph capture mode."
     - name: ERROR_GRAPH_UNJOINED_FORKS
       desc: "The graph contains unjoined forks."
     - name: ERROR_GRAPH_INTERNAL_EVENT
-      desc: "An operation failed because it uses a graph-internal counter-based
-             event outside of the graph."
+      desc: "An operation failed because it uses an event that is internal to a
+             graph outside of that graph, or because a command recorded into a
+             graph waits on an event signaled outside of that graph."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"

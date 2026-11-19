@@ -8,7 +8,51 @@
 // RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.fat %s
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
-// RUN:   --dry-run -- -o /dev/null %t.o 2>&1 | FileCheck %s
+// RUN:   --dry-run -- -o /dev/null %t.o 2>&1 | FileCheck %s --implicit-check-not=SPV_KHR_bfloat16 --implicit-check-not=SPV_INTEL_16bit_atomics
+
+// RUN: llvm-offload-binary -o %t.cri.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=cri
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri.o \
+// RUN:   -fembed-offload-object=%t.cri.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// RUN: llvm-offload-binary -o %t.bmg.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=bmg_g31
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.bmg.o \
+// RUN:   -fembed-offload-object=%t.bmg.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.bmg.o 2>&1 | FileCheck %s --implicit-check-not=SPV_KHR_bfloat16 --implicit-check-not=SPV_INTEL_16bit_atomics
+
+// RUN: llvm-offload-binary -o %t.pvc.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=pvc
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.pvc.o \
+// RUN:   -fembed-offload-object=%t.pvc.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.pvc.o 2>&1 | FileCheck %s --implicit-check-not=SPV_KHR_bfloat16 --implicit-check-not=SPV_INTEL_16bit_atomics
+
+// RUN: llvm-offload-binary -o %t.cri-alias.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=intel_gpu_cri
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri-alias.o \
+// RUN:   -fembed-offload-object=%t.cri-alias.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri-alias.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// RUN: llvm-offload-binary -o %t.cri-numeric.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=intel_gpu_35_11_0
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri-numeric.o \
+// RUN:   -fembed-offload-object=%t.cri-numeric.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri-numeric.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// RUN: llvm-offload-binary -o %t.cri-numeric-short.fat \
+// RUN:   --image=file=%t.device.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=35_11_0
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -emit-obj -o %t.cri-numeric-short.o \
+// RUN:   -fembed-offload-object=%t.cri-numeric-short.fat %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld \
+// RUN:   --dry-run -- -o /dev/null %t.cri-numeric-short.o 2>&1 | FileCheck %s --check-prefix=CRI
+
+// CRI: llvm-spirv{{.*}}-spirv-ext=-all{{.*}},+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics
 
 // CHECK: llvm-spirv{{.*}}-spirv-debug-info-version=nonsemantic-shader-200
 // CHECK-SAME:-spirv-ext=-all
@@ -16,32 +60,21 @@
 // CHECK-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
 // CHECK-SAME:,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr
-// CHECK-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
-// CHECK-SAME:,+SPV_INTEL_device_side_avc_motion_estimation
-// CHECK-SAME:,+SPV_INTEL_fpga_loop_controls
-// CHECK-SAME:,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg
-// CHECK-SAME:,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers
-// CHECK-SAME:,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes
-// CHECK-SAME:,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers
-// CHECK-SAME:,+SPV_INTEL_float_controls2
-// CHECK-SAME:,+SPV_INTEL_vector_compute
-// CHECK-SAME:,+SPV_INTEL_arbitrary_precision_fixed_point
-// CHECK-SAME:,+SPV_INTEL_arbitrary_precision_floating_point
+// CHECK-SAME:,+SPV_INTEL_subgroups
+// CHECK-SAME:,+SPV_INTEL_unstructured_loop_controls
+// CHECK-SAME:,+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes
+// CHECK-SAME:,+SPV_INTEL_inline_assembly
+// CHECK-SAME:,+SPV_INTEL_arbitrary_precision_integers
+// CHECK-SAME:,+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute
 // CHECK-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
 // CHECK-SAME:,+SPV_INTEL_long_composites
 // CHECK-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-SAME:,+SPV_INTEL_global_variable_decorations
 // CHECK-SAME:,+SPV_INTEL_cache_controls
-// CHECK-SAME:,+SPV_INTEL_fpga_buffer_location
-// CHECK-SAME:,+SPV_INTEL_fpga_argument_interfaces
-// CHECK-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
-// CHECK-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-SAME:,+SPV_KHR_shader_clock
 // CHECK-SAME:,+SPV_INTEL_bindless_images
-// CHECK-SAME:,+SPV_INTEL_task_sequence
 // CHECK-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-SAME:,+SPV_INTEL_joint_matrix
-// CHECK-SAME:,+SPV_INTEL_hw_thread_queries
 // CHECK-SAME:,+SPV_KHR_uniform_group_instructions
 // CHECK-SAME:,+SPV_INTEL_masked_gather_scatter
 // CHECK-SAME:,+SPV_INTEL_tensor_float32_conversion

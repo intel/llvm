@@ -117,7 +117,7 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1201 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1201 -DMAC_STR=GFX1201
-// MACRO_AMD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
+// MACRO_AMD: clang{{.*}} "-triple" "amdgpu{{[0-9.a-z]*}}-amd-amdhsa"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
 // MACRO_AMD: clang{{.*}} "-fsycl-is-host"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
@@ -135,7 +135,7 @@
 // RUN: -Xsycl-target-backend --offload-arch=gfx908 \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=AMD-TRIPLE
-// AMD-TRIPLE: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
+// AMD-TRIPLE: clang{{.*}} "-triple" "amdgpu9.08-amd-amdhsa"
 
 // Check if SYCL triples with 'Environment' component are rejected for AMD GPUs.
 // RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amdgcn-amd-amdhsa-sycl -### %s 2>&1 | \
@@ -166,7 +166,7 @@
 // RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_CONSUME_FAT
 // AMD_CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"
-// AMD_CONSUME_FAT: "-targets=host-x86_64-unknown-linux-gnu,sycl-amdgcn-amd-amdhsa-gfx700"
+// AMD_CONSUME_FAT: "-targets=host-x86_64-unknown-linux-gnu,sycl-amdgpu7.00-amd-amdhsa-gfx700"
 // AMD_CONSUME_FAT: "-unbundle" "-allow-missing-bundles"
 
 /// AMD Test phases, BoundArch settings used for -device target. Additional

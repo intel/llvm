@@ -11,7 +11,9 @@
 #include "detail/persistent_device_code_cache.hpp"
 #include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
+#include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/IOSandbox.h>
 #include <sycl/detail/os_util.hpp>
@@ -28,18 +30,6 @@
            << "error number: " << EC.value() << "\n"                           \
            << "error message: " << EC.message() << "\n";                       \
   }
-
-// TODO: Introduce common unit tests header and move it there
-static void set_env(const char *name, const char *value) {
-#ifdef _WIN32
-  (void)_putenv_s(name, value ? value : "");
-#else
-  if (value)
-    (void)setenv(name, value, /*overwrite*/ 1);
-  else
-    (void)unsetenv(name);
-#endif
-}
 
 namespace {
 using namespace sycl;
@@ -114,6 +104,12 @@ public:
 
   std::string RootSYCLCacheDir;
 
+  // Cache directory of the current test, see SetTestSYCLCacheDirEnv().
+  static constexpr const char *TestCacheDirEnvVar =
+      "SYCL_UNITTEST_PERSISTENT_CACHE_TEST_DIR";
+  std::string TestCacheDir;
+  bool OwnsTestCacheDir = false;
+
   // This test makes many calls to llvm::sys::fs calls, which as of RFC
   // https://discourse.llvm.org/t/rfc-file-system-sandboxing-in-clang-llvm/88791
   // now errors upon using llvm::sys::fs calls without disabling the sandbox.
@@ -139,23 +135,37 @@ public:
 
     // Set the environment variable and signal the configuration file and the
     // persistent cache.
-    set_env("SYCL_CACHE_PERSISTENT", NewValue);
+    unittest::set_env("SYCL_CACHE_PERSISTENT", NewValue);
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
     SYCLCachePersistentChanged = true;
   }
 
   // Set SYCL_CACHE_MAX_SIZE.
   void SetDiskCacheEvictionEnv(const char *NewValue) {
-    set_env("SYCL_CACHE_MAX_SIZE", NewValue);
+    unittest::set_env("SYCL_CACHE_MAX_SIZE", NewValue);
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_MAX_SIZE>::reset();
   }
 
-  void AppendToSYCLCacheDirEnv(const char *SubDir) {
-    std::string NewSYCLCacheDirPath{RootSYCLCacheDir};
-    if (NewSYCLCacheDirPath.back() != '\\' && NewSYCLCacheDirPath.back() != '/')
-      NewSYCLCacheDirPath += '/';
-    NewSYCLCacheDirPath += SubDir;
-    set_env("SYCL_CACHE_DIR", NewSYCLCacheDirPath.c_str());
+  // Points SYCL_CACHE_DIR to a cache directory owned by the current test.
+  //
+  // The directory is unique per test *and* per process: the same test may be
+  // run by several processes at once (e.g. concurrent test runs sharing
+  // SYCL_CACHE_DIR) and those must not remove or overwrite each other's cache
+  // items.
+  void SetTestSYCLCacheDirEnv() {
+    if (const char *InheritedDir = getenv(TestCacheDirEnvVar);
+        InheritedDir && *InheritedDir) {
+      TestCacheDir = InheritedDir;
+    } else {
+      llvm::SmallString<256> UniqueDir;
+      ASSERT_NO_ERROR(llvm::sys::fs::create_directories(RootSYCLCacheDir));
+      ASSERT_NO_ERROR(llvm::sys::fs::createUniqueDirectory(
+          RootSYCLCacheDir + "/pdcc", UniqueDir));
+      TestCacheDir = std::string{UniqueDir};
+      OwnsTestCacheDir = true;
+      unittest::set_env(TestCacheDirEnvVar, TestCacheDir.c_str());
+    }
+    unittest::set_env("SYCL_CACHE_DIR", TestCacheDir.c_str());
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
   }
 
@@ -178,7 +188,7 @@ public:
   }
 
   void ResetSYCLCacheDirEnv() {
-    set_env("SYCL_CACHE_DIR", RootSYCLCacheDir.c_str());
+    unittest::set_env("SYCL_CACHE_DIR", RootSYCLCacheDir.c_str());
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
   }
 
@@ -187,10 +197,11 @@ public:
       FAIL() << "Please set SYCL_CACHE_DIR environment variable pointing to "
                 "cache location.";
 
-    // Append the test name to the cache dir to prevent conflicts with other
-    // tests running in parallel.
-    AppendToSYCLCacheDirEnv(
-        ::testing::UnitTest::GetInstance()->current_test_info()->name());
+    // Use a separate cache directory to prevent conflicts with other tests
+    // running in parallel.
+    SetTestSYCLCacheDirEnv();
+    if (HasFatalFailure())
+      return;
 
     // Enable persistent cache
     SetSYCLCachePersistentEnv("1");
@@ -206,6 +217,11 @@ public:
     // Reset SYCL_CACHE_MAX_SIZE.
     SetDiskCacheEvictionEnv(nullptr);
     ResetSYCLCacheDirEnv();
+
+    if (OwnsTestCacheDir) {
+      unittest::set_env(TestCacheDirEnvVar, nullptr);
+      (void)llvm::sys::fs::remove_directories(TestCacheDir);
+    }
   }
 
   PersistentDeviceCodeCache() : Mock{}, Plt{sycl::platform()} {

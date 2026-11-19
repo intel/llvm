@@ -102,7 +102,7 @@ __urdlllocal ur_result_t context_t::Init(
 
 #if defined(UR_STATIC_UMF)
   if (UR_RESULT_SUCCESS == result) {
-    umfInit();
+    holdsUmfRef = umfInit() == UMF_RESULT_SUCCESS;
   }
 #endif
 
@@ -220,15 +220,18 @@ ur_result_t UR_APICALL urLoaderInit(ur_device_init_flags_t device_flags,
 }
 
 ur_result_t urLoaderTearDown() {
-  int ret = ur_lib::context_t::release([](context_t *context) {
+  bool releaseUmf = false;
+  int ret = ur_lib::context_t::release([&releaseUmf](context_t *context) {
     context->tearDownLayers();
     ur_loader::context_t::forceDelete();
+    releaseUmf = context->holdsUmfRef;
     delete context;
   });
 
 #if defined(UR_STATIC_UMF)
-  // Release the Init reference only after the layers are torn down above.
-  if (ret == 0) {
+  // Release the Init reference only after the layers are torn down above, and
+  // only when the last urLoaderTearDown deleted the context that took it.
+  if (releaseUmf) {
     umfTearDown();
   }
 #endif

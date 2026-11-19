@@ -4,7 +4,7 @@
 
 function(add_adapter_reg_search_test name)
     set(TEST_TARGET_NAME ${name}-test)
-    add_gtest_test(${name} ${TEST_SOURCES})
+    add_gtest_test(${name} ${ARGN})
 
     if(WIN32)
         target_sources(${TEST_TARGET_NAME} PRIVATE
@@ -18,7 +18,7 @@ function(add_adapter_reg_search_test name)
         ${PROJECT_SOURCE_DIR}/source/loader)
 endfunction()
 
-add_adapter_reg_search_test(search-with-env)
-add_adapter_reg_search_test(search-no-env)
-add_adapter_reg_search_test(search-order)
-add_adapter_reg_search_test(prefilter)
+add_adapter_reg_search_test(search-with-env search_with_env.cpp)
+add_adapter_reg_search_test(search-no-env search_no_env.cpp)
+add_adapter_reg_search_test(search-order search_order.cpp)
+add_adapter_reg_search_test(prefilter prefilter.cpp)

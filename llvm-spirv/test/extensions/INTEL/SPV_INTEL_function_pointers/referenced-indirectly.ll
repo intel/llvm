@@ -5,6 +5,22 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -o %t.u.spt
+; RUN: FileCheck < %t.u.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -o %t.u.spv
+; RUN: llvm-spirv -r %t.u.spv -o %t.ru.bc
+; RUN: llvm-dis %t.ru.bc -o %t.ru.ll
+; RUN: FileCheck < %t.ru.ll %s --check-prefix=CHECK-LLVM
+
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers -filetype=obj %s -o %t.llc.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.spv -o %t.llc.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.rev.bc -o %t.llc.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefixes=CHECK-LLVM-LLC,CHECK-LLVM-LLC-TYPED < %t.llc.rev.ll %}
+
+; RUN: %if spirv-backend %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_INTEL_function_pointers,+SPV_KHR_untyped_pointers -filetype=obj %s -o %t.llc.u.spv %}
+; RUN: %if spirv-backend %{ llvm-spirv -r %t.llc.u.spv -o %t.llc.u.rev.bc %}
+; RUN: %if spirv-backend %{ llvm-dis %t.llc.u.rev.bc -o %t.llc.u.rev.ll %}
+; RUN: %if spirv-backend %{ FileCheck %s --check-prefixes=CHECK-LLVM-LLC,CHECK-LLVM-LLC-UNTYPED < %t.llc.u.rev.ll %}
 ;
 ; Generated from:
 ; __attribute__((referenced_indirectly))
@@ -18,16 +34,36 @@
 ;   *data = fp(input);
 ; }
 ;
+; CHECK-SPIRV-UNTYPED: Capability UntypedPointersKHR
 ; CHECK-SPIRV: Capability FunctionPointersINTEL
 ; CHECK-SPIRV: Capability IndirectReferencesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
+; CHECK-SPIRV-UNTYPED: Extension "SPV_KHR_untyped_pointers"
 ;
-; CHECK-SPIRV: Name [[FOO_ID:[0-9]+]] "foo"
-; CHECK-SPIRV: Decorate [[FOO_ID]] ReferencedIndirectlyINTEL
-; CHECK-SPIRV: Function {{[0-9]+}} [[FOO_ID]]
+; CHECK-SPIRV: Name [[#FOO_ID:]] "foo"
+; CHECK-SPIRV: Decorate [[#FOO_ID]] ReferencedIndirectlyINTEL
+; CHECK-SPIRV-UNTYPED: TypeUntypedPointerKHR [[#PtrTy:]]
+; CHECK-SPIRV-UNTYPED: ConstantFunctionPointerINTEL [[#PtrTy]] [[#FnPtr:]] [[#FOO_ID]]
+; CHECK-SPIRV: Function {{[0-9]+}} [[#FOO_ID]]
+; CHECK-SPIRV-UNTYPED: UntypedVariableKHR [[#PtrTy]] [[#ALLOCA:]] [[#]] [[#PtrTy]]
+; CHECK-SPIRV-UNTYPED: Store [[#ALLOCA]] [[#FnPtr]]
+; CHECK-SPIRV-UNTYPED: Load [[#PtrTy]] [[#LOADED:]] [[#ALLOCA]]
+; CHECK-SPIRV-UNTYPED: FunctionPointerCallINTEL [[#]] [[#]] [[#LOADED]]
 ;
 ; CHECK-LLVM: define spir_func i32 @foo(i32 %arg) #[[ATTRS:[0-9]+]]
 ; CHECK-LLVM: attributes #[[ATTRS]] = {{.*}} "referenced-indirectly"
+
+; CHECK-LLVM-LLC: %fp = alloca ptr
+; CHECK-LLVM-LLC-TYPED: %[[B1:.*]] = bitcast ptr %fp to ptr
+; CHECK-LLVM-LLC-TYPED: %[[B2:.*]] = bitcast ptr %[[B1]] to ptr
+; CHECK-LLVM-LLC-TYPED: store ptr @foo, ptr %[[B2]]
+; CHECK-LLVM-LLC-TYPED: %[[B3:.*]] = bitcast ptr %fp to ptr
+; CHECK-LLVM-LLC-TYPED: %[[LD:.*]] = load ptr, ptr %[[B3]]
+; CHECK-LLVM-LLC-TYPED: call spir_func i32 %[[LD]](i32 %{{.*}})
+; CHECK-LLVM-LLC-UNTYPED: %[[B1:.*]] = bitcast ptr %fp to ptr
+; CHECK-LLVM-LLC-UNTYPED: store ptr @foo, ptr %[[B1]]
+; CHECK-LLVM-LLC-UNTYPED: %[[LD:.*]] = load ptr, ptr %fp
+; CHECK-LLVM-LLC-UNTYPED: call spir_func i32 %[[LD]](i32 %{{.*}})
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"

@@ -3,7 +3,7 @@
 // RUN: %{run} %t1.out
 
 // Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend && run-mode
+// XFAIL: spirv-backend && gpu && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 #include <iostream>
 

@@ -56,7 +56,7 @@ static std::vector<uur::test_parameters_t> generateParameterizations() {
   PARAMETERIZATION(write_3D_with_offsets, 512, 512, (ur_rect_offset_t{1, 2, 3}),
                    (ur_rect_offset_t{4, 1, 3}), (ur_rect_region_t{4, 3, 2}), 8,
                    64, 8, 64);
-  // Tests that a 4x16x2 region can be written from a 8x32x1 host buffer at
+  // Tests that a 4x16x1 region can be written from a 8x32x1 host buffer at
   // offset {1,2,0} to a 8x32x4 device buffer at offset {4,1,3}.
   PARAMETERIZATION(write_2D_3D, 256, 1024, (ur_rect_offset_t{1, 2, 0}),
                    (ur_rect_offset_t{4, 1, 3}), (ur_rect_region_t{4, 16, 1}), 8,
@@ -80,8 +80,6 @@ UUR_MULTI_QUEUE_TYPE_TEST_SUITE_WITH_PARAM(
         urEnqueueMemBufferWriteRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-
   // Unpack the parameters.
   const auto host_size = getParam().src_size;
   const auto buffer_size = getParam().dst_size;

@@ -49,7 +49,7 @@ namespace utils {
 /// * replaceAbacusFMinFMax
 /// * Invoking emitBuiltinInline from BuiltinInfo analysis
 class OptimalBuiltinReplacementPass
-    : public llvm::PassInfoMixin<OptimalBuiltinReplacementPass> {
+    : public llvm::OptionalPassInfoMixin<OptimalBuiltinReplacementPass> {
 public:
   using ReplacementFnTy = std::function<llvm::Value *(
       llvm::CallBase &, llvm::StringRef,

@@ -3,7 +3,7 @@
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="hip:*" sycl-ls --verbose | \
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-HIP,CHECK-CUSTOM-GPU-HIP
 
-// CHECK-BUILTIN-GPU-HIP: gpu_selector(){{.*}}gpu, {{.*}}HIP
+// CHECK-BUILTIN-GPU-HIP: gpu_selector_v{{.*}}gpu, {{.*}}HIP
 // CHECK-CUSTOM-GPU-HIP: custom_selector(gpu){{.*}}gpu, {{.*}}HIP
 
 //==---- sycl-ls-gpu-hip.cpp - SYCL test for discovered/selected devices --==//

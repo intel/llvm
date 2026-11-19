@@ -1,5 +1,7 @@
 // REQUIRES: windows
 // REQUIRES-INTEL-DRIVER: win: 101.8247
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 //
 // RUN: %{build} -o %t.out %threads_lib
 //

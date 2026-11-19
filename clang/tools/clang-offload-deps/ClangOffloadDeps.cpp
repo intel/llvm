@@ -22,13 +22,14 @@
 
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/OffloadBundler.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/TargetParser/Triple.h"
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
@@ -46,8 +47,6 @@
 
 using namespace llvm;
 using namespace llvm::object;
-
-static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 
 // Mark all our options with this category, everything else (except for -version
 // and -help) will be hidden.
@@ -74,6 +73,21 @@ static void reportError(Error E) {
   logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
 }
 
+/// Returns true if the symbols of SYCL bundle entry \p CodeObject are needed
+/// for SYCL \p Target. Uses the same rule as unbundling: an entry without a
+/// target ID (e.g. -fsycl-targets=spir64_gen) matches any target ID of the
+/// same triple, and the other way around. Only called when the entry is not
+/// an exact match.
+static bool isCompatibleSYCLTarget(StringRef CodeObject, StringRef Target) {
+  // Other kinds are only matched exactly.
+  if (!CodeObject.starts_with("sycl-") || !Target.starts_with("sycl-"))
+    return false;
+  static const clang::OffloadBundlerConfig BundlerConfig;
+  return clang::isCodeObjectCompatible(
+      clang::OffloadTargetInfo(CodeObject, BundlerConfig),
+      clang::OffloadTargetInfo(Target, BundlerConfig));
+}
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   ToolPath = argv[0];
@@ -89,11 +103,6 @@ int main(int argc, const char **argv) {
       "target, with\nreferences to symbols that must be defined in target "
       "images.\n");
 
-  if (Help) {
-    cl::PrintHelpMessage();
-    return 0;
-  }
-
   // The number of output files and targets should match.
   if (Targets.size() != Outputs.size()) {
     reportError(
@@ -105,7 +114,7 @@ int main(int argc, const char **argv) {
   // Verify that given targets are valid. Each target string is expected to have
   // the following format
   //     <kind>-<triple>
-  // where <kind> is host, openmp, hip, sycl or fpga,
+  // where <kind> is host, openmp, hip or sycl,
   // and <triple> is an offload target triple.
   SmallVector<StringRef, 8u> Kinds(Targets.size());
   SmallVector<StringRef, 8u> Triples(Targets.size());
@@ -117,7 +126,6 @@ int main(int argc, const char **argv) {
                            .Case("openmp", true)
                            .Case("hip", true)
                            .Case("sycl", true)
-                           .Case("fpga", true)
                            .Default(false);
 
     bool TripleIsValid = Triple(Triples[I]).getArch() != Triple::UnknownArch;
@@ -169,13 +177,32 @@ int main(int argc, const char **argv) {
     for (StringRef Symbol = DataOrErr.get(); !Symbol.empty();) {
       unsigned Len = strlen(Symbol.data());
 
+      // The format of the symbol is [offload type][triple].[symbol name], so
+      // if the triple we're parsing contains a '.', simple parsing of the
+      // symbol format will fail. We don't allow offloading to any triple that
+      // contains a '.', and this tool is only used for the old offload model,
+      // so just error.
+      StringRef ExtractedName = Symbol.take_front(Len);
+      if (ExtractedName.starts_with("sycl-") && ExtractedName.count('.') > 1) {
+        reportError(createStringError(errc::invalid_argument,
+                                      "unsupported SYCL bundle entry ID '" +
+                                          ExtractedName.rsplit('.').first +
+                                          "', '.' is not allowed"));
+        return 1;
+      }
+
       // TODO: Consider storing Targets and Kinds in a single map-like struct,
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
+      // Split "<entry ID>.<symbol>" at the first '.'. The symbol itself may
+      // contain '.', but a SYCL entry ID may not.
+      auto [CodeObject, Name] = ExtractedName.split('.');
       for (const std::string &Target : Targets) {
         std::string Prefix = Target + ".";
         if (Symbol.starts_with(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
+        else if (!Name.empty() && isCompatibleSYCLTarget(CodeObject, Target))
+          Target2Symbols[Target].insert(Name);
       }
 
       Symbol = Symbol.drop_front(Len + 1u);

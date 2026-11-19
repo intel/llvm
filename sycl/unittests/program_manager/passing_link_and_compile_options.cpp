@@ -30,6 +30,10 @@ class EAMTestKernel3;
 constexpr const char EAMTestKernelName3[] = "LinkCompileTestKernel3";
 constexpr unsigned EAMTestKernelNumArgs3 = 4;
 
+class EAMTestKernel4;
+constexpr const char EAMTestKernelName4[] = "LinkCompileTestKernel4";
+constexpr unsigned EAMTestKernelNumArgs4 = 4;
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -49,6 +53,12 @@ template <>
 struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs3; }
   static constexpr const char *getName() { return EAMTestKernelName3; }
+};
+
+template <>
+struct KernelInfo<EAMTestKernel4> : public unittest::MockKernelInfoBase {
+  static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs4; }
+  static constexpr const char *getName() { return EAMTestKernelName4; }
 };
 
 } // namespace detail
@@ -204,4 +214,66 @@ TEST(Link_Compile_Options, check_sycl_build) {
   sycl::build(KernelBundle);
   EXPECT_EQ(expected_compile_options + " " + expected_link_options,
             current_build_opts);
+}
+
+// Mimics the OpenCL adapter's urPlatformGetBackendOption mapping.
+inline ur_result_t redefinedPlatformGetBackendOption(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_platform_get_backend_option_params_t *>(pParams);
+  std::string_view Opt = *params->ppFrontendOption;
+  if (Opt == "-ftarget-compile-fast")
+    **params->pppPlatformOption =
+        "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
+  else if (Opt == "-foffload-fp32-prec-div" ||
+           Opt == "-foffload-fp32-prec-sqrt")
+    **params->pppPlatformOption = "-cl-fp32-correctly-rounded-divide-sqrt";
+  else
+    **params->pppPlatformOption = "";
+  return UR_RESULT_SUCCESS;
+}
+
+// Reproducer for intel/llvm#23373 (CMPLRLLVM-78655): the runtime maps only the
+// first instance of each frontend option; repeated instances are forwarded
+// as-is to the backend JIT compiler.
+TEST(Link_Compile_Options, repeated_frontend_options_are_all_mapped) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramBuildExp",
+                                           &redefinedProgramBuild);
+  mock::getCallbacks().set_replace_callback("urPlatformGetBackendOption",
+                                            &redefinedPlatformGetBackendOption);
+  const sycl::device Dev = Plt.get_devices()[0];
+  current_build_opts.clear();
+  // Each option appears twice, as produced by the new offload driver (once from
+  // image metadata, once from clang-linker-wrapper arguments).
+  std::string compile_options =
+      "-ftarget-compile-fast -foffload-fp32-prec-div -foffload-fp32-prec-sqrt "
+      "-ftarget-compile-fast -foffload-fp32-prec-div -foffload-fp32-prec-sqrt";
+  static sycl::unittest::MockDeviceImage DevImage =
+      generateEAMTestKernelImage<EAMTestKernel4>(compile_options, "");
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray{&DevImage};
+  auto KernelID = sycl::get_kernel_id<EAMTestKernel4>();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
+  sycl::kernel_bundle KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
+                                                         {KernelID});
+  sycl::build(KernelBundle);
+  // No clang driver option may reach the backend.
+  EXPECT_EQ(current_build_opts.find("-ftarget-compile-fast"), std::string::npos)
+      << current_build_opts;
+  EXPECT_EQ(current_build_opts.find("-foffload-fp32-prec-div"),
+            std::string::npos)
+      << current_build_opts;
+  EXPECT_EQ(current_build_opts.find("-foffload-fp32-prec-sqrt"),
+            std::string::npos)
+      << current_build_opts;
+  // All four fp32-prec options must have been mapped.
+  size_t Count = 0;
+  for (size_t Pos = 0;
+       (Pos = current_build_opts.find("-cl-fp32-correctly-rounded-divide-sqrt",
+                                      Pos)) != std::string::npos;
+       ++Pos)
+    ++Count;
+  EXPECT_EQ(Count, 4u) << current_build_opts;
 }

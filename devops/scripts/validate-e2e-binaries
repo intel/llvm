@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+build_dir="${1:?Usage: validate-e2e-binaries <build-dir>}"
+
+if [ -z "$(find "$build_dir" -path '*/Output/*' -type f -print -quit)" ]; then
+  echo "::error::No E2E test binaries found under $build_dir/**/Output/"
+  exit 1
+fi

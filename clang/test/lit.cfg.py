@@ -147,7 +147,12 @@ if config.llvm_examples:
 if "libdevice" in config.enable_projects:
     config.available_features.add("libdevice")
 
-for offload_tool in ("spirv-to-ir-wrapper", "sycl-post-link", "file-table-tform"):
+for offload_tool in (
+    "spirv-to-ir-wrapper",
+    "sycl-post-link",
+    "file-table-tform",
+    "llvm-spirv",
+):
     if lit.util.which(offload_tool, config.clang_tools_dir) or lit.util.which(
         offload_tool, config.llvm_tools_dir
     ):
@@ -167,8 +172,9 @@ def have_host_out_of_process_jit_feature_support():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             input=testcode,
+            timeout=5,
         )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return False
 
     if clang_repl_cmd.returncode == 0:
@@ -241,6 +247,7 @@ if not skip_clang_repl_checks and have_host_jit_feature_support("jit"):
     if have_host_clang_repl_cuda():
         config.available_features.add('host-supports-cuda')
     hosttriple = run_clang_repl("--host-jit-triple")
+    config.available_features.add("host-jit-triple=" + hosttriple.strip())
     config.substitutions.append(("%host-jit-triple", hosttriple.strip()))
 
     if have_host_out_of_process_jit_feature_support():

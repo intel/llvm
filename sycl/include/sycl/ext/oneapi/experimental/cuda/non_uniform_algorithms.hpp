@@ -11,6 +11,8 @@
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 #include "masked_shuffles.hpp"
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
+#include <sycl/functional.hpp>     // for known_op_traits registration
+#include <sycl/known_identity.hpp> // for IsPlus, IsMinimum, ...
 
 namespace sycl {
 inline namespace _V1 {

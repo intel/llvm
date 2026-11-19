@@ -6,8 +6,6 @@
 //
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
-// XFAIL: cuda && windows
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14733
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS

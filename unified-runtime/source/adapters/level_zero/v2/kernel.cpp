@@ -91,7 +91,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     ur_context_handle_t context,
     const ur_kernel_native_properties_t *pProperties)
     : hProgram(hProgram),
-      deviceKernels(context ? context->getPlatform()->getNumDevices() : 0) {
+      deviceKernels(context->getPlatform()->getNumDevices()) {
   ur::level_zero::urProgramRetain(common_cast(hProgram));
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;

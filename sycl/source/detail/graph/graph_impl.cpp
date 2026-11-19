@@ -2294,18 +2294,22 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   bool IsRecordingToThisGraph = false;
 
   if (isNativeRecordingEnabledForGraph(*impl)) {
-    // For native recording, check if queue is in our recording queue list
-    graph_impl::WriteLock Lock(impl->MMutex);
-    IsRecordingToThisGraph = impl->isQueueRecording(QueueImpl);
+    // The graph lock must be released before ending capture on the queue to
+    // avoid a lock inversion with a concurrent submission. Removal is
+    // unconditional because ending capture always stops graph capture on the
+    // queue, even when it returns an error code.
+    {
+      graph_impl::WriteLock Lock(impl->MMutex);
+      IsRecordingToThisGraph = impl->isQueueRecording(QueueImpl);
+      if (IsRecordingToThisGraph) {
+        impl->removeQueue(QueueImpl);
+      }
+    }
 
     if (IsRecordingToThisGraph) {
-      // End native UR graph capture
       assert(impl->getNativeGraphHandle() &&
              "Native graph handle must be valid when ending native recording");
       auto EndResult = QueueImpl.endNativeRecording();
-      if (!EndResult.RecordingActive) {
-        impl->removeQueue(QueueImpl);
-      }
       impl->getContextImpl().getAdapter().checkUrResult(
           EndResult.Result, "Error when ending native graph capture");
       assert(EndResult.CapturedGraph == impl->getNativeGraphHandle() &&
@@ -2339,7 +2343,7 @@ void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
   std::string path{std::string_view(pathstr)};
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
-    impl->printGraphAsDot(std::move(path), verbose);
+    impl->printGraphAsDot(path, verbose);
   } else {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),

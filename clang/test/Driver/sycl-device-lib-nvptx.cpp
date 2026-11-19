@@ -4,9 +4,11 @@
 
 // UNSUPPORTED: system-windows
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 // Check that llvm-link uses the "-only-needed" flag.
 // Not using the flag breaks kernel bundles.
-// RUN: %clangxx -###  --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv --sysroot=%S/Inputs/SYCL \
+// RUN: %clangxx -###  --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fno-sycl-libspirv -ccc-install-dir %{clang_install_dir} \
 // RUN: -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
 
 // CHK-ONLY-NEEDED: llvm-link"{{.*}}"--only-needed"{{.*}}"{{.*}}devicelib-nvptx64-nvidia-cuda.bc"{{.*}}

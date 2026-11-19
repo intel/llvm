@@ -7,6 +7,12 @@ clang/ @intel/dpcpp-cfe-reviewers
 clang/**/Driver/ @intel/dpcpp-clang-driver-reviewers
 clang/include/clang/Basic/DiagnosticDriverKinds.td  @intel/dpcpp-clang-driver-reviewers
 
+# ClangIR
+clang/include/clang/CIR/ @intel/dpcpp-clangir-reviewers
+clang/lib/CIR/ @intel/dpcpp-clangir-reviewers
+clang/test/CIR/ @intel/dpcpp-clangir-reviewers
+clang/tools/cir-*/ @intel/dpcpp-clangir-reviewers
+
 # Clang tools
 clang-tools-extra/ @intel/dpcpp-cfe-reviewers
 
@@ -21,6 +27,9 @@ opencl/opencl-aot/ @intel/dpcpp-tools-reviewers
 
 # libclc library
 libclc/ @intel/llvm-reviewers-cuda @wenju-he @Maetveis
+
+# libc
+libc/ @intel/llvm-reviewers-runtime
 
 # Device library
 libdevice/ @intel/llvm-reviewers-runtime
@@ -105,6 +114,7 @@ clang/test/OffloadTools/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-linker-wrapper/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-sycl-linker/ @intel/dpcpp-tools-reviewers
+clang/docs/ClangLinkerWrapper.md @intel/dpcpp-doc-reviewers @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 ESIMD/ @intel/dpcpp-esimd-reviewers
@@ -229,3 +239,7 @@ sycl/test-e2e/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 # ABI compatibility
 devops/compat_ci_exclude.sycl-rel-** @gmlueck @xtian-github
 sycl/test/abi/*sycl-rel*.dump @KornevNikita
+
+# AI agent skills and instructions
+/sycl/.claude/ @intel/dpcpp-ai-skills-reviewers
+/.agents/skills/sycl @intel/dpcpp-ai-skills-reviewers

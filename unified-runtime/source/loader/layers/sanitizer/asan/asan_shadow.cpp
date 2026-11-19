@@ -92,15 +92,15 @@ ur_result_t ShadowMemoryCPU::EnqueuePoisonShadow(ur_queue_handle_t, uptr Ptr,
 }
 
 ur_result_t ShadowMemoryGPU::Setup() {
+  LocalWindowSize = RoundUpToPowerOfTwo(GetDeviceLocalMemorySize(Device));
+
   // Currently, Level-Zero doesn't create independent VAs for each contexts, if
   // we reserve shadow memory for each contexts, this will cause out-of-resource
   // error when user uses multiple contexts. Therefore, we just create one
   // shadow memory here.
   const size_t ShadowSize = GetShadowSize();
-  // To reserve very large amount of GPU virtual memroy, the pStart param
-  // should be beyond the SVM range, so that GFX driver will automatically
-  // switch to reservation on the GPU heap.
-  const void *StartAddress = (void *)(0x100'0000'0000'0000ULL);
+  // The pStart param is a device-specific hint, see GetStartAddress()
+  const void *StartAddress = (void *)GetStartAddress();
   // TODO: Protect Bad Zone
   auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
       Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
@@ -250,9 +250,10 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
 ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uint32_t NumWG, uptr &Begin,
                                               uptr &End) {
-  const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
+  // The device indexes the local shadow with a stride of the local window (see
+  // AsanRuntimeData::LocalWindowSize), so allocate with the same stride.
   const size_t RequiredShadowSize =
-      (std::min(ASAN_MAX_WG_LOCAL, NumWG) * LocalMemorySize) >>
+      (std::min(ASAN_MAX_WG_LOCAL, NumWG) * (size_t)LocalWindowSize) >>
       ASAN_SHADOW_SCALE;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {

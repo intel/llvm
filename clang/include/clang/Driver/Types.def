@@ -104,6 +104,7 @@ TYPE("lto-ir",                   LTO_IR,       INVALID,         "s",      phases
 TYPE("lto-bc",                   LTO_BC,       INVALID,         "o",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 
 TYPE("cir",                      CIR,          INVALID,         "cir",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("cir-bc",                   CIRBC,        INVALID,         "cirbc",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 // Misc.
 TYPE("ast",                      AST,          INVALID,         "ast",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("ifs",                      IFS,          INVALID,         "ifs",    phases::IfsMerge)
@@ -123,10 +124,9 @@ TYPE("dependencies",             Dependencies, INVALID,         "d",      phases
 TYPE("cuda-fatbin",              CUDA_FATBIN,  INVALID,         "fatbin", phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("hip-fatbin",               HIP_FATBIN,   INVALID,         "hipfb",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("spirv",                    SPIRV,        INVALID,         "spv",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("sycl-fatbin",              SYCL_FATBIN,  INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
+TYPE("sycl-fatbin",              SYCL_FATBIN,  INVALID,         "syclfb", phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfilelist",             Tempfilelist, INVALID,         "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfiletable",            Tempfiletable,INVALID,         "table",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("tempAOCOfilelist",         TempAOCOfilelist, INVALID,     "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("archive",                  Archive,      INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("wholearchive",             WholeArchive, INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("host_dep_image",           Host_Dependencies_Image, INVALID, "out", phases::Compile, phases::Backend, phases::Assemble, phases::Link)

@@ -2,13 +2,15 @@
 /// Perform driver test for SYCL RTC mode.
 ///
 
+// DEFINE: %{clang_install_dir} = %/S/Inputs/SYCL/bin
+
 /// Check that the '-fsycl-rtc-mode' is correctly forwarded to the device
 /// compilation and only to the device compilation.
 
 // RUN: %clangxx -fsycl -fsycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
 // RUN:   | FileCheck %s
 
-// RUN: %clangxx -fsycl -fsycl-rtc-mode --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-rtc-mode --offload-new-driver -ccc-install-dir %{clang_install_dir} %s -### 2>&1 \
 // RUN:   | FileCheck %s
 
 // CHECK: clang{{.*}} "-fsycl-is-device"
@@ -23,7 +25,7 @@
 // RUN: %clangxx -fsycl -fno-sycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NEGATIVE
 
-// RUN: %clangxx -fsycl -fno-sycl-rtc-mode --offload-new-driver --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
+// RUN: %clangxx -fsycl -fno-sycl-rtc-mode --offload-new-driver -ccc-install-dir %{clang_install_dir} %s -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=NEGATIVE
 
 // NEGATIVE: clang{{.*}} "-fsycl-is-device"

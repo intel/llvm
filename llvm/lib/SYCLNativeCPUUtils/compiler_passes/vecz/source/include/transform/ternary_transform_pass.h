@@ -28,7 +28,8 @@ namespace vecz {
 
 /// @brief This pass tries to transform selects with pointer operands,
 /// transforms to individual GEPs followed by masked memory operations.
-class TernaryTransformPass : public llvm::PassInfoMixin<TernaryTransformPass> {
+class TernaryTransformPass
+    : public llvm::OptionalPassInfoMixin<TernaryTransformPass> {
 public:
   TernaryTransformPass() = default;
 

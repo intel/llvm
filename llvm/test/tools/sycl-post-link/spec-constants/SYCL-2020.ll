@@ -235,15 +235,15 @@ attributes #3 = { nounwind }
 ;
 ; Emulated spec constant may use an extra padding element to ensure alignment
 ; CHECK-RT: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
-; CHECK-DEF: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2, i32 -1, i32 2, i32 2}
+; CHECK-DEF-DAG: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2, i32 -1, i32 2, i32 2}
 ;
-; CHECK:  ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
+; CHECK-DAG: ![[#ID1]] = !{!"_ZTS14name_generatorIL_Z6id_intEE", i32 1, i32 0, i32 4}
 ;
 ; For composite types, the amount of metadata is a bit different between native and emulated spec constants
 ;
-; CHECK-DEF: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
-; CHECK-DEF: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
-; CHECK-DEF: ![[#ID_COMPOS3]] = !{!"_ZTS14name_generatorIL_Z10id_compos3EE", i32 4, i32 0, i32 16
+; CHECK-DEF-DAG: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
+; CHECK-DEF-DAG: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
+; CHECK-DEF-DAG: ![[#ID_COMPOS3]] = !{!"_ZTS14name_generatorIL_Z10id_compos3EE", i32 4, i32 0, i32 16
 ;
 ; CHECK-RT: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 [[#SCID2]], i32 0, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID3]], i32 8, i32 8,
@@ -254,15 +254,15 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID8]], i32 8, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID9]], i32 16, i32 8}
 ;
-; CHECK-DEF: ![[#ID4]] = !{half 2.000000e+00}
-; CHECK-DEF: ![[#ID5_PAD]] = !{[2 x i8] zeroinitializer}
-; CHECK-DEF: ![[#ID5]] = !{i32 42}
-; CHECK-DEF: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float f0x41033333 } }}
-; CHECK-DEF: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 4.720000e+01 }, double 2.000000e+00 }}
-; CHECK-DEF: ![[#ID_COMPOS3_DEFAULT]] = !{%struct.ComposConst3 zeroinitializer}
+; CHECK-DEF-DAG: ![[#ID4]] = !{half 2.000000e+00}
+; CHECK-DEF-DAG: ![[#ID5_PAD]] = !{[2 x i8] zeroinitializer}
+; CHECK-DEF-DAG: ![[#ID5]] = !{i32 42}
+; CHECK-DEF-DAG: ![[#ID6]] = !{%struct.ComposConst { i32 1, double 2.000000e+00, %struct.myConst { i32 13, float f0x41033333 } }}
+; CHECK-DEF-DAG: ![[#ID7]] = !{%struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 4.720000e+01 }, double 2.000000e+00 }}
+; CHECK-DEF-DAG: ![[#ID_COMPOS3_DEFAULT]] = !{%struct.ComposConst3 zeroinitializer}
 ;
-; CHECK-DEF: ![[#ID8]] = !{%struct.VectorConst { <2 x i32> <i32 1, i32 2> }}
-; CHECK-DEF: ![[#ID9]] = !{%struct.MArrayConst { [2 x i32] [i32 1, i32 2] }}
+; CHECK-DEF-DAG: ![[#ID8]] = !{%struct.VectorConst { <2 x i32> <i32 1, i32 2> }}
+; CHECK-DEF-DAG: ![[#ID9]] = !{%struct.MArrayConst { [2 x i32] [i32 1, i32 2] }}
 ;
 ; CHECK-RT: ![[#ID4]] = !{!"_ZTS14name_generatorIL_Z10id_vectorEE", i32 [[#SCID14]], i32 0, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID15]], i32 4, i32 4}

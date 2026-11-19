@@ -73,6 +73,12 @@ struct CompileTimeKernelInfoTy {
   bool HasSpecialCaptures = computeHasSpecialCaptures(NumParams, ParamDescGetter);
 };
 
+#ifndef __SYCL_DEVICE_ONLY__
+static_assert(alignof(CompileTimeKernelInfoTy) >=
+                  alignof(CompileTimeKernelInfoTy::ParamDescGetterT),
+              __SYCL_ABI_PACKING_ERROR);
+#endif
+
 template <class Kernel>
 inline constexpr CompileTimeKernelInfoTy CompileTimeKernelInfo{
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS

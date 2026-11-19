@@ -199,7 +199,8 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
 }
 
 // Save the current time in a file.
-void PersistentDeviceCodeCache::saveCurrentTimeInAFile(std::string FileName) {
+void PersistentDeviceCodeCache::saveCurrentTimeInAFile(
+    const std::string &FileName) {
   // Lock the file to prevent concurrent writes.
   LockCacheItem Lock{FileName};
   if (Lock.isOwned()) {
@@ -295,7 +296,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   // modification time.
   std::vector<std::pair<uint64_t, std::string>> FilesWithAccessTime;
 
-  auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string File) {
+  auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string &File) {
     if (File.find(CacheEntryAccessTimeSuffix) != std::string::npos) {
       std::ifstream FileStream{File};
       uint64_t AccessTime;

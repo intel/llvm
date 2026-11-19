@@ -66,6 +66,10 @@ elseif(SPIRV-Tools-tools_FOUND)
   set(SPIRV_TOOLS_BINDIR "${SPIRV_AS_PATH}")
 endif()
 
+if(SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_VAL)
+  set(SPIRV_ENABLE_LIBSPIRV_VAL ON)
+endif()
+
 if(NOT SPIRV_TOOLS_SPIRV_AS_FOUND)
   message(WARNING "spirv-as not found! SPIR-V assembly tests will not be run.")
   set(SPIRV_TOOLS_SPIRV_AS_FOUND False)

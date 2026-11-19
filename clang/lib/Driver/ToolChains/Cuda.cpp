@@ -528,14 +528,17 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this,
       ResponseFileSupport{ResponseFileSupport::RF_Full, llvm::sys::WEM_UTF8,
-                          "--options-file"},
+                          "--options-file="},
       Exec, CmdArgs, Inputs, Output));
 }
 
-static bool shouldIncludePTX(const ArgList &Args, StringRef InputArch) {
-  // The new driver does not include PTX by default to avoid overhead.
-  bool includePTX = !Args.hasFlag(options::OPT_offload_new_driver,
-                                  options::OPT_no_offload_new_driver, false); // INTEL
+static bool shouldIncludePTX(const ArgList &Args, StringRef InputArch,
+                             bool IsSYCL) {
+  // The new driver does not include PTX by default to avoid overhead. The old
+  // offloading model, still the default for SYCL, includes it.
+  bool includePTX = IsSYCL &&
+                    !Args.hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false);
   for (Arg *A : Args.filtered(options::OPT_cuda_include_ptx_EQ,
                               options::OPT_no_cuda_include_ptx_EQ)) {
     A->claim();
@@ -582,7 +585,8 @@ void NVPTX::FatBinary::ConstructJob(Compilation &C, const JobAction &JA,
            "Device action expected to have associated a GPU architecture!");
 
     if (II.getType() == types::TY_PP_Asm &&
-        !shouldIncludePTX(Args, GpuArch.ArchName))
+        !shouldIncludePTX(Args, GpuArch.ArchName,
+                          JA.isDeviceOffloading(Action::OFK_SYCL)))
       continue;
     StringRef Kind = (II.getType() == types::TY_PP_Asm) ? "ptx" : "elf";
     CmdArgs.push_back(Args.MakeArgString(
@@ -597,7 +601,7 @@ void NVPTX::FatBinary::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(
       JA, *this,
       ResponseFileSupport{ResponseFileSupport::RF_Full, llvm::sys::WEM_UTF8,
-                          "--options-file"},
+                          "--options-file="},
       Exec, CmdArgs, Inputs, Output));
 }
 
@@ -760,7 +764,7 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DefaultLibPath));
 
   getToolChain().addProfileRTLibs(Args, CmdArgs);
-  addSanitizerRuntimes(getToolChain(), Args, CmdArgs);
+  addSanitizerRuntimes(getToolChain(), Args, CmdArgs, C);
 
   if (Args.hasArg(options::OPT_stdlib))
     CmdArgs.append({"-lc", "-lm"});
@@ -774,9 +778,7 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   C.addCommand(std::make_unique<Command>(
-      JA, *this,
-      ResponseFileSupport{ResponseFileSupport::RF_Full, llvm::sys::WEM_UTF8,
-                          "--options-file"},
+      JA, *this, ResponseFileSupport::AtFileUTF8(),
       Args.MakeArgString(getToolChain().GetProgramPath("clang-nvlink-wrapper")),
       CmdArgs, Inputs, Output));
 }
@@ -1025,8 +1027,6 @@ void CudaToolChain::addClangTargetOptions(
       CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
                       "--nvptx-prec-sqrtf32=0"});
 
-    CC1Args.append({"-mllvm", "-enable-memcpyopt-without-libcalls"});
-
     // Add NVVM reflect flags based on SYCL ID queries range assumption.
     if (DriverArgs.hasArg(options::OPT_fsycl_id_queries_range_EQ)) {
       StringRef RangeValue =
@@ -1042,9 +1042,7 @@ void CudaToolChain::addClangTargetOptions(
     SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
                                          HostTC.getTriple(), CC1Args);
   } else {
-    CC1Args.append({"-fcuda-is-device", "-mllvm",
-                    "-enable-memcpyopt-without-libcalls",
-                    "-fno-threadsafe-statics"});
+    CC1Args.append({"-fcuda-is-device", "-fno-threadsafe-statics"});
 
     // Add these flags for .cu SYCL compilation.
     if (DeviceOffloadingKind == Action::OFK_Cuda &&

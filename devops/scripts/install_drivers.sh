@@ -68,7 +68,7 @@ InstallTBB () {
     echo "Installing TBB..."
     echo "TBB version $TBB_TAG"
     get_release oneapi-src/onetbb $TBB_TAG \
-      | grep -E ".*-lin.tgz" \
+      | grep -E ".*tbb.*-lin.tgz" \
       | wget -qi -
     tar -xf *.tgz && rm *.tgz && mv oneapi-tbb-* oneapi-tbb
 

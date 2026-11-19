@@ -7,6 +7,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DeviceArchitecture.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
+  DeviceGlobalStaleProgramHandle.cpp
   OneAPISubGroupMask.cpp
   USMP2P.cpp
   CompositeDevice.cpp
@@ -17,6 +18,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
+  KernelCompilerOpenCL.cpp
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp
@@ -28,6 +30,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMPrefetch.cpp
   RegisterHostMemory.cpp
   ReusableEvents.cpp
+  AsyncAlloc.cpp
 )
 
 add_subdirectory(BindlessImages)

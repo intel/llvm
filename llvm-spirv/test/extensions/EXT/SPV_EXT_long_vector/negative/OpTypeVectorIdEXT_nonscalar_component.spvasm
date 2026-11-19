@@ -1,0 +1,30 @@
+; OpTypeVectorIdEXT: Component Type must be a scalar type. Here the component
+; type is itself a vector, which the reverse translator must reject.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: not llvm-spirv -r %t.spv -o %t.bc 2>&1 | FileCheck %s
+
+; CHECK: InvalidInstruction
+; CHECK: TypeVectorIdEXT: component type must be a scalar type
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn "test"
+               OpDecorate %fn LinkageAttributes "test" Export
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+     %uint_5 = OpConstant %uint 5
+      %float = OpTypeFloat 32
+      %fvec4 = OpTypeVector %float 4
+        %vec = OpTypeVectorIdEXT %fvec4 %uint_5
+    %fn_type = OpTypeFunction %void %vec
+         %fn = OpFunction %void None %fn_type
+        %arg = OpFunctionParameter %vec
+      %entry = OpLabel
+               OpReturn
+               OpFunctionEnd

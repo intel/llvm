@@ -94,9 +94,7 @@ ur_result_t urPlatformGetInfo(
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
-    // Whichever adapter (L0v1 or L0v2) won selection in urAdapterGet is
-    // also the one that stamped this platform's DDI table.
-    return ReturnValue(common_cast(GlobalAdapter));
+    return ReturnValue(common_cast(common_cast(PlatformOpque)->Adapter));
   default:
     UR_LOG(DEBUG, "urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -206,6 +204,11 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
   ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
                        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
+
+  // Counter-based events became part of the core API in Level Zero spec
+  // version 1.15; drivers reporting an older API version only support them
+  // through the deprecated ZEX_counter_based_event extension.
+  ZeCounterBasedEventsCoreApiSupported = ZeApiVersion >= ZE_API_VERSION_1_15;
 
   // Cache driver extension properties
   uint32_t Count = 0;
@@ -819,6 +822,14 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   ZeDeviceVectorWidthExt.Supported =
       ZeDeviceVectorWidthExt.zeDeviceGetVectorWidthPropertiesExt != nullptr;
+
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeDeviceGetPriorityLevels",
+                   reinterpret_cast<void **>(
+                       &ZeQueuePriorityExt.zeDeviceGetPriorityLevels)));
+
+  ZeQueuePriorityExt.Supported =
+      ZeQueuePriorityExt.zeDeviceGetPriorityLevels != nullptr;
   return UR_RESULT_SUCCESS;
 }
 
@@ -933,6 +944,26 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   return nullptr;
 }
 
+ur_result_t
+ur_platform_handle_t_::getRootDevice(ze_device_handle_t Device,
+                                     ze_device_handle_t *RootDevice) const {
+  *RootDevice = nullptr;
+  // Older loaders may report UNINITIALIZED for a missing driver entry point.
+  // Avoid the query based on the driver's advertised API version rather than
+  // treating every UNINITIALIZED error as an unsupported feature.
+  if (ZeApiVersion < ZE_API_VERSION_1_7)
+    return UR_RESULT_SUCCESS;
+
+  const auto Result =
+      ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (Device, RootDevice));
+  if (Result == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+      Result == ZE_RESULT_ERROR_UNSUPPORTED_VERSION) {
+    *RootDevice = nullptr;
+    return UR_RESULT_SUCCESS;
+  }
+  return ze2urResult(Result);
+}
+
 // Check the device cache and load it if necessary.
 ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
   std::scoped_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
@@ -1040,16 +1071,7 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
       // handle too, such that it is readily visible to the
       // urDeviceCreateWithNativeHandle.
       ze_device_handle_t RootDevice = nullptr;
-      // We cannot use ZE2UR_CALL because under some circumstances this call may
-      // return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, and ZE2UR_CALL will abort
-      // because it's not UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and
-      // we check manually that the result is either ZE_RESULT_SUCCESS or
-      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-      auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
-                                  (Device->ZeDevice, &RootDevice));
-      if (errc != ZE_RESULT_SUCCESS &&
-          errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
-        return ze2urResult(errc);
+      UR_CALL(getRootDevice(Device->ZeDevice, &RootDevice));
 
       if (RootDevice) {
         if (std::find_if(URDevicesCache.begin(), URDevicesCache.end(),

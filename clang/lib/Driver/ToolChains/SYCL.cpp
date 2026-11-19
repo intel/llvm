@@ -126,11 +126,35 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   }
 
   const SmallString<64> Basename = getLibSpirvBasename(HostTriple);
-  SmallString<256> LibclcPath(D.ResourceDir);
-  llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
-                          DeviceTriple.getTriple(), Basename);
-  if (D.getVFS().exists(LibclcPath))
-    return Args.MakeArgString(LibclcPath);
+  auto TryTriple = [&](const llvm::Triple &T) -> const char * {
+    SmallString<256> LibclcPath(D.ResourceDir);
+    llvm::sys::path::append(LibclcPath, CLANG_INSTALL_LIBDIR_BASENAME,
+                            T.getTriple(), Basename);
+    if (D.getVFS().exists(LibclcPath))
+      return Args.MakeArgString(LibclcPath);
+    return nullptr;
+  };
+
+  if (const char *Path = TryTriple(DeviceTriple))
+    return Path;
+
+  // Resource-dir libspirv libraries are laid out per architecture family,
+  // not per subarch. Fall back to the subarch-stripped triple.
+  if (DeviceTriple.isAMDGCN()) {
+    // Note that buildbot/configure.py uses amdgcn-amd-amdhsa-llvm,
+    // while plain CMake builds can use amdgcn-amd-amdhsa.
+    // Support both architecture spellings and libclc installation layouts
+    for (StringRef Arch : {"amdgpu", "amdgcn"}) {
+      llvm::Triple Family(DeviceTriple);
+      Family.setArchName(Arch);
+      Family.setOSAndEnvironmentName(DeviceTriple.getOSName());
+      if (const char *Path = TryTriple(Family))
+        return Path;
+      Family.setEnvironmentName("llvm");
+      if (const char *Path = TryTriple(Family))
+        return Path;
+    }
+  }
 
   return nullptr;
 }
@@ -181,6 +205,19 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   SmallString<128> Path(D.SysRoot);
   llvm::sys::path::append(Path, CLANG_INSTALL_LIBDIR_BASENAME);
   DeviceLibPaths.emplace_back(Path.str());
+}
+
+std::optional<SmallString<128>>
+SYCLInstallationDetector::findSYCLDeviceLib(StringRef LibName) const {
+  SmallVector<SmallString<128>, 4> DeviceLibPaths;
+  getSYCLDeviceLibPath(DeviceLibPaths);
+  for (const auto &LibPath : DeviceLibPaths) {
+    SmallString<128> FullLibName(LibPath);
+    llvm::sys::path::append(FullLibName, LibName);
+    if (D.getVFS().exists(FullLibName))
+      return FullLibName;
+  }
+  return std::nullopt;
 }
 
 void SYCLInstallationDetector::addSYCLIncludeArgs(
@@ -538,10 +575,13 @@ static void addSYCLDeviceSanitizerLibs(
     if (SYCLTargetStr.starts_with("spir64_x86_64"))
       return AOT_CPU;
 
-    if (SYCLTargetStr == "intel_gpu_pvc")
+    // Resolve intel_gpu_* so that every alias of a device (e.g.
+    // intel_gpu_12_60_7 for pvc) selects the same library.
+    StringRef GenDevice = SYCL::gen::resolveGenDevice(SYCLTargetStr);
+    if (GenDevice == "pvc")
       return AOT_PVC;
 
-    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+    if (GenDevice == "dg2" || GenDevice.starts_with("acm_g"))
       return AOT_DG2;
 
     if (SYCLTargetStr.starts_with("spir64_gen")) {
@@ -889,6 +929,19 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                       InputFilename.contains("libspirv") ||
                       InputFilename.contains("libdevice")))
         return true;
+      if (InputFilename.starts_with("libclang_rt.builtins"))
+        return true;
+      if (InputFilename == "libc.bc") {
+        std::optional<std::string> StdlibPath = getToolChain().getStdlibPath();
+        if (StdlibPath) {
+          llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
+          bool IsSamePath = false;
+          auto EC =
+              llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
+          return (!EC && IsSamePath);
+        }
+        return false;
+      }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
@@ -1100,6 +1153,13 @@ StringRef SYCL::gen::getGenGRFFlag(StringRef GRFMode) {
   if (!GRFModeFlagMap.contains(GRFMode))
     return "";
   return GRFModeFlagMap[GRFMode];
+}
+
+StringRef SYCL::gen::getEmbeddedDeviceArch(ArrayRef<const char *> Tokens) {
+  for (int I = static_cast<int>(Tokens.size()) - 2; I >= 0; --I)
+    if (StringRef(Tokens[I]) == "-device")
+      return Tokens[I + 1];
+  return {};
 }
 
 void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
@@ -1517,13 +1577,15 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       // Native CPU can support options unsupported by other targets.
       if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
-      // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
-      if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
-          A->getValues().size() == 1) {
-        std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address" || SanitizeVal == "memory" ||
-            SanitizeVal == "thread")
+      // Sanitizers are not currently supported, except those returned by
+      // getSupportedSanitizers().
+      if (A->getOption().getID() == options::OPT_fsanitize_EQ) {
+        SanitizerMask Enabled;
+        for (StringRef Value : A->getValues())
+          Enabled |= expandSanitizerGroups(
+              parseSanitizerValue(Value, /*AllowGroups=*/true));
+        if (Enabled &&
+            !(Enabled & ~getSupportedSanitizers({}, Action::OFK_SYCL)))
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target_host_only)
@@ -1722,12 +1784,10 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
   }
 }
 
-void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
-                                              const llvm::opt::ArgList &Args,
-                                              llvm::opt::ArgStringList &CmdArgs,
-                                              const JobAction &JA,
-                                              const ToolChain &HostTC,
-                                              StringRef Device) const {
+llvm::opt::ArgStringList SYCLToolChain::getSPIRVCompilationOptions(
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    const JobAction &JA, const ToolChain &HostTC, StringRef Device) const {
+  llvm::opt::ArgStringList CmdArgs;
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
   // Default device AOT: -g -cl-opt-disable
@@ -1849,7 +1909,7 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
               .Cases({"pvc_vg", "12_61_7"}, "pvc_xt_c0_vg")
               .Cases({"mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4"}, "mtl_s")
               .Cases({"mtl_h", "12_71_4"}, "mtl_p")
-              .Cases({"arl_h", "12_74_4"}, "xe_lpgplus_b0")
+              .Cases({"arl_h", "12_74_4"}, "arl_h")
               .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
@@ -1857,25 +1917,6 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     // -ftarget-compile-fast AOT
     if (Args.hasArg(options::OPT_ftarget_compile_fast))
       BeArgs.push_back("-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'");
-    // -ftarget-export-symbols, also implied for -fsyclbin=input/object so
-    // that AOT-compiled native images keep cross-image SYCL_EXTERNAL
-    // symbols externally visible for runtime resolution via
-    // zeModuleDynamicLink. Users who want a fully-linked, internalized
-    // native image should use -fsyclbin=executable instead. The conflict
-    // case (-fsyclbin=input/object with
-    // -fno-sycl-allow-device-image-dependencies) is diagnosed earlier in
-    // the linker-wrapper construction; here we only need to keep the
-    // implication aligned with the device-image-dependencies setting so
-    // that an explicit opt-out for non-SYCLBIN AOT scenarios is honored.
-    bool SYCLBINImpliesExportSymbols = false;
-    if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
-      StringRef State = A->getValue();
-      SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
-    }
-    if (Args.hasFlag(options::OPT_ftarget_export_symbols,
-                     options::OPT_fno_target_export_symbols,
-                     SYCLBINImpliesExportSymbols))
-      BeArgs.push_back("-library-compilation");
     // -foffload-fp32-prec-[sqrt/div]
     if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
         Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
@@ -1896,11 +1937,11 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
     }
   }
   if (BeArgs.empty())
-    return;
+    return CmdArgs;
   if (Triple.getSubArch() == llvm::Triple::NoSubArch) {
     for (StringRef A : BeArgs)
       CmdArgs.push_back(Args.MakeArgString(A));
-    return;
+    return CmdArgs;
   }
   if (IsGen) {
     SmallString<128> BeOpt;
@@ -1919,6 +1960,43 @@ void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(BeOpt));
     }
   }
+  return CmdArgs;
+}
+
+llvm::opt::ArgStringList
+SYCLToolChain::getSPIRVLinkOptions(const llvm::Triple &Triple,
+                                   const llvm::opt::ArgList &Args) const {
+  llvm::opt::ArgStringList CmdArgs;
+  if (Triple.getSubArch() != llvm::Triple::SPIRSubArch_gen)
+    return CmdArgs;
+
+  // Exporting symbols is a linker option. SYCLBIN input/object
+  // images need externally visible SYCL_EXTERNAL symbols for resolution via
+  // zeModuleDynamicLink. An explicit opt-out takes precedence; the conflict
+  // with -fno-sycl-allow-device-image-dependencies is diagnosed by the driver.
+  bool SYCLBINImpliesExportSymbols = false;
+  if (const Arg *A = Args.getLastArg(options::OPT_fsyclbin_EQ)) {
+    StringRef State = A->getValue();
+    SYCLBINImpliesExportSymbols = (State == "input" || State == "object");
+  }
+  if (Args.hasFlag(options::OPT_ftarget_export_symbols,
+                   options::OPT_fno_target_export_symbols,
+                   SYCLBINImpliesExportSymbols)) {
+    CmdArgs.push_back("-options");
+    CmdArgs.push_back("-library-compilation");
+  }
+  return CmdArgs;
+}
+
+void SYCLToolChain::AddSPIRVImpliedTargetArgs(const llvm::Triple &Triple,
+                                              const llvm::opt::ArgList &Args,
+                                              llvm::opt::ArgStringList &CmdArgs,
+                                              const JobAction &JA,
+                                              const ToolChain &HostTC,
+                                              StringRef Device) const {
+  llvm::append_range(
+      CmdArgs, getSPIRVCompilationOptions(Triple, Args, JA, HostTC, Device));
+  llvm::append_range(CmdArgs, getSPIRVLinkOptions(Triple, Args));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
@@ -2032,9 +2110,6 @@ SYCLToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs;
 
-  SmallVector<SmallString<128>, 4> LibraryPaths;
-  SYCLInstallation.getSYCLDeviceLibPath(LibraryPaths);
-
   // Formulate all of the device libraries needed for this compilation.
   SmallVector<BitCodeLibraryInfo, 8> DeviceLibs =
       getDeviceLibNames(getDriver(), DriverArgs, getTriple());
@@ -2042,23 +2117,33 @@ SYCLToolChain::getDeviceLibs(
   // Create full path names to each device library.  If found, add to the list
   // of device libraries that will be linked against.
   for (const auto &DeviceLib : DeviceLibs) {
-    bool DeviceLibFound = false;
-    for (const auto &LibraryPath : LibraryPaths) {
-      SmallString<128> FullLibName(LibraryPath);
-      llvm::sys::path::append(FullLibName, DeviceLib.Path);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        BitCodeLibraryInfo BitCodeLibrary(
-            {FullLibName, DeviceLib.ShouldInternalize});
-        BCLibs.emplace_back(BitCodeLibrary);
-        DeviceLibFound = true;
-        break;
-      }
-    }
     // The device libraries are all known internal libraries.  If any are not
     // found, emit an error.
-    if (!DeviceLibFound)
+    if (auto FullLibName = SYCLInstallation.findSYCLDeviceLib(DeviceLib.Path))
+      BCLibs.emplace_back(
+          BitCodeLibraryInfo({*FullLibName, DeviceLib.ShouldInternalize}));
+    else
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << DeviceLib.Path;
   }
+
+  bool NoOffloadLib = !DriverArgs.hasFlag(options::OPT_offloadlib,
+                                          options::OPT_no_offloadlib, true);
+  // Link device libc for spirv64 target.
+  if (getTriple().isSPIROrSPIRV() && getTriple().isArch64Bit() &&
+      !NoOffloadLib) {
+    bool LinkDeviceLibc = false;
+    if (std::optional<std::string> StdlibPath = getStdlibPath()) {
+      SmallString<128> FullLibcName(*StdlibPath);
+      llvm::sys::path::append(FullLibcName, "libc.bc");
+      if (getDriver().getVFS().exists(FullLibcName)) {
+        LinkDeviceLibc = true;
+        BCLibs.emplace_back(BitCodeLibraryInfo(FullLibcName, true));
+      }
+    }
+    if (!LinkDeviceLibc)
+      getDriver().Diag(diag::err_drv_no_sycl_device_lib) << "libc.bc";
+  }
+
   return BCLibs;
 }
 

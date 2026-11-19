@@ -1,6 +1,8 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
+// XFAIL: windows && run-mode && cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
@@ -475,8 +477,8 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
 int main() {
   // Create SYCL queue, relying on SYCL device selection.
 #ifdef TEST_SEMAPHORE_IMPORT
-  // External semaphore ops require an in-order queue backed by immediate
-  // command lists (see sycl_ext_oneapi_bindless_images.asciidoc).
+  // External semaphore operations require an in-order queue. This test also
+  // uses immediate command lists for its existing configuration.
   sycl::queue syclQueue{
       {sycl::property::queue::in_order{},
        sycl::ext::intel::property::queue::immediate_command_list{}}};

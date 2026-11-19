@@ -12,6 +12,17 @@
 ; RUN:   -S < %s -o %t.suppressed.table 2>&1 \
 ; RUN:   | FileCheck %s --allow-empty --check-prefix=CHECK-SUPPRESSED
 
+; Disabling splitting still diagnoses undefined references, and honors the
+; same suppression option.
+; RUN: sycl-post-link -split=none -symbols -S < %s -o %t.none.table 2>&1 \
+; RUN:   | FileCheck %s --check-prefix=CHECK-WARN
+; RUN: sycl-post-link -split=none -symbols -suppress-undefined-func-warnings \
+; RUN:   -S < %s -o %t.none-suppressed.table 2>&1 \
+; RUN:   | FileCheck %s --allow-empty --check-prefix=CHECK-SUPPRESSED
+; RUN: sycl-post-link -split=none -symbols -allow-device-image-dependencies \
+; RUN:   -S < %s -o %t.none-dependencies.table 2>&1 \
+; RUN:   | FileCheck %s --allow-empty --check-prefix=CHECK-SUPPRESSED
+
 ; CHECK-WARN: warning: Undefined function undefined_user_func found in
 ; CHECK-SUPPRESSED-NOT: warning: Undefined function undefined_user_func found in
 

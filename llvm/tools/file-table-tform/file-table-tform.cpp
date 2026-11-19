@@ -132,6 +132,21 @@ Error makeUserError(Twine Msg) {
                            "*** " + Twine(ToolName) + " usage ERROR: " + Msg);
 }
 
+// Parses a user-provided row index and verifies it is within the bounds of the
+// given table. Rejects non-numeric input and indices which do not fit into an
+// 'int' instead of letting them through as negative or garbage values.
+static Expected<int>
+parseRowIndex(StringRef Arg, const util::SimpleTable &Table, StringRef Kind) {
+  int Row = 0;
+  if (Arg.getAsInteger(10, Row))
+    return makeUserError("invalid row index in " + Twine(Kind) + ": '" +
+                         Twine(Arg) + "'");
+  if (Row < 0 || Row >= Table.getNumRows())
+    return makeUserError("row index is out of bounds in " + Twine(Kind) +
+                         ": '" + Twine(Arg) + "'");
+  return Row;
+}
+
 struct TformCmd {
   using UPtrTy = std::unique_ptr<TformCmd>;
   StringRef Kind;
@@ -282,9 +297,12 @@ struct TformCmd {
                   [&](TformCmd *Cmd) -> Error {
                     // argument is <column name>,<row index>
                     assert(Args.size() == 2 && Cmd->Inputs.size() == 1);
-                    const int Row = std::stoi(Args[1].str());
+                    Expected<int> Row =
+                        parseRowIndex(Args[1], Table, OPT_REPLACE_CELL);
+                    if (!Row)
+                      return Row.takeError();
                     Error Res =
-                        Table.updateCellValue(Args[0], Row, Cmd->Inputs[0]);
+                        Table.updateCellValue(Args[0], *Row, Cmd->Inputs[0]);
                     return Res ? std::move(Res) : std::move(Error::success());
                   })
             .Case(OPT_RENAME,
@@ -305,13 +323,14 @@ struct TformCmd {
                   [&](TformCmd *Cmd) -> Error {
                     // argument is <column name>,<row index>
                     assert(Args.size() == 2);
-                    const int Row = std::stoi(Args[1].str());
-                    if (Row >= Table.getNumRows())
-                      return makeUserError("row index is out of bounds");
+                    Expected<int> Row =
+                        parseRowIndex(Args[1], Table, OPT_COPY_SINGLE_FILE);
+                    if (!Row)
+                      return Row.takeError();
 
                     // Copy the file from the only remaining row at specified
                     // column
-                    StringRef FileToCopy = Table[Row].getCell(Args[0], "");
+                    StringRef FileToCopy = Table[*Row].getCell(Args[0], "");
 
                     if (FileToCopy.empty())
                       return makeUserError("no file found in specified column");
@@ -321,6 +340,16 @@ struct TformCmd {
                               : std::move(Error::success());
                   })
             .Case(OPT_MERGE, [&](TformCmd *Cmd) -> Error {
+              // argument is <column name>
+              assert(Args.size() == 1);
+              // Validate the table up front so the row and column accesses
+              // below cannot go out of bounds on bad user input.
+              if (Table.getNumRows() == 0)
+                return makeUserError("input table has no rows in " +
+                                     Twine(OPT_MERGE));
+              if (Table.getColumnId(Args[0]) < 0)
+                return makeUserError("column not found in " + Twine(OPT_MERGE) +
+                                     ": '" + Twine(Args[0]) + "'");
               StringRef FileToCopy = Table[0].getCell(Args[0]);
               if (!llvm::sys::fs::exists(FileToCopy))
                 return makeUserError("first file not found");

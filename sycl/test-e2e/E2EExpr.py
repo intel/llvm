@@ -20,6 +20,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-spir_x86_64",
         "jit",
         "opencl-cpu-rt",
+        "spir-family",
         "spirv-backend",
         "linux",
         "system-linux",
@@ -58,6 +59,7 @@ class E2EExpr(BooleanExpression):
         "sg-8",
         "sg-16",
         "sg-32",
+        "lld",
     }
 
     def __init__(self, string, variables, build_only_mode, final_unknown_value):

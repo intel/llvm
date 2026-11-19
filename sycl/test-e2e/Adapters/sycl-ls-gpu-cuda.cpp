@@ -3,7 +3,7 @@
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*" sycl-ls --verbose | \
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA
 
-// CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}gpu, {{.*}}CUDA
+// CHECK-BUILTIN-GPU-CUDA: gpu_selector_v{{.*}}gpu, {{.*}}CUDA
 // CHECK-CUSTOM-GPU-CUDA: custom_selector(gpu){{.*}}gpu, {{.*}}CUDA
 
 //==---- sycl-ls-gpu-cuda.cpp - SYCL test for discovered/selected devices --==//

@@ -24,8 +24,13 @@ One is using environment variable ONEAPI_DEVICE_SELECTOR described in [Environme
 $ ONEAPI_DEVICE_SELECTOR=level_zero:* sycl-ls
 [level_zero:0] GPU : Intel(R) Level-Zero 1.1 [1.1.19792]
 ```
-Another way is to use similar SYCL API described in [sycl\_ext\_oneapi\_filter\_selector](extensions/supported/sycl_ext_oneapi_filter_selector.asciidoc)
-E.g. `filter_selector("level_zero")` will only see Level-Zero operated devices.
+Another way is to use a SYCL 2020 device selector callable that rejects devices of other backends.
+E.g. the following queue will only see Level-Zero operated devices:
+```C++
+sycl::queue Q([](const sycl::device &D) {
+  return D.get_backend() == sycl::backend::ext_oneapi_level_zero ? 1 : -1;
+});
+```
 
 If there are multiple GPUs in a system then they will be seen as multiple different root-devices.
 On Linux these would be multiple SYCL root-devices of the same SYCL platform (representing Level-Zero driver).

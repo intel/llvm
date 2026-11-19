@@ -80,7 +80,7 @@ multiclass SM_Instantiate<list<int> gpu_list> {
   }
 }
 
-defm SM : SM_Instantiate<[121, 120, 110, 103, 101, 100, 90, 89, 88, 87, 86, 80, 75, 72, 70, 62, 61, 60, 53]>;
+defm SM : SM_Instantiate<[121, 120, 110, 107, 103, 101, 100, 90, 89, 88, 87, 86, 80, 75, 72, 70, 62, 61, 60, 53]>;
 
 class PTXFeatures {
   string Features;
@@ -656,6 +656,14 @@ def __nvvm_ff2bf16x2_rs_satfinite :
 def __nvvm_ff2bf16x2_rs_relu_satfinite :
   NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float, uint32_t)",
                        SMa<[100, 103]>, PTX87>;
+def __nvvm_ff2bf16x2_rn_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rz_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2bf16x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(float, float)", SM_107f, PTX94>;
 
 def __nvvm_ff2f16x2_rn : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_80, PTX70>;
 def __nvvm_ff2f16x2_rn_relu : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_80, PTX70>;
@@ -677,6 +685,14 @@ def __nvvm_ff2f16x2_rs_satfinite :
 def __nvvm_ff2f16x2_rs_relu_satfinite :
   NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float, uint32_t)",
                        SMa<[100, 103]>, PTX87>;
+def __nvvm_ff2f16x2_rn_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rz_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
+def __nvvm_ff2f16x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"_Vector<2, __fp16>(float, float)", SM_107f, PTX94>;
 
 def __nvvm_f2bf16_rn : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_80, PTX70>;
 def __nvvm_f2bf16_rn_relu : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_80, PTX70>;
@@ -686,6 +702,14 @@ def __nvvm_f2bf16_rn_satfinite : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_80, PT
 def __nvvm_f2bf16_rn_relu_satfinite : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_80, PTX81>;
 def __nvvm_f2bf16_rz_satfinite : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_80, PTX81>;
 def __nvvm_f2bf16_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_80, PTX81>;
+def __nvvm_f2bf16_rn_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rz_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
+def __nvvm_f2bf16_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__bf16(float)", SM_107f, PTX94>;
 
 def __nvvm_f2f16_rn : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_80, PTX70>;
 def __nvvm_f2f16_rn_relu : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_80, PTX70>;
@@ -695,6 +719,14 @@ def __nvvm_f2f16_rn_satfinite : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_80, PTX
 def __nvvm_f2f16_rn_relu_satfinite : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_80, PTX81>;
 def __nvvm_f2f16_rz_satfinite : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_80, PTX81>;
 def __nvvm_f2f16_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_80, PTX81>;
+def __nvvm_f2f16_rn_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rz_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
+def __nvvm_f2f16_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"__fp16(float)", SM_107f, PTX94>;
 
 def __nvvm_f2tf32_rna : NVPTXBuiltinSMAndPTX<"int32_t(float)", SM_80, PTX70>;
 def __nvvm_f2tf32_rna_satfinite : NVPTXBuiltinSMAndPTX<"int32_t(float)", SM_80, PTX81>;
@@ -758,6 +790,105 @@ def __nvvm_f32x4_to_e3m2x4_rs_relu_satfinite :
   NVPTXBuiltinSMAndPTX<"_Vector<4, char>(_Vector<4, float>, uint32_t)", 
                        SMa<[100, 103]>, PTX87>;
 
+def __nvvm_ff_to_e4m3x2_rz : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_relu : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_relu : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rn_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rn_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+
+def __nvvm_f16x2_to_e4m3x2_rz : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_relu : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_relu : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rn_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rn_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rn_relu_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_relu_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+
+def __nvvm_bf16x2_to_e4m3x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+
+def __nvvm_ff_to_e2m3x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+
+def __nvvm_f16x2_to_e2m3x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+
+def __nvvm_bf16x2_to_e2m3x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+
+def __nvvm_ff_to_e2m1x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(float, float)", SM_107f, PTX94>;
+
+def __nvvm_f16x2_to_e2m1x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>)", SM_107f, PTX94>;
+
+def __nvvm_bf16x2_to_e2m1x2_rz_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rn_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rn_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_relu_satfinite_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SM_107f, PTX94>;
+
 def __nvvm_ff_to_e2m1x2_rn_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SMa<[100, 101, 120]>, PTX86>;
 def __nvvm_ff_to_e2m1x2_rn_relu_satfinite : NVPTXBuiltinSMAndPTX<"short(float, float)", SMa<[100, 101, 120]>, PTX86>;
 
@@ -782,6 +913,135 @@ def __nvvm_bf16x2_to_ue8m0x2_rp : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>
 def __nvvm_bf16x2_to_ue8m0x2_rp_satfinite : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>)", SMa<[100, 101, 120]>, PTX86>;
 
 def __nvvm_ue8m0x2_to_bf16x2 : NVPTXBuiltinSMAndPTX<"_Vector<2, __bf16>(short)", SMa<[100, 101, 120]>, PTX86>;
+
+def __nvvm_ff_to_e4m3x2_rn_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rn_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rn_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rn_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rn_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rn_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e4m3x2_rz_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rn_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rn_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e5m2x2_rz_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+
+def __nvvm_f16x2_to_e4m3x2_rn_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rn_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rn_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rn_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_relu_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rn_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rn_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e4m3x2_rz_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rn_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rn_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e5m2x2_rz_relu_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+
+def __nvvm_bf16x2_to_e4m3x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e4m3x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e5m2x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+
+def __nvvm_ff_to_e2m3x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m3x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e3m2x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+
+def __nvvm_f16x2_to_e2m3x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m3x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e3m2x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+
+def __nvvm_bf16x2_to_e2m3x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m3x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e3m2x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+
+def __nvvm_ff_to_e2m1x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+def __nvvm_ff_to_e2m1x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(float, float, short)", SM_107f, PTX94>;
+
+def __nvvm_f16x2_to_e2m1x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+def __nvvm_f16x2_to_e2m1x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __fp16>, short)", SM_107f, PTX94>;
+
+def __nvvm_bf16x2_to_e2m1x2_rn_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rn_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_relu_satfinite_scale_n1_ue8m0 : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rn_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rn_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
+def __nvvm_bf16x2_to_e2m1x2_rz_relu_satfinite_scale_n1_ue8m0_pzo : NVPTXBuiltinSMAndPTX<"short(_Vector<2, __bf16>, short)", SM_107f, PTX94>;
 
 // FNS
 let Attributes = [NoThrow] in {

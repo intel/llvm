@@ -4,6 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
+#include <uur/raii.h>
+
+#include <atomic>
+#include <thread>
+#include <vector>
 
 using urQueueGetInfoTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urQueueGetInfoTest);
@@ -168,6 +173,61 @@ TEST_P(urQueueGetInfoTest, SuccessEmptyQueue) {
       urQueueGetInfo(queue, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(sizeof(ur_bool_t), property_size);
+}
+
+TEST_P(urQueueGetInfoTest, SuccessEmptyConcurrentEnqueues) {
+  ur_bool_t empty = false;
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(urQueueGetInfo(queue, UR_QUEUE_INFO_EMPTY,
+                                                  sizeof(empty), &empty,
+                                                  nullptr),
+                                   UR_QUEUE_INFO_EMPTY);
+
+  constexpr size_t numThreads = 8;
+  constexpr size_t numEvents = 128;
+  std::atomic<bool> start{false};
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < numThreads; ++i) {
+    threads.emplace_back([&] {
+      std::vector<uur::raii::Event> events(numEvents);
+      while (!start.load()) {
+        std::this_thread::yield();
+      }
+      for (size_t j = 0; j < numEvents; ++j) {
+        ASSERT_SUCCESS(urEnqueueEventsWait(queue, j ? 1 : 0,
+                                           j ? events[j - 1].ptr() : nullptr,
+                                           events[j].ptr()));
+
+        // Also invalidate the cached last event without returning an event.
+        ASSERT_SUCCESS(urEnqueueEventsWait(queue, 1, events[j].ptr(), nullptr));
+        ur_bool_t emptyDuringSubmission = false;
+        ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_EMPTY,
+                                      sizeof(emptyDuringSubmission),
+                                      &emptyDuringSubmission, nullptr));
+      }
+
+      ASSERT_SUCCESS(urEventWait(1, events.back().ptr()));
+      // Updating the queue's event cache must not consume references owned
+      // by the application, including earlier events in each thread's chain.
+      for (auto &event : events) {
+        ur_event_status_t status = UR_EVENT_STATUS_QUEUED;
+        ASSERT_SUCCESS(urEventGetInfo(event,
+                                      UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                                      sizeof(status), &status, nullptr));
+        ASSERT_EQ(status, UR_EVENT_STATUS_COMPLETE);
+      }
+    });
+  }
+  start.store(true);
+  for (auto &thread : threads) {
+    thread.join();
+  }
+
+  uur::raii::Event finalEvent;
+  ASSERT_SUCCESS(urEnqueueEventsWait(queue, 0, nullptr, finalEvent.ptr()));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  ASSERT_SUCCESS(urQueueGetInfo(queue, UR_QUEUE_INFO_EMPTY, sizeof(empty),
+                                &empty, nullptr));
+  ASSERT_TRUE(empty);
 }
 
 TEST_P(urQueueGetInfoTest, InvalidNullHandleQueue) {

@@ -124,6 +124,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
                   "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   bool UseCopyEngine = false;
 
@@ -192,6 +193,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
                   "{} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+  std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   bool UseCopyEngine = false;
 

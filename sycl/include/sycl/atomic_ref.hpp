@@ -148,7 +148,6 @@ class atomic_ref_base {
                 "seq_cst memory order is not supported on AMDGPU");
 #endif
 
-
 public:
   using value_type = T;
   static constexpr size_t required_alignment = sizeof(T);
@@ -632,6 +631,115 @@ public:
                         AddressSpace>::atomic_ref_impl;
   using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                         AddressSpace>::atomic_ref_impl::operator=;
+
+  // 16-bit integer atomics have no native IAdd/ISub op on current backends.
+  // 16-bit atomic compare-exchange is natively supported, so emulate the
+  // add via a load + compare-exchange loop instead, matching what is
+  // already done for floating-point fetch_min/fetch_max.
+  T fetch_add(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old + operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator+=(T operand) const noexcept {
+    return fetch_add(operand) + operand;
+  }
+
+  T operator++(int) const noexcept { return fetch_add(1); }
+
+  T operator++() const noexcept { return fetch_add(1) + 1; }
+
+  // Emulate subtraction via fetch_add of the negated operand, matching what
+  // is already done for floating-point fetch_sub.
+  T fetch_sub(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    return this->fetch_add(static_cast<T>(-operand), order, scope);
+  }
+
+  T operator-=(T operand) const noexcept {
+    return fetch_sub(operand) - operand;
+  }
+
+  T operator--(int) const noexcept { return fetch_sub(1); }
+
+  T operator--() const noexcept { return fetch_sub(1) - 1; }
+
+  // 16-bit integer atomics have no native SMin/UMin or SMax/UMax op on
+  // current backends. 16-bit atomic compare-exchange is natively supported,
+  // so emulate fetch_min/fetch_max via a load + compare-exchange loop
+  // instead, matching what is already done above for fetch_add/fetch_sub.
+  T fetch_min(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    while (operand < old &&
+           !this->compare_exchange_weak(old, operand, order, scope)) {
+    }
+    return old;
+  }
+
+  T fetch_max(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    while (operand > old &&
+           !this->compare_exchange_weak(old, operand, order, scope)) {
+    }
+    return old;
+  }
+
+  // 16-bit integer atomics have no native And/Or/Xor op on current
+  // backends. 16-bit atomic compare-exchange is natively supported, so
+  // emulate the bitwise ops via a load + compare-exchange loop instead,
+  // matching what is already done above for fetch_add/fetch_sub.
+  T fetch_and(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old & operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator&=(T operand) const noexcept {
+    return fetch_and(operand) & operand;
+  }
+
+  T fetch_or(T operand, memory_order order = DefaultOrder,
+             memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old | operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator|=(T operand) const noexcept { return fetch_or(operand) | operand; }
+
+  T fetch_xor(T operand, memory_order order = DefaultOrder,
+              memory_scope scope = DefaultScope) const noexcept {
+    auto load_order = detail::getLoadOrder(order);
+    T old = this->load(load_order, scope);
+    T desired;
+    do {
+      desired = static_cast<T>(old ^ operand);
+    } while (!this->compare_exchange_weak(old, desired, order, scope));
+    return old;
+  }
+
+  T operator^=(T operand) const noexcept {
+    return fetch_xor(operand) ^ operand;
+  }
 };
 
 // Partial specialization for pointer types

@@ -48,7 +48,7 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, "test")
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(
-    ["PATH", "OCL_ICD_FILENAMES", "SYCL_DEVICE_ALLOWLIST", "SYCL_CONFIG_FILE_NAME"]
+    ["OCL_ICD_FILENAMES", "SYCL_DEVICE_ALLOWLIST", "SYCL_CONFIG_FILE_NAME"]
 )
 
 config.substitutions.append(("%python", '"%s"' % (sys.executable)))
@@ -129,6 +129,14 @@ config.substitutions.append(("%test_include_path", config.test_include_path))
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, "llvm-symbolizer")
 llvm_config.with_environment("LLVM_SYMBOLIZER_PATH", llvm_symbolizer)
 
+
+def is_default_system_include_dir(path):
+    # Passing a default system include directory such as /usr/include with
+    # -isystem moves it ahead of the C++ standard library headers in the search
+    # order, which breaks their use of #include_next.
+    return os.path.normpath(path) == "/usr/include"
+
+
 sycl_host_only_options = "-std=c++17 -Xclang -fsycl-is-host"
 for include_dir in [
     config.sycl_include,
@@ -136,7 +144,7 @@ for include_dir in [
     config.opencl_include_dir,
     config.sycl_include + "/sycl/",
 ]:
-    if include_dir:
+    if include_dir and not is_default_system_include_dir(include_dir):
         sycl_host_only_options += " -isystem %s" % include_dir
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
@@ -177,14 +185,39 @@ if "nvptx64-nvidia-cuda" in triple:
 if "amdgcn-amd-amdhsa" in triple:
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip")
-    # For AMD the specific GPU has to be specified with --offload-arch
-    if not any([f.startswith("--offload-arch") for f in additional_flags]):
-        # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,
-        # hardcode it to gfx90a, this is fine because only compiler tests
+    # For AMD the specific GPU has to be specified with --offload-arch. The
+    # target arch used for every device compilation is configurable via the
+    # `amd_arch` lit param (default gfx90a), so the same suite can be run
+    # against new architectures without any harness changes, e.g.:
+    #   llvm-lit --param SYCL_TRIPLE=amdgcn-amd-amdhsa --param amd_arch=gfx942
+    #
+    # If SYCL_CLANG_EXTRA_FLAGS already provides --offload-arch, that value is
+    # honored instead. Either way, a `hip-arch-<arch>` feature is exposed so
+    # arch-specific tests (e.g. matrix codegen, whose emitted intrinsics differ
+    # per arch) can gate themselves with `REQUIRES: hip-arch-gfx942`. This means
+    # only the tests matching the selected arch run in a given invocation, which
+    # is the natural model since a single device compilation targets one arch.
+    # Both the "--offload-arch=<arch>" and "--offload-arch <arch>" spellings are
+    # accepted by the driver; the last occurrence wins.
+    amd_arch = None
+    has_offload_arch = False
+    flag_tokens = [f for f in additional_flags if f]
+    for i, flag in enumerate(flag_tokens):
+        if flag.startswith("--offload-arch="):
+            has_offload_arch = True
+            amd_arch = flag.split("=", 1)[1]
+        elif flag == "--offload-arch":
+            has_offload_arch = True
+            if i + 1 < len(flag_tokens):
+                amd_arch = flag_tokens[i + 1]
+    if not has_offload_arch:
+        amd_arch = lit_config.params.get("amd_arch", "gfx90a")
         additional_flags += [
             "-Xsycl-target-backend=amdgcn-amd-amdhsa",
-            "--offload-arch=gfx90a",
+            "--offload-arch=" + amd_arch,
         ]
+    if amd_arch:
+        config.available_features.add("hip-arch-" + amd_arch)
 
 config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
 if config.sycl_headers_filter is not None:

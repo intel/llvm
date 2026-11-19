@@ -1,0 +1,85 @@
+; Checks correct reverse-translation of OpTypeVectorIdEXT with the following
+; constant instructions and scenarios:
+; 1. OpTypeVectorIdEXT + OpConstant
+; 2. OpTypeVectorIdEXT + OpSpecConstant (default + overriden value)
+; 3. OpTypeVectorIdEXT + OpSpecConstantOp (default + overriden value)
+; 4. OpConstantNull with OpTypeVectorIdEXT result type
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; Default spec-constant values are used when no override is provided.
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-DEFAULT
+
+; Use "-spec-const" to override spec-constant values.
+; RUN: llvm-spirv -r -spec-const "42:i32:9 7:i32:5" -o - %t.spv | llvm-dis | FileCheck %s --check-prefixes=CHECK,CHECK-OVERRIDE
+
+               OpCapability Kernel
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability LongVectorEXT
+               OpExtension "SPV_EXT_long_vector"
+               OpMemoryModel Physical64 OpenCL
+               OpName %fn_const "test_vec_const"
+               OpName %fn_sc "test_vec_sc"
+               OpName %fn_scop "test_vec_scop"
+               OpName %fn_null "test_vec_null"
+               OpName %arg_const "arg"
+               OpName %arg_sc "arg"
+               OpName %arg_scop "arg"
+               OpDecorate %fn_const LinkageAttributes "test_vec_const" Export
+               OpDecorate %fn_sc LinkageAttributes "test_vec_sc" Export
+               OpDecorate %fn_scop LinkageAttributes "test_vec_scop" Export
+               OpDecorate %fn_null LinkageAttributes "test_vec_null" Export
+               OpDecorate %count_sc SpecId 42
+               OpDecorate %base SpecId 7
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
+     %uint_5 = OpConstant %uint 5
+   %count_sc = OpSpecConstant %uint 7
+       %base = OpSpecConstant %uint 3
+ %count_scop = OpSpecConstantOp %uint IAdd %base %base
+  %vec_const = OpTypeVectorIdEXT %float %uint_5
+     %vec_sc = OpTypeVectorIdEXT %float %count_sc
+   %vec_scop = OpTypeVectorIdEXT %float %count_scop
+       %null = OpConstantNull %vec_const
+  %fnty_const = OpTypeFunction %void %vec_const
+     %fnty_sc = OpTypeFunction %void %vec_sc
+   %fnty_scop = OpTypeFunction %void %vec_scop
+   %fnty_null = OpTypeFunction %vec_const
+
+; Count is OpConstant 5.
+; CHECK: define spir_func void @test_vec_const(<5 x float> %arg)
+   %fn_const = OpFunction %void None %fnty_const
+  %arg_const = OpFunctionParameter %vec_const
+%entry_const = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+; Count is OpSpecConstant, default 7, overridden to 9.
+; CHECK-DEFAULT: define spir_func void @test_vec_sc(<7 x float> %arg)
+; CHECK-OVERRIDE: define spir_func void @test_vec_sc(<9 x float> %arg)
+      %fn_sc = OpFunction %void None %fnty_sc
+     %arg_sc = OpFunctionParameter %vec_sc
+   %entry_sc = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+; Count is OpSpecConstantOp IAdd base base; base default 3 (count 6), overridden to 5 (count 10).
+; CHECK-DEFAULT: define spir_func void @test_vec_scop(<6 x float> %arg)
+; CHECK-OVERRIDE: define spir_func void @test_vec_scop(<10 x float> %arg)
+    %fn_scop = OpFunction %void None %fnty_scop
+   %arg_scop = OpFunctionParameter %vec_scop
+ %entry_scop = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+; OpConstantNull with OpTypeVectorIdEXT result type
+; CHECK: define spir_func <5 x float> @test_vec_null()
+; CHECK: ret <5 x float> zeroinitializer
+    %fn_null = OpFunction %vec_const None %fnty_null
+ %entry_null = OpLabel
+               OpReturnValue %null
+               OpFunctionEnd
