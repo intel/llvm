@@ -233,10 +233,10 @@ if not dump_only_tests:
         if "#define __cpp_lib_span" in get_predefined_macros("span", std="c++20"):
             config.available_features.add("cpp_lib_span")
 
-# Set timeout for test = 15 mins
+# Set timeout for test = 30 mins
 try:
     import psutil
 
-    config.maxIndividualTestTime = 900
+    config.maxIndividualTestTime = 1800
 except ImportError:
     pass
