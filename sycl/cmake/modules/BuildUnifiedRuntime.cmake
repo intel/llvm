@@ -131,6 +131,26 @@ if(MSVC)
   endfunction()
   _ur_force_release_crt(${UNIFIED_RUNTIME_SOURCE_DIR})
 
+  # ur_loader/ur_common go into the /MD sycl runtime, so everything linked with
+  # them must match. Create a list of the adapters for all enabled backends that
+  # need to be updated.
+  list(TRANSFORM SYCL_ENABLE_BACKENDS PREPEND "ur_adapter_"
+    OUTPUT_VARIABLE _ur_crt_targets)
+  # Add the remaining targets that don't match the "ur_adapter_*" pattern.
+  list(APPEND _ur_crt_targets
+    ur_loader ur_common ur_adapter_level_zero_common ze_loader level_zero_utils
+    urinfo ur_collector collector test_collector hwloc
+    # The level-zero loader's own sample links directly against ze_loader, so
+    # it needs the same forced CRT or lld-link rejects the CRT mismatch.
+    zello_world)
+  foreach(_ur_target IN LISTS _ur_crt_targets)
+    if(TARGET ${_ur_target})
+      # Force the release CRT (/MD), even in Debug builds.
+      set_target_properties(${_ur_target} PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    endif()
+  endforeach()
+
   # UMF hard-codes /MD$<$<CONFIG:Debug>:d> in its compile options, which
   # MSVC_RUNTIME_LIBRARY does not override.
   foreach(_umf_target umf umf_ba umf_coarse umf_utils)
