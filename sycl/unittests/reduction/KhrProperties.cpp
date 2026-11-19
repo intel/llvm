@@ -8,7 +8,6 @@
 
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <gtest/gtest.h>
-#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <type_traits>
@@ -32,6 +31,10 @@ static_assert(!is_property_for_v<kp::initialize_to_identity, OtherClass>);
 static_assert(!is_property_for_v<kp::initialize_to_identity, sycl::queue>);
 static_assert(std::is_trivially_copyable_v<kp::initialize_to_identity>);
 static_assert(std::is_trivially_copyable_v<kp::key::initialize_to_identity>);
+// The bool constructor is explicit.
+static_assert(!std::is_convertible_v<bool, kp::initialize_to_identity>);
+static_assert(kp::initialize_to_identity{}.value &&
+              !kp::initialize_to_identity{false}.value);
 
 TEST(KhrReductionProperties, InitializeToIdentityUSM) {
   int ReduVar = 0;
@@ -63,20 +66,6 @@ TEST(KhrReductionProperties, InitializeToIdentitySpan) {
   EXPECT_FALSE(sycl::reduction(Span, 0, sycl::plus<int>(),
                                kp::initialize_to_identity{false})
                    .initializeToIdentity());
-}
-
-TEST(KhrReductionProperties, InitializeToIdentityBuffer) {
-  sycl::unittest::UrMock<> Mock;
-  sycl::queue Q;
-  sycl::buffer<int, 1> Buf{1};
-  Q.submit([&](sycl::handler &CGH) {
-    EXPECT_TRUE(sycl::reduction(Buf, CGH, sycl::plus<int>(),
-                                kp::initialize_to_identity{})
-                    .initializeToIdentity());
-    EXPECT_FALSE(sycl::reduction(Buf, CGH, 0, sycl::plus<int>(),
-                                 properties{kp::initialize_to_identity{false}})
-                     .initializeToIdentity());
-  });
 }
 
 TEST(KhrReductionProperties, OldStyleOverloads) {

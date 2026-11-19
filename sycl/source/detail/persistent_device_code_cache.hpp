@@ -266,7 +266,7 @@ private:
   static void evictItemsFromCache(const std::string &CacheRoot,
                                   size_t CacheSize, size_t MaxCacheSize);
 
-  static void saveCurrentTimeInAFile(std::string FileName);
+  static void saveCurrentTimeInAFile(const std::string &FileName);
 
   // Check if eviction is enabled.
   static bool isEvictionEnabled() {

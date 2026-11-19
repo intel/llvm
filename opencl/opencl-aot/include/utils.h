@@ -91,7 +91,7 @@ createProgramWithIL(std::vector<char> IL, cl_context Context,
  * and return code.
  */
 std::tuple<std::vector<char>, std::string, cl_int>
-readBinaryFile(std::string FileName);
+readBinaryFile(const std::string &FileName);
 
 bool isFileOCLSource(const std::string &FileName);
 
