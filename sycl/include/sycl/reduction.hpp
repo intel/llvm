@@ -2739,26 +2739,21 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
   size_t PerGroup = Range.size() / NWorkGroups;
-  // Iterate through the index space by assigning contiguous chunks to each
-  // work-group, then iterating through each chunk using a stride equal to the
-  // work-group's local range, which gives much better performance than using
-  // stride equal to 1. For each of the index the given the original KernelFunc
-  // is called and the reduction value hold in \p Reducer is accumulated in
-  // those calls.
+  // Interleave small contiguous blocks between Intel GPU work-groups instead
+  // of giving each group one large chunk. This can improve memory bandwidth
+  // without increasing the number of partial reductions. Keep small ranges
+  // contiguous so every work-group still has work to do.
+  constexpr size_t ItemsPerWorkItem = 8;
+  size_t BlockSize = WGSize * ItemsPerWorkItem;
+  auto Dev = getDeviceFromHandler(CGH);
+  bool Interleave = Dev.is_gpu() &&
+                    Dev.get_info<info::device::vendor_id>() == 0x8086 &&
+                    PerGroup >= BlockSize;
+  size_t FullBlocks = NWorkItems / BlockSize;
   auto UpdatedKernelFunc = [=](auto NDId, auto &...Reducers) {
-    // Divide into contiguous chunks and assign each chunk to a Group
-    // Rely on precomputed division to avoid repeating expensive operations
-    // TODO: Some devices may prefer alternative remainder handling
     auto Group = NDId.get_group();
     size_t GroupId = Group.get_group_linear_id();
-    size_t NumGroups = Group.get_group_linear_range();
-    bool LastGroup = (GroupId == NumGroups - 1);
-    size_t GroupStart = GroupId * PerGroup;
-    size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
-
-    // Loop over the contiguous chunk
-    size_t Start = GroupStart + NDId.get_local_id(0);
-    size_t End = GroupEnd;
+    size_t NumGroups = NWorkGroups;
     size_t Stride = NDId.get_local_range(0);
     auto GetDelinearized = [&](size_t I) {
       auto Id = getDelinearizedId(Range, I);
@@ -2770,8 +2765,37 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
         // reductions, so use with_offset==false.
         return reduction::getDelinearizedItem(Range, Id);
     };
-    for (size_t I = Start; I < End; I += Stride)
+    // Keep one call site for diagnostics on invalid kernel functors.
+    auto RunKernel = [&](size_t I) {
       KernelFunc(GetDelinearized(I), Reducers...);
+    };
+    if (Interleave) {
+      for (size_t Block = GroupId; Block < FullBlocks; Block += NumGroups) {
+        size_t Base = Block * BlockSize + NDId.get_local_id(0);
+        for (size_t J = 0; J < ItemsPerWorkItem; ++J)
+          RunKernel(Base + J * Stride);
+      }
+      if (FullBlocks % NumGroups == GroupId) {
+        size_t Base = FullBlocks * BlockSize;
+        size_t Count = NWorkItems - Base;
+        for (size_t Offset = NDId.get_local_id(0); Offset < Count;
+             Offset += Stride)
+          RunKernel(Base + Offset);
+      }
+    } else {
+      // Divide into contiguous chunks and assign each chunk to a Group
+      // Rely on precomputed division to avoid repeating expensive operations
+      // TODO: Some devices may prefer alternative remainder handling
+      bool LastGroup = (GroupId == NumGroups - 1);
+      size_t GroupStart = GroupId * PerGroup;
+      size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
+
+      // Loop over the contiguous chunk
+      size_t Start = GroupStart + NDId.get_local_id(0);
+      size_t End = GroupEnd;
+      for (size_t I = Start; I < End; I += Stride)
+        RunKernel(I);
+    }
   };
   if constexpr (NumArgs == 2) {
     using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
