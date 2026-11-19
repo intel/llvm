@@ -53,6 +53,13 @@ PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
       // a format like {{"cpu", 1}, {"gpu", 2}}
       SmallVector<Metadata *, 8> AspectNameValuePairs;
       for (const auto &MDOp : MDNode->operands()) {
+        const Metadata *MD = MDOp.get();
+        if (isa<MDNode>(MDOp.get())) {
+          assert(cast<MDNode>(MDOp.get())->getNumOperands() == 2 &&
+                 "Expected {name, value} pair");
+          AspectNameValuePairs.push_back(MDOp);
+          continue;
+        }
         auto *C = mdconst::extract<ConstantInt>(MDOp);
         int64_t AspectValue = C->getSExtValue();
         if (auto It = ValueToNameValuePairMD.find(AspectValue);
