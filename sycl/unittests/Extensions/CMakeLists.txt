@@ -18,6 +18,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
+  KernelCompilerOpenCL.cpp
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp

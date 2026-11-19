@@ -1,6 +1,8 @@
 // REQUIRES: aspect-usm_device_allocations && aspect-ext_oneapi_ipc_memory
 // UNSUPPORTED: level_zero && windows
 // UNSUPPORTED-TRACKER: UMFW-348
+// XFAIL: cuda && windows && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23841
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
