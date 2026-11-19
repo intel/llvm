@@ -1314,6 +1314,10 @@ Error TempFile::discard() {
 }
 
 Error TempFile::keep(const Twine &Name) {
+  return errorCodeToError(keepWithErrorCode(Name));
+}
+
+std::error_code TempFile::keepWithErrorCode(const Twine &Name) {
   assert(!Done);
   Done = true;
   // Always try to close and rename.
@@ -1358,10 +1362,10 @@ Error TempFile::keep(const Twine &Name) {
     TmpName = "";
 
   if (close(FD) == -1)
-    return errorCodeToError(errnoAsErrorCode());
+    return errnoAsErrorCode();
   FD = -1;
 
-  return errorCodeToError(RenameEC);
+  return RenameEC;
 }
 
 Error TempFile::keep() {
@@ -1386,11 +1390,20 @@ Error TempFile::keep() {
 
 Expected<TempFile> TempFile::create(const Twine &Model, unsigned Mode,
                                     OpenFlags ExtraFlags) {
+  ErrorOr<TempFile> Ret = createWithErrorCode(Model, Mode, ExtraFlags);
+  if (!Ret)
+    return errorCodeToError(Ret.getError());
+  return std::move(*Ret);
+}
+
+ErrorOr<TempFile> TempFile::createWithErrorCode(const Twine &Model,
+                                                unsigned Mode,
+                                                OpenFlags ExtraFlags) {
   int FD;
   SmallString<128> ResultPath;
   if (std::error_code EC =
           createUniqueFile(Model, FD, ResultPath, OF_Delete | ExtraFlags, Mode))
-    return errorCodeToError(EC);
+    return EC;
 
   TempFile Ret(ResultPath, FD);
 #ifdef _WIN32
@@ -1406,8 +1419,7 @@ Expected<TempFile> TempFile::create(const Twine &Model, unsigned Mode,
   if (SetSignalHandler && sys::RemoveFileOnSignal(ResultPath)) {
     // Make sure we delete the file when RemoveFileOnSignal fails.
     consumeError(Ret.discard());
-    std::error_code EC(errc::operation_not_permitted);
-    return errorCodeToError(EC);
+    return make_error_code(errc::operation_not_permitted);
   }
   return std::move(Ret);
 }
