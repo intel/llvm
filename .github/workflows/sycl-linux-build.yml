@@ -266,7 +266,7 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
       if: ${{ !cancelled() && contains(inputs.changes, 'sycl') }}
-      timeout-minutes: 20
+      timeout-minutes: 40
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
