@@ -1548,10 +1548,67 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   return G->hasAvailableExternallyLinkage();
 }
 
-static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
+// Returns true if \p Arg is a byval argument of a SPIR kernel and every use of
+// it reads it at a constant offset inside the argument. Such reads can't go out
+// of bounds, so ASan doesn't instrument them, and doesn't copy the argument
+// into its redzoned private frame
+static bool isByvalKernelArgOnlyReadInBounds(const Argument &Arg) {
+  const Function *F = Arg.getParent();
+  if (!Arg.hasByValAttr() || F->getCallingConv() != CallingConv::SPIR_KERNEL)
+    return false;
+
+  const DataLayout &DL = F->getDataLayout();
+  const uint64_t ArgSize = DL.getTypeAllocSize(Arg.getParamByValType());
+  // Pointers derived from Arg, with their constant offset into it.
+  SmallVector<std::pair<const Value *, uint64_t>, 8> Worklist;
+  Worklist.emplace_back(&Arg, 0);
+  while (!Worklist.empty()) {
+    auto [Ptr, Offset] = Worklist.pop_back_val();
+    for (const Use &U : Ptr->uses()) {
+      const User *Usr = U.getUser();
+      if (const auto *LI = dyn_cast<LoadInst>(Usr)) {
+        const TypeSize Size = DL.getTypeStoreSize(LI->getType());
+        if (Size.isScalable() || Size.getFixedValue() > ArgSize - Offset)
+          return false;
+      } else if (const auto *MTI = dyn_cast<MemTransferInst>(Usr)) {
+        const auto *Len = dyn_cast<ConstantInt>(MTI->getLength());
+        if (&U != &MTI->getRawSourceUse() || !Len ||
+            Len->getValue().ugt(ArgSize - Offset))
+          return false;
+      } else if (isa<BitCastInst, AddrSpaceCastInst>(Usr)) {
+        Worklist.emplace_back(Usr, Offset);
+      } else if (const auto *GEP = dyn_cast<GetElementPtrInst>(Usr)) {
+        APInt GEPOffset(DL.getIndexTypeSizeInBits(GEP->getType()), 0);
+        if (!GEP->accumulateConstantOffset(DL, GEPOffset) ||
+            GEPOffset.isNegative() || GEPOffset.ugt(ArgSize - Offset))
+          return false;
+        Worklist.emplace_back(GEP, Offset + GEPOffset.getZExtValue());
+      } else {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Returns true if \p Addr points into a byval kernel argument that ASan doesn't
+// copy because it's only read in bounds.
+static bool isReadOfUncopiedByvalKernelArg(const Value *Addr) {
+  const auto *Arg =
+      dyn_cast<Argument>(getUnderlyingObject(Addr, /*MaxLookup=*/0));
+  return Arg && isByvalKernelArgOnlyReadInBounds(*Arg);
+}
+
+// \p ByvalArgsCopied is true if byval arguments are copied into redzoned
+// allocas, so that accesses to them are checked against the copies.
+static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst,
+                                    bool ByvalArgsCopied) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  if (isReadOfUncopiedByvalKernelArg(Addr))
     return true;
 
   GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
@@ -1575,8 +1632,10 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   case kSpirOffloadPrivateAS: {
     if (!ClSpirOffloadPrivates)
       return true;
-    // Skip kernel arguments
-    return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
+    // Without redzoned copies, the memory of byval kernel arguments has no
+    // shadow.
+    return !ByvalArgsCopied &&
+           Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
   case kSpirOffloadGlobalAS: {
@@ -1730,15 +1789,31 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
   InstrumentationIRBuilder IRB(MI);
   if (isa<MemTransferInst>(MI)) {
     if (TargetTriple.isSPIROrSPIRV()) {
-      // FIXME: We'd better move module level pass before function pass, then
-      // all users of unsupported device globals can be skipped earlier.
-      if (isUnsupportedSPIRAccess(MI->getOperand(0), MI) ||
-          isUnsupportedSPIRAccess(MI->getOperand(1), MI)) {
-        return;
-      }
+      const bool ByvalArgsCopied = Opts.asan_redzone_byval_args;
       unsigned int DstAS =
           cast<PointerType>(MI->getOperand(0)->getType()->getScalarType())
               ->getPointerAddressSpace();
+      // Reading a byval kernel argument that isn't copied needs no check, but
+      // the destination still does. Keep the memcpy and check the destination.
+      if (isReadOfUncopiedByvalKernelArg(MI->getOperand(1))) {
+        if (!isUnsupportedSPIRAccess(MI->getOperand(0), MI, ByvalArgsCopied)) {
+          SmallVector<Value *, 6> Args;
+          Args.push_back(IRB.CreatePointerCast(MI->getOperand(0), IntptrTy));
+          Args.push_back(IRB.CreateIntCast(MI->getOperand(2), IntptrTy, false));
+          AppendDebugInfoToArgs(MI, Args);
+          RTCI.createRuntimeCall(
+              IRB,
+              AsanMemoryAccessCallbackSizedAS[/*IsWrite=*/1][/*Exp=*/0][DstAS],
+              Args);
+        }
+        return;
+      }
+      // FIXME: We'd better move module level pass before function pass, then
+      // all users of unsupported device globals can be skipped earlier.
+      if (isUnsupportedSPIRAccess(MI->getOperand(0), MI, ByvalArgsCopied) ||
+          isUnsupportedSPIRAccess(MI->getOperand(1), MI, ByvalArgsCopied)) {
+        return;
+      }
       unsigned int SrcAS =
           cast<PointerType>(MI->getOperand(1)->getType()->getScalarType())
               ->getPointerAddressSpace();
@@ -1760,7 +1835,8 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
     }
   } else if (isa<MemSetInst>(MI)) {
     if (TargetTriple.isSPIROrSPIRV()) {
-      if (isUnsupportedSPIRAccess(MI->getOperand(0), MI))
+      if (isUnsupportedSPIRAccess(MI->getOperand(0), MI,
+                                  Opts.asan_redzone_byval_args))
         return;
       unsigned int AS =
           cast<PointerType>(MI->getOperand(0)->getType()->getScalarType())
@@ -1857,7 +1933,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (isUnsupportedSPIRAccess(Ptr, Inst))
+    if (isUnsupportedSPIRAccess(Ptr, Inst, Opts.asan_redzone_byval_args))
       return true;
   } else {
     // Check whether the target supports sanitizing the address space
@@ -4327,6 +4403,10 @@ void FunctionStackPoisoner::copyArgsPassedByValToAllocas() {
   const DataLayout &DL = F.getDataLayout();
   for (Argument &Arg : F.args()) {
     if (Arg.hasByValAttr()) {
+      // Reads of this argument aren't instrumented (see
+      // isUnsupportedSPIRAccess()), so it doesn't need a redzoned copy.
+      if (isByvalKernelArgOnlyReadInBounds(Arg))
+        continue;
       Type *Ty = Arg.getParamByValType();
       const Align Alignment =
           DL.getValueOrABITypeAlignment(Arg.getParamAlign(), Ty);
