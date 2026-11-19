@@ -20,6 +20,22 @@
 // RUN:   -internal-isystem %S/Inputs -triple x86_64-unknown-linux-gnu \
 // RUN:   -emit-llvm %s -o - \
 // RUN:   | FileCheck %s --check-prefix=HOST-NOCUID --implicit-check-not=cuid_
+//
+// The driver never selects triples asking for Microsoft C++ ABI, but such
+// triples are still accepted when given explicitly. In this case, CUID is added
+// as a synthetic outermost scope instead, instead of leaving TU-local kernel
+// names to collide.
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-unnamed-lambda \
+// RUN:   -internal-isystem %S/Inputs -triple spir64-pc-windows-msvc \
+// RUN:   -aux-triple x86_64-pc-windows-msvc -cuid=abc \
+// RUN:   -fsycl-int-header=%t.msvc.h -emit-llvm %s -o - \
+// RUN:   | FileCheck %s --check-prefix=MSVC -DHASH=%{hash}
+// RUN: FileCheck %s --input-file=%t.msvc.h --check-prefix=MSVC-INT-HEADER \
+// RUN:   -DHASH=%{hash}
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-unnamed-lambda \
+// RUN:   -internal-isystem %S/Inputs -triple spir64-pc-windows-msvc \
+// RUN:   -aux-triple x86_64-pc-windows-msvc -emit-llvm %s -o - \
+// RUN:   | FileCheck %s --check-prefix=MSVC-NOCUID --implicit-check-not=cuid_
 
 // Verify that with `-cuid`, mangled names of TU-local kernels have a per-TU
 // compilation unit ID inserted into them, to prevent TU-local kernels with
@@ -109,6 +125,24 @@ static void staticNamed(sycl::queue &q) {
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]ZZL11staticNamedRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E1K(
   // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]ZZL11staticNamedRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E1K"; }
   // NOCUID-DAG: _ZTSZZL11staticNamedRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E1K
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVK@?1???R<lambda_1>@?0??staticNamed@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AVK@?1???R<lambda_1>@?0??staticNamed@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"; }
+  // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?AVK@?1???R<lambda_1>@?0??staticNamed@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+}
+
+// Two distinct kernel names with the same name, local to the same function
+// with internal linkage, are distinguished by a discriminator assigned by the
+// mangler. The CUID must be added to these mangled names rather than falling
+// back to the stable names, which lack the discriminator and would collide:
+static void sameNamedLocals(sycl::queue &q) {
+  q.submit([&](sycl::handler &h) {
+    { h.single_task<class KLocal>([] {}); }
+    { h.single_task<class KLocal>([] {}); }
+  });
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]ZZL15sameNamedLocalsRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E6KLocal(
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]ZZL15sameNamedLocalsRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E6KLocal_0(
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVKLocal@?1???R<lambda_1>@?0??sameNamedLocals@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVKLocal@?2???R<lambda_1>@?0??sameNamedLocals@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
 }
 
 void extNamed(sycl::queue &q) {
@@ -116,6 +150,8 @@ void extNamed(sycl::queue &q) {
   q.submit([&](sycl::handler &h) { h.single_task<class K>([] {}); });
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZZ8extNamedRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E1K(
   // INT-HEADER-DAG: getName() { return "_ZTSZZ8extNamedRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E1K"; }
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVK@?1???R<lambda_1>@?0??extNamed@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AVK@?1???R<lambda_1>@?0??extNamed@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"; }
 }
 
 namespace {
@@ -156,11 +192,16 @@ template <typename T> void templateFn(sycl::queue &q) {
   // HOST-DAG: c"_ZTSU21cuid_[[HASH]]5KTmplIN12_GLOBAL__N_19AnonymousEE\00"
   // NOCUID-DAG: _ZTS5KTmplIN12_GLOBAL__N_19AnonymousEE
   // HOST-NOCUID-DAG: c"_ZTS5KTmplIN12_GLOBAL__N_19AnonymousEE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AV?$KTmpl@UAnonymous@?A0x{{[0-9A-F]+}}@@@<cuid_[[HASH]]>@@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AV?$KTmpl@UAnonymous@?A0x{{[0-9A-F]+}}@@@<cuid_[[HASH]]>@@"; }
+  // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?AV?$KTmpl@UAnonymous@?A0x{{[0-9A-F]+}}@@@@"(
 
   // With templateFn<External>:
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTS5KTmplI8ExternalE(
   // INT-HEADER-DAG: getName() { return "_ZTS5KTmplI8ExternalE"; }
   // HOST-DAG: c"_ZTS5KTmplI8ExternalE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AV?$KTmpl@UExternal@@@@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AV?$KTmpl@UExternal@@@@"; }
 }
 
 namespace {
@@ -177,6 +218,9 @@ void explicitNames(sycl::queue &q) {
   // HOST-DAG: c"_ZTSU21cuid_[[HASH]]N12_GLOBAL__N_15KAnonE\00"
   // NOCUID-DAG: _ZTSN12_GLOBAL__N_15KAnonE
   // HOST-NOCUID-DAG: c"_ZTSN12_GLOBAL__N_15KAnonE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVKAnon@?A0x{{[0-9A-F]+}}@<cuid_[[HASH]]>@@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AVKAnon@?A0x{{[0-9A-F]+}}@<cuid_[[HASH]]>@@"; }
+  // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?AVKAnon@?A0x{{[0-9A-F]+}}@@"(
 
   // Externally visible kernel name, don't add CUID:
   q.submit([&](sycl::handler &h) { h.single_task<KExt>([] {}); });
@@ -184,6 +228,8 @@ void explicitNames(sycl::queue &q) {
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTS4KExt(
   // INT-HEADER-DAG: getName() { return "_ZTS4KExt"; }
   // HOST-DAG: c"_ZTS4KExt\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVKExt@@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AVKExt@@"; }
 }
 
 int main() {
@@ -196,6 +242,7 @@ int main() {
   inlineFn(q);
   funcObjects(q);
   staticNamed(q);
+  sameNamedLocals(q);
   extNamed(q);
   explicitNames(q);
 }

@@ -1320,11 +1320,21 @@ constructKernelName(SemaSYCL &S, const FunctionDecl *KernelCallerFunc,
 
   MC.mangleCanonicalTypeName(KernelNameType, Out);
   std::string MangledName(Out.str());
-  SYCLUniqueStableNameExpr::maybeAddCUIDQualifier(S.getASTContext(),
-                                                  KernelNameType, MangledName);
 
   std::string StableName =
       SYCLUniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType);
+
+  // If the kernel is TU-local, its name is only guaranteed to be unique within
+  // its own TU. If a CUID is provided, add CUID to its mangled name so the
+  // resulting mangled name is distinct across TUs.
+  StringRef CUIDHash = S.getASTContext().getCUIDHash();
+  if (!CUIDHash.empty() &&
+      SYCLUniqueStableNameExpr::hasTULocalMangledName(KernelNameType)) {
+    if (!SYCLUniqueStableNameExpr::addCUIDQualifier(CUIDHash, MangledName))
+      // If we couldn't figure out how to insert a CUID qualifier, fall back
+      // to using StableName instead.
+      MangledName = StableName;
+  }
 
   // For NativeCPU the kernel name is set to the stable GNU-mangled name
   // because the default mangling may be different, for example on Windows.

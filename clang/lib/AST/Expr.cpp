@@ -617,40 +617,60 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
   llvm::raw_string_ostream Out(Buffer);
   Ctx->mangleCanonicalTypeName(Ty, Out);
 
-  maybeAddCUIDQualifier(Context, Ty, Buffer);
+  StringRef CUIDHash = Context.getCUIDHash();
+  if (!CUIDHash.empty() && hasTULocalMangledName(Ty))
+    if (!addCUIDQualifier(CUIDHash, Buffer))
+      llvm_unreachable("expected an Itanium typeinfo name");
   return Buffer;
 }
 
-void SYCLUniqueStableNameExpr::maybeAddCUIDQualifier(const ASTContext &Context,
-                                                     QualType Ty,
-                                                     std::string &TypeName) {
-  StringRef CUIDHash = Context.getCUIDHash();
-  if (CUIDHash.empty() || isExternallyVisible(Ty->getLinkage()))
-    return;
+bool SYCLUniqueStableNameExpr::hasTULocalMangledName(QualType Ty) {
+  if (isExternallyVisible(Ty->getLinkage()))
+    return false;
 
   // A type declared inside a function is mangled relative to that function,
   // so its name is already unique across the program if the enclosing function
-  // is externally visible, and no CUID is needed.
+  // is externally visible.
   if (const TagDecl *TD = Ty->getAsTagDecl())
     if (const DeclContext *DC = TD->getParentFunctionOrMethod())
       if (const auto *FD =
               dyn_cast_or_null<FunctionDecl>(DC->getNonClosureAncestor());
           FD && FD->isExternallyVisible())
-        return;
+        return false;
+
+  return true;
+}
+
+bool SYCLUniqueStableNameExpr::addCUIDQualifier(StringRef CUIDHash,
+                                                std::string &TypeName) {
+  std::string Qualifier = ("cuid_" + CUIDHash).str();
 
   constexpr StringRef TypeInfoPrefix = "_ZTS";
-  if (!StringRef(TypeName).starts_with(TypeInfoPrefix))
-    return;
-
-  // Insert a vendor-extended qualifier with CUID hash to distinguish between
-  // entities with internal linkage across different TUs:
-  //
-  //   _ZTS<type>  ->  _ZTSU<length>cuid_<hash><type>
-  //
-  // We don't use a '.' suffix since ptxas rejects identifiers containing '.'.
-  std::string Qualifier = ("cuid_" + CUIDHash).str();
-  TypeName.insert(TypeInfoPrefix.size(),
-                  "U" + std::to_string(Qualifier.size()) + Qualifier);
+  StringRef Name(TypeName);
+  if (Name.starts_with(TypeInfoPrefix)) {
+    // Itanium: Insert a vendor-extended qualifier with the CUID hash:
+    //
+    //   _ZTS<type>  ->  _ZTSU<length>cuid_<hash><type>
+    //
+    // We don't use a '.' suffix since ptxas rejects identifiers containing '.'.
+    TypeName.insert(TypeInfoPrefix.size(),
+                    "U" + std::to_string(Qualifier.size()) + Qualifier);
+    return true;
+  }
+  if (Name.starts_with('?') && Name.ends_with('@')) {
+    // Microsoft: Insert the CUID hash as an additional, outermost scope:
+    //
+    //   ?AVK@ns@@  ->  ?AVK@ns@<cuid_<hash>>@@
+    //
+    // Angle brackets are used in Microsoft mangling for compiler-generated
+    // names as a convention, and since angle brackets cannot appear in
+    // identifiers, our synthetic CUID scope cannot collide with a user-defined
+    // scope name. Since nothing follows the inserted scope, no back-references
+    // used by Microsoft mangled name compression are affected.
+    TypeName.insert(TypeName.size() - 1, "<" + Qualifier + ">@");
+    return true;
+  }
+  return false;
 }
 
 SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(EmptyShell Empty,
