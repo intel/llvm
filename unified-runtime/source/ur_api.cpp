@@ -1402,6 +1402,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///       UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32}, {UR_IMAGE_CHANNEL_ORDER_RGBA,
 ///       UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT}, {UR_IMAGE_CHANNEL_ORDER_RGBA,
 ///       UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+///     - See also ::ur_mem_alloc_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
@@ -1464,6 +1465,7 @@ ur_result_t UR_APICALL urMemImageCreate(
 /// @details
 ///     - See also ::ur_buffer_channel_properties_t.
 ///     - See also ::ur_buffer_alloc_location_properties_t.
+///     - See also ::ur_mem_alloc_properties_t.
 ///
 /// @remarks
 ///   _Analogues_

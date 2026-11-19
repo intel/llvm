@@ -124,6 +124,9 @@ template <>
 struct stype_map<ur_kernel_launch_workgroup_property_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY> {};
 template <>
+struct stype_map<ur_mem_alloc_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_MEM_ALLOC_PROPERTIES> {};
+template <>
 struct stype_map<ur_exp_command_buffer_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC> {};
 template <>

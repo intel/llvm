@@ -517,6 +517,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBufferAllocLocationProperties(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_mem_alloc_properties_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintMemAllocProperties(
+    const struct ur_mem_alloc_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_buffer_region_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
