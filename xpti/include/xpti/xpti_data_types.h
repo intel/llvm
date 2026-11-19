@@ -67,9 +67,8 @@ struct universal_id_t {
 
   /// @brief Unique 64-bit identifier that maps to the 128-bit key in p1,p2.
   ///
-  /// This variable represents a 64-bit hash value used as a unique identifier
-  /// within the tracing framework. The hash is a 64-bit mapping of the 128-bit
-  /// represented by the attributes p1 and p2 and will be used by legacy API.
+  /// An opaque 64-bit identifier for the registered tracepoint instance, used
+  /// by legacy APIs.
   /// This field is optional and only populated when using legacy API.
   ///
   uid64_t uid64 = 0;
@@ -970,9 +969,8 @@ enum class trace_event_flag_t {
 ///
 struct trace_event_data_t {
   /// @var trace_event_data_t::unique_id
-  /// Unique identifier for the trace event. This is used to distinguish between
-  /// different events in the tracing system and contains the legacy 64-bit
-  /// universal ID
+  /// Opaque identifier for the registered tracepoint instance. Contains the
+  /// legacy 64-bit universal ID.
   uint64_t unique_id = 0;
 
   /// @var trace_event_data_t::data_id
