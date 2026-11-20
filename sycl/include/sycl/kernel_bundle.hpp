@@ -162,7 +162,7 @@ public:
   std::vector<std::byte> ext_oneapi_get_backend_content() const {
     const auto view =
         device_image_plain::ext_oneapi_get_backend_content_view_impl();
-    return std::vector(view.first, view.second);
+    return std::vector<std::byte>(view.first, view.second);
   }
 
 #ifdef __cpp_lib_span
