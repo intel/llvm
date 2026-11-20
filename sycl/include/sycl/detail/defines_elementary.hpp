@@ -43,8 +43,8 @@
 #if !defined(SYCL_LANGUAGE_VERSION) && !defined(__SYCL_EXTERNAL_HOST_COMPILER__)
 #define SYCL_EXTERNAL
 #endif
-#endif
-#endif
+#endif // __SYCL_DEVICE_ONLY__
+#endif // SYCL_EXTERNAL
 
 #ifndef __DPCPP_SYCL_EXTERNAL_LIBC
 #define __DPCPP_SYCL_EXTERNAL_LIBC __DPCPP_SYCL_EXTERNAL
