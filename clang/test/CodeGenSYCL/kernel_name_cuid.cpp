@@ -242,6 +242,126 @@ void explicitNames(sycl::queue &q) {
   // MSVC-INT-HEADER-DAG: getName() { return "?AVKExt@@"; }
 }
 
+// Kernel names aren't restricted to class types, so pointers, references, and
+// array elements are mangled as the type they point to or contain. Thus, they
+// are TU-local if the referenced type is.
+static void staticPointerNames(sycl::queue &q) {
+  // Pointer, reference, and array of classes local to a function with internal
+  // linkage, add CUID:
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class KStaticPtr *>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]PZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticPtr(
+    // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]PZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticPtr"; }
+    // NOCUID-DAG: _ZTSPZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticPtr
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?APEAVKStaticPtr@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
+    // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?APEAVKStaticPtr@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+    h.single_task<class KStaticRef &>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]RZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticRef(
+    // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]RZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticRef"; }
+    // NOCUID-DAG: _ZTSRZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticRef
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?AAEAVKStaticRef@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
+    // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?AAEAVKStaticRef@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+    h.single_task<class KStaticArr[2]>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]A2_ZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticArr(
+    // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]A2_ZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticArr"; }
+    // NOCUID-DAG: _ZTSA2_ZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E10KStaticArr
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?AY01VKStaticArr@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
+    // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?AY01VKStaticArr@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+    // Multiple levels of pointers with cv-qualifiers are looked through too:
+    h.single_task<const class KStaticPtrPtr *const *>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]PKPKZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E13KStaticPtrPtr(
+    // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]PKPKZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E13KStaticPtrPtr"; }
+    // NOCUID-DAG: _ZTSPKPKZZL18staticPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E13KStaticPtrPtr
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?APEBQEBVKStaticPtrPtr@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z<cuid_[[HASH]]>@@"(
+    // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?APEBQEBVKStaticPtrPtr@?1???R<lambda_1>@?0??staticPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+  });
+}
+
+void extPointerNames(sycl::queue &q) {
+  // Pointer, reference, and array of classes local to an externally visible
+  // function. Like the classes themselves (see extNamed), don't add CUID:
+  q.submit([&](sycl::handler &h) {
+    h.single_task<class KLocalPtr *>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSPZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E9KLocalPtr(
+    // INT-HEADER-DAG: getName() { return "_ZTSPZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E9KLocalPtr"; }
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?APEAVKLocalPtr@?1???R<lambda_1>@?0??extPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+    h.single_task<class KLocalRef &>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSRZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E9KLocalRef(
+    // INT-HEADER-DAG: getName() { return "_ZTSRZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E9KLocalRef"; }
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?AAEAVKLocalRef@?1???R<lambda_1>@?0??extPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+    h.single_task<class KLocalArr[2]>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSA2_ZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E9KLocalArr(
+    // INT-HEADER-DAG: getName() { return "_ZTSA2_ZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E9KLocalArr"; }
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?AY01VKLocalArr@?1???R<lambda_1>@?0??extPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+    // Multiple levels of pointers with cv-qualifiers are looked through too:
+    h.single_task<const class KLocalPtrPtr *const *>([] {});
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSPKPKZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E12KLocalPtrPtr(
+    // INT-HEADER-DAG: getName() { return "_ZTSPKPKZZ15extPointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E12KLocalPtrPtr"; }
+    // MSVC-DAG: define {{.*}}spir_kernel void @"?APEBQEBVKLocalPtrPtr@?1???R<lambda_1>@?0??extPointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+  });
+}
+
+inline void inlinePointerNames(sycl::queue &q) {
+  // Pointer to a class local to an inline function, don't add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task<class KInlineLocal *>([] {}); });
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSPZZ18inlinePointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E12KInlineLocal(
+  // INT-HEADER-DAG: getName() { return "_ZTSPZZ18inlinePointerNamesRN4sycl3_V15queueEENKUlRNS0_7handlerEE_clES4_E12KInlineLocal"; }
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?APEAVKInlineLocal@?0???R<lambda_1>@?0??inlinePointerNames@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+}
+
+void pointerNames(sycl::queue &q) {
+  // Pointer to a class in an unnamed namespace, add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task<KAnon *>([] {}); });
+  (void) __builtin_sycl_unique_stable_name(KAnon *);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]PN12_GLOBAL__N_15KAnonE(
+  // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]PN12_GLOBAL__N_15KAnonE"; }
+  // HOST-DAG: c"_ZTSU21cuid_[[HASH]]PN12_GLOBAL__N_15KAnonE\00"
+  // NOCUID-DAG: _ZTSPN12_GLOBAL__N_15KAnonE
+  // HOST-NOCUID-DAG: c"_ZTSPN12_GLOBAL__N_15KAnonE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?APEAVKAnon@?A0x{{[0-9A-F]+}}@<cuid_[[HASH]]>@@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?APEAVKAnon@?A0x{{[0-9A-F]+}}@<cuid_[[HASH]]>@@"; }
+  // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?APEAVKAnon@?A0x{{[0-9A-F]+}}@@"(
+
+  // Pointer to an externally visible class, don't add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task<KExt *>([] {}); });
+  (void) __builtin_sycl_unique_stable_name(KExt *);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSP4KExt(
+  // INT-HEADER-DAG: getName() { return "_ZTSP4KExt"; }
+  // HOST-DAG: c"_ZTSP4KExt\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?APEAVKExt@@"(
+
+  // Pointer to a const class in an unnamed namespace, add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task<const KAnon *>([] {}); });
+  (void) __builtin_sycl_unique_stable_name(const KAnon *);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]PKN12_GLOBAL__N_15KAnonE(
+  // HOST-DAG: c"_ZTSU21cuid_[[HASH]]PKN12_GLOBAL__N_15KAnonE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?APEBVKAnon@?A0x{{[0-9A-F]+}}@<cuid_[[HASH]]>@@"(
+
+  // Pointers as template arguments:
+  q.submit([&](sycl::handler &h) { h.single_task<KTmpl<KAnon *>>([] {}); });
+  (void) __builtin_sycl_unique_stable_name(KTmpl<KAnon *>);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]5KTmplIPN12_GLOBAL__N_15KAnonEE(
+  // HOST-DAG: c"_ZTSU21cuid_[[HASH]]5KTmplIPN12_GLOBAL__N_15KAnonEE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AV?$KTmpl@PEAVKAnon@?A0x{{[0-9A-F]+}}@@@<cuid_[[HASH]]>@@"(
+  q.submit([&](sycl::handler &h) { h.single_task<KTmpl<KExt *>>([] {}); });
+  (void) __builtin_sycl_unique_stable_name(KTmpl<KExt *>);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTS5KTmplIP4KExtE(
+  // HOST-DAG: c"_ZTS5KTmplIP4KExtE\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AV?$KTmpl@PEAVKExt@@@@"(
+
+  // Member pointer to a class in an unnamed namespace, add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task<int KAnon::*>([] {}); });
+  (void) __builtin_sycl_unique_stable_name(int KAnon::*);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]MN12_GLOBAL__N_15KAnonEi(
+  // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]MN12_GLOBAL__N_15KAnonEi"; }
+  // HOST-DAG: c"_ZTSU21cuid_[[HASH]]MN12_GLOBAL__N_15KAnonEi\00"
+  // The Microsoft mangled name doesn't end in a qualified name, so CUID can't
+  // be inserted into it, and the kernel falls back to the stable name instead.
+  // MSVC-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]MN12_GLOBAL__N_15KAnonEi(
+  // MSVC-INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]MN12_GLOBAL__N_15KAnonEi"; }
+  // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @"?APEQKAnon@?A0x{{[0-9A-F]+}}@@H"(
+}
+
 int main() {
   sycl::queue q;
 
@@ -256,4 +376,8 @@ int main() {
   sameNamedLocals(q);
   extNamed(q);
   explicitNames(q);
+  staticPointerNames(q);
+  extPointerNames(q);
+  inlinePointerNames(q);
+  pointerNames(q);
 }

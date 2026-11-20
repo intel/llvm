@@ -628,10 +628,24 @@ bool SYCLUniqueStableNameExpr::hasTULocalMangledName(QualType Ty) {
   if (isExternallyVisible(Ty->getLinkage()))
     return false;
 
+  // Pointers, references, and arrays are mangled as the type they point to plus
+  // a prefix, so they are TU-local only if that type is.
+  const Type *Base = Ty.getCanonicalType().getTypePtr();
+  while (true) {
+    if (const auto *PT = dyn_cast<PointerType>(Base))
+      Base = PT->getPointeeType().getTypePtr();
+    else if (const auto *RT = dyn_cast<ReferenceType>(Base))
+      Base = RT->getPointeeType().getTypePtr();
+    else if (const auto *AT = dyn_cast<ArrayType>(Base))
+      Base = AT->getElementType().getTypePtr();
+    else
+      break;
+  }
+
   // A type declared inside a function is mangled relative to that function,
   // so its name is already unique across the program if the enclosing function
   // is externally visible.
-  if (const TagDecl *TD = Ty->getAsTagDecl())
+  if (const TagDecl *TD = Base->getAsTagDecl())
     if (const DeclContext *DC = TD->getParentFunctionOrMethod())
       if (const auto *FD =
               dyn_cast_or_null<FunctionDecl>(DC->getNonClosureAncestor());
