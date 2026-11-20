@@ -321,6 +321,14 @@ ur_result_t urDeviceGetInfo(
 
   ze_device_handle_t ZeDevice = Device->ZeDevice;
 
+  // The bindless image extension is reported per driver, so a driver can
+  // advertise it for a device without image support. A zero image limit
+  // means the device does not support that kind of image.
+  auto supportsBindlessImages = [&](uint64_t MaxImageLimit) {
+    return Device->Platform->ZeBindlessImagesExtensionSupported &&
+           MaxImageLimit > 0;
+  };
+
   switch ((int)ParamName) {
   case UR_DEVICE_INFO_TYPE: {
     switch (Device->ZeDeviceProperties->type) {
@@ -1271,19 +1279,20 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageDims1D));
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
-                       Device->ZeDeviceImageProperties->maxImageDims1D > 0);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageDims1D));
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
-                       Device->ZeDeviceImageProperties->maxImageDims2D > 0);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageDims2D));
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
     return ReturnValue(
@@ -1332,29 +1341,23 @@ ur_result_t urDeviceGetInfo(
     // L0 does not support cubemap seamless filtering.
     return ReturnValue(false);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
-    // L0 does support fetching 1D USM sampled image data.
-    return ReturnValue(true);
-  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
-    // L0 does support fetching 1D non-USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageDims1D));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
-    // L0 does support fetching 2D USM sampled image data.
-    return ReturnValue(true);
-  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
-    // L0 does support fetching 2D non-USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageDims2D));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
-    // L0 does support fetching 3D non-USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageDims3D));
   }
   case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
-    // L0 does support image arrays
-    return ReturnValue(true);
+    return ReturnValue(supportsBindlessImages(
+        Device->ZeDeviceImageProperties->maxImageArraySlices));
   }
   case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // L0 does not support unique addressing per dimension
