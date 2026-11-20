@@ -272,6 +272,10 @@ public:
   bool supportsReusableEvents();
   bool supportsEventProfiling();
   bool supportsIPCEvents();
+  bool supportsTimelineSemaphores();
+  /// @return The largest value that a timeline semaphore in this context may
+  /// hold, the minimum over the devices of the context.
+  uint64_t getTimelineSemaphoreMaxValue();
 
   /// @return True if any native graph recording is active on a queue
   /// in this context.
@@ -313,6 +317,10 @@ private:
   std::mutex MEventProfilingSupportMutex;
   std::optional<bool> MIPCEventSupport;
   std::mutex MIPCEventSupportMutex;
+  std::optional<bool> MTimelineSemaphoreSupport;
+  std::mutex MTimelineSemaphoreSupportMutex;
+  std::once_flag MTimelineSemaphoreMaxValueFlag;
+  uint64_t MTimelineSemaphoreMaxValue = UINT64_MAX;
 
   // Device pools.
   // Weak_ptr preventing circular dependency between memory_pool_impl and

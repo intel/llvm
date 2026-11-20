@@ -588,6 +588,37 @@ public:
             createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
+  ur_result_t enqueueTimelineSemaphoreSignalExp(
+      ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
+    return commandListManagers.lock()[commandListId]
+        .appendTimelineSemaphoreSignalExp(
+            hSemaphore, value, waitListView,
+            createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
+  ur_result_t
+  enqueueTimelineSemaphoreWaitExp(ur_exp_timeline_semaphore_handle_t hSemaphore,
+                                  uint64_t value, uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent) override {
+    wait_list_view waitListView =
+        wait_list_view(phEventWaitList, numEventsInWaitList);
+
+    auto commandListId =
+        getNextCommandListId(phEventWaitList, numEventsInWaitList);
+    return commandListManagers.lock()[commandListId]
+        .appendTimelineSemaphoreWaitExp(
+            hSemaphore, value, waitListView,
+            createEventIfRequested(eventPool.get(), phEvent, this));
+  }
+
   ur_result_t
   enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,

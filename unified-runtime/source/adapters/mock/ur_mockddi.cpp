@@ -12837,6 +12837,373 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreCreateExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] initial value of the semaphore
+    uint64_t initialValue,
+    /// [out][alloc] pointer to the handle of the semaphore object created
+    ur_exp_timeline_semaphore_handle_t *phSemaphore) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_timeline_semaphore_create_exp_params_t params = {&hContext, &initialValue,
+                                                      &phSemaphore};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urTimelineSemaphoreCreateExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urTimelineSemaphoreCreateExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    *phSemaphore =
+        mock::createDummyHandle<ur_exp_timeline_semaphore_handle_t>();
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urTimelineSemaphoreCreateExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreRetainExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreRetainExp(
+    /// [in][retain] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_timeline_semaphore_retain_exp_params_t params = {&hSemaphore};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urTimelineSemaphoreRetainExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urTimelineSemaphoreRetainExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    mock::retainDummyHandle(hSemaphore);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urTimelineSemaphoreRetainExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreReleaseExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreReleaseExp(
+    /// [in][release] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_timeline_semaphore_release_exp_params_t params = {&hSemaphore};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urTimelineSemaphoreReleaseExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urTimelineSemaphoreReleaseExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    mock::releaseDummyHandle(hSemaphore);
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urTimelineSemaphoreReleaseExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostWaitExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostWaitExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_timeline_semaphore_host_wait_exp_params_t params = {&hSemaphore, &value};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urTimelineSemaphoreHostWaitExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urTimelineSemaphoreHostWaitExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urTimelineSemaphoreHostWaitExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urTimelineSemaphoreHostSignalExp
+__urdlllocal ur_result_t UR_APICALL urTimelineSemaphoreHostSignalExp(
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_timeline_semaphore_host_signal_exp_params_t params = {&hSemaphore, &value};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urTimelineSemaphoreHostSignalExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urTimelineSemaphoreHostSignalExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urTimelineSemaphoreHostSignalExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreSignalExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreSignalExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] new value of the semaphore
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_enqueue_timeline_semaphore_signal_exp_params_t params = {
+      &hQueue,          &hSemaphore, &value, &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urEnqueueTimelineSemaphoreSignalExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urEnqueueTimelineSemaphoreSignalExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urEnqueueTimelineSemaphoreSignalExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueTimelineSemaphoreWaitExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueTimelineSemaphoreWaitExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in] handle of the semaphore object
+    ur_exp_timeline_semaphore_handle_t hSemaphore,
+    /// [in] target value
+    uint64_t value,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before this command can be executed.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating that this
+    /// command does not wait on any event to complete.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command instance.
+    /// If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    /// an element of the phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_enqueue_timeline_semaphore_wait_exp_params_t params = {
+      &hQueue,          &hSemaphore, &value, &numEventsInWaitList,
+      &phEventWaitList, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urEnqueueTimelineSemaphoreWaitExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urEnqueueTimelineSemaphoreWaitExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urEnqueueTimelineSemaphoreWaitExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urGraphCreateExp
 __urdlllocal ur_result_t UR_APICALL urGraphCreateExp(
     /// [in] Handle of the context object.
@@ -13958,6 +14325,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnNativeCommandExp = driver::urEnqueueNativeCommandExp;
 
+  pDdiTable->pfnTimelineSemaphoreSignalExp =
+      driver::urEnqueueTimelineSemaphoreSignalExp;
+
+  pDdiTable->pfnTimelineSemaphoreWaitExp =
+      driver::urEnqueueTimelineSemaphoreWaitExp;
+
   pDdiTable->pfnGraphExp = driver::urEnqueueGraphExp;
 
   return result;
@@ -14548,6 +14921,43 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 
   pDdiTable->pfnCreateWithNativeHandle =
       driver::urSamplerCreateWithNativeHandle;
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TimelineSemaphoreExp
+/// table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_timeline_semaphore_exp_dditable_t *pDdiTable) try {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (driver::d_context.version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnCreateExp = driver::urTimelineSemaphoreCreateExp;
+
+  pDdiTable->pfnRetainExp = driver::urTimelineSemaphoreRetainExp;
+
+  pDdiTable->pfnReleaseExp = driver::urTimelineSemaphoreReleaseExp;
+
+  pDdiTable->pfnHostWaitExp = driver::urTimelineSemaphoreHostWaitExp;
+
+  pDdiTable->pfnHostSignalExp = driver::urTimelineSemaphoreHostSignalExp;
 
   return result;
 } catch (...) {

@@ -30,6 +30,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMPrefetch.cpp
   RegisterHostMemory.cpp
   ReusableEvents.cpp
+  TimelineSemaphore.cpp
   AsyncAlloc.cpp
   DeviceImageBackendContent.cpp
 )

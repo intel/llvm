@@ -1029,6 +1029,50 @@ ur_result_t urEventCreateExp(::ur_context_handle_t /*hContext*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urTimelineSemaphoreCreateExp(
+    ::ur_context_handle_t /*hContext*/, uint64_t /*initialValue*/,
+    ::ur_exp_timeline_semaphore_handle_t * /*phSemaphore*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urTimelineSemaphoreRetainExp(
+    ::ur_exp_timeline_semaphore_handle_t /*hSemaphore*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urTimelineSemaphoreReleaseExp(
+    ::ur_exp_timeline_semaphore_handle_t /*hSemaphore*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urTimelineSemaphoreHostWaitExp(
+    ::ur_exp_timeline_semaphore_handle_t /*hSemaphore*/, uint64_t /*value*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urTimelineSemaphoreHostSignalExp(
+    ::ur_exp_timeline_semaphore_handle_t /*hSemaphore*/, uint64_t /*value*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueTimelineSemaphoreSignalExp(
+    ::ur_queue_handle_t /*hQueue*/,
+    ::ur_exp_timeline_semaphore_handle_t /*hSemaphore*/, uint64_t /*value*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
+    ::ur_event_handle_t * /*phEvent*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueTimelineSemaphoreWaitExp(
+    ::ur_queue_handle_t /*hQueue*/,
+    ::ur_exp_timeline_semaphore_handle_t /*hSemaphore*/, uint64_t /*value*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ::ur_event_handle_t * /*phEventWaitList*/,
+    ::ur_event_handle_t * /*phEvent*/) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t urIPCGetEventHandleExp(::ur_event_handle_t /*hEvent*/,
                                    void ** /*ppIPCEventHandleData*/,
                                    size_t * /*pIPCEventHandleDataSizeRet*/) {

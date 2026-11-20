@@ -17,6 +17,7 @@
 #include "graph.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "timeline_semaphore.hpp"
 #include "ur_interface_loader.hpp"
 
 namespace ur::level_zero::v2 {
@@ -1061,6 +1062,81 @@ ur_result_t ur_command_list_manager::bindlessImagesSignalExternalSemaphoreExp(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_command_list_manager::appendTimelineSemaphoreSignalExp(
+    ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
+  auto hPlatform = hContext.get()->getPlatform();
+  if (!hPlatform->ZeMemoryOpsExt.Supported) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+  if (value > hSemaphore->getMaxValue()) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_TIMELINE_SEMAPHORE_SIGNAL_EXP);
+  auto [pWaitEvents, numWaitEvents, _] = waitListView;
+
+  // The command list must own the semaphore before any command refers to its
+  // storage, even if a later append fails.
+  recordSubmittedSemaphore(hSemaphore);
+
+  if (numWaitEvents > 0) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (zeCommandList.get(), numWaitEvents, pWaitEvents));
+  }
+
+  ur_zex_write_to_mem_desc_t writeDesc = {};
+  writeDesc.writeScope =
+      UR_ZEX_MEM_ACTION_SCOPE_FLAG_DEVICE | UR_ZEX_MEM_ACTION_SCOPE_FLAG_HOST;
+  ZE2UR_CALL(
+      hPlatform->ZeMemoryOpsExt.zexCommandListAppendWriteToMemory,
+      (zeCommandList.get(), &writeDesc, hSemaphore->getStorage(), value));
+
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (zeCommandList.get(), zeSignalEvent));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_command_list_manager::appendTimelineSemaphoreWaitExp(
+    ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+    wait_list_view &waitListView, ur_event_handle_t phEvent) {
+  if (value > hSemaphore->getMaxValue()) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_TIMELINE_SEMAPHORE_WAIT_EXP);
+  auto [pWaitEvents, numWaitEvents, _] = waitListView;
+
+  // A value that is already reached needs no device wait, which also keeps the
+  // per-value event cache from growing for waits on past values.
+  std::vector<ze_event_handle_t> zeWaitEvents(pWaitEvents,
+                                              pWaitEvents + numWaitEvents);
+  if (!hSemaphore->isReached(value)) {
+    // The command list must own the semaphore before any command refers to its
+    // event, even if a later append fails.
+    recordSubmittedSemaphore(hSemaphore);
+    zeWaitEvents.push_back(hSemaphore->getWaitEvent(hDevice.get(), value));
+  }
+
+  if (!zeWaitEvents.empty()) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (zeCommandList.get(), static_cast<uint32_t>(zeWaitEvents.size()),
+                zeWaitEvents.data()));
+  }
+
+  if (zeSignalEvent) {
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (zeCommandList.get(), zeSignalEvent));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_command_list_manager::appendNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
@@ -1077,6 +1153,14 @@ void ur_command_list_manager::recordSubmittedKernel(
   auto [_, inserted] = submittedKernels.insert(hKernel);
   if (inserted) {
     hKernel->RefCount.retain();
+  }
+}
+
+void ur_command_list_manager::recordSubmittedSemaphore(
+    ur_exp_timeline_semaphore_handle_t hSemaphore) {
+  auto [_, inserted] = submittedSemaphores.insert(hSemaphore);
+  if (inserted) {
+    hSemaphore->RefCount.retain();
   }
 }
 
@@ -1125,6 +1209,10 @@ ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
     UR_CALL(hKernel->release());
   }
   submittedKernels.clear();
+  for (auto &hSemaphore : submittedSemaphores) {
+    UR_CALL(hSemaphore->release());
+  }
+  submittedSemaphores.clear();
   return UR_RESULT_SUCCESS;
 }
 

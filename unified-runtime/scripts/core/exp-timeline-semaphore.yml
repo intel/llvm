@@ -1,0 +1,243 @@
+#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for timeline semaphores"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a timeline semaphore object"
+class: $xTimelineSemaphore
+name: "$x_exp_timeline_semaphore_handle_t"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support timeline semaphores."
+name: $x_device_info_t
+etors:
+    - name: TIMELINE_SEMAPHORE_SUPPORT_EXP
+      value: "0x2027"
+      desc: >
+            [$x_bool_t] returns true if the device supports timeline
+            semaphores created with $xTimelineSemaphoreCreateExp.
+    - name: TIMELINE_SEMAPHORE_MAX_VALUE_EXP
+      value: "0x2028"
+      desc: >
+            [uint64_t] returns the maximum value that a timeline semaphore
+            may hold on the device. The maximum value of a semaphore is the
+            minimum of this value over the devices of its context; initial,
+            signal and wait values above it are rejected. Returns
+            $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION if the device does not
+            support timeline semaphores.
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: TIMELINE_SEMAPHORE_SIGNAL_EXP
+      value: "0x2300"
+      desc: Event created by $xEnqueueTimelineSemaphoreSignalExp
+    - name: TIMELINE_SEMAPHORE_WAIT_EXP
+      value: "0x2301"
+      desc: Event created by $xEnqueueTimelineSemaphoreWaitExp
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a timeline semaphore object."
+class: $xTimelineSemaphore
+name: CreateExp
+decl: static
+details:
+    - "The semaphore holds a 64-bit value, which is set to `initialValue`."
+    - "The semaphore can be used with every device of `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: uint64_t
+      name: initialValue
+      desc: "[in] initial value of the semaphore"
+    - type: $x_exp_timeline_semaphore_handle_t*
+      name: phSemaphore
+      desc: "[out][alloc] pointer to the handle of the semaphore object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "If `initialValue` is greater than $X_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of `hContext`."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device of `hContext` does not support timeline semaphores."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to a timeline semaphore. Increment the semaphore object's reference count."
+class: $xTimelineSemaphore
+name: RetainExp
+params:
+    - type: $x_exp_timeline_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in][retain] handle of the semaphore object"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the semaphore object's reference count and delete the semaphore object if the reference count becomes zero."
+class: $xTimelineSemaphore
+name: ReleaseExp
+details:
+    - >
+      The semaphore may be released while signal or wait operations on it,
+      enqueued with $xEnqueueTimelineSemaphoreSignalExp or
+      $xEnqueueTimelineSemaphoreWaitExp, have not completed. The adapter keeps
+      the resources these operations need alive until they complete.
+params:
+    - type: $x_exp_timeline_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in][release] handle of the semaphore object"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Block the calling thread until the value of a timeline semaphore is greater than or equal to a target value."
+class: $xTimelineSemaphore
+name: HostWaitExp
+params:
+    - type: $x_exp_timeline_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in] handle of the semaphore object"
+    - type: uint64_t
+      name: value
+      desc: "[in] target value"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "If `value` is greater than $X_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of the semaphore's context."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set the value of a timeline semaphore from the host."
+class: $xTimelineSemaphore
+name: HostSignalExp
+details:
+    - "The store has release semantics: memory operations the calling thread performed before this call are visible to the commands that wait for `value`."
+    - "The behavior is undefined if `value` is not greater than the current value of the semaphore."
+params:
+    - type: $x_exp_timeline_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in] handle of the semaphore object"
+    - type: uint64_t
+      name: value
+      desc: "[in] new value of the semaphore"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "If `value` is greater than $X_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of the semaphore's context."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command that sets the value of a timeline semaphore."
+class: $xEnqueue
+name: TimelineSemaphoreSignalExp
+details:
+    - "The command executes after the events in `phEventWaitList` have completed and, on an in-order queue, after the commands previously enqueued to `hQueue`."
+    - "Memory operations of the commands that the signal depends on are visible to the commands that wait for `value`."
+    - "The command does not act as a barrier on an out-of-order queue."
+    - "The behavior is undefined if `value` is not greater than the value of the semaphore when the command executes."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_exp_timeline_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in] handle of the semaphore object"
+    - type: uint64_t
+      name: value
+      desc: "[in] new value of the semaphore"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance.
+            If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "If `value` is greater than $X_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of the semaphore's context."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the device of `hQueue` does not support timeline semaphores."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command that waits until the value of a timeline semaphore is greater than or equal to a target value."
+class: $xEnqueue
+name: TimelineSemaphoreWaitExp
+details:
+    - "The command executes after the events in `phEventWaitList` have completed and, on an in-order queue, after the commands previously enqueued to `hQueue`."
+    - "The command completes when the value of the semaphore is greater than or equal to `value`. The signal that sets this value may be performed after this function returns."
+    - "The command does not act as a barrier on an out-of-order queue."
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_exp_timeline_semaphore_handle_t
+      name: hSemaphore
+      desc: "[in] handle of the semaphore object"
+    - type: uint64_t
+      name: value
+      desc: "[in] target value"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that this command does not wait on any event to complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies this particular command instance.
+            If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "If `value` is greater than $X_DEVICE_INFO_TIMELINE_SEMAPHORE_MAX_VALUE_EXP of any device of the semaphore's context."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the device of `hQueue` does not support timeline semaphores."
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES

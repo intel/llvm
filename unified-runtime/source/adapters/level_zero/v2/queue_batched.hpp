@@ -91,6 +91,12 @@ private:
 
   bool graphCaptureActive = false;
 
+  // Whether a submitted command may wait for a value that is signaled from
+  // outside the queue, possibly later by the thread that submits to the
+  // queue. Until the next queue synchronization, batches are then retired
+  // without blocking on their completion.
+  bool externalWaitSubmitted = false;
+
 public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
                 v2::raii::command_list_unique_handle &&commandListRegular,
@@ -106,6 +112,15 @@ public:
   }
 
   ur_result_t hostSynchronize();
+
+  // Returns in `completed` whether all submitted batches have completed,
+  // without blocking.
+  ur_result_t queryCompletion(bool &completed);
+
+  // Returns the command lists of the submitted batches to the cache. Must be
+  // called only after all of them have completed. Objects recorded by the
+  // active batch stay retained, because the active batch has not completed.
+  void reclaimSubmittedBatches() { runBatches.clear(); }
 
   ur_result_t
   renewRegularUnlocked(v2::raii::command_list_unique_handle &&newRegularBatch);
@@ -157,6 +172,10 @@ public:
   bool isGraphCaptureActive() const { return graphCaptureActive; }
 
   void setGraphCapture(bool active) { graphCaptureActive = active; }
+
+  bool isExternalWaitSubmitted() const { return externalWaitSubmitted; }
+
+  void markExternalWaitSubmitted() { externalWaitSubmitted = true; }
 };
 
 struct ur_queue_batched_t : ur_object_t, ur_queue_t_ {
@@ -437,6 +456,17 @@ public:
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
+
+  ur_result_t enqueueTimelineSemaphoreSignalExp(
+      ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent) override;
+
+  ur_result_t
+  enqueueTimelineSemaphoreWaitExp(ur_exp_timeline_semaphore_handle_t hSemaphore,
+                                  uint64_t value, uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent) override;
 
   ur_result_t
   enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
