@@ -43,5 +43,6 @@ int main() {
     assert(HostDataA[i] == PaddedKernelParam.val1 * PaddedKernelParam.val2[i]);
   }
 
+  free(PtrA, Queue);
   return 0;
 }

@@ -34,6 +34,8 @@ struct ur_context_handle_t_ : ur_context_common_t {
   ur_usm_pool_handle_t getDefaultUSMPool();
   ur_usm_pool_handle_t getAsyncPool();
 
+  uint64_t getMaxHostAllocSize() const { return maxHostAllocSize; }
+
   void addUsmPool(ur_usm_pool_handle_t hPool);
   void removeUsmPool(ur_usm_pool_handle_t hPool);
   void changeResidentDevice(ur_device_handle_t hDevice,
@@ -87,6 +89,10 @@ struct ur_context_handle_t_ : ur_context_common_t {
   ur_shared_mutex GraphMapMutex;
 
 private:
+  // Largest maxMemAllocSize among the context's devices.
+  // Zero means relaxed allocation limits are enabled or no limit is available.
+  uint64_t maxHostAllocSize = 0;
+
   const raii::ze_context_handle_t hContext;
   command_list_cache_t commandListCache;
   event_pool_cache eventPoolCacheImmediate;
