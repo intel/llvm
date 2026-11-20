@@ -166,7 +166,7 @@ public:
     case AllocMode::Classic:
       for (auto &DevPtr : Ptrs) {
         if (DevPtr != native_type{0}) {
-          UR_CHECK_ERROR(hipFree(DevPtr));
+          UR_CHECK_ERROR(hipFree(asVoidPtr(DevPtr)));
         }
       }
       break;
@@ -204,7 +204,7 @@ public:
              ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
              void *HostPtr)
       : Arrays(Context->Devices.size(), nullptr),
-        SurfObjs(Context->Devices.size(), nullptr),
+        SurfObjs(Context->Devices.size(), hipSurfaceObject_t{}),
         OuterMemStruct{OuterMemStruct}, ImageFormat{ImageFormat},
         ImageDesc{ImageDesc}, ArrayDesc{}, HostPtr{HostPtr} {
     // We have to use hipArray3DCreate, which has some caveats. The height and
@@ -381,7 +381,8 @@ struct ur_mem_handle_t_ : ur::hip::handle_base {
     }
     for (auto &DevPtr : SubBuffer.Ptrs) {
       if (DevPtr) {
-        DevPtr = static_cast<char *>(DevPtr) + SubBufferOffset;
+        DevPtr = asHipDevicePtr(static_cast<char *>(asVoidPtr(DevPtr)) +
+                                SubBufferOffset);
       }
     }
     urMemRetain(Parent);
