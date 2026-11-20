@@ -13993,6 +13993,12 @@ def warn_sycl_old_and_new_kernel_attributes : Warning<
   "kernel has both attribute %0 and kernel properties; if the kernel "
   "properties contains the property \"%1\" it will be ignored">,
   InGroup<IgnoredAttributes>;
+def err_sycl_khr_kernel_property_attr_mismatch : Error<
+  "%0 attribute arguments '%1' do not match the value '%2' of kernel property "
+  "'sycl::khr::property::%3' embedded by "
+  "'get(sycl::khr::property::tag::kernel)'">;
+def note_sycl_khr_kernel_properties_getter : Note<
+  "kernel properties are embedded by this member function">;
 def err_attribute_argument_is_not_valid : Error<
   "%0 attribute requires integer constant value 0 or 1">;
 def warn_sycl_work_group_scope_dtor : Warning<

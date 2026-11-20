@@ -140,6 +140,7 @@ inline namespace _V1 {
 #define SYCL_KHR_SPLIT_HEADERS 1
 #define SYCL_KHR_FREE_FUNCTION_COMMANDS 1
 #define SYCL_KHR_PROPERTIES 1
+#define SYCL_KHR_KERNEL_PROPERTIES 1
 #endif
 
 #ifndef __has_include

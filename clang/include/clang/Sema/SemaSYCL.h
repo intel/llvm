@@ -517,6 +517,9 @@ public:
   void handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &AL);
 
   void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
+  // Diagnoses kernel attributes that do not match the kernel properties
+  // embedded by 'get(sycl::khr::property::tag::kernel)'.
+  void checkSYCLKhrKernelPropertiesAttrConflicts(Decl *D);
 
   SYCLReqdWorkGroupSizeAttr *
   mergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
