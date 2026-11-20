@@ -182,14 +182,17 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
   std::vector<std::vector<char>> Result(Devices.size());
   auto ResultIt = Result.begin();
   for (device_impl &Device : Devices) {
-    auto DeviceIt = std::find_if(URDevices.begin(), URDevices.end(),
-                                 [&Device](const ur_device_handle_t &URDevice) {
-                                   return URDevice == Device.getHandleRef();
-                                 });
-    assert(DeviceIt != URDevices.end() &&
-           "Device is not associated with the program");
-    auto URDeviceIndex = std::distance(URDevices.begin(), DeviceIt);
-    *ResultIt = std::move(Binaries[URDeviceIndex]);
+    auto Find = [&URDevices](ur_device_handle_t Handle) {
+      return std::find(URDevices.begin(), URDevices.end(), Handle);
+    };
+    auto DeviceIt = Find(Device.getHandleRef());
+    // A sub-device built in a root-device context: the program lists the root.
+    if (DeviceIt == URDevices.end() && !Device.isRootDevice())
+      DeviceIt = Find(Device.getRootDeviceHandle());
+    // Leave the entry empty rather than index past Binaries.
+    if (DeviceIt != URDevices.end())
+      *ResultIt =
+          std::move(Binaries[std::distance(URDevices.begin(), DeviceIt)]);
     ++ResultIt;
   }
 
@@ -199,7 +202,8 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
 }
 
 // Save the current time in a file.
-void PersistentDeviceCodeCache::saveCurrentTimeInAFile(std::string FileName) {
+void PersistentDeviceCodeCache::saveCurrentTimeInAFile(
+    const std::string &FileName) {
   // Lock the file to prevent concurrent writes.
   LockCacheItem Lock{FileName};
   if (Lock.isOwned()) {
@@ -295,7 +299,7 @@ void PersistentDeviceCodeCache::evictItemsFromCache(
   // modification time.
   std::vector<std::pair<uint64_t, std::string>> FilesWithAccessTime;
 
-  auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string File) {
+  auto CollectFileAccessTime = [&FilesWithAccessTime](const std::string &File) {
     if (File.find(CacheEntryAccessTimeSuffix) != std::string::npos) {
       std::ifstream FileStream{File};
       uint64_t AccessTime;

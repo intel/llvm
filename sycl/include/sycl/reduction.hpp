@@ -2739,26 +2739,21 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
   size_t PerGroup = Range.size() / NWorkGroups;
-  // Iterate through the index space by assigning contiguous chunks to each
-  // work-group, then iterating through each chunk using a stride equal to the
-  // work-group's local range, which gives much better performance than using
-  // stride equal to 1. For each of the index the given the original KernelFunc
-  // is called and the reduction value hold in \p Reducer is accumulated in
-  // those calls.
+  // Interleave small contiguous blocks between Intel GPU work-groups instead
+  // of giving each group one large chunk. This can improve memory bandwidth
+  // without increasing the number of partial reductions. Keep small ranges
+  // contiguous so every work-group still has work to do.
+  constexpr size_t ItemsPerWorkItem = 8;
+  size_t BlockSize = WGSize * ItemsPerWorkItem;
+  auto Dev = getDeviceFromHandler(CGH);
+  bool Interleave = Dev.is_gpu() &&
+                    Dev.get_info<info::device::vendor_id>() == 0x8086 &&
+                    PerGroup >= BlockSize;
+  size_t FullBlocks = NWorkItems / BlockSize;
   auto UpdatedKernelFunc = [=](auto NDId, auto &...Reducers) {
-    // Divide into contiguous chunks and assign each chunk to a Group
-    // Rely on precomputed division to avoid repeating expensive operations
-    // TODO: Some devices may prefer alternative remainder handling
     auto Group = NDId.get_group();
     size_t GroupId = Group.get_group_linear_id();
-    size_t NumGroups = Group.get_group_linear_range();
-    bool LastGroup = (GroupId == NumGroups - 1);
-    size_t GroupStart = GroupId * PerGroup;
-    size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
-
-    // Loop over the contiguous chunk
-    size_t Start = GroupStart + NDId.get_local_id(0);
-    size_t End = GroupEnd;
+    size_t NumGroups = NWorkGroups;
     size_t Stride = NDId.get_local_range(0);
     auto GetDelinearized = [&](size_t I) {
       auto Id = getDelinearizedId(Range, I);
@@ -2770,8 +2765,37 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
         // reductions, so use with_offset==false.
         return reduction::getDelinearizedItem(Range, Id);
     };
-    for (size_t I = Start; I < End; I += Stride)
+    // Keep one call site for diagnostics on invalid kernel functors.
+    auto RunKernel = [&](size_t I) {
       KernelFunc(GetDelinearized(I), Reducers...);
+    };
+    if (Interleave) {
+      for (size_t Block = GroupId; Block < FullBlocks; Block += NumGroups) {
+        size_t Base = Block * BlockSize + NDId.get_local_id(0);
+        for (size_t J = 0; J < ItemsPerWorkItem; ++J)
+          RunKernel(Base + J * Stride);
+      }
+      if (FullBlocks % NumGroups == GroupId) {
+        size_t Base = FullBlocks * BlockSize;
+        size_t Count = NWorkItems - Base;
+        for (size_t Offset = NDId.get_local_id(0); Offset < Count;
+             Offset += Stride)
+          RunKernel(Base + Offset);
+      }
+    } else {
+      // Divide into contiguous chunks and assign each chunk to a Group
+      // Rely on precomputed division to avoid repeating expensive operations
+      // TODO: Some devices may prefer alternative remainder handling
+      bool LastGroup = (GroupId == NumGroups - 1);
+      size_t GroupStart = GroupId * PerGroup;
+      size_t GroupEnd = LastGroup ? Range.size() : (GroupStart + PerGroup);
+
+      // Loop over the contiguous chunk
+      size_t Start = GroupStart + NDId.get_local_id(0);
+      size_t End = GroupEnd;
+      for (size_t I = Start; I < End; I += Stride)
+        RunKernel(I);
+    }
   };
   if constexpr (NumArgs == 2) {
     using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
@@ -2822,12 +2846,15 @@ struct reduction; // tag type, never defined
 } // namespace tag
 
 namespace key {
-struct initialize_to_identity : detail::runtime_property_key {};
+struct initialize_to_identity
+    : detail::runtime_property_key<initialize_to_identity> {};
 } // namespace key
 
 struct initialize_to_identity
-    : detail::runtime_property<key::initialize_to_identity> {
-  constexpr initialize_to_identity(bool v = true) : value{v} {}
+    : detail::runtime_property<initialize_to_identity,
+                               key::initialize_to_identity> {
+  constexpr initialize_to_identity() : value{true} {}
+  constexpr explicit initialize_to_identity(bool v) : value{v} {}
   bool value;
 };
 } // namespace property
@@ -2857,8 +2884,8 @@ inline property_list khrReductionToPropertyList(const PropertyOrList &Props) {
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForReduction =
-    khr::is_property_for_v<PropertyOrList, khr::property::tag::reduction> ||
-    khr::is_property_list_for_v<PropertyOrList, khr::property::tag::reduction>;
+    khr::is_property_or_list_for_v<PropertyOrList,
+                                   khr::property::tag::reduction>;
 } // namespace detail
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
@@ -2954,36 +2981,14 @@ auto reduction(span<T, Extent> Span, const T &Identity,
 // overload above, accepting a khr property or property list translated to an
 // old-style property_list.
 template <
-    typename T, typename AllocatorT, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
-    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
-               BinaryOperation Combiner, PropertyOrList props) {
-  return reduction(Var, CGH, Combiner,
-                   detail::khrReductionToPropertyList(props));
-}
-
-template <
-    typename T, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename T, typename BinaryOperation, typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(T *Var, BinaryOperation Combiner, PropertyOrList props) {
   return reduction(Var, Combiner, detail::khrReductionToPropertyList(props));
 }
 
 template <
-    typename T, typename AllocatorT, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
-    typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
-               BinaryOperation Combiner, PropertyOrList props) {
-  return reduction(Var, CGH, Identity, Combiner,
-                   detail::khrReductionToPropertyList(props));
-}
-
-template <
-    typename T, typename BinaryOperation,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename T, typename BinaryOperation, typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                PropertyOrList props) {
@@ -2994,7 +2999,7 @@ auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
 template <
     typename T, size_t Extent, typename BinaryOperation,
     typename = std::enable_if_t<Extent != dynamic_extent>,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
                PropertyOrList props) {
@@ -3004,7 +3009,7 @@ auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
 template <
     typename T, size_t Extent, typename BinaryOperation,
     typename = std::enable_if_t<Extent != dynamic_extent>,
-    typename PropertyOrList = khr::empty_properties_t,
+    typename PropertyOrList,
     typename = std::enable_if_t<detail::KhrPropsForReduction<PropertyOrList>>>
 auto reduction(span<T, Extent> Span, const T &Identity,
                BinaryOperation Combiner, PropertyOrList props) {

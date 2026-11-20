@@ -50,5 +50,57 @@
 // CHECK-EMPTY-SPIR64: target triple = "spir64"
 // CHECK-EMPTY-SPIR64-NOT: @llvm.used
 
+//
+// Check that SYCL device code without a target ID is needed by any target ID
+// of the same triple, and the other way around, matching the unbundler. Code
+// for a different triple, or for a different target ID, is not needed.
+//
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,sycl-spir64_gen-unknown-unknown -input=%t.host -input=%t.spir64 -output=%t.gen.fat
+// RUN: clang-offload-deps -targets=sycl-spir64_gen-unknown-unknown-pvc,sycl-spir64-unknown-unknown -outputs=%t.gen.pvc,%t.gen.spir64 %t.gen.fat
+// RUN: llvm-dis -o - %t.gen.pvc | FileCheck %s --check-prefixes=CHECK-SYCL-USED -DSPIRTriple=spir64_gen-unknown-unknown-pvc
+// RUN: llvm-dis -o - %t.gen.spir64 | FileCheck %s --check-prefixes=CHECK-SYCL-UNUSED -DSPIRTriple=spir64-unknown-unknown
+
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,sycl-spir64_gen-unknown-unknown-pvc -input=%t.host -input=%t.spir64 -output=%t.pvc.fat
+// RUN: clang-offload-deps -targets=sycl-spir64_gen-unknown-unknown,sycl-spir64_gen-unknown-unknown-dg2_g10 -outputs=%t.pvc.gen,%t.pvc.dg2 %t.pvc.fat
+// RUN: llvm-dis -o - %t.pvc.gen | FileCheck %s --check-prefixes=CHECK-SYCL-USED -DSPIRTriple=spir64_gen-unknown-unknown
+// RUN: llvm-dis -o - %t.pvc.dg2 | FileCheck %s --check-prefixes=CHECK-SYCL-UNUSED -DSPIRTriple=spir64_gen-unknown-unknown-dg2_g10
+
+// CHECK-SYCL-USED: target triple = "[[SPIRTriple]]"
+// CHECK-SYCL-USED: @llvm.used = appending global [2 x ptr]
+
+// CHECK-SYCL-UNUSED: target triple = "[[SPIRTriple]]"
+// CHECK-SYCL-UNUSED-NOT: @llvm.used
+
+//
+// Check an object that has SYCL device code both without a target ID and with
+// one. Each target asks for the symbols of both, even though the unbundler
+// only extracts one of them. The tool cannot do better: after the host link,
+// .tgtsym is one merged list and does not say which object an entry came from.
+//
+// RUN: %clang -target spir64 -emit-llvm -DBAZ -c %s -o %t.spir64.baz
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,sycl-spir64_gen-unknown-unknown,sycl-spir64_gen-unknown-unknown-pvc -input=%t.host -input=%t.spir64 -input=%t.spir64.baz -output=%t.both.fat
+// RUN: clang-offload-deps -targets=sycl-spir64_gen-unknown-unknown-pvc,sycl-spir64_gen-unknown-unknown -outputs=%t.both.pvc,%t.both.gen %t.both.fat
+// RUN: llvm-dis -o - %t.both.pvc | FileCheck %s --check-prefixes=CHECK-SYCL-BOTH -DSPIRTriple=spir64_gen-unknown-unknown-pvc
+// RUN: llvm-dis -o - %t.both.gen | FileCheck %s --check-prefixes=CHECK-SYCL-BOTH -DSPIRTriple=spir64_gen-unknown-unknown
+
+// CHECK-SYCL-BOTH: target triple = "[[SPIRTriple]]"
+// CHECK-SYCL-BOTH-DAG: @bar = external global ptr
+// CHECK-SYCL-BOTH-DAG: @baz = external global ptr
+// CHECK-SYCL-BOTH-DAG: @foo = external global ptr
+// CHECK-SYCL-BOTH: @llvm.used = appending global [3 x ptr]
+
+//
+// A SYCL bundle entry ID that contains a '.' is rejected, because the tool
+// takes the ID of each .tgtsym entry to end at the first '.'.
+//
+// RUN: clang-offload-bundler -type=o -targets=host-%itanium_abi_triple,sycl-x86_64-apple-macosx10.15.0 -input=%t.host -input=%t.x86_64 -output=%t.sycl.macosx.fat
+// RUN: not clang-offload-deps -targets=sycl-x86_64-apple-macosx -outputs=%t.sycl.macosx %t.sycl.macosx.fat 2>&1 | FileCheck %s --check-prefix=CHECK-SYCL-DOT
+
+// CHECK-SYCL-DOT: error: unsupported SYCL bundle entry ID 'sycl-x86_64-apple-macosx10.15.0', '.' is not allowed
+
+#ifdef BAZ
+void baz(void) {}
+#else
 void foo(void) {}
 void bar(void) {}
+#endif

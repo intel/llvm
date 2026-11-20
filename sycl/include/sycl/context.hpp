@@ -57,7 +57,7 @@ class __SYCL_EXPORT context : public detail::OwnerLessBase<context> {
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForContext =
-      khr::property::detail::is_property_or_list_for_v<PropertyOrList, context>;
+      khr::is_property_or_list_for_v<PropertyOrList, context>;
 #endif
 
 public:

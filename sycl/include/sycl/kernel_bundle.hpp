@@ -1020,18 +1020,15 @@ struct build;   // tag type, never defined
 namespace detail {
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForCompile =
-    khr::property::detail::is_property_or_list_for_v<
-        PropertyOrList, khr::property::tag::compile>;
+    khr::is_property_or_list_for_v<PropertyOrList, khr::property::tag::compile>;
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForLink =
-    khr::property::detail::is_property_or_list_for_v<PropertyOrList,
-                                                     khr::property::tag::link>;
+    khr::is_property_or_list_for_v<PropertyOrList, khr::property::tag::link>;
 
 template <typename PropertyOrList>
 inline constexpr bool KhrPropsForBuild =
-    khr::property::detail::is_property_or_list_for_v<PropertyOrList,
-                                                     khr::property::tag::build>;
+    khr::is_property_or_list_for_v<PropertyOrList, khr::property::tag::build>;
 } // namespace detail
 
 // sycl_khr_properties compile, link and build overloads. Each mirrors the

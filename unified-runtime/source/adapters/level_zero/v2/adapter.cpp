@@ -48,7 +48,7 @@ ur_result_t urAdapterGet(uint32_t NumEntries, ::ur_adapter_handle_t *Adapters,
     releaseStaticLoaderResourcesIfNeeded();
     if (NumAdapters)
       *NumAdapters = 0;
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    return UR_RESULT_SUCCESS;
   }
   adapter->version = 2;
 

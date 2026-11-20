@@ -3,7 +3,8 @@
 ; and that the output tables from inputs with target info have the modules
 ; that are not compatible with that target filtered out.
 
-; RUN: sycl-post-link -properties %s -symbols -split=auto \
+; RUN: split-file %s %t.dir
+; RUN: sycl-post-link -properties %t.dir/original.ll -symbols -split=auto \
 ; RUN: -o %t.table \
 ; RUN: -o intel_gpu_pvc,%t-pvc.table \
 ; RUN: -o intel_gpu_tgllp,%t-tgllp.table \
@@ -99,6 +100,39 @@
 ; CHECK-BMG-NEXT: _5.intel_gpu_bmg_g21.prop|{{.*}}_5.sym
 ; CHECK-BMG-EMPTY:
 
+; RUN: sycl-post-link -properties %t.dir/atomic16.ll -symbols -split=auto \
+; RUN: -o %t-atomic16.table \
+; RUN: -o intel_gpu_pvc,%t-atomic16-pvc.table \
+; RUN: -o intel_gpu_bmg_g31,%t-atomic16-bmg.table \
+; RUN: -o intel_gpu_cri,%t-atomic16-cri.table
+; RUN: FileCheck %s -input-file=%t-atomic16_0.sym -check-prefix=CHECK-ATOMIC16
+; RUN: FileCheck %s -input-file=%t-atomic16_1.sym -check-prefix=CHECK-ORDINARY
+; RUN: FileCheck %s -input-file=%t-atomic16.table -check-prefix=CHECK-ATOMIC16-ALL
+; RUN: FileCheck %s -input-file=%t-atomic16-pvc.table -check-prefix=CHECK-NO-ATOMIC16
+; RUN: FileCheck %s -input-file=%t-atomic16-bmg.table -check-prefix=CHECK-NO-ATOMIC16
+; RUN: FileCheck %s -input-file=%t-atomic16-cri.table -check-prefix=CHECK-ATOMIC16-CRI
+
+; CHECK-ATOMIC16: atomic16_kernel
+; CHECK-ORDINARY: ordinary_kernel
+
+; CHECK-ATOMIC16-ALL: [Code|Properties|Symbols]
+; CHECK-ATOMIC16-ALL-NEXT: _0.sym
+; CHECK-ATOMIC16-ALL-NEXT: _1.sym
+; CHECK-ATOMIC16-ALL-EMPTY:
+; CHECK-ATOMIC16-ALL-NOT: {{.}}
+
+; CHECK-NO-ATOMIC16: [Code|Properties|Symbols]
+; CHECK-NO-ATOMIC16-NEXT: _1.sym
+; CHECK-NO-ATOMIC16-EMPTY:
+; CHECK-NO-ATOMIC16-NOT: {{.}}
+
+; CHECK-ATOMIC16-CRI: [Code|Properties|Symbols]
+; CHECK-ATOMIC16-CRI-NEXT: _0.intel_gpu_cri.prop|{{.*}}_0.sym
+; CHECK-ATOMIC16-CRI-NEXT: _1.intel_gpu_cri.prop|{{.*}}_1.sym
+; CHECK-ATOMIC16-CRI-EMPTY:
+; CHECK-ATOMIC16-CRI-NOT: {{.}}
+
+;--- original.ll
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
@@ -156,3 +190,21 @@ attributes #0 = { mustprogress norecurse nounwind "frame-pointer"="all" "no-trap
 !79 = !{i32 16}
 !80 = !{i32 32}
 !81 = !{i32 64}
+
+;--- atomic16.ll
+target triple = "spir64-unknown-unknown"
+
+define spir_kernel void @atomic16_kernel() #0 !sycl_used_aspects !0 {
+entry:
+  ret void
+}
+
+define spir_kernel void @ordinary_kernel() #0 {
+entry:
+  ret void
+}
+
+attributes #0 = { "sycl-module-id"="atomic16.cpp" }
+
+!0 = !{!1}
+!1 = !{!"ext_oneapi_atomic16", i32 73}

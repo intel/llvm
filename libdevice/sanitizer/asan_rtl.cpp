@@ -107,6 +107,38 @@ inline uptr MemToShadow_CPU(uptr addr) {
   return launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
 }
 
+inline uptr GetLocalWindowSize(
+    [[maybe_unused]] __SYCL_GLOBAL__ const AsanRuntimeData *launch_info) {
+#if defined(__LIBDEVICE_PVC__)
+  return 128 * 1024;
+#elif defined(__LIBDEVICE_DG2__)
+  return 64 * 1024;
+#else
+  return launch_info->LocalWindowSize;
+#endif
+}
+
+inline uptr MemToShadow_Local(uptr addr) {
+  auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
+  const auto shadow_offset = launch_info->LocalShadowOffset;
+  const size_t wid = WorkGroupLinearId();
+  if (shadow_offset == 0 || wid >= ASAN_MAX_WG_LOCAL) {
+    return 0;
+  }
+
+  const uptr window_size = GetLocalWindowSize(launch_info);
+  uptr shadow_ptr = shadow_offset + ((wid * window_size) >> ASAN_SHADOW_SCALE) +
+                    ((addr & (window_size - 1)) >> ASAN_SHADOW_SCALE);
+
+  ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
+             if (shadow_ptr > shadow_offset_end) {
+               __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
+                                  wid, (uptr)shadow_offset);
+               return 0;
+             });
+  return shadow_ptr;
+}
+
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
                             [[maybe_unused]] const DebugInfo *debug) {
   if (as == ADDRESS_SPACE_GENERIC) {
@@ -145,23 +177,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
 
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
-    const auto shadow_offset = launch_info->LocalShadowOffset;
-    const size_t wid = WorkGroupLinearId();
-    if (shadow_offset == 0 || wid >= ASAN_MAX_WG_LOCAL) {
-      return 0;
-    }
-
-    auto shadow_ptr = shadow_offset +
-                      ((wid * ASAN_SLM_SIZE) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (ASAN_SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
-
-    ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
-               if (shadow_ptr > shadow_offset_end) {
-                 __spirv_ocl_printf(__local_shadow_out_of_bound, addr,
-                                    shadow_ptr, wid, (uptr)shadow_offset);
-                 return 0;
-               });
-    return shadow_ptr;
+    return MemToShadow_Local(addr);
   } else if (as == ADDRESS_SPACE_PRIVATE) { // private
     const auto shadow_offset = launch_info->PrivateShadowOffset;
     const size_t sid = SubGroupLinearId();
@@ -231,23 +247,7 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
         });
     return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
-    const auto shadow_offset = launch_info->LocalShadowOffset;
-    const auto wid = WorkGroupLinearId();
-    if (shadow_offset == 0 || wid >= ASAN_MAX_WG_LOCAL) {
-      return 0;
-    }
-
-    uptr shadow_ptr = shadow_offset +
-                      ((wid * ASAN_SLM_SIZE) >> ASAN_SHADOW_SCALE) +
-                      ((addr & (ASAN_SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
-
-    ASAN_DEBUG(const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
-               if (shadow_ptr > shadow_offset_end) {
-                 __spirv_ocl_printf(__local_shadow_out_of_bound, addr,
-                                    shadow_ptr, wid, (uptr)shadow_offset);
-                 return 0;
-               });
-    return shadow_ptr;
+    return MemToShadow_Local(addr);
   } else if (as == ADDRESS_SPACE_PRIVATE) { // private
     const auto shadow_offset = launch_info->PrivateShadowOffset;
     const size_t sid = SubGroupLinearId();

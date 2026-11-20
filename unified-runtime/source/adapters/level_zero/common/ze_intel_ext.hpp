@@ -75,6 +75,37 @@ typedef struct _ur_ze_intel_xe_device_exp_properties_t {
 } ur_ze_intel_xe_device_exp_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+// ZE_extension_device_igca_target
+
+constexpr const char *UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME =
+    "ZE_extension_device_igca_target";
+
+constexpr ur_ze_structure_type_ext_t
+    UR_ZE_STRUCTURE_TYPE_DEVICE_IGCA_TARGET_EXT_PROPERTIES = 0x00030036;
+
+// Supported IGCA feature set flags
+typedef uint32_t ur_ze_igca_feature_set_ext_flags_t;
+typedef enum _ur_ze_igca_feature_set_ext_flag_t {
+  UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_COMPUTE = ZE_BIT(0), ///< IGCA compute feature
+                                                       ///< set
+  UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_RENDER = ZE_BIT(1),  ///< IGCA render feature
+                                                       ///< set
+  UR_ZE_IGCA_FEATURE_SET_EXT_FLAG_FORCE_UINT32 = 0x7fffffff
+} ur_ze_igca_feature_set_ext_flag_t;
+
+// Device IGCA target properties, queried using zeDeviceGetModuleProperties via
+// the pNext member of ze_device_module_properties_t.
+typedef struct _ur_ze_device_igca_target_ext_properties_t {
+  ur_ze_structure_type_ext_t stype; ///< [in] type of this structure
+  void *pNext;     ///< [in,out][optional] must be null or a pointer to an
+                   ///< extension-specific structure
+  uint32_t target; ///< [out] Numeric IGCA target supported by the device
+  ur_ze_igca_feature_set_ext_flags_t
+      featureSets; ///< [out] 0 (none) or a valid combination of
+                   ///< ur_ze_igca_feature_set_ext_flag_t
+} ur_ze_device_igca_target_ext_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 // Queue priority levels (zeDeviceGetPriorityLevels)
 
 constexpr ur_ze_structure_type_ext_t UR_ZE_STRUCTURE_TYPE_QUEUE_PRIORITY_DESC =

@@ -3,6 +3,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <type_traits>
+
 struct TriviallyCopyable {
   int a;
   int b;
@@ -14,6 +16,19 @@ struct NonTriviallyCopyable {
   int a;
   int b;
 };
+
+struct NonTriviallyDestructible {
+  ~NonTriviallyDestructible() {}
+};
+
+struct LegacyCopyable {
+  const TriviallyCopyable Value;
+};
+
+static_assert(!std::is_trivially_copyable_v<LegacyCopyable>);
+static_assert(!sycl::is_device_copyable_v<LegacyCopyable>);
+static_assert(std::is_trivially_copy_constructible_v<LegacyCopyable>);
+static_assert(std::is_trivially_destructible_v<LegacyCopyable>);
 
 struct NonStdLayout {
   int a;
@@ -50,6 +65,14 @@ int main() {
         5, ntc);
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
         4, NonTriviallyCopyable{});
+    h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
+        5, NonTriviallyDestructible{});
+
+    LegacyCopyable Legacy{{1, 2}};
+    const LegacyCopyable ConstLegacy{{3, 4}};
+    h.set_arg(6, Legacy);
+    h.set_arg(7, ConstLegacy);
+    h.set_arg(8, LegacyCopyable{{5, 6}});
 #if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
     NonStdLayout nstd;
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}

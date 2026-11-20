@@ -1434,8 +1434,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   }
 
   diagnoseSYCLOptions(C, IsSYCL);
-  // Initialize the compilation identifier used for unique CUDA / HIP names.
-  if (IsCuda || IsHIP)
+  // Initialize the compilation identifier used for unique CUDA / HIP / SYCL
+  // names.
+  if (IsCuda || IsHIP || IsSYCL)
     CUIDOpts = CUIDOptions(C.getArgs(), *this);
 
   // Get the list of requested offloading toolchains. If they were not
@@ -5614,11 +5615,19 @@ class OffloadingActionBuilder final {
         if (IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           return ABRT_Inactive;
 
+        // Assign the compilation unit ID to the source input, and share it
+        // with each device input so the host and device compilations of this
+        // translation unit use the same ID.
+        const CUIDOptions &CUIDOpts = C.getDriver().getCUIDOpts();
+        if (CUIDOpts.isEnabled() && types::isSrcFile(IA->getType()) &&
+            IA->getId().empty())
+          IA->setId(CUIDOpts.getCUID(IA->getInputArg().getValue(), Args));
+
         if (CompileHostOnly) {
           for (auto &TargetInfo : SYCLTargetInfoList) {
             (void)TargetInfo;
-            SYCLDeviceActions.push_back(
-                C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+            SYCLDeviceActions.push_back(C.MakeAction<InputAction>(
+                IA->getInputArg(), IA->getType(), IA->getId()));
           }
           return ABRT_Success;
         }
@@ -5643,8 +5652,8 @@ class OffloadingActionBuilder final {
 
         for (auto &TargetInfo : SYCLTargetInfoList) {
           (void)TargetInfo;
-          SYCLDeviceActions.push_back(
-              C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
+          SYCLDeviceActions.push_back(C.MakeAction<InputAction>(
+              IA->getInputArg(), IA->getType(), IA->getId()));
         }
         return ABRT_Success;
       }
@@ -6202,11 +6211,21 @@ class OffloadingActionBuilder final {
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
 
-      if (TC->getTriple().isSPIROrSPIRV()) {
+      bool LinkDeviceLibc = false;
+      bool LinkDeviceBuiltin = false;
+      bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
+                                        options::OPT_no_offloadlib, true);
+      if (TC->getTriple().isSPIROrSPIRV() && !NoOffloadLib) {
+        if (std::optional<std::string> StdlibPath = TC->getStdlibPath()) {
+          LinkDeviceLibc = true;
+          LibLocCandidates.emplace_back(*StdlibPath);
+        }
         SmallString<128> SPIRVCompilerRTPath(TC->getCompilerRTPath());
         llvm::sys::path::append(SPIRVCompilerRTPath, "spirv64-unknown-unknown");
-        if (llvm::sys::fs::exists(SPIRVCompilerRTPath))
+        if (llvm::sys::fs::exists(SPIRVCompilerRTPath)) {
+          LinkDeviceBuiltin = true;
           LibLocCandidates.emplace_back(SPIRVCompilerRTPath);
+        }
       }
 
       // NVPTX/AMDGCN reuse CudaToolChain/AMDGPUToolChain, not SYCLToolChain.
@@ -6220,6 +6239,10 @@ class OffloadingActionBuilder final {
       // has their own getDeviceLibs that we can potentially use.
       DeviceLibraries =
           SYCLTC.getDeviceLibNames(C.getDriver(), Args, TC->getTriple());
+      if (LinkDeviceLibc) {
+        ToolChain::BitCodeLibraryInfo DeviceLibcInfo("libc.bc");
+        DeviceLibraries.emplace_back(DeviceLibcInfo);
+      }
       // There is some work in upstream to enable compiler-rt builtins for
       // SYCL: https://github.com/llvm/llvm-project/pull/218528, we will
       // cherry-pick it to intel/llvm once it is merged. Before it happens,
@@ -6227,9 +6250,7 @@ class OffloadingActionBuilder final {
       // advance, so enable it in old model for now.
       // TODO: when upstream PR lands into intel/llvm, remove the special
       // handling for compiler-rt builtins here.
-      bool NoOffloadLib = !Args.hasFlag(options::OPT_offloadlib,
-                                        options::OPT_no_offloadlib, true);
-      if (!NoOffloadLib) {
+      if (LinkDeviceBuiltin) {
         ToolChain::BitCodeLibraryInfo RTBuiltinInfo("libclang_rt.builtins.bc");
         DeviceLibraries.emplace_back(RTBuiltinInfo);
       }
@@ -8128,10 +8149,9 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
             Diag(clang::diag::err_drv_invalid_sycl_target) << SYCLTargetValue;
             continue;
           }
-          if (StringToOffloadArch(
-                  getProcessorFromTargetID(TC.getTriple(), Device->data()))
-                  .isIntelGPU())
-            Arch = Device->data();
+          // The device was already validated by resolveGenDevice(), so use it
+          // as given rather than requiring an OffloadArch entry for it.
+          Arch = Device->data();
         } else if (auto Device = tools::SYCL::gen::isGPUTarget<
                        tools::SYCL::gen::NvidiaGPU>(SYCLTargetValue)) {
           if (Device->empty()) {
