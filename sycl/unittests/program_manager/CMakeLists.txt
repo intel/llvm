@@ -16,6 +16,7 @@ add_sycl_unittest(ProgramManagerTests OBJECT
   SYCLBINAOTLink.cpp
   FreeFunctionKernelInfo.cpp
   UnregisteredKernel.cpp
+  IgcaModuleSelection.cpp
 )
 endif()
 

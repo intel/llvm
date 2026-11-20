@@ -169,18 +169,21 @@ void RTDeviceBinaryImage::dump(std::ostream &Out) const {
   Out.write(reinterpret_cast<const char *>(Bin->BinaryStart), ImgSize);
 }
 
-sycl_device_binary_property
-RTDeviceBinaryImage::getProperty(const char *PropName) const {
-  if (!Misc.isAvailable())
+static sycl_device_binary_property
+findProperty(const RTDeviceBinaryImage::PropertyRange &Range,
+             const char *PropName) {
+  if (!Range.isAvailable())
     return nullptr;
-  auto It = std::find_if(Misc.begin(), Misc.end(),
+  auto It = std::find_if(Range.begin(), Range.end(),
                          [=](sycl_device_binary_property Prop) {
                            return !strcmp(PropName, Prop->Name);
                          });
-  if (It == Misc.end())
-    return nullptr;
+  return It == Range.end() ? nullptr : *It;
+}
 
-  return *It;
+sycl_device_binary_property
+RTDeviceBinaryImage::getProperty(const char *PropName) const {
+  return findProperty(Misc, PropName);
 }
 
 RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
@@ -230,6 +233,31 @@ RTDeviceBinaryImage::RTDeviceBinaryImage(sycl_device_binary Bin) {
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
   RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
   Misc.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
+  IgcaMetadata.init(Bin, __SYCL_PROPERTY_SET_SYCL_IGCA_METADATA);
+
+  if (sycl_device_binary_property Prop =
+          findProperty(IgcaMetadata, __SYCL_IGCA_METADATA_IS_IGCA_MODULE))
+    IsIgcaModule = DeviceBinaryProperty(Prop).asUint32() != 0;
+}
+
+std::vector<std::string_view> RTDeviceBinaryImage::getIgcaTargets() const {
+  sycl_device_binary_property Prop =
+      findProperty(IgcaMetadata, __SYCL_IGCA_METADATA_TARGETS);
+  if (!Prop)
+    return {};
+
+  std::vector<std::string_view> Targets;
+  std::string_view Rest = DeviceBinaryProperty(Prop).asStringView();
+  while (!Rest.empty()) {
+    size_t Comma = Rest.find(',');
+    std::string_view Target = Rest.substr(0, Comma);
+    if (!Target.empty())
+      Targets.push_back(Target);
+    if (Comma == std::string_view::npos)
+      break;
+    Rest.remove_prefix(Comma + 1);
+  }
+  return Targets;
 }
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;

@@ -322,11 +322,12 @@ TEST_F(CompileTargetTest, RangeKernel) {
 TEST_F(CompileTargetTest, NoKernelDevice) {
   try {
     queue{}.single_task<NoKernelDevice>([]() {});
+    FAIL() << "Expected an exception for a kernel with no image for the device";
   } catch (sycl::exception &e) {
     ASSERT_EQ(e.what(),
               std::string("Kernel NoKernelDevice has no image for the "
-                          "selected device. Its available images target: "
-                          "[intel_gpu_bdw]."));
+                          "selected device 'Mock device'. Its available "
+                          "images target: [intel_gpu_bdw]."));
   }
 }
 
