@@ -1,0 +1,873 @@
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+"""Unit tests for benches/sycl_perf.py (no compiler or device needed)."""
+
+import json
+import os
+import shutil
+import sys
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+from unittest import mock
+
+os.environ.setdefault("LLVM_BENCHMARKS_UNIT_TESTING", "1")
+sys.path.append(f"{os.path.dirname(__file__)}/../")
+from options import options
+from benches import sycl_perf
+from benches.sycl_perf import (
+    RunLineError,
+    SyclCompileBench,
+    SyclPerfRuntimeBench,
+    SyclPerfSuite,
+    available_features,
+    drop_if_segments,
+    eval_feature_expr,
+    parse_perf_results,
+    read_perf_test,
+)
+
+SYCL = "/opt/sycl"
+
+
+def perf_line(name, variant="", unit="ns", value=1.5, **extra):
+    fields = dict(
+        name=name,
+        variant=variant,
+        unit=unit,
+        value=value,
+        stddev=0.1,
+        min=1.0,
+        reps=10,
+        lower_is_better=True,
+    )
+    fields.update(extra)
+    return "PERF_RESULT " + json.dumps(fields)
+
+
+CTOR = 'perf::Benchmark b(argc, argv, "{name}", "{desc}", perf::Unit::{unit});\n'
+
+
+def ctor(name="Bench", desc="A benchmark.", unit="ns"):
+    return CTOR.format(name=name, desc=desc, unit=unit)
+
+
+class TempTests(unittest.TestCase):
+    """Creates a tests dir and a workdir; restores the global options."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.tests = self.tmp / "PerformanceTests"
+        self.tests.mkdir()
+        self.saved = (
+            options.workdir,
+            options.sycl,
+            getattr(options, "device_architecture", None),
+            options.sycl_perf_tests_dir,
+        )
+        options.workdir = str(self.tmp / "wd")
+        options.sycl = SYCL
+        options.device_architecture = ""
+        options.sycl_perf_tests_dir = str(self.tests)
+
+    def tearDown(self):
+        (
+            options.workdir,
+            options.sycl,
+            options.device_architecture,
+            options.sycl_perf_tests_dir,
+        ) = self.saved
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, rel: str, text: str) -> Path:
+        path = self.tests / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = textwrap.dedent(text)
+        path.write_text(text[1:] if text.startswith("\n") else text)
+        return path
+
+    def read(self, rel: str, text: str):
+        return read_perf_test(self.write(rel, text), rel[: -len(".cpp")])
+
+    def assertRunLineError(self, rel: str, text: str, line: int, msg: str):
+        with self.assertRaises(RunLineError) as cm:
+            self.read(rel, text)
+        self.assertIn(f"{self.tests / rel}:{line}:", str(cm.exception))
+        self.assertIn(msg, str(cm.exception))
+
+
+class TestRunLines(TempTests):
+    def test_build_and_run(self):
+        t = self.read(
+            "a.cpp",
+            """
+            // RUN: %{build} -O3 -DX=1 -o %t.out
+            // RUN: %{run} %t.out
+            int main(int argc, char **argv) {
+              perf::Benchmark b(argc, argv, "Fast thing", "Something fast.",
+                                perf::Unit::us);
+            }
+            """,
+        )
+        self.assertEqual(t.description, "Something fast.")
+        self.assertEqual(t.bench_name, "Fast thing")
+        self.assertEqual(t.unit, "us")
+        self.assertEqual(len(t.builds), 1)
+        self.assertEqual(t.builds[0].sfx, "")
+        self.assertEqual(len(t.runs), 1)
+        self.assertIs(t.runs[0].build, t.builds[0])
+        self.assertEqual(t.runs[0].variant, "")
+        self.assertEqual(t.compiles, [])
+
+    def test_build_without_flags(self):
+        t = self.read(
+            "a.cpp", "// RUN: %{build} -o %t.out\n// RUN: %{run} %t.out\n" + ctor()
+        )
+        self.assertEqual(t.builds[0].command, "%{build} -o %t.out")
+
+    def test_echo_lines_skipped(self):
+        t = self.read(
+            "a.cpp",
+            '// RUN: echo "Running the benchmark"\n'
+            "// RUN: %{build} -o %t.out\n// RUN: echo\n// RUN: %{run} %t.out\n"
+            + ctor(),
+        )
+        self.assertEqual(len(t.builds), 1)
+        self.assertEqual(len(t.runs), 1)
+
+    def test_quoted_define_with_path(self):
+        t = self.read(
+            "a.cpp",
+            "// RUN: %{build} '-DPCH_DIR=\"%/t.dir\"' -O3 -o %t.out\n"
+            "// RUN: %{run} %t.out\n" + ctor(),
+        )
+        self.assertEqual(len(t.builds), 1)
+        subst = sycl_perf.Substitutions(t, "/opt/sycl", Path("/work/a/t"))
+        argv = subst.expand(t.builds[0].command, t.builds[0].line)
+        self.assertIn('-DPCH_DIR="/work/a/t.dir"', argv)
+
+    def test_suffixes_bind_to_their_build(self):
+        t = self.read(
+            "dir/b.cpp",
+            """
+            // RUN: %{build} -DA -o %t1.out
+            // RUN: %{run} %t1.out --variant="mode=a"
+            // RUN: %{build} -DB -o %tb_2.x-y.out
+            // RUN: %{run} %tb_2.x-y.out --variant="mode b" --n=3
+            """ + ctor(),
+        )
+        self.assertEqual([b.sfx for b in t.builds], ["1", "b_2.x-y"])
+        self.assertEqual([r.build.line for r in t.runs], [1, 3])
+        self.assertEqual([r.variant for r in t.runs], ["mode=a", "mode b"])
+
+    def test_continuation(self):
+        t = self.read(
+            "a.cpp",
+            """
+            // RUN: %{build} -O3 \\
+            // RUN:   -DX=1 \\
+            // RUN:   -o %t.out
+            // RUN: %{run} %t.out \\
+            // RUN:   --variant="v 1"
+            """ + ctor(),
+        )
+        self.assertEqual(t.builds[0].line, 1)
+        self.assertEqual(t.runs[0].line, 4)
+        self.assertEqual(t.runs[0].variant, "v 1")
+        expanded = SyclPerfSuite().substitutions(t).expand(t.builds[0].command, 1)
+        self.assertEqual(expanded[-4:], ["-O3", "-DX=1", "-o", expanded[-1]])
+
+    def test_dangling_continuation(self):
+        self.assertRunLineError(
+            "a.cpp", "// RUN: %{build} -o %t.out \\\nint x;\n", 1, "continuation"
+        )
+        self.assertRunLineError(
+            "a.cpp", "// RUN: %{build} -o %t.out \\\n", 1, "continuation"
+        )
+
+    def test_if_segment_dropped(self):
+        t = self.read(
+            "a.cpp",
+            """
+            // RUN: %{build} -o %t.out
+            // RUN: %if hip %{ env X=%{amd_arch} %} %{run} %t.out --pch-dir=%/t.dir
+            // RUN: %if (cuda || hip) && !linux %{ %{build} -DCUDA -o %t.out %}
+            """ + ctor(),
+        )
+        self.assertEqual(len(t.builds), 1)
+        self.assertEqual(t.runs[0].args, "--pch-dir=%/t.dir")
+        self.assertEqual(
+            drop_if_segments('a %if x %{ b %{c} %} d "e  f"'), 'a  d "e  f"'
+        )
+
+    def test_if_else_rejected(self):
+        self.assertRunLineError(
+            "a.cpp",
+            "// RUN: %if hip %{ a %} %else %{ b %} %{build} -o %t.out\n",
+            1,
+            "%else",
+        )
+
+    def test_compile_line(self):
+        t = self.read(
+            "CompileTime/c.cpp",
+            """
+            // RUN: python3 %S/../perf_compile.py --benchmark-name "c.hpp, device syntax-only" -- %{build} -fsycl-device-only -fsyntax-only
+            // RUN: python3 %S/../perf_compile.py --benchmark-name "c.hpp, full build" --reps 3 --warmup=1 -- %{build} -o %t.out
+            // RUN: python3 %S/perf_compile.py --benchmark-name=plain -- %{build}
+            """,
+        )
+        self.assertEqual(
+            [c.name for c in t.compiles],
+            ["c.hpp, device syntax-only", "c.hpp, full build", "plain"],
+        )
+        self.assertEqual(t.compiles[0].script, "../perf_compile.py")
+        self.assertEqual(t.compiles[2].script, "perf_compile.py")
+        self.assertEqual(t.runs, [])
+
+    def test_rejected_forms(self):
+        cases = [
+            ("// RUN: cat %s\n", 1, "unsupported RUN line"),
+            ("// RUN: %{build} -o %t.exe\n", 1, "unsupported RUN line"),
+            ("// RUN: %{build} -o %t.out -O3\n", 1, "unsupported RUN line"),
+            ("// RUN: %{run-aux} %t.out\n", 1, "unsupported RUN line"),
+            ("// RUN: env X=1 %{run} %t.out\n", 1, "unsupported RUN line"),
+            ("// RUN: %clangxx -fsycl %s -o %t.out\n", 1, "unsupported RUN line"),
+            ("int x;\n// RUN: %{run} %t.out\n", 2, "not built"),
+            (
+                "// RUN: %{build} -o %t.out\n// RUN: %{build} -DX -o %t.out\n",
+                2,
+                "already built differently",
+            ),
+            (
+                "// RUN: python3 %S/perf_compile.py -- %{build}\n",
+                1,
+                "no --benchmark-name",
+            ),
+            (
+                "// RUN: python3 %S/perf_compile.py --benchmark-name x --bad 1 -- %{build}\n",
+                1,
+                "unsupported perf_compile.py option",
+            ),
+            (
+                "// RUN: python3 %S/perf_compile.py --benchmark-name x --reps many -- %{build}\n",
+                1,
+                "needs an integer",
+            ),
+            (
+                '// RUN: python3 %S/perf_compile.py --benchmark-name "a|b" -- %{build}\n',
+                1,
+                "invalid characters",
+            ),
+            (
+                '// RUN: %{build} -o %t.out\n// RUN: %{run} %t.out --variant="a|b"\n',
+                2,
+                "invalid characters",
+            ),
+            ("// DEFINE: %{x}=y\n", 1, "not supported"),
+            ("// REQUIRES-INTEL-DRIVER: lin: 1\n", 1, "not supported"),
+            ("/* RUN: %{build} -o %t.out */\n", 1, "must start with"),
+        ]
+        for text, line, msg in cases:
+            with self.subTest(text=text):
+                self.assertRunLineError("bad.cpp", text, line, msg)
+
+    def test_non_directive_comments_ignored(self):
+        t = self.read(
+            "a.cpp",
+            """
+            // RUN: %{build} -o %t.out
+            // RUN: %{run} %t.out
+            // NOTE: this is text, as is TODO: below
+            // TODO: something
+            // XFAIL: gpu-intel-gen12
+            // XFAIL-TRACKER: https://example.com/1
+            // UNSUPPORTED-TRACKER: https://example.com/2
+            """ + ctor(),
+        )
+        self.assertEqual(t.xfail, ["gpu-intel-gen12"])
+
+
+class TestSubstitutions(TempTests):
+    def test_paths(self):
+        path = self.write(
+            "Dir/x.cpp",
+            """
+            // RUN: %{build} -I%S/inc -o %t.out
+            // RUN: %{run} %t.out "--msg=%s" --pch-dir=%/t.dir --variant="a b"
+            """ + ctor(),
+        )
+        t = read_perf_test(path, "Dir/x")
+        subst = SyclPerfSuite().substitutions(t)
+        src = str(path.resolve())
+        tmp = Path(options.workdir).resolve() / "sycl-perf" / "Dir" / "x" / "t"
+        self.assertEqual(
+            subst.expand(t.builds[0].command, 1),
+            [
+                f"{SYCL}/bin/clang++",
+                "-Werror",
+                "-fsycl",
+                "-fsycl-targets=spir64",
+                src,
+                f"-I{path.parent.resolve()}/inc",
+                "-o",
+                f"{tmp}.out",
+            ],
+        )
+        self.assertEqual(
+            subst.expand(t.runs[0].args, 2),
+            [f"--msg={src}", f"--pch-dir={tmp}.dir", "--variant=a b"],
+        )
+
+    def test_unknown_substitution(self):
+        path = self.write("x.cpp", "// RUN: %{build} -D%{foo} -o %t.out\n")
+        t = read_perf_test(path, "x")
+        with self.assertRaises(RunLineError) as cm:
+            SyclPerfSuite().substitutions(t).expand(t.builds[0].command, 1)
+        self.assertIn(f"{path}:1:", str(cm.exception))
+        self.assertIn("%{foo}", str(cm.exception))
+
+        with self.assertRaises(RunLineError):
+            SyclPerfSuite().substitutions(t).expand("%p", 1)
+
+    def test_unsafe_paths_rejected(self):
+        path = self.write("x.cpp", "// RUN: %{build} -o %t.out\n")
+        t = read_perf_test(path, "x")
+        options.workdir = str(self.tmp / "with space")
+        with self.assertRaises(ValueError):
+            SyclPerfSuite().substitutions(t)
+
+
+class TestFeatures(unittest.TestCase):
+    def test_expressions(self):
+        f = {"linux", "gpu", "level_zero"}
+        cases = {
+            "linux": True,
+            "windows": False,
+            "!windows": True,
+            "linux && gpu": True,
+            "linux && cuda": False,
+            "cuda || level_zero": True,
+            "!(cuda || hip) && gpu": True,
+            "!!linux": True,
+            "true": True,
+            "false || !true": False,
+            "gpu-intel-pvc || arch-intel_gpu_bmg_g21": False,
+        }
+        for expr, expected in cases.items():
+            with self.subTest(expr=expr):
+                self.assertEqual(eval_feature_expr(expr, f), expected)
+
+    def test_malformed(self):
+        for expr in ["", "linux &&", "(linux", "linux)", "a b", "{{.*}}", "&& a"]:
+            with self.subTest(expr=expr):
+                with self.assertRaises(ValueError):
+                    eval_feature_expr(expr, set())
+
+    def test_available_features(self):
+        self.assertEqual(
+            available_features(""),
+            {"linux", "gpu", "level_zero", "enable-perf-tests"},
+        )
+        self.assertIn("gpu-intel-dg2", available_features("intel_gpu_acm_g10"))
+        self.assertIn("gpu-intel-pvc", available_features("intel_gpu_pvc"))
+        self.assertIn("arch-intel_gpu_bmg_g21", available_features("intel_gpu_bmg_g21"))
+
+
+class TestRequiresUnsupported(TempTests):
+    def skip(self, directives: str, arch: str = ""):
+        t = self.read("t.cpp", directives + "// RUN: %{build} -o %t.out\n")
+        return t.skip_reason(available_features(arch))
+
+    def test_requires(self):
+        self.assertIsNone(self.skip("// REQUIRES: linux, gpu\n"))
+        self.assertIsNone(self.skip("// REQUIRES: linux\n// REQUIRES: level_zero\n"))
+        self.assertIsNone(self.skip("// REQUIRES: enable-perf-tests && !cuda\n"))
+        self.assertIn("REQUIRES", self.skip("// REQUIRES: linux, cuda\n"))
+        self.assertIn("REQUIRES", self.skip("// REQUIRES: aspect-fp64\n"))
+
+    def test_unsupported(self):
+        self.assertIsNone(self.skip("// UNSUPPORTED: windows, target-native_cpu\n"))
+        self.assertIn("UNSUPPORTED", self.skip("// UNSUPPORTED: windows, linux\n"))
+        self.assertIsNone(self.skip("// UNSUPPORTED: gpu-intel-gen12\n"))
+        self.assertIn(
+            "UNSUPPORTED",
+            self.skip("// UNSUPPORTED: gpu-intel-gen12\n", "intel_gpu_tgllp"),
+        )
+
+    def test_bad_expression_reports_line(self):
+        t = self.read("t.cpp", "int x;\n// UNSUPPORTED: linux &&\n")
+        with self.assertRaises(RunLineError) as cm:
+            t.skip_reason(available_features())
+        self.assertIn("t.cpp:2:", str(cm.exception))
+
+
+class TestBenchmarkDeclaration(TempTests):
+    RUN = "// RUN: %{build} -o %t.out\n// RUN: %{run} %t.out\n"
+
+    def decl(self, text: str):
+        return self.read("a.cpp", self.RUN + text)
+
+    def test_single_line(self):
+        t = self.decl(ctor("Q, a=b (x)", "Some text // not a comment.", "ms"))
+        self.assertEqual(t.bench_name, "Q, a=b (x)")
+        self.assertEqual(t.description, "Some text // not a comment.")
+        self.assertEqual(t.unit, "ms")
+
+    def test_wrapped_literals_and_comments(self):
+        t = self.decl("""
+            // perf::Benchmark old("x", "y", "z", "w", perf::Unit::s);
+            /* perf::Benchmark old2(a, b, "z", "w",
+                                   perf::Unit::s); */
+            int main(int argc, char **argv) {
+              perf::Benchmark
+                  bench(argc, argv,
+                        "Wrapped "  // first
+                        "name",
+                        "A long "
+                        /* middle */ "description "
+                        "text.", perf::Unit::ns);  // trailing
+            }
+            """)
+        self.assertEqual(t.bench_name, "Wrapped name")
+        self.assertEqual(t.description, "A long description text.")
+        self.assertEqual(t.unit, "ns")
+
+    def test_reference_parameters_are_not_declarations(self):
+        t = self.decl(
+            "void add(perf::Benchmark &B, int x);\n"
+            "void add2(const perf::Benchmark &, int);\n" + ctor("N", "D")
+        )
+        self.assertEqual(t.bench_name, "N")
+
+    def test_complex_argument_expressions(self):
+        t = self.decl(
+            'perf::Benchmark b(f(argc, 1), g({a, b}, argv[0]), "N", "D", perf::Unit::us);'
+        )
+        self.assertEqual((t.bench_name, t.description, t.unit), ("N", "D", "us"))
+
+    def test_errors(self):
+        n = self.RUN.count("\n")  # declaration starts on line n + 1
+        two = ctor() + ctor("Other")
+        cases = [
+            ("int x;\n", 2, "no perf::Benchmark"),
+            (two, n + 2, "more than one"),
+            (ctor(unit="min"), n + 1, "unit"),
+            (ctor(name="a|b"), n + 1, "name"),
+            (ctor(name=""), n + 1, "name"),
+            (ctor(name="x" * 121), n + 1, "name"),
+            (ctor(desc=""), n + 1, "description"),
+            (ctor(desc="d" * 201), n + 1, "description"),
+            (ctor(desc="caf\u00e9"), n + 1, "description"),
+            (ctor(desc="a\\nb"), n + 1, "escape"),
+            ('perf::Benchmark b(argc, argv, N, "d", perf::Unit::s);\n', n + 1, "name"),
+            ('perf::Benchmark b(argc, argv, "n", "d");\n', n + 1, "5 arguments"),
+            (
+                'perf::Benchmark b{argc, argv, "n", "d", perf::Unit::s};\n',
+                n + 1,
+                "malformed",
+            ),
+            ('perf::Benchmark b(argc, argv, "n", "d", Unit::s);\n', n + 1, "unit"),
+            ('perf::Benchmark b(argc, argv, "n", "d", perf::Unit::s)\n', n + 1, "';'"),
+            (
+                'perf::Benchmark b(argc, argv, "n", "d", perf::Unit::s;\n',
+                n + 1,
+                "malformed",
+            ),
+            (
+                "// perf::Benchmark b(argc, argv, 'n', 'd', perf::Unit::s);\n",
+                2,
+                "no perf::",
+            ),
+        ]
+        for text, line, msg in cases:
+            with self.subTest(text=text[:60]):
+                self.assertRunLineError("a.cpp", self.RUN + text, line, msg)
+
+    def test_missing_points_at_first_run(self):
+        self.assertRunLineError(
+            "a.cpp", "int x;\n" + self.RUN, 3, "no perf::Benchmark constructor"
+        )
+
+    def test_perf_description_in_runtime_test(self):
+        self.assertRunLineError(
+            "a.cpp",
+            self.RUN + "// BENCHMARK-DESCRIPTION: Old style.\n",
+            3,
+            "use a perf::Benchmark constructor",
+        )
+        self.assertRunLineError(
+            "a.cpp",
+            self.RUN + "// BENCHMARK-DESCRIPTION: Both.\n" + ctor(),
+            3,
+            "must not be combined",
+        )
+
+    def test_compile_only_keeps_perf_description(self):
+        t = self.read(
+            "c.cpp",
+            """
+            // RUN: python3 %S/perf_compile.py --benchmark-name c -- %{build} -fsyntax-only
+            // BENCHMARK-DESCRIPTION: Compile it.
+            """,
+        )
+        self.assertEqual(t.description, "Compile it.")
+        self.assertEqual(t.bench_name, "")
+
+    def test_declaration_without_runs_is_ignored(self):
+        t = self.read("c.cpp", "// RUN: %{build} -o %t.out\n" + ctor() + ctor())
+        self.assertEqual(t.bench_name, "")
+
+    def test_suite_collects_declaration_errors(self):
+        self.write("good.cpp", self.RUN + ctor("Good", "Fine."))
+        self.write("bad.cpp", self.RUN + ctor(unit="h"))
+        self.write("old.cpp", self.RUN + "// BENCHMARK-DESCRIPTION: Old.\n")
+        suite = SyclPerfSuite()
+        self.assertEqual([b.name() for b in suite.benchmarks()], ["sycl_perf good"])
+        with self.assertRaises(RuntimeError) as cm:
+            suite.setup()
+        self.assertIn("bad.cpp:3:", str(cm.exception))
+        self.assertIn("old.cpp:3:", str(cm.exception))
+
+    def test_unit_mismatch_warns(self):
+        self.write("u.cpp", self.RUN + ctor("U", "Unit.", "us"))
+        bench = SyclPerfSuite().benchmarks()[0]
+        out = perf_line("c1", unit="us") + "\n" + perf_line("c2", unit="ns")
+        with mock.patch.object(SyclPerfRuntimeBench, "run_bench", return_value=out):
+            with mock.patch.object(sycl_perf.log, "warning") as warn:
+                results = bench.run({})
+        self.assertEqual(len(results), 2)
+        self.assertEqual(warn.call_count, 1)
+        self.assertIn("'c2'", warn.call_args[0][0])
+
+
+class TestPerfResults(unittest.TestCase):
+    def test_valid(self):
+        out = "\n".join(
+            [
+                "some noise",
+                perf_line("has(fp64)", value=12.5),
+                "  PERF_RESULT not at line start is ignored",
+                "PERF_RESULTS also ignored",
+                perf_line("x, y", variant="rounding=force", unit="us", value=3),
+            ]
+        )
+        res = parse_perf_results(out)
+        self.assertEqual([r.name for r in res], ["has(fp64)", "x, y"])
+        self.assertEqual(res[0].value, 12.5)
+        self.assertEqual(res[0].stddev, 0.1)
+        self.assertEqual(res[1].variant, "rounding=force")
+        self.assertEqual(res[1].unit, "us")
+        self.assertEqual(res[1].reps, 10)
+
+    def test_extra_keys_and_perf_info(self):
+        out = "\n".join(
+            [
+                'PERF_INFO {"benchmark":"B","description":"D","unit":"ns","variant":""}',
+                perf_line("a", batch=64, mad=0.02),
+                "PERF_INFOX {not json",
+            ]
+        )
+        res = parse_perf_results(out)
+        self.assertEqual([r.name for r in res], ["a"])
+        self.assertEqual(res[0].reps, 10)
+        with self.assertRaises(ValueError):
+            parse_perf_results('PERF_INFO {"benchmark":"B"}\n')
+
+    def test_none(self):
+        with self.assertRaises(ValueError):
+            parse_perf_results("nothing here\n")
+        with self.assertRaises(ValueError):
+            parse_perf_results("")
+
+    def test_malformed(self):
+        bad = [
+            "PERF_RESULT {not json",
+            "PERF_RESULT [1, 2]",
+            perf_line("a", value="1"),
+            perf_line("a", reps=1.5),
+            perf_line("a", lower_is_better=1),
+            perf_line("a|b"),
+            perf_line(""),
+            perf_line("a", variant='q"uote'),
+            perf_line("a").replace(', "min": 1.0', ""),
+        ]
+        for line in bad:
+            with self.subTest(line=line):
+                with self.assertRaises(ValueError):
+                    parse_perf_results(line)
+
+
+class TestSuite(TempTests):
+    def make_tests(self):
+        self.write(
+            "RunTime/aspect_queries.cpp",
+            """
+            // RUN: %{build} -O3 -o %t.out
+            // RUN: %{run} %t.out
+            """ + ctor("Aspect queries", "Aspect queries.", "us"),
+        )
+        self.write(
+            "RunTime/roundup.cpp",
+            """
+            // RUN: %{build} -fsycl-range-rounding=disable -o %t1.out
+            // RUN: %{run} %t1.out --variant="rounding=disable"
+            // RUN: %{build} -fsycl-range-rounding=force -o %t2.out
+            // RUN: %{run} %t2.out --variant="rounding=force"
+            """ + ctor("Range rounding", "Rounding of ranges."),
+        )
+        self.write(
+            "RunTime/auto-pch.cpp",
+            """
+            // RUN: %{build} -o %t.out
+            // RUN: %{run} %t.out --pch-dir=%/t.dir
+            // UNSUPPORTED: target-native_cpu
+            """ + ctor("PCH", "Precompiled headers."),
+        )
+        self.write(
+            "CompileTime/core_hpp.cpp",
+            """
+            // RUN: python3 %S/../perf_compile.py --benchmark-name "core.hpp, device syntax-only" -- %{build} -fsycl-device-only -fsyntax-only
+            // BENCHMARK-DESCRIPTION: Compile time of core.hpp.
+            """,
+        )
+        self.write(
+            "Skipped/cuda.cpp",
+            "// REQUIRES: cuda\n// RUN: %{build} -o %t.out\n// RUN: %{run} %t.out\n"
+            + ctor(),
+        )
+        self.write("perf_harness.hpp", "// RUN: not a test\n")
+
+    def test_discovery_and_metadata(self):
+        self.make_tests()
+        suite = SyclPerfSuite()
+        self.assertEqual(suite.name(), "SYCL Performance Tests")
+        benches = {b.name(): b for b in suite.benchmarks()}
+        self.assertEqual(
+            sorted(benches),
+            [
+                "sycl_compile core.hpp, device syntax-only",
+                "sycl_perf RunTime/aspect_queries",
+                "sycl_perf RunTime/auto-pch",
+                "sycl_perf RunTime/roundup rounding=disable",
+                "sycl_perf RunTime/roundup rounding=force",
+            ],
+        )
+        rt = benches["sycl_perf RunTime/aspect_queries"]
+        self.assertIsInstance(rt, SyclPerfRuntimeBench)
+        self.assertEqual(rt.explicit_group(), "RunTime/aspect_queries")
+        self.assertEqual(rt.get_tags(), ["SYCL", "micro", "latency"])
+        self.assertEqual(rt.description(), "Aspect queries.")
+        self.assertEqual(rt.display_name(), "Aspect queries")
+        self.assertEqual(rt.unit, "us")
+        rr = benches["sycl_perf RunTime/roundup rounding=force"]
+        self.assertEqual(rr.display_name(), "Range rounding rounding=force")
+        self.assertEqual(rr.description(), "Rounding of ranges.")
+        self.assertEqual(rr.unit, "ns")
+        self.assertIsNone(rt.stddev_threshold())
+        self.assertEqual(benches["sycl_perf RunTime/auto-pch"].stddev_threshold(), 0.05)
+
+        cb = benches["sycl_compile core.hpp, device syntax-only"]
+        self.assertIsInstance(cb, SyclCompileBench)
+        self.assertEqual(cb.explicit_group(), "CompileTime/core_hpp")
+        self.assertEqual(cb.get_tags(), ["SYCL", "compile"])
+        self.assertEqual(cb.stddev_threshold(), 0.05)
+        self.assertFalse(cb.traceable())
+        self.assertEqual(cb.script(), (self.tests / "perf_compile.py").resolve())
+
+        groups = suite.additional_metadata()
+        self.assertEqual(
+            sorted(groups),
+            [
+                "CompileTime/core_hpp",
+                "RunTime/aspect_queries",
+                "RunTime/auto-pch",
+                "RunTime/roundup",
+            ],
+        )
+        self.assertTrue(all(g.type == "group" for g in groups.values()))
+        self.assertEqual(groups["CompileTime/core_hpp"].tags, ["SYCL", "compile"])
+        self.assertEqual(
+            groups["CompileTime/core_hpp"].description, "Compile time of core.hpp."
+        )
+        self.assertIsNone(groups["CompileTime/core_hpp"].display_name)
+        self.assertEqual(
+            groups["RunTime/aspect_queries"].display_name, "Aspect queries"
+        )
+        self.assertEqual(
+            groups["RunTime/aspect_queries"].description, "Aspect queries."
+        )
+        self.assertEqual(groups["RunTime/roundup"].display_name, "Range rounding")
+        meta = rt.get_metadata()["sycl_perf RunTime/aspect_queries"]
+        self.assertEqual(meta.explicit_group, "RunTime/aspect_queries")
+        self.assertEqual(meta.display_name, "Aspect queries")
+        self.assertEqual(meta.description, "Aspect queries.")
+
+    def test_parse_errors_fail_setup_only(self):
+        self.make_tests()
+        self.write("bad.cpp", "int a;\nint b;\n// RUN: cat %s\n")
+        suite = SyclPerfSuite()
+        self.assertEqual(len(suite.benchmarks()), 5)  # bad.cpp is left out
+        with self.assertRaises(RuntimeError) as cm:
+            suite.setup()
+        self.assertIn("bad.cpp:3:", str(cm.exception))
+
+    def test_duplicate_names(self):
+        self.write(
+            "a.cpp",
+            "// RUN: %{build} -o %t.out\n// RUN: %{run} %t.out\n// RUN: %{run} %t.out --n=2\n"
+            + ctor(),
+        )
+        suite = SyclPerfSuite()
+        suite.benchmarks()
+        self.assertTrue(any("duplicate benchmark name" in e for e in suite._errors))
+
+    def test_missing_dir(self):
+        options.sycl_perf_tests_dir = str(self.tmp / "missing")
+        suite = SyclPerfSuite()
+        self.assertEqual(suite.benchmarks(), [])
+        self.assertEqual(suite.additional_metadata(), {})
+
+    def test_default_dir(self):
+        options.sycl_perf_tests_dir = None
+        expected = Path(sycl_perf.__file__).resolve().parents[4]
+        self.assertEqual(
+            SyclPerfSuite().tests_dir,
+            expected / "sycl" / "test-e2e" / "PerformanceTests",
+        )
+        self.assertTrue((expected / "devops" / "scripts" / "benchmarks").is_dir())
+
+    def test_runtime_results(self):
+        self.make_tests()
+        suite = SyclPerfSuite()
+        bench = next(
+            b for b in suite.benchmarks() if b.name().endswith("rounding=force")
+        )
+        out = "\n".join(
+            [
+                "noise",
+                perf_line("1000x1000", variant="rounding=force", value=7.0),
+                perf_line("10x10", variant="rounding=force", value=2.0, unit="us"),
+            ]
+        )
+        with mock.patch.object(
+            SyclPerfRuntimeBench, "run_bench", return_value=out
+        ) as rb:
+            results = bench.run({"ZE_AFFINITY_MASK": "0"})
+        command = rb.call_args[0][0]
+        self.assertTrue(command[0].endswith("/sycl-perf/RunTime/roundup/t2.out"))
+        self.assertEqual(command[1:], ["--variant=rounding=force"])
+        self.assertEqual(
+            [r.label for r in results],
+            [
+                "sycl_perf RunTime/roundup rounding=force 1000x1000",
+                "sycl_perf RunTime/roundup rounding=force 10x10",
+            ],
+        )
+        self.assertEqual([r.unit for r in results], ["ns", "us"])
+        self.assertEqual(results[0].stddev, 0.1)
+        self.assertEqual(results[0].git_url, "https://github.com/intel/llvm.git")
+        self.assertEqual(results[0].env, {"ZE_AFFINITY_MASK": "0"})
+
+        with mock.patch.object(SyclPerfRuntimeBench, "run_bench", return_value="noise"):
+            with self.assertRaises(ValueError):
+                bench.run({})
+
+    def test_compile_results(self):
+        self.make_tests()
+        suite = SyclPerfSuite()
+        bench = next(b for b in suite.benchmarks() if isinstance(b, SyclCompileBench))
+        out = "\n".join(
+            [
+                perf_line("core.hpp, device syntax-only", unit="s", value=1.25),
+                perf_line(
+                    "core.hpp, device syntax-only, CPU time", unit="s", value=1.5
+                ),
+            ]
+        )
+        completed = mock.Mock()
+        completed.stdout = out.encode()
+        with mock.patch.dict(os.environ, {"CPATH": "/x", "SYCL_CACHE_DIR": "/y"}):
+            with mock.patch.object(sycl_perf, "run", return_value=completed) as run:
+                results = bench.run({"SYCL_UR_TRACE": "1", "ZE_AFFINITY_MASK": "0"})
+        command = run.call_args[0][0]
+        env_at = command.index("env")
+        self.assertEqual(command[:env_at][0], "taskset")
+        scrub = command[env_at:]
+        for name in ["CPATH", "SYCL_CACHE_DIR", "SYCL_UR_TRACE"]:
+            self.assertIn(name, scrub[: scrub.index("python3")])
+        tail = scrub[scrub.index("python3") :]
+        self.assertEqual(
+            tail[1:9],
+            [
+                str((self.tests / "perf_compile.py").resolve()),
+                "--benchmark-name",
+                "core.hpp, device syntax-only",
+                "--warmup",
+                "0",
+                "--reps",
+                "1",
+                "--",
+            ],
+        )
+        self.assertEqual(tail[9], f"{SYCL}/bin/clang++")
+        self.assertEqual(tail[-2:], ["-fsycl-device-only", "-fsyntax-only"])
+        self.assertEqual(
+            [(r.label, r.value, r.unit) for r in results],
+            [
+                ("sycl_compile core.hpp, device syntax-only", 1.25, "s"),
+                ("sycl_compile core.hpp, device syntax-only, CPU time", 1.5, "s"),
+            ],
+        )
+        self.assertEqual(results[0].env, {"ZE_AFFINITY_MASK": "0"})
+
+        completed.stdout = perf_line("core.hpp, device syntax-only", unit="s").encode()
+        with mock.patch.object(sycl_perf, "run", return_value=completed):
+            with self.assertRaises(ValueError):
+                bench.run({})
+
+    def test_build_once_and_up_to_date(self):
+        self.make_tests()
+        sycl = self.tmp / "sycl"
+        (sycl / "lib").mkdir(parents=True)
+        (sycl / "lib" / "libsycl.so").write_text("")
+        options.sycl = str(sycl)
+        suite = SyclPerfSuite()
+        bench = next(
+            b
+            for b in suite.benchmarks()
+            if b.name() == "sycl_perf RunTime/aspect_queries"
+        )
+        binary = Path(f"{suite.tmp_prefix(bench.test)}.out")
+
+        def fake_build(cmd, **kwargs):
+            binary.parent.mkdir(parents=True, exist_ok=True)
+            binary.write_text("bin")
+
+        with mock.patch.object(sycl_perf, "run", side_effect=fake_build) as run:
+            self.assertEqual(suite.build(bench.test, bench.step.build), binary)
+            self.assertEqual(suite.build(bench.test, bench.step.build), binary)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args[0][0][0], "env")
+        self.assertTrue(run.call_args[1]["add_sycl"])
+
+        # A new suite object (next main.py run) reuses the up-to-date binary.
+        os.utime(binary, (binary.stat().st_mtime + 10,) * 2)
+        suite2 = SyclPerfSuite()
+        with mock.patch.object(sycl_perf, "run", side_effect=fake_build) as run:
+            suite2.build(bench.test, bench.step.build)
+        self.assertEqual(run.call_count, 0)
+
+        # A newer libsycl.so triggers a rebuild.
+        os.utime(sycl / "lib" / "libsycl.so", (binary.stat().st_mtime + 10,) * 2)
+        suite3 = SyclPerfSuite()
+        with mock.patch.object(sycl_perf, "run", side_effect=fake_build) as run:
+            suite3.build(bench.test, bench.step.build)
+        self.assertEqual(run.call_count, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
