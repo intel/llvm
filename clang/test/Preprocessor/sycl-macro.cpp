@@ -36,6 +36,28 @@
 // RUN: %clang_cc1 %s -x hip -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s \
 // RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
 
+/// The definition of SYCL_EXTERNAL must agree across every pass of a SYCL
+/// compilation driven by -fsycl. With relocatable device code (-fsycl-rdc, the
+/// default) it is defined in both the device and the host pass; with
+/// -fno-sycl-rdc it is defined in neither. -E with -fsycl bundles the output
+/// of each pass, so the checks below see the device and host passes in turn.
+// RUN: %clangxx -fsycl -E -dM %s | FileCheck --check-prefix=CHECK-DRIVER-RDC %s
+// RUN: %clangxx -fsycl -fsycl-rdc -E -dM %s | FileCheck --check-prefix=CHECK-DRIVER-RDC %s
+// RUN: %clangxx -fsycl -fno-sycl-rdc -E -dM %s | FileCheck --check-prefix=CHECK-DRIVER-NO-RDC %s \
+// RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
+
+// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____START__ sycl-spir64
+// CHECK-DRIVER-RDC: #define SYCL_EXTERNAL __attribute__((sycl_device)){{$}}
+// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____END__ sycl-spir64
+// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____START__ host-
+// CHECK-DRIVER-RDC: #define SYCL_EXTERNAL {{$}}
+// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____END__ host-
+
+// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____START__ sycl-spir64
+// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____END__ sycl-spir64
+// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____START__ host-
+// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____END__ host-
+
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 
