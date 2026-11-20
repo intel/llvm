@@ -2,7 +2,8 @@
 // On AVX-512 CPUs the opencl:cpu float exclusive scan at sub-group size 16
 // ignores group membership; only the i7-1165G7 CI runner is excluded since lit
 // has no AVX-512 feature: https://github.com/intel/llvm/issues/23769
-// RUN-IF: sg-16 && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// RUN-IF: sg-16 && gpu, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// RUN-IF: sg-16 && cpu && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
 // RUN-IF: sg-32, %{build} -fno-sycl-early-optimizations -DSG_SIZE=32 -o %t32.out && %{run} %t32.out
 
 // Test CPU AOT as well when possible.
