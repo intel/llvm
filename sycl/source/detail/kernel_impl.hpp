@@ -209,6 +209,11 @@ public:
 
   device_image_impl &getDeviceImage() const { return *MDeviceImageImpl; }
 
+  /// \return the expected argument sizes of a kernel built from
+  /// SPIR-V or OpenCL C
+  /// source, or nullptr if they are not known.
+  const std::vector<size_t> *tryGetKernelArgSizes() const;
+
   ur_native_handle_t getNative() const {
     adapter_impl &Adapter = MContext->getAdapter();
 
