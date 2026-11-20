@@ -4,9 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // RUN: %with-v2 ./deferred_kernel-test
+// RUN: %with-v2 env UR_L0_V2_DISABLE_ZE_LAUNCH_KERNEL_WITH_ARGS=1 ./deferred_kernel-test --gtest_filter=*SynchronizeAtKernelLimit*
 // REQUIRES: v2
 // UNSUPPORTED: system-windows
 
+#include <chrono>
+#include <future>
+#include <vector>
 #include <ze_api.h>
 
 #include "../../../conformance/enqueue/helpers.h"
@@ -66,6 +70,364 @@ TEST_P(urEnqueueKernelLaunchTest, DeferredKernelRelease) {
   kernel = nullptr;
 
   ASSERT_SUCCESS(urEventRelease(event));
+}
+
+struct urKernelReclamationTest : uur::urKernelExecutionTest {
+  void SetUp() override {
+    ASSERT_EQ(zeInit(ZE_INIT_FLAG_GPU_ONLY), ZE_RESULT_SUCCESS);
+    program_name = "foo";
+    UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+  }
+};
+INSTANTIATE_TEST_SUITE_P(
+    , urKernelReclamationTest,
+    testing::Combine(
+        testing::ValuesIn(uur::DevicesEnvironment::instance->devices),
+        testing::Values(UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
+                        static_cast<ur_queue_flag_t>(
+                            UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE |
+                            UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE))),
+    uur::devicePrinter);
+
+TEST_P(urKernelReclamationTest, SynchronizeAtKernelLimit) {
+  size_t global_size = 1;
+  size_t global_offset = 0;
+  const size_t numCommandLists =
+      std::get<1>(GetParam()) & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE ? 4
+                                                                            : 1;
+  auto zeGate = createZeEvent(context, device);
+  uur::raii::Event gate;
+  ASSERT_SUCCESS(urEventCreateWithNativeHandle(
+      reinterpret_cast<ur_native_handle_t>(zeGate.get()), context, nullptr,
+      gate.ptr()));
+  ur_queue_properties_t properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                      nullptr,
+                                      UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+  uur::raii::Queue otherQueue;
+  ASSERT_SUCCESS(urQueueCreate(context, device, &properties, otherQueue.ptr()));
+
+  // Fill each immediate list with 10,000 distinct kernels without blocking GPU
+  // progress on a host signal.
+  std::vector<uur::raii::Kernel> kernels(10000);
+  for (auto &submittedKernel : kernels) {
+    if (&submittedKernel == &kernels.back()) {
+      // Reusing a kernel must not count towards the distinct-kernel limit.
+      for (size_t i = 0; i < numCommandLists; ++i) {
+        ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+            queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+            GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+      }
+      uint32_t references = 0;
+      ASSERT_SUCCESS(urKernelGetInfo(kernels[1], UR_KERNEL_INFO_REFERENCE_COUNT,
+                                     sizeof(references), &references, nullptr));
+      EXPECT_EQ(references, numCommandLists + 1);
+    }
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), submittedKernel.ptr()));
+    for (size_t i = 0; i < numCommandLists; ++i) {
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, submittedKernel, 1, &global_offset, &global_size, nullptr,
+          GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+    }
+  }
+
+  uint32_t references = 0;
+  ASSERT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, numCommandLists + 1);
+
+  // The next launch on each list synchronizes and clears its retained kernels,
+  // including the previous reference to the kernel being reused.
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, gate.ptr(), nullptr));
+  auto launch = std::async(std::launch::async, [&] {
+    return urEnqueueKernelLaunchWithArgsExp(
+        queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+        GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr);
+  });
+  EXPECT_EQ(launch.wait_for(std::chrono::milliseconds(50)),
+            std::future_status::timeout);
+  // Another queue must be able to enqueue the same kernel before the host
+  // signals the gate. Signal even on timeout so a regression cannot hang.
+  auto otherLaunch = std::async(std::launch::async, [&] {
+    return urEnqueueKernelLaunchWithArgsExp(
+        otherQueue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+        GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr);
+  });
+  EXPECT_EQ(otherLaunch.wait_for(std::chrono::seconds(1)),
+            std::future_status::ready);
+  EXPECT_EQ(zeEventHostSignal(zeGate.get()), ZE_RESULT_SUCCESS);
+  EXPECT_SUCCESS(otherLaunch.get());
+  ASSERT_SUCCESS(launch.get());
+  ASSERT_SUCCESS(urQueueFinish(otherQueue));
+  for (size_t i = 1; i < numCommandLists; ++i) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+        GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+  }
+  EXPECT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, numCommandLists + 1);
+  EXPECT_SUCCESS(urKernelGetInfo(kernels[1], UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 1u);
+  EXPECT_SUCCESS(urKernelGetInfo(kernels.back(), UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 1u);
+
+  for (size_t i = 0; i < numCommandLists; ++i) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernels.front(), 1, &global_offset, &global_size, nullptr,
+        GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+  }
+  EXPECT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, numCommandLists + 1);
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  EXPECT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 1u);
+}
+
+TEST_P(urKernelReclamationTest, SynchronizeAtKernelLimitPreservesArguments) {
+  constexpr size_t maxPendingKernels = 10000;
+  const size_t numCommandLists =
+      std::get<1>(GetParam()) & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE ? 4
+                                                                            : 1;
+  size_t global_size = 1;
+  size_t global_offset = 0;
+
+  std::shared_ptr<std::vector<char>> fillBinary;
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "fill", platform, fillBinary));
+  uur::raii::Program fillProgram;
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->CreateProgram(
+      platform, context, device, *fillBinary, nullptr, fillProgram.ptr()));
+  ASSERT_SUCCESS(urProgramBuild(context, fillProgram, nullptr));
+  const auto fillNames =
+      uur::KernelsEnvironment::instance->GetEntryPointNames("fill");
+  ASSERT_FALSE(fillNames.empty());
+  uur::raii::Kernel sharedKernel;
+  ASSERT_SUCCESS(urKernelCreate(fillProgram, fillNames.front().c_str(),
+                                sharedKernel.ptr()));
+
+  ur_queue_properties_t properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                      nullptr,
+                                      UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE};
+  uur::raii::Queue otherQueue;
+  ASSERT_SUCCESS(urQueueCreate(context, device, &properties, otherQueue.ptr()));
+  ur_queue_handle_t otherQueueHandle = otherQueue;
+  ur_kernel_handle_t sharedKernelHandle = sharedKernel;
+  uur::KernelLaunchHelper firstArgs(platform, context, sharedKernelHandle,
+                                    queue);
+  uur::KernelLaunchHelper secondArgs(platform, context, sharedKernelHandle,
+                                     otherQueueHandle);
+  uur::raii::Mem firstBuffer;
+  uur::raii::Mem secondBuffer;
+  constexpr uint32_t firstValue = 42;
+  constexpr uint32_t secondValue = 43;
+  UUR_RETURN_ON_FATAL_FAILURE(
+      firstArgs.AddBuffer1DArg(sizeof(firstValue), firstBuffer.ptr(), nullptr));
+  firstArgs.AddPodArg(firstValue);
+  UUR_RETURN_ON_FATAL_FAILURE(secondArgs.AddBuffer1DArg(
+      sizeof(secondValue), secondBuffer.ptr(), nullptr));
+  secondArgs.AddPodArg(secondValue);
+
+  std::vector<uur::raii::Kernel> kernels(maxPendingKernels);
+  for (auto &submittedKernel : kernels) {
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), submittedKernel.ptr()));
+    for (size_t i = 0; i < numCommandLists; ++i) {
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, submittedKernel, 1, &global_offset, &global_size, nullptr,
+          GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+    }
+  }
+
+  auto zeGate = createZeEvent(context, device);
+  uur::raii::Event gate;
+  ASSERT_SUCCESS(urEventCreateWithNativeHandle(
+      reinterpret_cast<ur_native_handle_t>(zeGate.get()), context, nullptr,
+      gate.ptr()));
+  ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, gate.ptr(), nullptr));
+  auto firstLaunch = std::async(std::launch::async, [&] {
+    return urEnqueueKernelLaunchWithArgsExp(
+        queue, sharedKernel, 1, &global_offset, &global_size, nullptr,
+        firstArgs.GetNumArgs(), firstArgs.GetArgs(), nullptr, 0, nullptr,
+        nullptr);
+  });
+  EXPECT_EQ(firstLaunch.wait_for(std::chrono::milliseconds(50)),
+            std::future_status::timeout);
+  auto secondLaunch = std::async(std::launch::async, [&] {
+    return urEnqueueKernelLaunchWithArgsExp(
+        otherQueue, sharedKernel, 1, &global_offset, &global_size, nullptr,
+        secondArgs.GetNumArgs(), secondArgs.GetArgs(), nullptr, 0, nullptr,
+        nullptr);
+  });
+  // Always release the gate so a locking regression fails without hanging.
+  EXPECT_EQ(secondLaunch.wait_for(std::chrono::seconds(1)),
+            std::future_status::ready);
+  EXPECT_EQ(zeEventHostSignal(zeGate.get()), ZE_RESULT_SUCCESS);
+  EXPECT_SUCCESS(secondLaunch.get());
+  EXPECT_SUCCESS(firstLaunch.get());
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  ASSERT_SUCCESS(urQueueFinish(otherQueue));
+  uint32_t firstResult = 0;
+  uint32_t secondResult = 0;
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, firstBuffer, true, 0,
+                                        sizeof(firstResult), &firstResult, 0,
+                                        nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(otherQueue, secondBuffer, true, 0,
+                                        sizeof(secondResult), &secondResult, 0,
+                                        nullptr, nullptr));
+  EXPECT_EQ(firstResult, firstValue);
+  EXPECT_EQ(secondResult, secondValue);
+}
+
+TEST_P(urKernelReclamationTest, CapturedKernelsAreNotSynchronizedAtLimit) {
+  constexpr size_t maxPendingKernels = 10000;
+  ur_bool_t supported = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+      sizeof(supported), &supported, nullptr));
+  if (!supported)
+    GTEST_SKIP() << "Graph capture is not supported.";
+
+  const size_t numCommandLists =
+      (getQueueMode() & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ? 4 : 1;
+  size_t global_size = 1;
+  std::vector<uur::raii::Kernel> pending(maxPendingKernels);
+  for (auto &submittedKernel : pending) {
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), submittedKernel.ptr()));
+    for (size_t i = 0; i < numCommandLists; ++i) {
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, submittedKernel, 1, nullptr, &global_size, nullptr,
+          GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+    }
+  }
+
+  std::vector<uur::raii::Kernel> kernels(maxPendingKernels + 1);
+  for (auto &capturedKernel : kernels) {
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), capturedKernel.ptr()));
+  }
+
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(queue));
+  for (size_t repeat = 0; repeat < 2; ++repeat) {
+    for (auto &capturedKernel : kernels) {
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, capturedKernel, 1, nullptr, &global_size, nullptr,
+          GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+    }
+  }
+  uint32_t references = 0;
+  ASSERT_SUCCESS(urKernelGetInfo(pending.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, numCommandLists + 1);
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(queue, &graph));
+
+  // Ordinary submissions can retire pending kernels, but not captured ones.
+  for (size_t i = 0; i < numCommandLists; ++i) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernel, 1, nullptr, &global_size, nullptr, GetNumArgs(),
+        GetArgs(), nullptr, 0, nullptr, nullptr));
+  }
+  ASSERT_SUCCESS(urKernelGetInfo(pending.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 1u);
+  ASSERT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 2u);
+
+  ur_exp_executable_graph_handle_t executable = nullptr;
+  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &executable));
+  ASSERT_SUCCESS(urEnqueueGraphExp(queue, executable, 0, nullptr, nullptr));
+  uur::raii::Event completed;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, completed.ptr()));
+  ASSERT_SUCCESS(urEventWait(1, completed.ptr()));
+  ASSERT_SUCCESS(urKernelGetInfo(kernels.front(),
+                                 UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 2u);
+  ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(executable));
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+}
+
+TEST_P(urKernelReclamationTest, ImplicitlyCapturedKernelSurvivesLimitCleanup) {
+  ur_bool_t supported = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP,
+      sizeof(supported), &supported, nullptr));
+  if (!supported)
+    GTEST_SKIP() << "Graph capture is not supported.";
+
+  ur_queue_properties_t properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                      nullptr, getQueueMode()};
+  uur::raii::Queue primaryQueue;
+  ASSERT_SUCCESS(
+      urQueueCreate(context, device, &properties, primaryQueue.ptr()));
+  ASSERT_SUCCESS(urQueueBeginGraphCaptureExp(primaryQueue));
+  uur::raii::Event fork;
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(primaryQueue, 0, nullptr, fork.ptr()));
+
+  size_t global_size = 1;
+  uur::raii::Event joined;
+  ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+      queue, kernel, 1, nullptr, &global_size, nullptr, GetNumArgs(), GetArgs(),
+      nullptr, 1, fork.ptr(), joined.ptr()));
+  bool capturing = false;
+  ASSERT_SUCCESS(urQueueIsGraphCaptureEnabledExp(queue, &capturing));
+  ASSERT_TRUE(capturing);
+  ASSERT_SUCCESS(
+      urEnqueueEventsWaitWithBarrier(primaryQueue, 1, joined.ptr(), nullptr));
+  ur_exp_graph_handle_t graph = nullptr;
+  ASSERT_SUCCESS(urQueueEndGraphCaptureExp(primaryQueue, &graph));
+
+  const size_t numCommandLists =
+      (getQueueMode() & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ? 4 : 1;
+  std::vector<uur::raii::Kernel> kernels(10000);
+  for (auto &submittedKernel : kernels) {
+    ASSERT_SUCCESS(
+        urKernelCreate(program, kernel_name.c_str(), submittedKernel.ptr()));
+    for (size_t i = 0; i < numCommandLists; ++i) {
+      ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+          queue, submittedKernel, 1, nullptr, &global_size, nullptr,
+          GetNumArgs(), GetArgs(), nullptr, 0, nullptr, nullptr));
+    }
+  }
+  for (size_t i = 0; i < numCommandLists; ++i) {
+    ASSERT_SUCCESS(urEnqueueKernelLaunchWithArgsExp(
+        queue, kernels.front(), 1, nullptr, &global_size, nullptr, GetNumArgs(),
+        GetArgs(), nullptr, 0, nullptr, nullptr));
+  }
+
+  uint32_t references = 0;
+  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 2u);
+  ASSERT_SUCCESS(urKernelGetInfo(kernels.back(), UR_KERNEL_INFO_REFERENCE_COUNT,
+                                 sizeof(references), &references, nullptr));
+  EXPECT_EQ(references, 1u);
+
+  ur_exp_executable_graph_handle_t executable = nullptr;
+  ASSERT_SUCCESS(urGraphInstantiateGraphExp(graph, &executable));
+  ASSERT_SUCCESS(
+      urEnqueueGraphExp(primaryQueue, executable, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(primaryQueue));
+  ASSERT_SUCCESS(urGraphExecutableGraphDestroyExp(executable));
+  ASSERT_SUCCESS(urGraphDestroyExp(graph));
+  ASSERT_SUCCESS(urQueueFinish(queue));
 }
 
 struct urMultiQueueLaunchKernelDeferFreeTest
