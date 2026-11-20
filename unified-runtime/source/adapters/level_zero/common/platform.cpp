@@ -1144,10 +1144,9 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
         continue;
       }
 
-      // By default (i.e. unless SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P is
-      // set), P2P access is treated as enabled for all connectable peers, so
-      // that USM allocations are made resident on all of them without
-      // requiring the user to call urUsmP2PEnablePeerAccessExp explicitly.
+      // Require explicit peer access by default. Setting
+      // SYCL_UR_L0_RESTRICT_USM_RESIDENCY_TO_P2P=0 makes USM allocations
+      // resident on all connectable peers without an explicit enable call.
       if (restrictUsmResidencyToP2P()) {
         UR_LOG(INFO,
                "p2p access to memory of dev:{} from dev:{} can be enabled",
