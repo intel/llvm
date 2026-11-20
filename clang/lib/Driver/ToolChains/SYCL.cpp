@@ -11,6 +11,8 @@
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/SyclGPUArchs.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
@@ -347,9 +349,6 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
                              const llvm::Triple &Triple, const ToolChain &TC,
                              bool &UseNative) {
-  static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
-      "pvc",   "acm_g10", "acm_g11", "acm_g12", "bmg_g21", "lnl_m", "ptl_h",
-      "ptl_u", "wcl",     "cri",     "nvl_s",   "nvl_u",   "nvl_p"};
   bool NeedLibs = false;
 
   // spir64 target is actually JIT compilation, so we defer selection of
@@ -396,7 +395,7 @@ static bool selectBfloatLibs(const llvm::opt::ArgList &Args,
       StringRef IntelGPUDevice = SYCL::gen::resolveGenDevice(Target);
       if (IntelGPUDevice.empty())
         return false;
-      return GPUArchsWithNBF16.contains(IntelGPUDevice);
+      return llvm::is_contained(SYCLGPUArchsWithNativeBF16, IntelGPUDevice);
     };
 
     size_t DevicesPos = Params.find("-device ");

@@ -12052,6 +12052,43 @@ static const char *renderSYCLBackendOption(const ArgList &Args,
   return Args.MakeArgString(WrapperOption + Key + "=" + Prefix + Value);
 }
 
+/// Forward offloadlib/instrument-device-code/sanitize/compiler-rt-dir to
+/// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>; SPIR
+/// never reaches a real device-compile step, so this is safe to reuse.
+/// Scoped by arch name, not full triple: old-model AOT triples embed an
+/// extra device component (getInputBitcodeLibrary) that breaks exact match.
+static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
+                                          ArrayRef<std::string> SPIRArchNames,
+                                          const ToolChain *SPIRTC,
+                                          ArgStringList &CmdArgs) {
+  if (SPIRArchNames.empty())
+    return;
+
+  ArgStringList Selectors;
+  for (auto [Pos, Neg] :
+       {std::pair{options::OPT_offloadlib, options::OPT_no_offloadlib},
+        {options::OPT_fsycl_instrument_device_code,
+         options::OPT_fno_sycl_instrument_device_code},
+        {options::OPT_fsanitize_EQ, options::OPT_fno_sanitize_EQ}})
+    if (Arg *A = Args.getLastArg(Pos, Neg))
+      A->render(Args, Selectors);
+
+  // libclang_rt.builtins.bc lives elsewhere; forward it as its own sentinel
+  // (keeps -sycl-device-library-location= last-one-wins, as used elsewhere).
+  if (SPIRTC) {
+    SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
+    llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
+    if (llvm::sys::fs::exists(CompilerRTPath))
+      Selectors.push_back(Args.MakeArgString(Twine("--sycl-compiler-rt-dir=") +
+                                             CompilerRTPath));
+  }
+
+  for (StringRef Selector : Selectors)
+    for (const std::string &ArchName : SPIRArchNames)
+      CmdArgs.push_back(Args.MakeArgString(Twine("--device-compiler=") +
+                                           ArchName + "=" + Selector));
+}
+
 void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output,
                                  const InputInfoList &Inputs,
@@ -12359,6 +12396,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // clang-linker-wrapper.
     SmallVector<std::string, 4> BCLibList;
     bool HasNativeCPU = false;
+    SmallVector<std::string, 4> SPIRArchNames;
+    const ToolChain *SPIRTC = nullptr;
 
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (const auto &[Kind, TC] :
@@ -12381,6 +12420,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           if (llvm::sys::path::extension(AddLib.Path) == ".bc")
             BCLibList.push_back(
                 (Twine(TargetTriple.str()) + "=" + AddLib.Path).str());
+      } else {
+        SPIRTC = TC;
+        std::string ArchName = TargetTriple.getArchName().str();
+        if (!llvm::is_contained(SPIRArchNames, ArchName))
+          SPIRArchNames.push_back(std::move(ArchName));
       }
 
       if (TargetTriple.isNVPTX())
@@ -12394,6 +12438,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       for (const std::string &Lib : BCLibList)
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
+
+    forwardSYCLDeviceLibSelectors(Args, SPIRArchNames, SPIRTC, CmdArgs);
 
     // -sycl-device-library-location=<dir> provides the location of the
     // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
