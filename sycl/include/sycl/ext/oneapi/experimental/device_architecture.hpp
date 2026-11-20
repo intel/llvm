@@ -90,7 +90,7 @@ static constexpr ext::oneapi::experimental::architecture
         ext::oneapi::experimental::architecture::nvidia_gpu_sm_50;
 static constexpr ext::oneapi::experimental::architecture
     max_nvidia_gpu_architecture =
-        ext::oneapi::experimental::architecture::nvidia_gpu_sm_90a;
+        ext::oneapi::experimental::architecture::nvidia_gpu_sm_103;
 
 static constexpr ext::oneapi::experimental::architecture
     min_amd_gpu_architecture =
@@ -248,6 +248,9 @@ static constexpr ext::oneapi::experimental::architecture
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM_90__
 #define __SYCL_TARGET_NVIDIA_GPU_SM_90__ 0
+#endif
+#ifndef __SYCL_TARGET_NVIDIA_GPU_SM_103__
+#define __SYCL_TARGET_NVIDIA_GPU_SM_103__ 0
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX700__
 #define __SYCL_TARGET_AMD_GPU_GFX700__ 0
@@ -429,6 +432,7 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_NVIDIA_GPU_SM_87__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_89__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM_90__ == 1) ||
+    (__SYCL_TARGET_NVIDIA_GPU_SM_103__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX700__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX701__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX702__ == 1) ||
@@ -627,6 +631,9 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_NVIDIA_GPU_SM_90__
   return ext::oneapi::experimental::architecture::nvidia_gpu_sm_90;
+#endif
+#if __SYCL_TARGET_NVIDIA_GPU_SM_103__
+  return ext::oneapi::experimental::architecture::nvidia_gpu_sm_103;
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX700__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx700;
