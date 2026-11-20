@@ -879,6 +879,10 @@ private:
   /// error is emitted only once per driver invocation.
   mutable bool OffloadBundlerNotFoundDiagnosed = false;
 
+  /// Set once -fsycl-targets used with an Intel --offload-arch has been
+  /// diagnosed, so that the error is emitted only once per driver invocation.
+  mutable bool SYCLTargetsWithIntelOffloadArchDiagnosed = false;
+
   /// Offload sections reported by clang-offload-bundler -list for each input
   /// file, so that each file is inspected only once per driver invocation.
   mutable llvm::StringMap<llvm::SmallVector<std::string, 4>>
