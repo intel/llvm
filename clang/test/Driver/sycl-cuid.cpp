@@ -138,7 +138,7 @@
 // RUN:   --target=x86_64-unknown-linux-gnu -c %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=HOSTCOMP --implicit-check-not=warning:
 // HOSTCOMP: "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-int-header={{.*}} "-cuid={{[0-9a-f]+}}"
-// HOSTCOMP: "{{.*}}g++" "{{.*}}.cpp" "-c" "-include"
+// HOSTCOMP: "{{.*}}g++" "{{.*}}.cpp"{{.*}} "-c" "-include"
 // HOSTCOMP-NOT: -cuid=
 
 // Invalid -fuse-cuid value.
