@@ -794,6 +794,16 @@ ur_result_t urUSMImportExp([[maybe_unused]] ur_context_handle_t Context,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urUSMGetHandleForAddressRangeExp(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] const void *pMem, [[maybe_unused]] size_t size,
+    [[maybe_unused]] ur_exp_address_range_export_type_t exportType,
+    [[maybe_unused]] const ur_exp_address_range_handle_properties_t
+        *pProperties,
+    [[maybe_unused]] ur_exp_address_range_export_t *pExport) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t urUSMReleaseExp([[maybe_unused]] ur_context_handle_t Context,
                             [[maybe_unused]] void *HostPtr) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

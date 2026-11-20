@@ -580,6 +580,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       ur::level_zero::v1::urUSMPoolGetDevicePoolExp;
   pDdiTable->pfnPoolTrimToExp = ur::level_zero::v1::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::v1::urUSMPitchedAllocExp;
+  pDdiTable->pfnGetHandleForAddressRangeExp =
+      ur::level_zero::v1::urUSMGetHandleForAddressRangeExp;
   pDdiTable->pfnContextMemcpyExp = ur::level_zero::v1::urUSMContextMemcpyExp;
   pDdiTable->pfnHostAllocUnregisterExp =
       ur::level_zero::v1::urUSMHostAllocUnregisterExp;

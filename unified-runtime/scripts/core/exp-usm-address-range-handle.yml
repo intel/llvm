@@ -1,0 +1,177 @@
+#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM
+# Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for obtaining OS handles to USM address ranges"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Type of OS handle that can be obtained for a device memory address range"
+name: $x_exp_address_range_export_type_t
+etors:
+    - name: DMA_BUF_FD
+      value: "0"
+      desc: "Linux DMA-BUF file descriptor. The handle is returned as an `int`."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Supported address range handle types"
+name: $x_exp_address_range_export_type_flags_t
+etors:
+    - name: DMA_BUF_FD
+      value: "$X_BIT(0)"
+      desc: "$X_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD is supported"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support address range handles."
+name: $x_device_info_t
+etors:
+    - name: ADDRESS_RANGE_EXPORT_TYPES_EXP
+      value: "0x20C0"
+      desc: >
+            [$x_exp_address_range_export_type_flags_t] returns the handle types
+            that $xUSMGetHandleForAddressRangeExp can return for device memory
+            of this device. Returns 0 if the device does not support address
+            range handles.
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_ADDRESS_RANGE_HANDLE_PROPERTIES
+      desc: "$x_exp_address_range_handle_properties_t"
+      value: "0x20C0"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Address range handle flags"
+name: $x_exp_address_range_handle_flags_t
+etors:
+    - name: TBD
+      desc: "Reserved for future use."
+      value: "$X_BIT(0)"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Address range handle properties"
+details:
+    - "Reserved for future extensions."
+name: $x_exp_address_range_handle_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_address_range_handle_flags_t
+      name: flags
+      desc: "[in] address range handle flags, must be 0"
+--- #--------------------------------------------------------------------------
+type: union
+desc: "OS handle to the memory backing an address range"
+name: $x_exp_address_range_handle_value_t
+tag: $x_exp_address_range_export_type_t
+members:
+    - type: int
+      name: fd
+      desc: "[out] Linux DMA-BUF file descriptor, for $X_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD"
+      tag: $X_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "OS handle to the memory backing an address range, and the location of the range within the object that the handle names"
+details:
+    - "The handle names device addresses [`base`, `base` + `size`). Byte
+      `offset` of the handle corresponds to the `pMem` passed to
+      $xUSMGetHandleForAddressRangeExp, i.e. `pMem == base + offset`."
+    - "`base` is aligned to the host page size, so `offset` has the same
+      remainder modulo the host page size as `pMem`."
+name: $x_exp_address_range_export_t
+members:
+    - type: $x_exp_address_range_export_type_t
+      name: type
+      desc: "[out] type of the OS handle stored in `handle`"
+    - type: $x_exp_address_range_handle_value_t
+      name: handle
+      desc: "[out][tagged_by(type)] OS handle to the memory backing the range"
+    - type: uint64_t
+      name: offset
+      desc: "[out] byte offset within the handle that corresponds to `pMem`"
+    - type: void *
+      name: base
+      desc: "[out] device address that corresponds to offset 0 of the handle"
+    - type: size_t
+      name: size
+      desc: "[out] size in bytes of the region named by the handle"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get an OS handle to the memory backing a device memory address range"
+class: $xUSM
+name: GetHandleForAddressRangeExp
+ordinal: "0"
+details:
+    - "`pMem` may point anywhere inside a device USM allocation of `hContext`,
+      or into a virtual memory range of `hContext` that is mapped to physical
+      memory. Neither `pMem` nor `size` needs to be aligned."
+    - "The returned handle names device addresses
+      [`pExport->base`, `pExport->base` + `pExport->size`), which may extend
+      beyond the requested range,
+      e.g. when the allocation is sub-allocated from a larger object. The
+      handle is therefore not an isolation boundary."
+    - "On success, if [`pMem`, `pMem` + `size`) lies within a single device
+      USM allocation, the handle covers the whole requested range. Otherwise
+      the handle may cover only a prefix of it; the remainder can be obtained
+      by calling this function again with `pExport->base` + `pExport->size`."
+    - "The caller owns the returned handle. A DMA-BUF file descriptor is
+      released with the OS `close()` function, or by passing it to an API that
+      takes ownership of it. The handle may be closed before or after the
+      memory is freed, but must not be used to access the memory after the
+      memory has been freed or unmapped."
+    - "Device writes to the memory are visible through the handle once the host
+      has synchronized with the commands that performed them. Writes made
+      through the handle are visible to commands enqueued after those writes
+      have completed."
+    - "No commands that access device memory of the device owning `pMem` may
+      be executing during the call. The implementation may need to transform
+      the whole object backing the range, e.g. decompress it, which affects
+      unrelated allocations that share that object."
+    - "The application must not free or unmap the memory while the handle, or
+      anything created from it, is in use. After the memory is freed, it may
+      be reused by subsequent allocations."
+    - "The application may call this function from simultaneous threads."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: const void *
+      name: pMem
+      desc: "[in] start of the address range"
+    - type: size_t
+      name: size
+      desc: "[in] size in bytes of the address range"
+    - type: $x_exp_address_range_export_type_t
+      name: exportType
+      desc: "[in] type of the handle to return"
+    - type: const $x_exp_address_range_handle_properties_t*
+      name: pProperties
+      desc: "[in][optional] address range handle properties"
+    - type: $x_exp_address_range_export_t*
+      name: pExport
+      desc: "[out] the OS handle and the location of `pMem` within the object it names"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pMem`"
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`size == 0`"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "The device owning `pMem` does not report `exportType` in $X_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP"
+      - "`NULL != pProperties && pProperties->flags != 0`"
+    - $X_RESULT_ERROR_INVALID_ARGUMENT:
+      - "`pMem` is not device memory of `hContext`"
+      - "The memory backing the range cannot be exported, e.g. it is split across several objects, maps only part of an object, or is compressed and cannot be decompressed"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES

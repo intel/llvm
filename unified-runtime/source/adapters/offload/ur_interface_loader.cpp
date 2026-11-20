@@ -401,6 +401,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return result;
   }
   pDdiTable->pfnPitchedAllocExp = nullptr;
+  pDdiTable->pfnGetHandleForAddressRangeExp = nullptr;
   return UR_RESULT_SUCCESS;
 }
 

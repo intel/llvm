@@ -384,6 +384,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP:
+    return ReturnValue(ur_exp_address_range_export_type_flags_t{0});
   case UR_DEVICE_INFO_IPC_PHYSICAL_MEMORY_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
