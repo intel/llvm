@@ -1981,15 +1981,17 @@ Error OffloadBundler::UnbundleFiles() {
     // of the same triple (see isCodeObjectCompatible). Only use such a match
     // when the blob has no entry with an exactly matching target ID, so that
     // the result does not depend on the order of the entries.
+    // The IDs may point into storage owned by the handler (for an archive,
+    // the keys of its bundle map), so keep the handler alive while they are
+    // used.
+    Expected<std::unique_ptr<FileHandler>> IDHandlerOrErr =
+        CreateFileHandler(Input, BundlerConfig);
+    if (!IDHandlerOrErr)
+      return IDHandlerOrErr.takeError();
+    std::unique_ptr<FileHandler> IDHandler = std::move(*IDHandlerOrErr);
     std::set<StringRef> BundleIDs;
-    {
-      Expected<std::unique_ptr<FileHandler>> IDHandlerOrErr =
-          CreateFileHandler(Input, BundlerConfig);
-      if (!IDHandlerOrErr)
-        return IDHandlerOrErr.takeError();
-      if (Error Err = (*IDHandlerOrErr)->getBundleIDs(Input, BundleIDs))
-        return Err;
-    }
+    if (Error Err = IDHandler->getBundleIDs(Input, BundleIDs))
+      return Err;
     // Returns false only if exactly one of the SYCL bundle entry (CodeObject)
     // and the requested -targets ID (Target) has a target ID, e.g. entry
     // sycl-spir64_gen-unknown-unknown and target
