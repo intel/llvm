@@ -2250,9 +2250,10 @@ private:
   /// that references (calls) the symbol, creating an undefined reference that
   /// forces the corresponding device static library member (which defines the
   /// matching symbol) to be pulled in at link time. The device-side definition
-  /// is emitted by clang-linker-wrapper, so this is new offload model only. The
-  /// unique identifier is what ties the two sides together.
-  /// \return the global constructor that calls registerlib function.
+  /// is emitted by clang-linker-wrapper or clang-offload-wrapper. The unique
+  /// identifier is what ties the two sides together.
+  /// \return the global constructor that calls registerlib function, or
+  /// nullptr if the device code is known to be empty.
   llvm::Function *createSYCLRegisterLibFunc();
 
   /// Determine whether the definition must be emitted; if this returns \c
