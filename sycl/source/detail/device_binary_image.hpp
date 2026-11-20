@@ -261,7 +261,7 @@ public:
   bool isIgcaModule() const { return IsIgcaModule; }
 
   /// Returns the IGCA targets this module holds sub-modules for, e.g.
-  /// {"igca_10", "igca_12"}. Only used for diagnostics, and best-effort: the
+  /// {"igca_10", "igca_20"}. Only used for diagnostics, and best-effort: the
   /// list is empty when the producer did not record it.
   std::vector<std::string_view> getIgcaTargets() const;
 

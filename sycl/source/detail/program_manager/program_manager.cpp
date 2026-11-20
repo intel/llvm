@@ -528,7 +528,7 @@ static void emitBuiltProgramInfo(const ur_program_handle_t &Prog,
 }
 
 // Joins the IGCA targets a module holds sub-modules for into a list usable in
-// error messages, e.g. "igca_10, igca_12". Empty when the module does not
+// error messages, e.g. "igca_10, igca_20". Empty when the module does not
 // record its targets.
 static std::string getIgcaTargetList(const RTDeviceBinaryImage &Img) {
   std::string List;
@@ -561,7 +561,7 @@ static std::string getDeviceIgcaTargetLabel(const device_impl &Dev) {
 }
 
 // Describes the device a module was about to be loaded on, usable in error
-// messages, e.g. "'Intel(R) Graphics', IGCA target 12 (render)". The IGCA
+// messages, e.g. "'Intel(R) Graphics', IGCA target 20 (compute)". The IGCA
 // target is left out unless \p WithIgcaTarget, or when the device does not
 // report one.
 static std::string getDeviceLabel(const device_impl &Dev,

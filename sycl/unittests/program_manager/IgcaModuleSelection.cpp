@@ -83,10 +83,10 @@ static unittest::MockDeviceImage Imgs[] = {
     // An uber-module whose sub-modules were AOT compiled, so it carries a
     // compile_target that describes only one of them and does not match the
     // mock device.
-    generateIgcaModule("IgcaOnlyKernel", "igca_10,igca_12r",
+    generateIgcaModule("IgcaOnlyKernel", "igca_10,igca_20",
                        /*RecordTargets=*/true,
                        __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN,
-                       /*CompileTarget=*/"intel_gpu_bdw"),
+                       /*CompileTarget=*/"intel_gpu_pvc"),
     // The same kernel in a module built in --offload-arch mode and in a JIT
     // module, to check which of the two is picked.
     generateIgcaModule("IgcaAndJitKernel", "igca_10"),
@@ -96,8 +96,8 @@ static unittest::MockDeviceImage Imgs[] = {
     // binary holds --offload-arch modules for other kernels.
     unittest::generateDefaultImage({"JitOnlyKernel"}),
     unittest::generateDefaultImage({"JitOnlyKernel"}),
-    generateIgcaModule("IgcaBuildFailureKernel", "igca_12r"),
-    generateIgcaModule("IgcaNoRecordedTargetsKernel", "igca_12r",
+    generateIgcaModule("IgcaBuildFailureKernel", "igca_20"),
+    generateIgcaModule("IgcaNoRecordedTargetsKernel", "igca_20",
                        /*RecordTargets=*/false),
     // A module that no backend of the mock (GPU) device can load, to exercise
     // the diagnostic for a kernel left without any image.
@@ -142,21 +142,21 @@ ur_result_t replaceProgramBuildExp(void *) {
   return FailProgramBuild ? UR_RESULT_ERROR_INVALID_BINARY : UR_RESULT_SUCCESS;
 }
 
-// The mock device reports IGCA target 12 with the render feature set, so a
-// module holding only igca_12r code suits it and the diagnostics have a stable
+// The mock device reports IGCA target 20 with the compute feature set, so a
+// module holding only igca_20 code suits it and the diagnostics have a stable
 // device IGCA target to name.
 ur_result_t afterDeviceGetInfo(void *pParams) {
   auto Params = *static_cast<ur_device_get_info_params_t *>(pParams);
   const ur_device_info_t Name = *Params.ppropName;
   if (Name == UR_DEVICE_INFO_IGCA_TARGET) {
     if (*Params.ppPropValue)
-      *static_cast<uint32_t *>(*Params.ppPropValue) = 12;
+      *static_cast<uint32_t *>(*Params.ppPropValue) = 20;
     if (*Params.ppPropSizeRet)
       **Params.ppPropSizeRet = sizeof(uint32_t);
   } else if (Name == UR_DEVICE_INFO_IGCA_FEATURE_SET) {
     if (*Params.ppPropValue)
       *static_cast<ur_device_igca_feature_flags_t *>(*Params.ppPropValue) =
-          UR_DEVICE_IGCA_FEATURE_FLAG_RENDER;
+          UR_DEVICE_IGCA_FEATURE_FLAG_COMPUTE;
     if (*Params.ppPropSizeRet)
       **Params.ppPropSizeRet = sizeof(ur_device_igca_feature_flags_t);
   }
@@ -242,8 +242,8 @@ TEST_F(IgcaModuleSelectionTest, BuildFailureNamesDeviceAndIgcaTargets) {
     std::string What{E.what()};
     EXPECT_NE(What.find("--offload-arch"), std::string::npos) << What;
     EXPECT_NE(What.find("'Mock device'"), std::string::npos) << What;
-    EXPECT_NE(What.find("IGCA target 12 (render)"), std::string::npos) << What;
-    EXPECT_NE(What.find("[igca_12r]"), std::string::npos) << What;
+    EXPECT_NE(What.find("IGCA target 20 (compute)"), std::string::npos) << What;
+    EXPECT_NE(What.find("[igca_20]"), std::string::npos) << What;
   }
 }
 
@@ -273,7 +273,7 @@ TEST_F(IgcaModuleSelectionTest, NoImageNamesDeviceIgcaTarget) {
   } catch (sycl::exception &E) {
     EXPECT_EQ(std::string{E.what()},
               "Kernel IgcaOtherBackendKernel has no image for the selected "
-              "device 'Mock device', IGCA target 12 (render). Its available "
+              "device 'Mock device', IGCA target 20 (compute). Its available "
               "images target: [--offload-arch igca_10].");
   }
 }
