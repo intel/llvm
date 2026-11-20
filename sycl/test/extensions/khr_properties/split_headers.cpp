@@ -50,9 +50,10 @@ static_assert(!sycl::khr::is_property_for_v<SomeClass, SomeClass>);
 static_assert(!sycl::khr::is_property_for<SomeClass, SomeClass>::value);
 static_assert(!sycl::khr::is_property_key_for_v<SomeClass, SomeClass>);
 static_assert(!sycl::khr::is_property_key_for<SomeClass, SomeClass>::value);
-static_assert(sycl::khr::is_property_list_for_v<empty_properties_t, SomeClass>);
 static_assert(
-    sycl::khr::is_property_list_for<empty_properties_t, SomeClass>::value);
+    sycl::khr::is_property_or_list_for_v<empty_properties_t, SomeClass>);
+static_assert(
+    sycl::khr::is_property_or_list_for<empty_properties_t, SomeClass>::value);
 
 #elif HEADER == 3
 #include <sycl/khr/split_headers/context.hpp>
@@ -107,12 +108,12 @@ void test(const sycl::device &Dev, const sycl::context &Ctx,
 namespace kp = sycl::khr::property;
 using sycl::khr::empty_properties_t;
 
-static_assert(
-    sycl::khr::is_property_list_for_v<empty_properties_t, kp::tag::usm_device>);
-static_assert(
-    sycl::khr::is_property_list_for_v<empty_properties_t, kp::tag::usm_host>);
-static_assert(
-    sycl::khr::is_property_list_for_v<empty_properties_t, kp::tag::usm_shared>);
+static_assert(sycl::khr::is_property_or_list_for_v<empty_properties_t,
+                                                   kp::tag::usm_device>);
+static_assert(sycl::khr::is_property_or_list_for_v<empty_properties_t,
+                                                   kp::tag::usm_host>);
+static_assert(sycl::khr::is_property_or_list_for_v<empty_properties_t,
+                                                   kp::tag::usm_shared>);
 
 void test(const sycl::device &Dev, const sycl::context &Ctx,
           const sycl::queue &Q) {
@@ -186,11 +187,11 @@ namespace kp = sycl::khr::property;
 using sycl::khr::empty_properties_t;
 
 static_assert(
-    sycl::khr::is_property_list_for_v<empty_properties_t, kp::tag::compile>);
+    sycl::khr::is_property_or_list_for_v<empty_properties_t, kp::tag::compile>);
 static_assert(
-    sycl::khr::is_property_list_for_v<empty_properties_t, kp::tag::link>);
+    sycl::khr::is_property_or_list_for_v<empty_properties_t, kp::tag::link>);
 static_assert(
-    sycl::khr::is_property_list_for_v<empty_properties_t, kp::tag::build>);
+    sycl::khr::is_property_or_list_for_v<empty_properties_t, kp::tag::build>);
 
 void test(
     const sycl::kernel_bundle<sycl::bundle_state::input> &In,

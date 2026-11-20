@@ -30,9 +30,9 @@ using InputBundle = sycl::kernel_bundle<sycl::bundle_state::input>;
 using ObjectBundle = sycl::kernel_bundle<sycl::bundle_state::object>;
 using ExecBundle = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-static_assert(is_property_list_for_v<empty_properties_t, kp::tag::compile>);
-static_assert(is_property_list_for_v<empty_properties_t, kp::tag::link>);
-static_assert(is_property_list_for_v<empty_properties_t, kp::tag::build>);
+static_assert(is_property_or_list_for_v<empty_properties_t, kp::tag::compile>);
+static_assert(is_property_or_list_for_v<empty_properties_t, kp::tag::link>);
+static_assert(is_property_or_list_for_v<empty_properties_t, kp::tag::build>);
 static_assert(std::is_same_v<decltype(sycl::compile(std::declval<InputBundle>(),
                                                     properties{})),
                              ObjectBundle>);
