@@ -50,7 +50,11 @@ void func_3(void) { device_func(); }
 
 // (E)
 #if defined(__sycl_device)
+// Kernel launches go through overload resolution, and in SYCL-CUDA device
+// compilation a __host__ __device__ caller can never call a __global__ callee,
+// so the only candidate is not viable.
+// expected-note@#KERNEL {{candidate function not viable: call to __global__ function from __host__ __device__ function}}
 __host__ __device__ void hostdevice_func() { kernel<<<1, 1>>>();} //
-// expected-error@-1 {{reference to __global__ function 'kernel' in __host__ __device__ function}}
+// expected-error@-1 {{no matching function for call to 'kernel'}}
 void func_4(void) { hostdevice_func(); }
 #endif
