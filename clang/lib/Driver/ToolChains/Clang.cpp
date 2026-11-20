@@ -10526,7 +10526,10 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       CurTC = nullptr;
       OA->doOnEachDependence([&](Action *A, const ToolChain *TC, BoundArch BA) {
         assert(CurTC == nullptr && "Expected one dependence!");
-        CurKind = A->getOffloadingDeviceKind();
+        // Unbundling actions keep the host kind; use the offload action's.
+        CurKind = isa<OffloadUnbundlingJobAction>(A)
+                      ? OA->getOffloadingDeviceKind()
+                      : A->getOffloadingDeviceKind();
         CurTC = TC;
       });
     }
