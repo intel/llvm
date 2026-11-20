@@ -10,6 +10,7 @@ add_sycl_unittest(KernelAndProgramTests OBJECT
   InMemCacheEviction.cpp
   KernelArgs.cpp
   KernelInfoShortcuts.cpp
+  SPIRVKernelArgSizes.cpp
 )
 target_compile_definitions(KernelAndProgramTests-Non_Preview_Tests PRIVATE __SYCL_INTERNAL_API)
 if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
