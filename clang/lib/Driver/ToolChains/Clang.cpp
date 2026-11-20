@@ -5415,6 +5415,23 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
     HostCompileArgs.push_back("__INTEL_PREVIEW_BREAKING_CHANGES");
   }
 
+  // Tell the SYCL headers that this is the host pass of a
+  // -fsycl-host-compiler build, matching the device compilation. Command-line
+  // defines are seen before the integration header, so this is in effect
+  // before any SYCL header is processed.
+  HostCompileArgs.push_back(IsMSVCHostCompiler ? "/D" : "-D");
+  HostCompileArgs.push_back("__SYCL_EXTERNAL_HOST_COMPILER__");
+
+  // SYCL_EXTERNAL is only defined when external linkage is supported (RDC).
+  // The external host compiler doesn't run clang's InitPreprocessor, so
+  // provide the host-side (empty) definition here to match it.
+  // -fsycl-rdc is an alias of -fgpu-rdc; SYCL defaults to RDC.
+  if (TCArgs.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                     /*Default=*/true)) {
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/D" : "-D");
+    HostCompileArgs.push_back("SYCL_EXTERNAL=");
+  }
+
   // FIXME: Reuse existing toolchains which are already supported to put
   // together the options.
   // FIXME: For any potential obscure host compilers that do not use the

@@ -1556,12 +1556,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.GPUDeviceApproxTranscendentals)
     Builder.defineMacro("__CLANG_GPU_APPROX_TRANSCENDENTALS__");
 
+  if (LangOpts.isSYCL() && LangOpts.GPURelocatableDeviceCode)
+    Builder.defineMacro("SYCL_EXTERNAL", LangOpts.SYCLIsDevice
+                                             ? "__attribute__((sycl_device))"
+                                             : "");
+
   // Define a macro indicating that the source file is being compiled with a
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__");
-    if (LangOpts.GPURelocatableDeviceCode)
-      Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
     // This gets called twice, once with TI set to the host TargetInfo, once
     // with TI set to the device TargetInfo.
