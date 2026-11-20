@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_programmatic_dependencies
+= sycl_ext_oneapi_programmatic_dependent_launch
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -90,7 +90,8 @@ even before the primary kernel completes.
 Work-items in the dependent kernel may do some work that does not require the
 results from the primary kernel.
 However, each work-item in the dependent kernel must eventually call
-`programmatic_wait`, which blocks execution until the primary kernel completes.
+`wait_for_primary_kernel`, which blocks execution until the primary kernel
+completes.
 Once these calls unblock, each work-item in the dependent kernel can use
 data that was written to memory from the primary kernel.
 
@@ -107,7 +108,7 @@ syclex::launch_config cfg{
 
 syclex::nd_launch(q, cfg, [=](sycl::nd_item<1> it) {
   // prolog of dependent kernel, potentially overlapped with primary kernel
-  syclex::programmatic_wait();
+  syclex::wait_for_primary_kernel();
   // use results from primary kernel
 });
 ----
@@ -120,8 +121,8 @@ syclex::nd_launch(q, cfg, [=](sycl::nd_item<1> it) {
 This extension provides a feature-test macro as described in the core SYCL
 specification.
 An implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_PROGRAMMATIC_DEPENDENCIES` to one of the values defined in the
-table below.
+`SYCL_EXT_ONEAPI_PROGRAMMATIC_DEPENDENT_LAUNCH` to one of the values defined in
+the table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's value
 to determine which of the extension's features the implementation supports.
@@ -186,10 +187,10 @@ document.
 In all forms of programmatic dependency, the dependent kernels may be launched
 even before the primary kernel completes.
 Therefore, each work-item in the dependent kernels must call
-`programmatic_wait`, which causes the work-item to block until the primary
+`wait_for_primary_kernel`, which causes the work-item to block until the primary
 kernel completes.
 As a result, code in the primary kernel may overlap execution with the code in
-the dependent kernels that precede their calls to `programmatic_wait` (the
+the dependent kernels that precede their calls to `wait_for_primary_kernel` (the
 dependent kernels' prolog).
 Although this overlap is possible, there is no guarantee that code overlaps in
 this manner.
@@ -200,7 +201,7 @@ this manner.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void programmatic_wait();
+void wait_for_primary_kernel();
 
 }
 ----
@@ -214,10 +215,10 @@ the return from the call to this function.
 
 _Remarks:_ A kernel may call this function even if it is launched without any
 properties that enable programmatic dependencies.
-When this happens, calls to `programmatic_wait` have no effect.
+When this happens, calls to `wait_for_primary_kernel` have no effect.
 
 A kernel may call this function even when there is no primary kernel.
-When this happens, calls to `programmatic_wait` have no effect.
+When this happens, calls to `wait_for_primary_kernel` have no effect.
 
 This function is an optional kernel feature as defined by section 5.7 of the
 core SYCL specification.
@@ -237,7 +238,7 @@ consecutively to the same in-order queue.
 The first kernel is the primary kernel and the second is the dependent kernel.
 When programmatic serialization is used, the dependent kernel may launch even
 before the primary kernel completes, and the two kernels synchronize via
-`programmatic_wait`.
+`wait_for_primary_kernel`.
 
 In order to use this type of programmatic dependency, the primary kernel does
 not need to be launched with any special property.
@@ -285,8 +286,8 @@ A kernel can be launched with this property set to true on queue _Q_, even if
 the previous command on _Q_ is not a kernel, or if there is no previous command
 on _Q_.
 In this case, the property has no effect.
-There is no primary kernel, and calls to `programmatic_wait` in this kernel have
-no effect.
+There is no primary kernel, and calls to `wait_for_primary_kernel` in this
+kernel have no effect.
 
 '''
 
@@ -296,8 +297,8 @@ Kernels that use programmatic dependencies may also have regular event
 dependencies (e.g. specified via `handler::depends_on`).
 In such a case, the kernel is not launched until after its regular dependencies
 are satisfied.
-Once the kernel is launched, calls to `programmatic_wait` behave as described
-above.
+Once the kernel is launched, calls to `wait_for_primary_kernel` behave as
+described above.
 
 
 == Examples
@@ -326,13 +327,13 @@ int main() {
   });
 
   // Launch the second kernel in the programmatic serialization pair.
-  // Each work-item calls "programmatic_wait" to wait for the first kernel to
+  // Each work-item calls "wait_for_primary_kernel" to wait for the first kernel to
   // complete and for data it has written to be visible.
   syclex::launch_config cfg{ndr,
                             syclex::properties{syclex::programmatic_serialization{}}};
   syclex::nd_launch(q, cfg, [=](sycl::nd_item<1> it) {
     // ... potentially overlapped with first kernel
-    syclex::programmatic_wait();
+    syclex::wait_for_primary_kernel();
     // use results from first kernel
   });
 }
@@ -358,7 +359,7 @@ void primary(/*args*/) {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::nd_range_kernel<1>))
 void dependent(/*args*/) {
   // ... potentially overlapped with first kernel
-  syclex::programmatic_wait();
+  syclex::wait_for_primary_kernel();
   // use results from first kernel
 }
 
