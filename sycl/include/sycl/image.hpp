@@ -106,7 +106,10 @@ enum class image_format : unsigned int {
 
 using byte = unsigned char;
 
+// sycl::byte is deprecated.
+__SYCL_SUPPRESS_DEPRECATED_PUSH
 using image_allocator = detail::aligned_allocator<byte>;
+__SYCL_SUPPRESS_DEPRECATED_POP
 
 namespace detail {
 
@@ -723,6 +726,8 @@ private:
       : common_base{Impl} {}
 
 public:
+  // sycl::byte is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   unsampled_image(
       image_format Format, const range<Dimensions> &Range,
       const property_list &PropList = {},
@@ -931,6 +936,7 @@ public:
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   /* -- common interface members -- */
 
@@ -1004,6 +1010,8 @@ private:
       : common_base{Impl} {}
 
 public:
+  // sycl::byte is deprecated.
+  __SYCL_SUPPRESS_DEPRECATED_PUSH
   sampled_image(
       const void *HostPointer, image_format Format, image_sampler Sampler,
       const range<Dimensions> &Range, const property_list &PropList = {},
@@ -1072,6 +1080,7 @@ public:
         CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
         detail::rangeToArray(Range).data(), Format, Sampler);
   }
+  __SYCL_SUPPRESS_DEPRECATED_POP
 
   /* -- common interface members -- */
 
