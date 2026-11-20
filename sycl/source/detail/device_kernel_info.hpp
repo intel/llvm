@@ -10,8 +10,8 @@
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <hash_table8.hpp>
+#include <spinlock.hpp>
 #include <sycl/detail/compile_time_kernel_info.hpp>
-#include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
