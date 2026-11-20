@@ -476,17 +476,6 @@ _GLIBCXX_END_NAMESPACE_VERSION
 #endif
 
 #if defined(_WIN32)
-
-union _Fval { // pun floating type as integer array
-  unsigned short _Sh[8];
-  float _Val;
-};
-
-union _Dval { // pun floating type as integer array
-  unsigned short _Sh[8];
-  double _Val;
-};
-
 union _Dconst2 {
   unsigned short _Word[2];
   float _Float;
@@ -500,28 +489,20 @@ union _Dconst4 {           // pun float types as integer array
 #define INIT2(w0) {0, w0}
 #define INIT4(w0) {0, 0, 0, w0}
 
-#define _D0 3 // little-endian, small long doubles
-#define _F0 1 // little-endian
-
-#define FSIGN(x) (((_Fval *)(char *)&(x))->_Sh[_F0] & _FSIGN)
-#define DSIGN(x) (((_Dval *)(char *)&(x))->_Sh[_D0] & _DSIGN)
-
 __SYCL_DEVICE_C double _Cosh(double x, double y) { return cosh(x) * y; }
 __SYCL_DEVICE_C float _FCosh(float x, float y) { return coshf(x) * y; }
 __SYCL_DEVICE_C short _Dtest(double *p) { return fpclassify(*p); }
 __SYCL_DEVICE_C short _FDtest(float *p) { return fpclassify(*p); }
 __SYCL_DEVICE_C double _Sinh(double x,
                              double y) { // compute y * sinh(x), |y| <= 1
-  static constexpr _Dconst4 _Inf = {INIT4(_DMAX << _DOFF)};
   if (isinf(x) && y == 0)
-    return DSIGN(x) ? -y : y;
+    return __builtin_signbit(x) ? -y : y;
   return sinh(x) * y;
 }
 __SYCL_DEVICE_C float _FSinh(float x,
                              float y) { // compute y * sinh(x), |y| <= 1
-  static constexpr _Dconst2 _FInf = {INIT2(_FMAX << _FOFF)};
   if (isinf(x) && y == 0)
-    return FSIGN(x) ? -y : y;
+    return __builtin_signbit(x) ? -y : y;
   return sinhf(x) * y;
 }
 __SYCL_DEVICE_C

@@ -38,11 +38,14 @@ int main() {
     Harray[i] = MAGIC_NUM;
   }
 
-  Q.parallel_for<class kernel_using_assert>(BUFFER_SIZE, [=](auto itemID) {
-     size_t i = itemID.get_id(0);
-     Harray[i] = i + 10;
-     assert(Harray[i] == i + 10 && "assert message");
-   }).wait();
+  Q.parallel_for<class kernel_using_assert>(sycl::range<1>(BUFFER_SIZE),
+                                            [=](sycl::id<1> wiID) {
+                                              size_t i = wiID[0];
+                                              Harray[i] = i + 10;
+                                              assert(Harray[i] == i + 10 &&
+                                                     "assert message");
+                                            })
+      .wait();
 
   // Checks result
   for (size_t i = 0; i < BUFFER_SIZE; ++i) {

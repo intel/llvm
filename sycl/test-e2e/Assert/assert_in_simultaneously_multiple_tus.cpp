@@ -71,7 +71,7 @@ template <class kernel_name> void enqueueKernel(queue *Q, std::latch *Sync) {
 }
 
 void runTestForTid(queue *Q, size_t Tid) {
-  // Passed to kernel funcitons to have better chance of runnning
+  // Passed to kernel functions to have better chance of running
   // them simultaneously.
   static std::latch Sync(NUM_THREADS);
 

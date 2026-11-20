@@ -38,7 +38,7 @@ template <int N> void check(queue &q, range<N> global, range<N> local) {
   try {
     q.parallel_for(nd_range<N>(global, local), [=](nd_item<N> item) {}).wait();
     assert(false && "Exception expected");
-  } catch (exception e) {
+  } catch (const sycl::exception &e) {
     std::string msg = e.what();
     assert(e.code() == errc::nd_range && "Unexpected error code");
     assert(msg.rfind(expected_msg, 0) == 0 && "Unexpected error message");

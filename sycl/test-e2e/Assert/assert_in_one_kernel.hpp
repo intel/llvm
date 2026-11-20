@@ -34,7 +34,7 @@ void assertTest() {
     auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
     CGH.parallel_for<class TheKernel>(
-        numOfItems, [=](sycl::id<1> wiID) { kernelFunc(&Acc[0], wiID); });
+        numOfItems, [=](sycl::id<1> wiID) { kernelFunc(&Acc[0], wiID[0]); });
   });
   Q.wait();
 }

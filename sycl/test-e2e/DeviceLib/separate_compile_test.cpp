@@ -25,7 +25,7 @@
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// >> device build and intergation header generation...
+// >> device build and integration header generation...
 // RUN: %{build} -fsycl-link %S/std_complex_math_test.cpp -o %t_device.o %{mathflags}
 // RUN: %clangxx %{sycl_target_opts} -fsycl-device-only        \
 // RUN: -Xclang -fsycl-int-header=std_complex_math_test_ihdr.h \
@@ -39,7 +39,7 @@
 // RUN: %{run} %t.out
 
 // REQUIRES: aspect-fp64
-// >> device build and intergation header generation...
+// >> device build and integration header generation...
 // RUN: %{build} -fsycl-link  %S/std_complex_math_fp64_test.cpp -o %t_fp64_device.o %{mathflags}
 // RUN: %clangxx %{sycl_target_opts} -fsycl-device-only             \
 // RUN: -Xclang -fsycl-int-header=std_complex_math_fp64_test_ihdr.h \
