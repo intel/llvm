@@ -6,9 +6,6 @@
 // RUN: FileCheck %s --check-prefix=OTHER --input-file=%t.dir/atomic16_aot-sycl-spir64_gen-unknown-unknown-pvc.table
 // RUN: %{run} %t.dir/atomic16.out
 
-// XFAIL: spirv-backend
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23865
-
 // XFAIL: new-offload-model
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/23870
 
