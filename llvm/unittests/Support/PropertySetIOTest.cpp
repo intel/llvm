@@ -77,4 +77,101 @@ TEST(PropertySet, EmptyByteArrayValue) {
   ASSERT_EQ(Prop.getType(), PropertyValue::BYTE_ARRAY);
   ASSERT_EQ(Prop.getByteArraySize(), 0u);
 }
+
+// Builds a registry with a single set holding the given key/value pairs.
+static PropertySetRegistry
+makeRegistry(StringRef SetName,
+             ArrayRef<std::pair<StringRef, uint32_t>> Props) {
+  PropertySetRegistry Reg;
+  for (const auto &[Name, Val] : Props)
+    Reg.add(SetName, Name, Val);
+  return Reg;
+}
+
+static std::string serialize(const PropertySetRegistry &Reg) {
+  std::string S;
+  raw_string_ostream OS(S);
+  Reg.write(OS);
+  return S;
+}
+
+TEST(PropertySetFold, PerTargetSetName) {
+  using Reg = PropertySetRegistry;
+  // Everything after the namespace is kept verbatim, spaces included.
+  EXPECT_EQ(getPerTargetSetName("igca_10", Reg::SYCL_DEVICE_REQUIREMENTS),
+            "SYCL/igca_10/device requirements");
+  EXPECT_EQ(getPerTargetSetName("igca_20", Reg::SYCL_KERNEL_PARAM_OPT_INFO),
+            "SYCL/igca_20/kernel param opt");
+  EXPECT_EQ(
+      getPerTargetSetName("igca_30", Reg::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES),
+      "SYCL/igca_30/specialization constants default values");
+  // Namespaces other than SYCL are treated the same way.
+  EXPECT_EQ(getPerTargetSetName("igca_10", Reg::SYCLBIN_GLOBAL_METADATA),
+            "SYCLBIN/igca_10/global metadata");
+  // The target name is copied verbatim, whatever it looks like.
+  EXPECT_EQ(getPerTargetSetName("igca_10r", Reg::SYCL_MISC_PROP),
+            "SYCL/igca_10r/misc properties");
+  EXPECT_EQ(getPerTargetSetName("igca_20ca", Reg::SYCL_MISC_PROP),
+            "SYCL/igca_20ca/misc properties");
+  // Two targets of the same set differ in that component.
+  EXPECT_NE(getPerTargetSetName("igca_10", Reg::SYCL_MISC_PROP),
+            getPerTargetSetName("igca_20", Reg::SYCL_MISC_PROP));
+}
+
+TEST(PropertySetFold, UniformPropertiesStayFlat) {
+  auto A = makeRegistry("SYCL/misc properties", {{"optLevel", 2}});
+  auto B = makeRegistry("SYCL/misc properties", {{"optLevel", 2}});
+  PerTargetPropertySets Inputs[] = {{"igca_10", &A}, {"igca_20", &B}};
+  // Both targets agree, so the output is what a single target would produce.
+  EXPECT_EQ(serialize(foldPerTargetProperties(Inputs)), serialize(A));
+}
+
+TEST(PropertySetFold, DivergingPropertiesGoPerTarget) {
+  auto A = makeRegistry("SYCL/misc properties", {{"optLevel", 2}});
+  auto B = makeRegistry("SYCL/misc properties", {{"optLevel", 3}});
+  PerTargetPropertySets Inputs[] = {{"igca_10", &A}, {"igca_20", &B}};
+  EXPECT_EQ(serialize(foldPerTargetProperties(Inputs)),
+            "[SYCL/igca_10/misc properties]\n"
+            "optLevel=1|2\n"
+            "[SYCL/igca_20/misc properties]\n"
+            "optLevel=1|3\n");
+}
+
+TEST(PropertySetFold, UniformAndDivergingPropertiesSplitApart) {
+  auto A = makeRegistry("SYCL/misc properties",
+                        {{"optLevel", 2}, {"isEsimdImage", 1}});
+  auto B = makeRegistry("SYCL/misc properties",
+                        {{"optLevel", 3}, {"isEsimdImage", 1}});
+  PerTargetPropertySets Inputs[] = {{"igca_10", &A}, {"igca_20", &B}};
+  // optLevel differs so it is stored per target; isEsimdImage agrees so it
+  // stays in the flat set.
+  EXPECT_EQ(serialize(foldPerTargetProperties(Inputs)),
+            "[SYCL/igca_10/misc properties]\n"
+            "optLevel=1|2\n"
+            "[SYCL/igca_20/misc properties]\n"
+            "optLevel=1|3\n"
+            "[SYCL/misc properties]\n"
+            "isEsimdImage=1|1\n");
+}
+
+TEST(PropertySetFold, MissingForOneTargetIsNotUniform) {
+  auto A = makeRegistry("SYCL/misc properties", {{"optLevel", 2}});
+  PropertySetRegistry B; // no properties at all for this target
+  PerTargetPropertySets Inputs[] = {{"igca_10", &A}, {"igca_20", &B}};
+  // "Absent" is meaningful, so it must not be flattened into a value that
+  // would then apply to igca_20 as well.
+  EXPECT_EQ(serialize(foldPerTargetProperties(Inputs)),
+            "[SYCL/igca_10/misc properties]\n"
+            "optLevel=1|2\n");
+}
+
+TEST(PropertySetFold, SingleTargetIsUnchanged) {
+  auto A = makeRegistry("SYCL/misc properties", {{"optLevel", 2}});
+  PerTargetPropertySets Inputs[] = {{"igca_10", &A}};
+  EXPECT_EQ(serialize(foldPerTargetProperties(Inputs)), serialize(A));
+}
+
+TEST(PropertySetFold, NoInputsGivesEmptyRegistry) {
+  EXPECT_EQ(serialize(foldPerTargetProperties({})), "");
+}
 } // namespace

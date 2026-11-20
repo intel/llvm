@@ -33,6 +33,7 @@
 #ifndef LLVM_SUPPORT_PROPERTYSETIO_H
 #define LLVM_SUPPORT_PROPERTYSETIO_H
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -287,6 +288,33 @@ public:
 private:
   MapTy PropSetMap;
 };
+
+/// The property sets one sub-module of an uber-module contributes to the fold.
+struct PerTargetPropertySets {
+  /// IGCA target the sub-module was compiled for, for example "igca_10".
+  StringRef Target;
+  const PropertySetRegistry *Props;
+};
+
+/// Builds the name a set takes when it holds values for a single IGCA target.
+/// The target is inserted after the leading namespace component, so
+/// ("igca_10", "SYCL/device requirements") gives
+/// "SYCL/igca_10/device requirements".
+std::string getPerTargetSetName(StringRef Target, StringRef SetName);
+
+/// Folds the per-target property sets of an uber-module's sub-modules into the
+/// single registry its device image carries.
+///
+/// A property that is present with the same value for every target is emitted
+/// once under its original set name. A property that is absent for some target
+/// or whose value differs between targets is emitted once per target, under the
+/// name getPerTargetSetName() returns, so that the per-set key and value
+/// formats stay unchanged.
+///
+/// \p Inputs must hold one entry per IGCA target, describing sub-modules that
+/// define the same set of kernels.
+PropertySetRegistry
+foldPerTargetProperties(ArrayRef<PerTargetPropertySets> Inputs);
 
 } // namespace util
 } // namespace llvm
