@@ -13,7 +13,9 @@
 
 // Make sure that at least some optimization level is used as we perform
 // reference matrix multiplication on host and that is very slow at O0.
-// RUN: %{build} -O2 -o %t.out
+// The default size hangs on the CRI simulator, CMPLRLLVM-75924, so build a
+// smaller one there. Restore the default once CRI hardware is available.
+// RUN: %if arch-intel_gpu_cri %{ %{build} -O2 -DMATRIX_SIZE=256 -o %t.out %} %else %{ %{build} -O2 -o %t.out %}
 // RUN: %{run} %t.out
 #include <iostream>
 

@@ -14,6 +14,12 @@ constexpr size_t TM = 8;
 constexpr size_t TN = 16;
 constexpr size_t TK = 16;
 
+// The CRI simulator does not finish this size within the test timeout, so the
+// tests build a smaller one there.
+#ifndef MATRIX_SIZE
+#define MATRIX_SIZE 1024
+#endif
+
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
@@ -75,9 +81,9 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
 }
 
 int main() {
-  static constexpr size_t MATRIX_M = 1024;
-  static constexpr size_t MATRIX_N = 1024;
-  static constexpr size_t MATRIX_K = 1024;
+  static constexpr size_t MATRIX_M = MATRIX_SIZE;
+  static constexpr size_t MATRIX_N = MATRIX_SIZE;
+  static constexpr size_t MATRIX_K = MATRIX_SIZE;
 
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_K * MATRIX_M, q);

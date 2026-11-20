@@ -9,10 +9,12 @@
 
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI
+// The default iteration count does not finish on the CRI simulator,
+// CMPLRLLVM-75924, so run fewer iterations there.
+// RUN: %{build} -o %t_gpu_vnni.out %fp-model-precise -DSLM -DVNNI %if arch-intel_gpu_cri %{ -DTESTITERATIONS=11 %}
 // RUN: %{run} %t_gpu_vnni.out
 
-// RUN: %{build} -o %t_gpu.out %fp-model-precise -DSLM
+// RUN: %{build} -o %t_gpu.out %fp-model-precise -DSLM %if arch-intel_gpu_cri %{ -DTESTITERATIONS=11 %}
 // RUN: %{run} %t_gpu.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
