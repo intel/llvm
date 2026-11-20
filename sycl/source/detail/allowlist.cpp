@@ -140,7 +140,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
 
         // post-processing checks for some values
 
-        auto ValidateEnumValues = [&](std::string CheckingKeyName,
+        auto ValidateEnumValues = [&](std::string_view CheckingKeyName,
                                       auto SourceOfSupportedValues) {
           if (Key == CheckingKeyName) {
             bool ValueIsValid = false;

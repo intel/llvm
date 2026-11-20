@@ -155,12 +155,13 @@ public:
               break;
             }
           }
-        } else if (auto filter_str =
+        } else if (auto filter_value =
                        arg_with_value("filter", arg_name, arg_values)) {
           try {
-            filter = filter_str;
+            filter = filter_value;
+            filter_str = filter_value;
           } catch (const std::regex_error &err) {
-            UR_LOG_L(out, WARN, "invalid filter regex {} {}", *filter_str,
+            UR_LOG_L(out, WARN, "invalid filter regex {} {}", *filter_value,
                      err.what());
           }
         } else {

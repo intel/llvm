@@ -18,6 +18,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
+  KernelCompilerOpenCL.cpp
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp
@@ -30,6 +31,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   RegisterHostMemory.cpp
   ReusableEvents.cpp
   AsyncAlloc.cpp
+  DeviceImageBackendContent.cpp
 )
 
 add_subdirectory(BindlessImages)

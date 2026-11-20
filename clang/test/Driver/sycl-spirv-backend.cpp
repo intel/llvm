@@ -19,6 +19,8 @@
 // CHECK-SAME:,+SPV_INTEL_inline_assembly
 // CHECK-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-SAME:,+SPV_INTEL_long_composites
+// CHECK-SAME:,+SPV_INTEL_split_barrier
+// CHECK-SAME:,+SPV_INTEL_subgroup_matrix_multiply_accumulate
 // CHECK-SAME:,+SPV_INTEL_subgroups
 // CHECK-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-SAME:,+SPV_INTEL_variable_length_array

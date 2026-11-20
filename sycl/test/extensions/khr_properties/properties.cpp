@@ -96,7 +96,7 @@ static_assert(!is_property_v<derived_property> &&
 static_assert(!is_property_for_v<derived_property, MyClass> &&
               !is_property_for_v<two_properties, MyClass> &&
               !is_property_for_v<derived_list, MyClass> &&
-              !is_property_list_for_v<derived_list, MyClass>);
+              !is_property_or_list_for_v<derived_list, MyClass>);
 static_assert(!is_property_key_v<derived_key> &&
               !is_property_key_v<derived_ct_key> &&
               !is_property_key_compile_time_v<derived_ct_key>);
@@ -132,6 +132,29 @@ struct takes_three<Trait, std::void_t<Trait<int, int, void>>> : std::true_type {
 };
 static_assert(!takes_three<is_property_for>::value);
 
+// is_property_or_list_for accepts a bare property (a degenerate one-element
+// list) as well as a property list, and nothing else.
+static_assert(is_property_or_list_for_v<enable_profiling, MyClass> &&
+              is_property_or_list_for_v<hybrid<1>, MyClass> &&
+              is_property_or_list_for_v<
+                  alignment_key::__detail_property_t<int, 4>, MyClass> &&
+              is_property_or_list_for_v<other_only, OtherClass>);
+static_assert(!is_property_or_list_for_v<enable_profiling, OtherClass> &&
+              !is_property_or_list_for_v<other_only, MyClass>);
+static_assert(is_property_or_list_for_v<enable_profiling, MyClass> ==
+              is_property_or_list_for_v<properties<enable_profiling>, MyClass>);
+static_assert(!is_property_or_list_for_v<int, MyClass> &&
+              !is_property_or_list_for_v<MyClass, MyClass> &&
+              !is_property_or_list_for_v<enable_profiling_key, MyClass> &&
+              !is_property_or_list_for_v<derived_property, MyClass>);
+static_assert(
+    std::is_base_of_v<std::true_type,
+                      is_property_or_list_for<enable_profiling, MyClass>> &&
+    std::is_base_of_v<std::true_type,
+                      is_property_or_list_for<empty_properties_t, MyClass>> &&
+    std::is_base_of_v<std::false_type, is_property_or_list_for<int, MyClass>>);
+static_assert(!takes_three<is_property_or_list_for>::value);
+
 // Container: CTAD, has_property, get_property (runtime, compile-time, hybrid).
 void container() {
   properties p{enable_profiling{true}, alignment<16>, hybrid<3>{4}};
@@ -142,17 +165,17 @@ void container() {
   static_assert(decltype(p)::get_property<alignment_key>().value == 16);
   static_assert(!empty_properties_t::has_property<enable_profiling_key>());
 
-  // is_property_list_for over a populated and the empty list.
-  static_assert(is_property_list_for_v<decltype(p), MyClass>);
-  static_assert(!is_property_list_for_v<decltype(p), OtherClass>);
-  static_assert(is_property_list_for_v<empty_properties_t, OtherClass>);
+  // is_property_or_list_for over a populated and the empty list.
+  static_assert(is_property_or_list_for_v<decltype(p), MyClass>);
+  static_assert(!is_property_or_list_for_v<decltype(p), OtherClass>);
+  static_assert(is_property_or_list_for_v<empty_properties_t, OtherClass>);
 
   // A list mixing properties for different classes is a list for neither.
   properties mixed{enable_profiling{true}, other_only{7}};
   static_assert(is_property_for_v<enable_profiling, MyClass> &&
                 is_property_for_v<other_only, OtherClass>);
-  static_assert(!is_property_list_for_v<decltype(mixed), MyClass>);
-  static_assert(!is_property_list_for_v<decltype(mixed), OtherClass>);
+  static_assert(!is_property_or_list_for_v<decltype(mixed), MyClass>);
+  static_assert(!is_property_or_list_for_v<decltype(mixed), OtherClass>);
 }
 
 // The constructor accepts exactly the encoded properties, in any order.
