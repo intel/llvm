@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         path: repo
     - name: Install deps
@@ -77,4 +77,4 @@ jobs:
         path: ./install_docs
     - name: Deploy to GitHub Pages
       if: ${{ github.event_name == 'push' || inputs.update_gh_pages == 'true' }}
-      uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+      uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
