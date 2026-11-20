@@ -11,6 +11,7 @@
 #include <map>
 #include <random>
 #include <set>
+#include <thread>
 #include <unordered_map>
 
 static bool TPCBCalled = false;
@@ -179,6 +180,113 @@ TEST_F(xptiCorrectnessTest, xptiCreateTracepoint) {
   EXPECT_EQ(Ev->target_id, xpti::invalid_uid);
   EXPECT_EQ(Ev1->source_id, xpti::invalid_uid);
   EXPECT_EQ(Ev1->target_id, xpti::invalid_uid);
+}
+
+// Saved event identities must not alias a different registration after the
+// original tracepoint is released or the framework is reset.
+TEST_F(xptiCorrectnessTest, OpaqueTracepointID) {
+  auto *TP = xptiCreateTracepoint("kernel", "ids.cpp", 1, 1);
+  ASSERT_NE(TP, nullptr);
+  auto *Event = TP->event_ref();
+  auto ID = TP->uid64();
+  EXPECT_NE(ID, xpti::invalid_uid);
+  EXPECT_NE(ID, reinterpret_cast<uintptr_t>(dynamic_cast<void *>(TP)));
+  EXPECT_EQ(Event->unique_id, ID);
+  EXPECT_EQ(TP->payload_ref()->internal, ID);
+  EXPECT_EQ(xptiFindEvent(ID), Event);
+  EXPECT_EQ(xptiLookupEvent(ID), TP->event());
+  EXPECT_EQ(xptiQueryPayloadByUID(ID), TP->payload_ref());
+  EXPECT_EQ(xptiLookupPayload(ID), TP->payload());
+
+  EXPECT_EQ(xptiQueryPayload(Event), TP->payload_ref());
+
+  xptiReleaseEvent(Event);
+  EXPECT_EQ(xptiFindEvent(ID), nullptr);
+  EXPECT_EQ(xptiLookupEvent(ID), nullptr);
+  EXPECT_EQ(xptiQueryPayloadByUID(ID), nullptr);
+  EXPECT_EQ(xptiLookupPayload(ID), nullptr);
+}
+
+TEST_F(xptiCorrectnessTest, TracepointIDsAfterReleaseAndReset) {
+  uint64_t Previous = 0;
+  std::vector<uint64_t> Released;
+  for (int I = 0; I < 128; ++I) {
+    auto *TP = xptiCreateTracepoint("kernel", "ids.cpp", I % 2 + 1, 1);
+    ASSERT_NE(TP, nullptr);
+    auto ID = TP->uid64();
+    EXPECT_GT(ID, Previous);
+    for (auto OldID : Released) {
+      EXPECT_EQ(xptiFindEvent(OldID), nullptr);
+      EXPECT_EQ(xptiLookupPayload(OldID), nullptr);
+    }
+    Previous = ID;
+    Released.push_back(ID);
+    if (I % 2)
+      xptiReleaseEvent(TP->event_ref());
+    else
+      EXPECT_EQ(xptiDeleteTracepoint(TP), xpti::result_t::XPTI_RESULT_SUCCESS);
+  }
+
+  auto *Live = xptiCreateTracepoint("live", "ids.cpp", 3, 1);
+  ASSERT_NE(Live, nullptr);
+  auto LiveID = Live->uid64();
+  xptiReset();
+  auto *New = xptiCreateTracepoint("live", "ids.cpp", 3, 1);
+  ASSERT_NE(New, nullptr);
+  EXPECT_GT(New->uid64(), LiveID);
+  EXPECT_EQ(xptiFindEvent(LiveID), nullptr);
+  EXPECT_EQ(xptiLookupEvent(LiveID), nullptr);
+  EXPECT_EQ(xptiQueryPayloadByUID(LiveID), nullptr);
+  EXPECT_EQ(xptiLookupPayload(LiveID), nullptr);
+  EXPECT_EQ(xptiFindEvent(New->uid64()), New->event_ref());
+  xptiDeleteTracepoint(New);
+}
+
+TEST_F(xptiCorrectnessTest, ConcurrentTracepointIDs) {
+  constexpr size_t Threads = 4;
+  constexpr size_t Iterations = 128;
+  std::vector<uint64_t> IDs[Threads];
+  std::vector<std::thread> Workers;
+  for (size_t T = 0; T < Threads; ++T) {
+    Workers.emplace_back([&, T] {
+      for (size_t I = 0; I < Iterations; ++I) {
+        auto *TP = xptiCreateTracepoint("kernel", "ids.cpp", I % 2 + 1, 1);
+        ASSERT_NE(TP, nullptr);
+        auto ID = TP->uid64();
+        IDs[T].push_back(ID);
+        EXPECT_EQ(xptiFindEvent(ID), TP->event_ref());
+        EXPECT_EQ(xptiLookupEvent(ID), TP->event());
+        EXPECT_EQ(xptiQueryPayloadByUID(ID), TP->payload_ref());
+        xptiReleaseEvent(TP->event_ref());
+        EXPECT_EQ(xptiFindEvent(ID), nullptr);
+      }
+    });
+  }
+  for (auto &Worker : Workers)
+    Worker.join();
+  std::set<uint64_t> Unique;
+  for (const auto &ThreadIDs : IDs)
+    Unique.insert(ThreadIDs.begin(), ThreadIDs.end());
+  EXPECT_EQ(Unique.size(), Threads * Iterations);
+}
+
+TEST_F(xptiCorrectnessTest, TracepointIDsAfterFrameworkReinitialization) {
+  bool TraceEnabled = xptiTraceEnabled();
+  xptiFrameworkInitialize();
+  auto *TP = xptiCreateTracepoint("kernel", "ids.cpp", 1, 1);
+  ASSERT_NE(TP, nullptr);
+  auto ID = TP->uid64();
+  xptiFrameworkFinalize();
+
+  xptiFrameworkInitialize();
+  auto *New = xptiCreateTracepoint("kernel", "ids.cpp", 1, 1);
+  ASSERT_NE(New, nullptr);
+  EXPECT_GT(New->uid64(), ID);
+  EXPECT_EQ(xptiFindEvent(ID), nullptr);
+  EXPECT_EQ(xptiLookupPayload(ID), nullptr);
+  EXPECT_EQ(xptiFindEvent(New->uid64()), New->event_ref());
+  xptiFrameworkFinalize();
+  xptiForceSetTraceEnabled(TraceEnabled);
 }
 
 TEST_F(xptiCorrectnessTest, xptiRegisterString) {
