@@ -1,4 +1,4 @@
-// REQUIRES: level_zero_v2_adapter
+// REQUIRES: level_zero_v2_adapter, level-zero-headers-ge-1.14
 
 // API 1.14+ is required for zeDriverGetDefaultContext
 // REQUIRES-INTEL-DRIVER: lin: 36300, win: 101.7080
