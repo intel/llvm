@@ -25,7 +25,7 @@ namespace ur::level_zero::v1 {
 
 // Default to using compute engine for fill operation, but allow to
 // override this with an environment variable.
-static bool PreferCopyEngine = [] {
+static const bool PreferCopyEngineForFill = [] {
   const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE_FOR_FILL");
   const char *PiRet =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL");
@@ -187,6 +187,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                                         ur_event_handle_t *OutEvent) {
   auto &Device = Queue->Device;
 
+  bool PreferCopyEngine = PreferCopyEngineForFill;
   // Make sure that pattern size matches the capability of the copy queues.
   // Check both main and link groups as we don't known which one will be used.
   //
