@@ -89,8 +89,11 @@ auto host_only = []() {
 
 // Reproducer from GH136652.
 auto slice_work = [](__SIZE_TYPE__ device, float start, float end) {
+// sycl-web mangles this lambda in the context of its variable
+// (_ZNK10slice_workMUlmffE_...) instead of upstream's _ZNKUlmffE_..., see
+// intel/llvm#20176; match the common suffix.
 // CHECK-DAG: define internal void @{{"?}}__omp_offloading_{{.*}}clEmff_l[[#@LINE+2]]{{"?}}(
-// DEVICE-DAG: define weak_odr protected void @__omp_offloading_{{.*}}_ZNKUlmffE_clEmff_l[[#@LINE+1]](
+// DEVICE-DAG: define weak_odr protected void @__omp_offloading_{{.*}}UlmffE_clEmff_l[[#@LINE+1]](
 #pragma omp target teams device(device)
   {
   }
