@@ -35,6 +35,23 @@ void wg_func(sycl::group<1> G) {
     G.parallel_for_work_item([&]() {});
 }
 
+// Functions that reach parallel_for_work_item indirectly also run at work group
+// scope, so their locals are diagnosed too.
+void indirect_mid(sycl::group<1> G) {
+  NonTrivial MidN; // expected-warning {{variable 'MidN' declared at work group scope has a non-trivial destructor}}
+  wg_func(G);
+}
+
+void indirect_top(sycl::group<1> G) {
+  NonTrivial TopN; // expected-warning {{variable 'TopN' declared at work group scope has a non-trivial destructor}}
+  indirect_mid(G);
+}
+
+// Does not reach parallel_for_work_item, so it is not at work group scope.
+void no_pfwi() {
+  NonTrivial N; // no warning
+}
+
 int main() {
   sycl::queue Q;
   Q.submit([&](sycl::handler &CGH) {
@@ -60,6 +77,8 @@ int main() {
         (void)i;
       
       wg_func(G);
+      indirect_top(G);
+      no_pfwi();
     }, KH);
   });
 }
