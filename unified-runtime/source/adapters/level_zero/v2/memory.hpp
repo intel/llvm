@@ -141,11 +141,12 @@ private:
 // Manages memory buffer for discrete GPU.
 // Memory is allocated on the device and migrated/copies if necessary.
 struct ur_discrete_buffer_handle_t : ur_mem_buffer_t {
-  // If hostPtr is not null, the buffer is allocated immediately on the
-  // first device in the context. Otherwise, the buffer is allocated on
-  // firt getDevicePtr call.
+  // If hostPtr or hAllocDevice is not null, the buffer is allocated
+  // immediately on hAllocDevice (or the first device in the context).
+  // Otherwise, the buffer is allocated on first getDevicePtr call.
   ur_discrete_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
-                              size_t size, device_access_mode_t accessMode);
+                              size_t size, device_access_mode_t accessMode,
+                              ur_device_handle_t hAllocDevice = nullptr);
   ~ur_discrete_buffer_handle_t();
 
   // Create buffer on top of existing device memory.

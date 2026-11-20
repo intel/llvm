@@ -16,6 +16,7 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -84,6 +85,9 @@ platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
   return getOrMakePlatformImpl(Plt, Adapter);
 }
 
+device select_device(DSelectorInvocableType DeviceSelectorInvocable,
+                     std::vector<device> &Devices);
+
 context_impl &platform_impl::khr_get_default_context() {
   GlobalHandler &GH = GlobalHandler::instance();
   // Keeping the default context for platforms in the global cache to avoid
@@ -94,9 +98,22 @@ context_impl &platform_impl::khr_get_default_context() {
   std::lock_guard<std::mutex> Lock{GH.getPlatformToDefaultContextCacheMutex()};
 
   auto It = PlatformToDefaultContextCache.find(this);
-  if (PlatformToDefaultContextCache.end() == It)
+  if (PlatformToDefaultContextCache.end() == It) {
+    std::vector<device> Devices = get_devices();
+    // Contexts treat their first device as primary (e.g. image owner), so it
+    // must match the device a default-constructed queue gets.
+    if (Devices.size() > 1) {
+      try {
+        device Best = select_device(default_selector_v, Devices);
+        auto BestIt = std::find(Devices.begin(), Devices.end(), Best);
+        std::rotate(Devices.begin(), BestIt, std::next(BestIt));
+      } catch (const sycl::exception &) {
+        // default_selector_v rejected every device; keep the original order.
+      }
+    }
     std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
-        {this, detail::getSyclObjImpl(context{get_devices()})});
+        {this, detail::getSyclObjImpl(context{Devices})});
+  }
 
   return *It->second;
 }
@@ -567,9 +584,6 @@ ur_native_handle_t platform_impl::getNative() const {
   Adapter.call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
-
-device select_device(DSelectorInvocableType DeviceSelectorInvocable,
-                     std::vector<device> &Devices);
 
 // All devices on the platform must have the given aspect.
 bool platform_impl::has(aspect Aspect) const {

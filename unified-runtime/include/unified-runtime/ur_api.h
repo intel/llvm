@@ -621,6 +621,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_KERNEL_LAUNCH_CLUSTER_PROPERTY = 40,
   /// ::ur_kernel_launch_workgroup_property_t
   UR_STRUCTURE_TYPE_KERNEL_LAUNCH_WORKGROUP_PROPERTY = 41,
+  /// ::ur_mem_alloc_properties_t
+  UR_STRUCTURE_TYPE_MEM_ALLOC_PROPERTIES = 42,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -3792,6 +3794,7 @@ typedef struct ur_image_desc_t {
 ///       UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32}, {UR_IMAGE_CHANNEL_ORDER_RGBA,
 ///       UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT}, {UR_IMAGE_CHANNEL_ORDER_RGBA,
 ///       UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+///     - See also ::ur_mem_alloc_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
@@ -3902,11 +3905,40 @@ typedef struct ur_buffer_alloc_location_properties_t {
 } ur_buffer_alloc_location_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Memory object allocation device properties
+///
+/// @details
+///     - Specify these properties in ::urMemBufferCreate via
+///       ::ur_buffer_properties_t, or in ::urMemImageCreate via
+///       ::ur_image_desc_t, as part of a `pNext` chain.
+///     - If not specified, the adapter chooses the device on which the memory
+///       object's storage is allocated.
+///     - The adapter is not required to make the storage accessible from other
+///       devices in the context. The application must ensure that any device
+///       executing a kernel or command that accesses the memory object can do
+///       so, either by having peer-to-peer access to `hDevice` (see
+///       ::urUsmP2PPeerAccessGetInfoExp and ::urUsmP2PEnablePeerAccessExp), or
+///       by explicitly copying the data to a memory object allocated on the
+///       accessing device beforehand.
+typedef struct ur_mem_alloc_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_MEM_ALLOC_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] handle of the device on which the memory object's storage should
+  /// be allocated. Must be one of the devices of the context.
+  ur_device_handle_t hDevice;
+
+} ur_mem_alloc_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a memory buffer
 ///
 /// @details
 ///     - See also ::ur_buffer_channel_properties_t.
 ///     - See also ::ur_buffer_alloc_location_properties_t.
+///     - See also ::ur_mem_alloc_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
