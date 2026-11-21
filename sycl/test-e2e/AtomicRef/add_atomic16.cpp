@@ -1,4 +1,6 @@
 // REQUIRES: target-spir
+// UNSUPPORTED: opencl && cpu
+// UNSUPPORTED-INTENDED: OpenCL CPU cannot execute this int16/bfloat16 coverage
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-INTENDED: SPIR-V backend invocation lacks atomic16/bfloat16
 // extensions

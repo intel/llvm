@@ -1,4 +1,6 @@
 // REQUIRES: target-spir, aspect-ext_oneapi_atomic16, aspect-fp16, aspect-usm_shared_allocations
+// UNSUPPORTED: opencl && cpu
+// UNSUPPORTED-INTENDED: OpenCL CPU cannot execute this int16/bfloat16 coverage
 // RUN: %{build} %{full_atomic_flags} -o %t.out
 // RUN: %{run} %t.out
 
