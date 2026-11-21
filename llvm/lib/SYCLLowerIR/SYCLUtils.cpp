@@ -101,8 +101,8 @@ Type *getAddressResultElementType(const Value *V) {
 }
 
 const Value *getAddressBasePointer(const Value *V) {
-  if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
-    return GEPI->getPointerOperand();
+  if (const auto *GEP = dyn_cast<GEPOperator>(V))
+    return GEP->getPointerOperand();
   return nullptr;
 }
 

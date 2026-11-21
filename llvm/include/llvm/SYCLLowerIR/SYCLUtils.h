@@ -87,7 +87,8 @@ Type *getAddressSourceElementType(const Value *V);
 /// anything else.
 Type *getAddressResultElementType(const Value *V);
 
-/// Returns the base pointer of a GEP or GEP-like instructions, or nullptr.
+/// Returns the base pointer of a GEP (instruction or constant expression) or
+/// GEP-like instruction, or nullptr.
 const Value *getAddressBasePointer(const Value *V);
 Value *getAddressBasePointer(Value *V);
 
