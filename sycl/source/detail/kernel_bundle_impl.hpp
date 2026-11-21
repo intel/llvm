@@ -1049,9 +1049,9 @@ public:
 
     // Specialization constant wasn't found in any of the device images,
     // try to fetch value from kernel_bundle.
-    if (MSpecConstValues.count(std::string{SpecName}) != 0) {
-      const std::vector<unsigned char> &Val =
-          MSpecConstValues.at(std::string{SpecName});
+    auto It = MSpecConstValues.find(std::string{SpecName});
+    if (It != MSpecConstValues.end()) {
+      const std::vector<unsigned char> &Val = It->second;
       auto *Dest = static_cast<unsigned char *>(ValueRet);
       std::uninitialized_copy(Val.begin(), Val.end(), Dest);
       return;
