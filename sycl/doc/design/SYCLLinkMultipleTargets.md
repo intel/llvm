@@ -41,27 +41,16 @@ Upstream `clang-linker-wrapper` handles every offload kind with the same two-ste
    kind.
 
 How the kinds use step 2:
-- **OpenMP (the reference model for this design).** `bundleOmpAcc` ([L907-L914](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L907-L914)) writes each
+- **OpenMP.** `bundleOmpAcc` ([L907-L914](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L907-L914)) writes each
   target's image as its own `OffloadBinary` entry with triple, arch and kind. `wrapOpenMPBinaries`
   ([L804-L807](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L804-L807)) → `createBinDesc` ([`OffloadWrapper.cpp` L129-L197](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L129-L197)) puts all of them into **one**
   `__tgt_bin_desc`, an array of device images, and libomptarget picks the compatible image for each
   device. That is the shape of the SYCL descriptor too: an array of device images, each with its own
   target.
-- **CUDA / HIP (not applicable to SYCL).** The architectures are merged by a vendor tool:
+- **CUDA / HIP.** The architectures are merged by a vendor tool:
   `bundleCuda` ([L931-L954](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L931-L954)) runs NVIDIA's `fatbinary`, and `bundleHIP` ([L957-L981](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L957-L981))
   makes an AMD fat binary. The wrapper embeds that one opaque buffer (`wrapCudaBinary` /
-  `wrapHIPBinary`, [L816-L825](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L816-L825)), and the vendor runtime picks the architecture. SYCL targets
-  (SPIR-V, Intel AOT, NVPTX, AMDGCN, NativeCPU) have no common container like this.
-- **SYCL (follows the CUDA/HIP shape, so multiple targets don't work).** `bundleSYCL`
-  ([L917-L928](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L917-L928)) passes the per-group blobs through, and `case OFK_SYCL` in `wrapDeviceImages`
-  wraps only `BuffersToWrap.front()` ([L826-L834](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L826-L834)). `wrapSYCLBinaries` ([`OffloadWrapper.cpp` L776](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L776)) embeds
-  the raw blob and adds a constructor that calls `__sycl_register_lib(start, size)`
-  ([`OffloadWrapper.cpp` L652-L665](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L652-L665)). There is no per-image descriptor in the wrapper; the runtime parses the blob.
-  - With more than one SYCL target group, every image after the first is dropped without an error,
-    for a normal link and for `-r`.
-  - With `--emit-fatbin-only`, it fails with "Expected a single bundled image for direct fat binary
-    output" ([L1217-L1220](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L1217-L1220)). The upstream driver already rejects `-fno-sycl-rdc` with more
-    than one SYCL target ([`Driver.cpp` L1231-L1242](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/lib/Driver/Driver.cpp#L1231-L1242)).
+  `wrapHIPBinary`, [L816-L825](https://github.com/llvm/llvm-project/blob/b45550157944b2932823713c6d47ac48bd01f64a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp#L816-L825)), and the vendor runtime picks the architecture.
 
 Ahead-of-time device linking:
 - Upstream has no `-fsycl-link`. It uses a relocatable link: `clang++ -fsycl -r`, or
