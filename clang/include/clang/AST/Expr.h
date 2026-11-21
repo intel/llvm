@@ -2223,6 +2223,23 @@ public:
   // Get the generated name of the type.  Note that this only works after all
   // kernels have been instantiated.
   static std::string ComputeName(ASTContext &Context, QualType Ty);
+
+  // \returns true if the mangled name of \p Ty is only guaranteed to be unique
+  // within its own TU: \p Ty is not externally visible, and not declared in an
+  // externally visible function.
+  static bool hasTULocalMangledName(QualType Ty);
+
+  // Attempts to insert a qualifier containing \p CUIDHash into the mangled type
+  // name \p TypeName, and \return true if successful. Supports Itanium typeinfo
+  // names ("_ZTS..."), and Microsoft-mangled names ending in a qualified name
+  // ('@'). \returns false if \p TypeName has neither form, leaving \p TypeName
+  // unchanged.
+  //
+  // This is necessary since kernels do not keep internal linkage: Without
+  // being able to distinguish mangled names between TUs, TU-local entities
+  // across separate TUs may end up with the same mangled name, causing
+  // name collisions at device code link time.
+  static bool addCUIDQualifier(StringRef CUIDHash, std::string &TypeName);
 };
 
 class SYCLUniqueStableIdExpr final : public Expr {
