@@ -25,6 +25,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
+#include <cstdlib>
 
 /// Compute the path to the main executable.
 static std::string getExecutablePath(const char *Argv0) {
@@ -72,6 +73,19 @@ int main(int argc, char *argv[]) {
     Exit(createStringError("binary '" + RealName + "' not found next to '" +
                            DpllvmPath + "'."));
   StringRef BinaryPath = *BinaryPathOrErr;
+
+  // Keep the real argv[0] for executable and resource discovery. Pass the
+  // dp-prefixed name invoked by the user separately: on Windows, InitLLVM
+  // restores the real executable's basename even if we supply a different
+  // argv[0]. This is best-effort because it only affects diagnostic prefixes.
+  if (RealName == "clang" || RealName == "clang++" || RealName == "clang-cl" ||
+      RealName == "clang-cpp") {
+#ifdef _WIN32
+    (void)::_putenv_s("DPCPP_DRIVER_NAME", Alias.str().c_str());
+#else
+    (void)::setenv("DPCPP_DRIVER_NAME", Alias.str().c_str(), 1);
+#endif
+  }
 
   SmallVector<StringRef, 128> Args = {BinaryPath};
   Args.append(argv + 1, argv + argc);
