@@ -1,8 +1,20 @@
+//===------------------------assert_in_kernels.hpp-------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests device assertion handling in an application with a multiple kernels,
+/// one kernel working at a time. Each work-item triggers an assertion.
+///
+//===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
-#include <sycl/detail/core.hpp>
-
 #include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -51,7 +63,7 @@ void assertTest3(queue &Q, buffer<int, 1> &Buf) {
   });
 }
 
-int main(int Argc, const char *Argv[]) {
+int main() {
   std::array<int, 4> Vec = {1, 2, 3, 4};
   sycl::range<1> numOfItems{Vec.size()};
   sycl::buffer<int, 1> Buf(Vec.data(), numOfItems);

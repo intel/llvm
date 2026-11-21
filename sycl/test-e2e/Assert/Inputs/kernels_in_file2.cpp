@@ -1,3 +1,16 @@
+//===-------------------------kernels_in_file2.cpp-------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Provides device functions and kernels
+/// shared by the multi-translation-unit assertion tests.
+///
+//===----------------------------------------------------------------------===//
 #include "kernels_in_file2.hpp"
 
 #ifdef DEFINE_NDEBUG_INFILE2
@@ -20,9 +33,11 @@ void check_nil(int value) { assert(value && "this message from file2"); }
 
 static constexpr size_t BUFFER_SIZE = 4;
 
-void enqueueKernel_1_fromFile2(queue *Q) {
+void enqueueKernel_1_fromFile2(queue *Q, std::latch *Sync) {
   sycl::range<1> numOfItems{BUFFER_SIZE};
   sycl::buffer<int, 1> Buf(numOfItems);
+  if (Sync)
+    Sync->arrive_and_wait();
 
   Q->submit([&](handler &CGH) {
     auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
@@ -35,9 +50,11 @@ void enqueueKernel_1_fromFile2(queue *Q) {
   });
 }
 
-void enqueueKernel_2_fromFile2(queue *Q) {
+void enqueueKernel_2_fromFile2(queue *Q, std::latch *Sync) {
   sycl::range<1> numOfItems{BUFFER_SIZE};
   sycl::buffer<int, 1> Buf(numOfItems);
+  if (Sync)
+    Sync->arrive_and_wait();
 
   Q->submit([&](handler &CGH) {
     auto Acc = Buf.template get_access<access_mode::read_write>(CGH);

@@ -25,14 +25,23 @@ extern "C++" {
 // the assert macro to call __devicelib_assert_fail directly and bypass
 // _wassert.
 #if defined(_WIN32) && defined(assert)
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__assertfail(const char *__message, const char *__file, unsigned __line,
+             const char *__function, size_t charSize);
+#else  // __NVPTX__ || __AMDGCN__
 extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
                         uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
                         uint64_t);
+#endif // __NVPTX__ || __AMDGCN__
 #undef assert
 #if defined(NDEBUG)
 #define assert(e) ((void)0)
-#else
+#elif defined(__NVPTX__) || defined(__AMDGCN__) // NDEBUG
+#define assert(e)                                                              \
+  ((e) ? void(0) : __assertfail(#e, __FILE__, __LINE__, nullptr, sizeof(char)))
+#else // NDEBUG
 #define assert(e)                                                              \
   ((e) ? void(0)                                                               \
        : __devicelib_assert_fail(#e, __FILE__, __LINE__, nullptr,              \
@@ -42,7 +51,7 @@ __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
                                  __spirv_BuiltInLocalInvocationId(0),          \
                                  __spirv_BuiltInLocalInvocationId(1),          \
                                  __spirv_BuiltInLocalInvocationId(2)))
-#endif
-#endif
-#endif
+#endif // NDEBUG
+#endif // _WIN32 && assert
+#endif // __SYCL_DEVICE_ONLY__
 }
