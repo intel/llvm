@@ -12,9 +12,11 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
+#include "clang/Sema/Lookup.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaSYCL.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/TargetParser/NVPTXTargetParser.h"
 
 using namespace clang;
@@ -1719,6 +1721,196 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
           << Attr << PotentialConflictProp;
+}
+
+// Returns true if \p Ty is 'sycl::khr::property::tag::kernel'.
+static bool isKhrKernelPropertiesTagType(QualType Ty) {
+  const auto *RD = Ty.getNonReferenceType()->getAsCXXRecordDecl();
+  if (!RD || !RD->getIdentifier() || RD->getName() != "kernel")
+    return false;
+  const DeclContext *DC = RD->getDeclContext();
+  for (StringRef NS : {"tag", "property", "khr"}) {
+    const auto *ND = dyn_cast<NamespaceDecl>(DC);
+    if (!ND || !ND->getIdentifier() || ND->getName() != NS)
+      return false;
+    DC = ND->getDeclContext();
+  }
+  // Skip the inline ABI namespace(s).
+  while (isa<NamespaceDecl>(DC) && cast<NamespaceDecl>(DC)->isInline())
+    DC = DC->getParent();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  return ND && ND->getIdentifier() && ND->getName() == "sycl" &&
+         ND->getDeclContext()->isTranslationUnit();
+}
+
+// Finds the const 'get(sycl::khr::property::tag::kernel)' member function of
+// the kernel function object type \p RD (possibly inherited, possibly a member
+// function template specialization) whose return type is deduced.
+static const CXXMethodDecl *findKhrKernelPropertiesGetter(Sema &S,
+                                                          CXXRecordDecl *RD) {
+  LookupResult R(S, &S.Context.Idents.get("get"), RD->getLocation(),
+                 Sema::LookupMemberName);
+  if (!S.LookupQualifiedName(R, RD))
+    return nullptr;
+
+  auto IsGetter = [](const FunctionDecl *FD) {
+    const auto *MD = dyn_cast<CXXMethodDecl>(FD);
+    return MD && MD->isConst() && MD->getNumParams() == 1 &&
+           isKhrKernelPropertiesTagType(MD->getParamDecl(0)->getType()) &&
+           !MD->getReturnType()->isUndeducedType();
+  };
+  for (NamedDecl *ND : R) {
+    ND = ND->getUnderlyingDecl();
+    if (const auto *MD = dyn_cast<CXXMethodDecl>(ND); MD && IsGetter(MD))
+      return MD;
+    if (const auto *FTD = dyn_cast<FunctionTemplateDecl>(ND))
+      for (const FunctionDecl *Spec : FTD->specializations())
+        if (IsGetter(Spec))
+          return cast<CXXMethodDecl>(Spec);
+  }
+  return nullptr;
+}
+
+namespace {
+// The sycl_khr_kernel_properties properties and the kernel attributes they are
+// equivalent to.
+struct KhrKernelPropertyInfo {
+  StringRef IRName;
+  StringRef PropertyName;
+  attr::Kind AttrKind;
+};
+constexpr KhrKernelPropertyInfo KhrKernelProperties[] = {
+    {"sycl-work-group-size", "work_group_size",
+     attr::Kind::SYCLReqdWorkGroupSize},
+    {"sycl-work-group-size-hint", "work_group_size_hint",
+     attr::Kind::SYCLWorkGroupSizeHint},
+    {"sycl-sub-group-size", "sub_group_size",
+     attr::Kind::IntelReqdSubGroupSize},
+};
+} // namespace
+
+// Renders the arguments of a kernel attribute the way the corresponding
+// property value is rendered in the IR attribute ("X[,Y[,Z]]"). Returns
+// std::nullopt if an argument is not a constant.
+static std::optional<std::string> getKernelAttrArgsAsString(const Attr *A) {
+  SmallVector<std::optional<llvm::APSInt>, 3> Vals;
+  if (const auto *RWGS = dyn_cast<SYCLReqdWorkGroupSizeAttr>(A)) {
+    Vals.push_back(RWGS->getXDimVal());
+    if (RWGS->getYDim())
+      Vals.push_back(RWGS->getYDimVal());
+    if (RWGS->getZDim())
+      Vals.push_back(RWGS->getZDimVal());
+  } else if (const auto *WGSH = dyn_cast<SYCLWorkGroupSizeHintAttr>(A)) {
+    Vals.push_back(WGSH->getXDimVal());
+    if (WGSH->getYDim())
+      Vals.push_back(WGSH->getYDimVal());
+    if (WGSH->getZDim())
+      Vals.push_back(WGSH->getZDimVal());
+  } else if (const auto *RSGS = dyn_cast<IntelReqdSubGroupSizeAttr>(A)) {
+    const auto *CE = dyn_cast<ConstantExpr>(RSGS->getValue());
+    if (!CE)
+      return std::nullopt;
+    Vals.push_back(CE->getResultAsAPSInt());
+  }
+
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  for (const auto &[I, Val] : llvm::enumerate(Vals)) {
+    if (!Val)
+      return std::nullopt;
+    OS << (I ? "," : "") << *Val;
+  }
+  return Str;
+}
+
+void SemaSYCL::checkSYCLKhrKernelPropertiesAttrConflicts(Decl *D) {
+  const auto *AddIRFuncAttr = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
+  if (!AddIRFuncAttr ||
+      hasDependentExpr(AddIRFuncAttr->args_begin(), AddIRFuncAttr->args_size()))
+    return;
+
+  // \p D is the OpenCL kernel; the properties are template arguments of the
+  // kernel caller function it was generated from.
+  const FunctionDecl *Caller = nullptr;
+  for (const auto &[SYCLKernel, OpenCLKernel] : getKernelFDPairs())
+    if (OpenCLKernel == D) {
+      Caller = SYCLKernel;
+      break;
+    }
+  if (!Caller || Caller->getNumParams() == 0)
+    return;
+  const TemplateArgumentList *TAL = Caller->getTemplateSpecializationArgs();
+  if (!TAL || !TAL->size() ||
+      TAL->asArray().back().getKind() != TemplateArgument::Pack)
+    return;
+  CXXRecordDecl *KernelObj = Caller->getParamDecl(0)
+                                 ->getType()
+                                 .getNonReferenceType()
+                                 ->getAsCXXRecordDecl();
+  const CXXMethodDecl *Getter =
+      KernelObj ? findKhrKernelPropertiesGetter(SemaRef, KernelObj) : nullptr;
+  if (!Getter)
+    return;
+
+  // The getter returns a property or a property list of properties.
+  llvm::SmallPtrSet<const Type *, 4> GetterTypes;
+  QualType RetTy = Getter->getReturnType().getCanonicalType();
+  GetterTypes.insert(RetTy.getTypePtr());
+  if (const auto *Spec = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+          RetTy->getAsCXXRecordDecl()))
+    for (const TemplateArgument &Arg : Spec->getTemplateArgs().asArray())
+      for (const TemplateArgument &Elt : Arg.getKind() == TemplateArgument::Pack
+                                             ? Arg.pack_elements()
+                                             : ArrayRef(Arg))
+        if (Elt.getKind() == TemplateArgument::Type)
+          GetterTypes.insert(Elt.getAsType().getCanonicalType().getTypePtr());
+
+  // The SYCL headers pass the properties embedded by
+  // 'get(sycl::khr::property::tag::kernel)' unchanged as elements of the
+  // trailing template parameter pack of the kernel caller, and each element of
+  // that pack contributes one trailing name-value pair to the attribute.
+  ArrayRef<TemplateArgument> Pack = TAL->asArray().back().pack_elements();
+  size_t NumPairs =
+      (AddIRFuncAttr->args_size() - AddIRFuncAttr->hasFilterList()) / 2;
+  if (Pack.size() > NumPairs)
+    return;
+  Expr **Names = AddIRFuncAttr->args_begin() + AddIRFuncAttr->hasFilterList();
+  Expr **Values = Names + NumPairs;
+  ASTContext &Context = getASTContext();
+  for (const auto &[I, Elt] : llvm::enumerate(Pack)) {
+    if (Elt.getKind() != TemplateArgument::Type ||
+        !GetterTypes.contains(Elt.getAsType().getCanonicalType().getTypePtr()))
+      continue;
+    size_t PairIdx = NumPairs - Pack.size() + I;
+    std::optional<std::string> Name =
+        SYCLAddIRAttributesFunctionAttr::getValidAttributeNameAsString(
+            Names[PairIdx], Context);
+    std::optional<std::string> Value =
+        SYCLAddIRAttributesFunctionAttr::getValidAttributeValueAsString(
+            Values[PairIdx], Context);
+    if (!Name || !Value)
+      continue;
+    const auto *Info = llvm::find_if(
+        KhrKernelProperties, [&](const auto &P) { return P.IRName == *Name; });
+    if (Info == std::end(KhrKernelProperties))
+      continue;
+
+    for (const Attr *A : D->attrs()) {
+      if (A->getKind() != Info->AttrKind)
+        continue;
+      // Not propagated to the kernel, so it has no effect on it.
+      if (const auto *RSGS = dyn_cast<IntelReqdSubGroupSizeAttr>(A);
+          RSGS && RSGS->isSYCL2020Spelling())
+        continue;
+      std::optional<std::string> AttrArgs = getKernelAttrArgsAsString(A);
+      if (AttrArgs && *AttrArgs != *Value) {
+        Diag(A->getLocation(), diag::err_sycl_khr_kernel_property_attr_mismatch)
+            << A << *AttrArgs << *Value << Info->PropertyName;
+        Diag(Getter->getLocation(),
+             diag::note_sycl_khr_kernel_properties_getter);
+      }
+    }
+  }
 }
 
 void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {

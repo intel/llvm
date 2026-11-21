@@ -15,6 +15,7 @@
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel_handler.hpp>
+#include <sycl/khr/kernel_properties.hpp>
 #include <sycl/range.hpp>
 
 #include <limits>
@@ -102,6 +103,21 @@ public:
   auto get(ext::oneapi::experimental::properties_tag) const {
     return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // Same for a valid sycl_khr_kernel_properties getter (an invalid or
+  // conflicting one is diagnosed for the original kernel only).
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<
+          khr::property::detail::has_kernel_properties_get<const T &>::value &&
+          khr::property::detail::embedded_kernel_properties<T>::is_valid &&
+          !ext::oneapi::experimental::detail::
+              HasConflictingKhrKernelPropertiesV<T>>>
+  auto get(khr::property::tag::kernel) const {
+    return KernelFunc.get(khr::property::tag::kernel{});
+  }
+#endif
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -127,6 +143,21 @@ public:
   auto get(ext::oneapi::experimental::properties_tag) const {
     return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // Same for a valid sycl_khr_kernel_properties getter (an invalid or
+  // conflicting one is diagnosed for the original kernel only).
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<
+          khr::property::detail::has_kernel_properties_get<const T &>::value &&
+          khr::property::detail::embedded_kernel_properties<T>::is_valid &&
+          !ext::oneapi::experimental::detail::
+              HasConflictingKhrKernelPropertiesV<T>>>
+  auto get(khr::property::tag::kernel) const {
+    return KernelFunc.get(khr::property::tag::kernel{});
+  }
+#endif
 };
 
 template <typename WrapperT, typename TransformedArgType, int Dims,
