@@ -1,9 +1,12 @@
-// REQUIRES: arch-intel_gpu_cri
+// REQUIRES: target-spir, aspect-ext_oneapi_atomic16, aspect-fp16, aspect-usm_shared_allocations
+// UNSUPPORTED: opencl && cpu
+// UNSUPPORTED-INTENDED: OpenCL CPU cannot execute this int16/bfloat16 coverage
 // RUN: %{build} %{full_atomic_flags} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: target-nvidia, target-amd, spirv-backend
-// UNSUPPORTED-INTENDED: only supported by backends with atomic16 support
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-INTENDED: SPIR-V backend invocation lacks atomic16/bfloat16
+// extensions
 
 #include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
