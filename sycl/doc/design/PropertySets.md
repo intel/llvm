@@ -273,20 +273,22 @@ kernel names.
 ### [SYCL/igca metadata]
 
 Set of information about a device code module containing one or more
-sub-modules, each targeting a specific IGCA target.
+sub-modules, each compiled for a specific IGCA target.
 
 | Key                                   | Value type            | Value                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| "isIgcaModule"                        | 32 bit integer. ("1") | 1 if the module contains one or more IGCA target sub-modules, 0 or missing otherwise.                                                                                                                                                                                                      |
-| `igca_X` + "@no-embed-virtual-arch"   | 32 bit integer. ("1") | 1 if the virtual architecture sub-module was dropped for the IGCA target `igca_X`. Generated only when the user requests to drop, so a missing entry means the default behavior and is equivalent to 0. When 1, specialization constants for that target are emulated rather than native. |
+| "isIgcaModule"                        | 32 bit integer. ("1") | Always 1. Emitted for every module that contains one or more IGCA target sub-modules, so this set is never empty.                                                                                                                                                                          |
+| `igca_X` + "@no_embed_virtual_arch"   | 32 bit integer. ("1") | 1 if the virtual architecture sub-module was dropped for the IGCA target `igca_X`. Generated only when the user requests to drop, so a missing entry means the default behavior and is equivalent to 0. When 1, specialization constants for that target are emulated rather than native.  |
 
 __Notes:__
 
 1. Properties in this set are not derived from kernels and are the same:
- - per module, like "isIgcaModule", or
- - per IGCA target, when the key is qualified with the IGCA target name.
+   - per module, like "isIgcaModule", or
+   - per IGCA target, when the key is qualified with the IGCA target name.
 2. If this property set is missing, the module does not contain IGCA target
-sub-modules.
+   sub-modules. The runtime identifies an IGCA module by "isIgcaModule" rather
+   than by the presence of the set, because an empty property set cannot be
+   distinguished from a missing one.
 
 
 ### [SYCLBIN/global metadata]
