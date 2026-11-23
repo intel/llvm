@@ -293,6 +293,14 @@ bool Scheduler::waitForEvent(event_impl &Event, bool *Success) {
          Generation;
 }
 
+bool Scheduler::isEventHeldInRuntime(event_impl &Event) {
+  // Commands are cleaned up only under the write lock, so the read lock keeps
+  // the command alive while it is inspected.
+  ReadLockT Lock = acquireReadLock();
+  Command *Cmd = Event.getCommand();
+  return Cmd && !Cmd->isSuccessfullyEnqueuedSync();
+}
+
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
                                    bool StrictLock) {
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);

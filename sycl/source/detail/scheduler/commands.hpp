@@ -167,6 +167,13 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
+  /// Like isSuccessfullyEnqueued, but if an enqueue of the command is in
+  /// progress on another thread, waits for it to finish.
+  bool isSuccessfullyEnqueuedSync() {
+    std::lock_guard<std::mutex> Lock(MEnqueueMtx);
+    return isSuccessfullyEnqueued();
+  }
+
   // Shows that command could not be enqueued, now it may be true for empty task
   // only
   bool isEnqueueBlocked() const {

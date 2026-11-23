@@ -411,6 +411,11 @@ public:
   /// its command cleanup.
   bool waitForEvent(event_impl &Event, bool *Success = nullptr);
 
+  /// Whether the command of \p Event has not been enqueued to the backend yet.
+  /// If an enqueue of the command is in progress on another thread, waits for
+  /// it to finish.
+  bool isEventHeldInRuntime(event_impl &Event);
+
   /// Removes buffer from the graph.
   ///
   /// The lifetime of memory object descriptor begins when the first command

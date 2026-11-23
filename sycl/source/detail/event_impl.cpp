@@ -655,7 +655,12 @@ void event_impl::cleanupDependencyEvents() {
 bool event_impl::isHeldInRuntime() {
   if (isHost())
     return !isCompleted();
-  return getCommand() != nullptr && !isEnqueued();
+  if (getCommand() == nullptr || isEnqueued())
+    return false;
+  // Command::enqueue sets the native handle before it marks the event as
+  // enqueued, so the event can already be waited on while its enqueue is still
+  // in progress on another thread.
+  return Scheduler::getInstance().isEventHeldInRuntime(*this);
 }
 
 void event_impl::cleanDepEventsThroughOneLevelUnlocked() {
