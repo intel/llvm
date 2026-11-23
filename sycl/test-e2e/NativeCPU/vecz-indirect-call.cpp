@@ -11,12 +11,7 @@ SYCL_EXTERNAL int mul2(int x) { return x * 2; }
 
 int main() {
   sycl::queue q;
-  const int wanted[16] = {
-    0, 1, 0, 0, 
-    1, 1, 1, 0, 
-    0, 0, 1, 1, 
-    1, 1, 0, 0
-  };
+  const int wanted[16] = {0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0};
   sycl::buffer<int, 1> sel(sycl::range<1>(16));
   {
 
