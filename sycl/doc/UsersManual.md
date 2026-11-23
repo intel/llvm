@@ -101,9 +101,23 @@ and not recommended to use in production environment.
     * nvidia_gpu_sm_80 - NVIDIA Ampere architecture (compute capability 8.0)
     * nvidia_gpu_sm_86 - NVIDIA Ampere architecture (compute capability 8.6)
     * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
+    * nvidia_gpu_sm_88 - NVIDIA Ampere architecture (compute capability 8.8)
     * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
     * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
     * nvidia_gpu_sm_90a - NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)
+    * nvidia_gpu_sm_100, nvidia_gpu_sm_100a, nvidia_gpu_sm_100f - NVIDIA
+      Blackwell architecture (compute capability 10.0)
+    * nvidia_gpu_sm_101, nvidia_gpu_sm_101a, nvidia_gpu_sm_101f - legacy CUDA
+      12.8 and 12.9 names for the NVIDIA Blackwell Thor architecture (compute
+      capability 11.0)
+    * nvidia_gpu_sm_103, nvidia_gpu_sm_103a, nvidia_gpu_sm_103f - NVIDIA
+      Blackwell architecture (compute capability 10.3)
+    * nvidia_gpu_sm_110, nvidia_gpu_sm_110a, nvidia_gpu_sm_110f - NVIDIA
+      Blackwell Thor architecture (compute capability 11.0)
+    * nvidia_gpu_sm_120, nvidia_gpu_sm_120a, nvidia_gpu_sm_120f - NVIDIA
+      Blackwell architecture (compute capability 12.0)
+    * nvidia_gpu_sm_121, nvidia_gpu_sm_121a, nvidia_gpu_sm_121f - NVIDIA
+      Blackwell architecture (compute capability 12.1)
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
