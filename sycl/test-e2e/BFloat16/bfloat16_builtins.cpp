@@ -8,11 +8,6 @@
 // RUN: %clangxx -fsycl %{sycl_target_opts} %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
-// Flaky timeout on CPU. Enable when fixed.
-// Depends on SPIR-V Backend & run-time drivers version.
-// UNSUPPORTED: spirv-backend && cpu
-// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
-
 // XFAIL: linux && arch-intel_gpu_mtl_u
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/22054
 
