@@ -340,20 +340,7 @@ the attribute using initial and trailing double underscores
 samples below, but this design document uses the form without the underbars
 elsewhere.  Both forms refer to the same attribute.
 
-To illustrate, the type `sycl::half` is an optional feature whose associated
-aspect is `aspect::fp16`.  We therefore decorate the declaration like this:
-
-```
-namespace sycl::detail::half_impl {
-
-class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
-/* ... */
-};
-
-} // namespace sycl::detail::half_impl;
-```
-
-This attribute is also used to decorate function declarations that correspond
+This attribute is used to decorate function declarations that correspond
 to optional features.  Illustrating a hypothetical AMX extension:
 
 ```
@@ -402,10 +389,9 @@ is not referenced by any instruction in the module, so it must be looked up by
 name.  The format looks like this:
 
 ```
-!sycl_types_that_use_aspects = !{!0, !1, !2}
-!0 = !{!"class.sycl::detail::half_impl::half", i32 8}
-!1 = !{!"class.sycl::amx_type", i32 9}
-!2 = !{!"class.sycl::other_type", i32 8, i32 9}
+!sycl_types_that_use_aspects = !{!0, !1}
+!0 = !{!"class.sycl::amx_type", i32 9}
+!1 = !{!"class.sycl::other_type", i32 8, i32 9}
 ```
 
 The value of the `!sycl_types_that_use_aspects` metadata is a list of unnamed
@@ -414,9 +400,7 @@ metadata nodes, each of which describes one type that is decorated with
 starts with a string giving the name of the type which is followed by a list of
 `i32` constants where each constant is a value from `enum class aspect` telling
 the numerical value of an aspect from the type's
-`[[sycl_detail::uses_aspects()]]` attribute.  In the example above, the type
-`sycl::detail::half_impl::half` uses an aspect whose numerical value is
-`8` and the type `sycl::other_type` uses two aspects `8` and `9`.
+`[[sycl_detail::uses_aspects()]]` attribute.  In the example above, the type `sycl::other_type` uses two aspects `8` and `9`.
 
 **NOTE**: The reason we choose this representation is because LLVM IR does not
 allow metadata to be attached directly to types.  This representation works

@@ -168,15 +168,22 @@ void propagateAspectsToOtherTypesInModule(
     AspectValueToNameMapTy &AspectValues) {
   std::unordered_set<const Type *> TypesToProcess;
   const Type *DoubleTy = Type::getDoubleTy(M.getContext());
+  const Type *HalfTy = Type::getHalfTy(M.getContext());
 
-  // Find the value of the fp64 aspect from the aspect values map and register
-  // it as a special-case type with aspect for double.
-  auto FP64AspectIt = AspectValues.find("fp64");
+  // Find the value of the fp64/fp16 aspect from the aspect values map and
+  // register them as a special-case type with aspect for double/half.
+  const auto FP64AspectIt = AspectValues.find("fp64");
   assert(FP64AspectIt != AspectValues.end() &&
          "fp64 aspect was not found in the aspect values.");
   TypesWithAspects[DoubleTy].insert(FP64AspectIt->second);
-
   TypesToProcess.insert(DoubleTy);
+  
+  const auto FP16AspectIt = AspectValues.find("fp16");
+  // Half might not always be present.
+  if (FP16AspectIt != AspectValues.end()) {
+    TypesWithAspects[HalfTy].insert(FP16AspectIt->second);
+    TypesToProcess.insert(HalfTy);
+  }
   for (const Type *T : M.getIdentifiedStructTypes())
     TypesToProcess.insert(T);
 
@@ -295,14 +302,6 @@ bool hasDoubleType(const Instruction &I) {
     }
   }
 
-  // Opaque pointer arguments may hide types of pointer arguments until elements
-  // inside the types are accessed through a GEP-like instruction. However, this
-  // will not be caught by the operands check above, so we must extract the
-  // information directly from the GEP-like.
-  if (auto *Ty = sycl::utils::getAddressSourceElementType(&I))
-    if (hasDoubleType(Ty))
-      return true;
-
   return false;
 }
 
@@ -331,13 +330,6 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     else
       AddAspectsFromType(OperandIt->getType());
   }
-
-  // Opaque pointer arguments may hide types of pointer arguments until elements
-  // inside the types are accessed through a GEP-like instruction. However, this
-  // will not be caught by the operands check above, so we must extract the
-  // information directly from the GEP-like.
-  if (auto *Ty = sycl::utils::getAddressSourceElementType(&I))
-    AddAspectsFromType(Ty);
 
   if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {
     for (const MDOperand &MDOp : InstApsects->operands()) {

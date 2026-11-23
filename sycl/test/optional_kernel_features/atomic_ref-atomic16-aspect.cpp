@@ -1,10 +1,8 @@
 // RUN: %clangxx %s -S -o %t.ll -fsycl-device-only -Xclang -disable-llvm-passes
 // RUN: FileCheck %s --input-file %t.ll
 
-// CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM1:]], ![[#MDNUM2:]]}
-// CHECK: ![[#MDNUM1]] = !{!"class.sycl::_V1::detail::half_impl::half", i32 [[#FP16_ASPECT_NUM:]]}
-// CHECK: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ATOMIC16_ASPECT_NUM:]]}
-// CHECK: !{{.*}} = !{!"fp16", i32 [[#FP16_ASPECT_NUM]]}
+// CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM:]]}
+// CHECK: ![[#MDNUM]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ATOMIC16_ASPECT_NUM:]]}
 // CHECK: !{{.*}} = !{!"ext_oneapi_atomic16", i32 [[#ATOMIC16_ASPECT_NUM]]}
 
 #include <sycl/sycl.hpp>
