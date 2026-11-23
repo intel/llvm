@@ -37,8 +37,9 @@ private:
   USMAnalyzer(){};
   // TO DO: mem allocations could be effectively validated with
   // piextUSMGetMemAllocInfo - could be more robust
-  static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
-                                    size_t size, std::string FunctionName) {
+  static void CheckPointerValidness(const std::string &ParameterDesc,
+                                    const void *Ptr, size_t size,
+                                    const std::string &FunctionName) {
     void *PtrToValidate = (const_cast<void *>(Ptr));
 
     bool PointerFound = false;
@@ -101,9 +102,10 @@ private:
     }
   }
 
-  static void CheckPointerValidness(std::string ParameterDesc, const void *Ptr,
-                                    size_t pitch, size_t width, size_t length,
-                                    std::string FunctionName) {
+  static void CheckPointerValidness(const std::string &ParameterDesc,
+                                    const void *Ptr, size_t pitch, size_t width,
+                                    size_t length,
+                                    const std::string &FunctionName) {
     void *PtrToValidate = *(void **)(const_cast<void *>(Ptr));
     bool PointerFound = false;
     auto &GS = USMAnalyzer::getInstance();

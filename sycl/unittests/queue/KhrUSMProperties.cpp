@@ -38,9 +38,11 @@ struct is_property_key_for<test_props::key::host_only,
 } // namespace _V1
 } // namespace sycl
 
-static_assert(is_property_list_for_v<empty_properties_t, kp::tag::usm_device>);
-static_assert(is_property_list_for_v<empty_properties_t, kp::tag::usm_host>);
-static_assert(is_property_list_for_v<empty_properties_t, kp::tag::usm_shared>);
+static_assert(
+    is_property_or_list_for_v<empty_properties_t, kp::tag::usm_device>);
+static_assert(is_property_or_list_for_v<empty_properties_t, kp::tag::usm_host>);
+static_assert(
+    is_property_or_list_for_v<empty_properties_t, kp::tag::usm_shared>);
 static_assert(is_property_for_v<test_props::host_only, kp::tag::usm_host> &&
               !is_property_for_v<test_props::host_only, kp::tag::usm_shared>);
 static_assert(std::is_constructible_v<sycl::usm_allocator<int, alloc::shared>,

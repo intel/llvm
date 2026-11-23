@@ -2059,10 +2059,9 @@ void instrumentationAddExtraKernelMetadata(
       Args.size()};
   xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
   for (size_t i = 0; i < Args.size(); i++) {
-    std::string Prefix("arg");
     xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
                                         Args[i].MSize, Args[i].MIndex};
-    xpti::addMetadata(CmdTraceEvent, Prefix + std::to_string(i), arg);
+    xpti::addMetadata(CmdTraceEvent, "arg" + std::to_string(i), arg);
   }
 }
 

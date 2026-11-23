@@ -203,12 +203,12 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
   }
   default: {
     size_t CheckPropSize = 0;
-    ur_result_t Err = mapCLErrorToUR(clGetSamplerInfo(
+    Err = mapCLErrorToUR(clGetSamplerInfo(
         Sampler->CLSampler, SamplerInfo, propSize, pPropValue, &CheckPropSize));
     if (pPropValue && CheckPropSize != propSize) {
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
-    CL_RETURN_ON_FAILURE(Err);
+    UR_RETURN_ON_FAILURE(Err);
     if (pPropSizeRet) {
       *pPropSizeRet = CheckPropSize;
     }

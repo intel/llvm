@@ -101,6 +101,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t, ur_platform_handle_t *phPlatforms,
                   Device, Context, UMF_MEMORY_TYPE_SHARED,
                   &dev->MemoryProviderShared, &dev->MemoryPoolShared));
             }
+            UR_LOG(INFO, "CUDA: found {} platforms", NumPlatforms);
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
             for (int i = 0; i < NumDevices; ++i) {

@@ -46,11 +46,17 @@ jit_compiler::jit_compiler()
 #endif
 
 #ifdef _WIN32
-    static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
-    static const std::string JITLibraryName = dir + "\\" + "sycl-jit.dll";
+    constexpr const char *JITLibraryFileName = "sycl-jit.dll";
 #else
-    static const std::string JITLibraryName = "libsycl-jit.so";
+    constexpr const char *JITLibraryFileName = "libsycl-jit.so";
 #endif
+    // Load by absolute path from the directory of the real libsycl. Relying on
+    // RUNPATH=$ORIGIN fails when libsycl is loaded through a symlink in another
+    // directory, since $ORIGIN is then the symlink's directory.
+    static const std::string Dir = OSUtil::getCurrentDSODir();
+    static const std::string JITLibraryName =
+        Dir.empty() ? JITLibraryFileName
+                    : Dir + OSUtil::DirSep + JITLibraryFileName;
     std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryPtr(
         sycl::detail::ur::loadOsLibrary(JITLibraryName),
         CustomDeleterForLibHandle);
