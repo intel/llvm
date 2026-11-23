@@ -88,9 +88,10 @@
 // RUN: diff %t.tgt1 %t.res1
 // RUN: diff %t.tgt1 %t.res2
 
-// The entry without a target ID is used for each target ID, including newer
-// Intel GPUs. A target ID that is not known as an offload arch is parsed as
-// the triple environment instead, and only one of those targets gets the code.
+// The entry without a target ID is used for each target ID, including Intel
+// GPUs that are not known as an offload arch. For spir64_gen, the last
+// component is always the target ID, not the triple environment; otherwise
+// only one of those targets would get the code.
 // RUN: clang-offload-bundler -type=ii -input=%t.bundle.noid.ii -unbundle \
 // RUN:   -output=%t.new1 -output=%t.new2 -output=%t.new3 -output=%t.new4 \
 // RUN:   -output=%t.new5 -output=%t.new6 -output=%t.new7 -output=%t.new8 \

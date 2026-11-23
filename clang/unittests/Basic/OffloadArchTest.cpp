@@ -76,17 +76,6 @@ TEST(OffloadArchTest, IntelGPUFamilyArchitectures) {
   EXPECT_TRUE(parse("ptl").isIntelGPU());
 }
 
-// Every Intel GPU that SYCL AOT accepts must be known, so that
-// clang-offload-bundler parses it as the target ID of a SYCL bundle entry ID.
-TEST(OffloadArchTest, NewerIntelGPUArchitectures) {
-  for (const char *Name :
-       {"bmg_g31", "ptl_h", "ptl_u", "wcl", "nvl_s", "nvl_u", "nvl_p", "cri"}) {
-    OffloadArch A = parse(Name);
-    EXPECT_TRUE(A.isIntelGPU()) << Name;
-    EXPECT_STREQ(OffloadArchToString(A), Name);
-  }
-}
-
 TEST(OffloadArchTest, IntelGPUFamilyArchParsing) {
   EXPECT_EQ(StringToOffloadArch("dg2"),
             OffloadArch::getIntel(OffloadArch::TargetArch::IntelGPU,

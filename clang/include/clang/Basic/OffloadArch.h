@@ -106,14 +106,6 @@ public:
     BMG_G21,
     PTL,
     LNL_M,
-    BMG_G31,
-    PTL_H,
-    PTL_U,
-    WCL,
-    NVL_S,
-    NVL_U,
-    NVL_P,
-    CRI,
   };
 
 private:

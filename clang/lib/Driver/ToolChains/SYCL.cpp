@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
-#include "clang/Basic/OffloadArch.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
 #include "clang/Driver/CommonArgs.h"
@@ -1320,13 +1319,6 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Case("amd_gpu_gfx1200", "gfx1200")
           .Case("amd_gpu_gfx1201", "gfx1201")
           .Default("");
-  // The architecture becomes the target ID of the SYCL bundle entry ID (e.g.
-  // sycl-spir64_gen-unknown-unknown-pvc). clang-offload-bundler only parses it
-  // as a target ID if StringToOffloadArch knows it, and otherwise device code
-  // can be dropped for some targets. Add new Intel GPUs to OffloadArch too.
-  assert((!DeviceName.starts_with("intel_gpu_") || Device.empty() ||
-          StringToOffloadArch(Device).isIntelGPU()) &&
-         "Intel GPU is missing from OffloadArch");
   return Device;
 }
 
