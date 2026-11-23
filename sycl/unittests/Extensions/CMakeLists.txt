@@ -5,6 +5,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DefaultContext.cpp
   DeviceIsIntegratedGPU.cpp
   DeviceArchitecture.cpp
+  DeviceArchitectureIPVersion.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
   DeviceGlobalStaleProgramHandle.cpp
