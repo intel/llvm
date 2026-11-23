@@ -10,6 +10,7 @@
 #include <unified-runtime/ur_api.h>
 
 #include "context.hpp"
+#include "enqueue.hpp"
 #include "event.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
@@ -28,6 +29,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   try {
     ScopedDevice ActiveDevice(hQueue->getDevice());
     InteropGuard ActiveStream(hQueue, NumEventsInWaitList, phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, ActiveStream.getStream(),
+                                     NumEventsInWaitList, phEventWaitList));
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
     if (hQueue->getContext()->getDevices().size() > 1) {
