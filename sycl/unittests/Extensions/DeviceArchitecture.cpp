@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include <gtest/gtest.h>
+#include <helpers/UrMock.hpp>
 
 // define one of __SYCL_TARGET_ macro, e.g., the one for SKL
 #define __SYCL_TARGET_INTEL_GPU_SKL__ 1
 
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -82,6 +82,6 @@ TEST_P(DeviceArchitectureIPVersionTest, IPVersionMapsToArchitecture) {
       GetParam().ExpectedArchitecture);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    Common, DeviceArchitectureIPVersionTest,
-    ::testing::Values(IPVersionCase{0x03000000, architecture::intel_gpu_tgllp}));
+INSTANTIATE_TEST_SUITE_P(Common, DeviceArchitectureIPVersionTest,
+                         ::testing::Values(IPVersionCase{
+                             0x03000000, architecture::intel_gpu_tgllp}));
