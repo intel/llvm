@@ -8,11 +8,6 @@
 
 #include "sycl.hpp"
 
-// Like the real SYCL headers, this SYCL kernel function calls
-// parallel_for_work_item itself, after the kernel body. Sema copies this body
-// into the generated device kernel, so the walk up the call stack from that
-// call reaches the generated kernel, where it must stop. Inputs/sycl.hpp has no
-// such kernel function, so define one here.
 namespace sycl {
 void parallel_for_work_item() {}
 } // namespace sycl
@@ -79,7 +74,7 @@ int main() {
 // CHECK: VarDecl {{.*}} MidPM 'sycl::private_memory<int>'
 // CHECK-NOT: VarDecl
 // CHECK: SYCLScopeAttr {{.*}} Implicit WorkItem
-// CHECK: {{^}}| `-SYCLScopeAttr {{.*}} Implicit WorkGroup
+// CHECK: `-SYCLScopeAttr {{.*}} Implicit WorkGroup
 
 // CHECK-LABEL: FunctionDecl {{.*}} used top 'void (sycl::group<1>)'
 // CHECK: `-SYCLScopeAttr {{.*}} Implicit WorkGroup
