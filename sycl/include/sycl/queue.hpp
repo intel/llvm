@@ -252,7 +252,7 @@ class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT queue
   // the constructors' default template arguments.
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForQueue =
-      khr::property::detail::is_property_or_list_for_v<PropertyOrList, queue>;
+      khr::is_property_or_list_for_v<PropertyOrList, queue>;
 
   template <typename PropertyOrList>
   static property_list khrToPropertyList(const PropertyOrList &Props) {

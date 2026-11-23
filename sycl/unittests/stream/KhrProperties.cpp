@@ -35,7 +35,7 @@ static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"KhrStreamKernel"});
 static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
-static_assert(is_property_list_for_v<empty_properties_t, sycl::stream>);
+static_assert(is_property_or_list_for_v<empty_properties_t, sycl::stream>);
 static_assert(std::is_constructible_v<sycl::stream, size_t, size_t,
                                       sycl::handler &, empty_properties_t>);
 

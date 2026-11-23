@@ -25,8 +25,8 @@ static_assert(
     is_property_key_for_v<kp::key::initialize_to_identity, kp::tag::reduction>);
 static_assert(
     is_property_for_v<kp::initialize_to_identity, kp::tag::reduction>);
-static_assert(is_property_list_for_v<properties<kp::initialize_to_identity>,
-                                     kp::tag::reduction>);
+static_assert(is_property_or_list_for_v<properties<kp::initialize_to_identity>,
+                                        kp::tag::reduction>);
 static_assert(!is_property_for_v<kp::initialize_to_identity, OtherClass>);
 static_assert(!is_property_for_v<kp::initialize_to_identity, sycl::queue>);
 static_assert(std::is_trivially_copyable_v<kp::initialize_to_identity>);
