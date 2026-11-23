@@ -1,22 +1,19 @@
 # UNSUPPORTED: system-windows
 
-# Feed assembly directly to a fake assembler so no backend compilation is needed.
-# The assembler invokes an unwrapped driver: neither it nor that driver should
-# inherit the dp-prefixed name of the parent driver.
+# A fake assembler launches an ordinary driver. Only the wrapping parent should
+# use the dp-prefixed diagnostic name, and the marker must not reach the assembler.
 # RUN: split-file %s %t
 # RUN: chmod +x %t/as
 # RUN: env TEST_CLANG="%clang" not %dpclang --target=x86_64-unknown-linux-gnu \
 # RUN:   -fno-integrated-as -B%t -c %t/input.s -o %t/input.o 2>&1 \
-# RUN:   | FileCheck %s --implicit-check-not=DPCPP_DRIVER_NAME
+# RUN:   | FileCheck %s --implicit-check-not=dpcpp-driver
 
 # CHECK: {{^}}clang{{(-[0-9]+)?}}: error: no input files
 # CHECK: {{^}}dpclang: error: assembler command failed with exit code 1
 
 #--- as
 #!/bin/sh
-if test "${DPCPP_DRIVER_NAME+set}" = set; then
-  echo "DPCPP_DRIVER_NAME leaked to assembler" >&2
-fi
+printf 'assembler argument: %s\n' "$@"
 exec "$TEST_CLANG"
 
 #--- input.s

@@ -51,7 +51,6 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
-#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <set>
@@ -198,14 +197,17 @@ static bool SetBackdoorDriverOutputsFromEnvVars(Driver &TheDriver) {
   return true;
 }
 
-static void FixupDiagPrefixExeName(TextDiagnosticPrinter *DiagClient,
-                                   const std::string &Path) {
+static std::string GetDriverName(StringRef Path, bool IsDPCPPDriver) {
   // If the clang binary happens to be named cl.exe for compatibility reasons,
-  // use clang-cl.exe as the prefix to avoid confusion between clang and MSVC.
+  // use clang-cl.exe as the name to avoid confusion between clang and MSVC.
   StringRef ExeBasename(llvm::sys::path::stem(Path));
   if (ExeBasename.equals_insensitive("cl"))
     ExeBasename = "clang-cl";
-  DiagClient->setPrefix(std::string(ExeBasename));
+
+  std::string DriverName = std::string(ExeBasename);
+  if (IsDPCPPDriver)
+    DriverName.insert(0, "dp");
+  return DriverName;
 }
 
 static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV,
@@ -250,20 +252,6 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
-  // dpllvm supplies the dp-prefixed name invoked by the user for diagnostics
-  // without changing argv[0]. Try to clear it before even the early -cc1
-  // dispatch to avoid affecting tools launched by this invocation. Cleanup is
-  // best-effort: a diagnostic-name override must not prevent compilation.
-  std::optional<std::string> DPCPPDriverName =
-      llvm::sys::Process::GetEnv("DPCPP_DRIVER_NAME");
-  if (DPCPPDriverName) {
-#ifdef _WIN32
-    (void)::_putenv_s("DPCPP_DRIVER_NAME", "");
-#else
-    (void)::unsetenv("DPCPP_DRIVER_NAME");
-#endif
-  }
-
   llvm::InitializeAllTargets();
 
   llvm::BumpPtrAllocator A;
@@ -271,6 +259,13 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   const char *ProgName =
       ToolContext.NeedsPrependArg ? ToolContext.PrependArg : ToolContext.Path;
+
+  // dpllvm prepends this marker; remove it before response-file expansion,
+  // which recognizes direct -cc1 invocations by their first argument.
+  const bool IsDPCPPDriver =
+      Args.size() > 1 && Args[1] && StringRef(Args[1]) == "--dpcpp-driver";
+  if (IsDPCPPDriver)
+    Args.erase(Args.begin() + 1);
 
   bool ClangCLMode =
       IsClangCL(getDriverMode(ProgName, llvm::ArrayRef(Args).slice(1)));
@@ -350,6 +345,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
                            .Case("-fintegrated-cc1", false)
                            .Default(UseNewCC1Process);
 
+  std::string DriverName = GetDriverName(ProgName, IsDPCPPDriver);
   std::unique_ptr<DiagnosticOptions> DiagOpts = CreateAndPopulateDiagOpts(Args);
   // Driver's diagnostics don't use suppression mappings, so don't bother
   // parsing them. CC1 still receives full args, so this doesn't impact other
@@ -358,10 +354,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   TextDiagnosticPrinter *DiagClient =
       new TextDiagnosticPrinter(llvm::errs(), *DiagOpts);
-  FixupDiagPrefixExeName(DiagClient,
-                         DPCPPDriverName && !DPCPPDriverName->empty()
-                             ? *DPCPPDriverName
-                             : ProgName);
+  DiagClient->setPrefix(DriverName);
 
   DiagnosticsEngine Diags(DiagnosticIDs::create(), *DiagOpts, DiagClient);
 
@@ -377,6 +370,8 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags,
                    /*Title=*/"clang LLVM compiler", VFS);
+  if (IsDPCPPDriver)
+    TheDriver.setDriverName(DriverName);
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
   TheDriver.setTargetAndMode(TargetAndMode);
   // If -canonical-prefixes is set, GetExecutablePath will have resolved Path

@@ -423,6 +423,8 @@ public:
   const char *getPrependArg() const { return PrependArg; }
   void setPrependArg(const char *Value) { PrependArg = Value; }
 
+  void setDriverName(std::string Value) { Name = std::move(Value); }
+
   void setTargetAndMode(const ParsedClangName &TM) { ClangNameParts = TM; }
 
   const std::string &getTitle() { return DriverTitle; }
