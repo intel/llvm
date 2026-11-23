@@ -1,10 +1,10 @@
 // RUN-IF: target-nvidia && cuda_dev_kit, %{build} -DUSE_CUDA_IN_TEST -o %t.cuda.out %cuda_options
 // RUN-IF: target-nvidia && cuda_dev_kit, %{run} %t.cuda.out
 
-// RUN-IF: target-amd && hip_dev_kit, %{build} -DUSE_HIP_IN_TEST -o %t.hip.out %hip_options
+// RUN-IF: target-amd && hip_dev_kit, %{build} -Wno-error=deprecated-pragma -DUSE_HIP_IN_TEST -o %t.hip.out %hip_options
 // RUN-IF: target-amd && hip_dev_kit, %{run} %t.hip.out
 
-// REQUIRES: target-nvidia || target-amd
+// REQUIRES: (target-nvidia && cuda_dev_kit) || (target-amd && hip_dev_kit)
 
 // Checks that native commands wait for all declared dependencies, including
 // dependencies spanning compute commands and the transfer stream.
@@ -21,8 +21,10 @@
 #include <hip/hip_runtime.h>
 #endif
 
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/interop_handle.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #ifdef USE_CUDA_IN_TEST
 static constexpr auto NativeBackend = sycl::backend::ext_oneapi_cuda;
@@ -60,8 +62,8 @@ static void asyncMemcpyD2H(NativeStream stream, int *host_dst,
   assert(cuMemcpyDtoHAsync(host_dst, reinterpret_cast<CUdeviceptr>(dev_src),
                            sizeof(int), stream) == CUDA_SUCCESS);
 #else
-  assert(hipMemcpyDtoHAsync(host_dst, reinterpret_cast<hipDeviceptr_t>(dev_src),
-                            sizeof(int), stream) == hipSuccess);
+  assert(hipMemcpyAsync(host_dst, dev_src, sizeof(int), hipMemcpyDeviceToHost,
+                        stream) == hipSuccess);
 #endif
 }
 
@@ -71,8 +73,8 @@ static void asyncMemcpyH2D(NativeStream stream, int *dev_dst,
   assert(cuMemcpyHtoDAsync(reinterpret_cast<CUdeviceptr>(dev_dst), host_src,
                            sizeof(int), stream) == CUDA_SUCCESS);
 #else
-  assert(hipMemcpyHtoDAsync(reinterpret_cast<hipDeviceptr_t>(dev_dst), host_src,
-                            sizeof(int), stream) == hipSuccess);
+  assert(hipMemcpyAsync(dev_dst, host_src, sizeof(int), hipMemcpyHostToDevice,
+                        stream) == hipSuccess);
 #endif
 }
 
