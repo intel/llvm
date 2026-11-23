@@ -718,10 +718,9 @@ These checks must be done before submitting a kernel using any of the
 `joint_matrix` APIs in this extension.
 
 Note that only 8 bits packing is supported for `fp4_e2m1_x`, so
-`fp4_e2m1_x<2>` is the only usable form.
-Also, the matrix number of rows `Rows` and
-columns  `Cols` represents the number of 4bits elements, which includes
-the packing factor 2.
+`fp4_e2m1_x<2>` is the only usable form. Also, the matrix number of rows
+`Rows` and columns  `Cols` represents the number of 4bits elements, which
+includes the packing factor 2.
 
 In the case of element-wise operations, `joint_matrix_apply` performs
 operations and returns elements of the packed type
@@ -840,8 +839,7 @@ scales is supported on the device where the kernel calling
 This API `joint_matrix_convert` extends the existing 4 bits scalar
 conversions to directly work on `joint_matrix` data types. In
 this extension, only 8 bits packing is supported for `fp4_e2m1_x`, so
-`fp4_e2m1_x<2>` is the only usable form.
-There are two definitions for this
+`fp4_e2m1_x<2>` is the only usable form. There are two definitions for this
 API: with and without seed that is used for stochastic rounding. A
 regular conversion is performed in the first API while a stochastic
 rounding conversion is performed in the second API. In the second API,
@@ -1202,7 +1200,7 @@ the `T` template parameter as follows: +
 `uint64`: `uint64_t` +
 `fp8_e5m2`: `sycl::ext::oneapi::experimental::fp8_e5m2_x<1>` +
 `fp8_e4m3`: `sycl::ext::oneapi::experimental::fp8_e4m3_x<1>` +
-`fp4_e2m1`: `sycl::ext::oneapi::experimental::fp4_e2m1_x<2>` +
+`fp4_e2m1`: `sycl::ext::oneapi::experimental::fp4_e2m1_x<2>`
 |======================
 
 ===== Runtime Query Example:
@@ -1610,6 +1608,33 @@ This is currently available in devices with the architecture
 .2+|`architecture::intel_gpu_cri`
 |32|32
 |======================
+
+=== Features Awaiting Implementation
+
+This section lists features of this specification that are specified
+above but are not implemented yet. They are moved out of this section
+once an implementation is available.
+
+* The `joint_matrix_convert` overload that takes a `seed` argument and
+  performs a stochastic rounding conversion. Only the overload without
+  `seed` is implemented.
+
+* The `matrix_scaled_combinations` device query descriptor, which
+  reports the combinations usable with `joint_matrix_bmad`. The
+  `matrix_combinations` descriptor is implemented and may be used to
+  query the combinations of the other matrix operations. Until
+  `matrix_scaled_combinations` is available, applications must rely on
+  the supported combinations listed in the appendices above.
+
+=== Issues
+
+* The `use::scale` enumerator names a matrix that holds scaling factors
+  for either the `A` or the `B` operand of `joint_matrix_bmad`, without
+  distinguishing between the two. The SPIR-V extension this operation
+  maps to names the two scaling matrices separately. We intend to
+  replace `use::scale` with `use::a_scale` and `use::b_scale` to match
+  it, which is a source-breaking change for code that uses
+  `use::scale`.
 
 === Revision History
 
