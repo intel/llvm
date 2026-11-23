@@ -333,6 +333,7 @@
 #include "llvm/Transforms/Scalar/DropUnnecessaryAssumes.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/ExpandMemCmp.h"
+#include "llvm/Transforms/Scalar/FPBuiltinFnSelection.h"
 #include "llvm/Transforms/Scalar/FlattenCFG.h"
 #include "llvm/Transforms/Scalar/Float2Int.h"
 #include "llvm/Transforms/Scalar/GVN.h"
