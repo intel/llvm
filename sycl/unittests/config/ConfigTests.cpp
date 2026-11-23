@@ -10,19 +10,38 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <fstream>
 #include <regex>
+#include <string>
+
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
+namespace {
+std::string getConfigFileName() {
+#ifdef _WIN32
+  return "conf." + std::to_string(_getpid()) + ".txt";
+#else
+  return "conf." + std::to_string(getpid()) + ".txt";
+#endif
+}
+} // namespace
 
 TEST(ConfigTests, CheckConfigProcessing) {
+  const std::string ConfigFile = getConfigFileName();
 #ifdef _WIN32
-  _putenv_s("SYCL_CONFIG_FILE_NAME", "conf.txt");
+  _putenv_s("SYCL_CONFIG_FILE_NAME", ConfigFile.c_str());
 #else
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
+  setenv("SYCL_CONFIG_FILE_NAME", ConfigFile.c_str(), 1);
 #endif
 
   // Check SPACE at first position
   std::ofstream File;
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << " a=b" << std::endl;
     File.close();
@@ -40,7 +59,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check SPACE at last position
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "a=b " << std::endl;
     File.close();
@@ -58,7 +77,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check SPACE before assignment
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "a =b" << std::endl;
     File.close();
@@ -76,7 +95,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check SPACE after assignment
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "a= b" << std::endl;
     File.close();
@@ -94,7 +113,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check variable name bigger than MAX_CONFIG_NAME
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     for (int i = 0; i <= sycl::detail::MAX_CONFIG_NAME; i++) {
       File << "a";
@@ -115,7 +134,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check variable without name
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "=b" << std::endl;
     File.close();
@@ -132,7 +151,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check variable value bigger than MAX_CONFIG_VALUE
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "a=";
     for (int i = 0; i <= sycl::detail::MAX_CONFIG_VALUE; i++) {
@@ -153,7 +172,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check variable without value
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "a=" << std::endl;
     File.close();
@@ -170,7 +189,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check incorrect complex config processing
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "#\n   #\r\n#a=b\n\n\na\r\n aaa \r\na=b\r\na=\r" << std::endl;
     File.close();
@@ -187,7 +206,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   }
 
   // Check simple correct config processing
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "SYCL_PRINT_EXECUTION_GRAPH=before_addCG" << std::endl;
     File.close();
@@ -198,7 +217,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 
   // Check correct config processing
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "#a\r\n # b \r\n #a=b\r\n # a = "
             "b\r\n\r\nSYCL_PRINT_EXECUTION_GRAPH=after_addCG\r\n"
@@ -211,7 +230,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 
   // Check multi assignment
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "a=b\r\nb=c\nSYCL_PRINT_EXECUTION_GRAPH=before_addCopyBack\r\nc=d";
     File.close();
@@ -222,7 +241,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 
   // Check assignment with comment
-  File.open("conf.txt");
+  File.open(ConfigFile);
   if (File.is_open()) {
     File << "SYCL_PRINT_EXECUTION_GRAPH=after_addCopyBack #comment\r\n";
     File.close();
@@ -231,6 +250,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   EXPECT_EQ(std::string("after_addCopyBack"),
             sycl::detail::SYCLConfig<
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
+  std::remove(ConfigFile.c_str());
 }
 
 // SYCL_CACHE_TRACE accepts a bit-mask to control the tracing of
