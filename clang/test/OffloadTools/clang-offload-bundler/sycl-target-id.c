@@ -129,6 +129,22 @@
 // RUN: diff %t.tgt1 %t.ar13
 // RUN: diff %t.tgt1 %t.ar14
 
+// For other SYCL triples, the last component is still not treated as the
+// target ID unless it is a known offload arch. For
+// sycl-spir64-unknown-unknown-foo, foo is the (unknown) triple environment, so
+// there is no target ID to mismatch with bar. For spir64_gen, foo and bar are
+// different target IDs.
+// RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -output=%t.bundle.env.ii \
+// RUN:   -targets=host-x86_64-unknown-linux-gnu,sycl-spir64-unknown-unknown-foo
+// RUN: clang-offload-bundler -type=ii -input=%t.bundle.env.ii -output=%t.res -unbundle \
+// RUN:   -targets=sycl-spir64-unknown-unknown-bar
+// RUN: diff %t.tgt1 %t.res
+// RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -output=%t.bundle.gen.ii \
+// RUN:   -targets=host-x86_64-unknown-linux-gnu,sycl-spir64_gen-unknown-unknown-foo
+// RUN: not clang-offload-bundler -type=ii -input=%t.bundle.gen.ii -output=%t.res -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-bar 2>&1 | FileCheck %s --check-prefix=GEN-MISMATCH
+// GEN-MISMATCH: error: Can't find bundles for sycl-spir64_gen-unknown-unknown-bar
+
 // 4-component triples are unaffected.
 // RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -input=%t.tgt2 -output=%t.bundle.hip.ii \
 // RUN:   -targets=host-x86_64-unknown-linux-gnu,hipv4-amdgcn-amd-amdhsa--gfx908,hipv4-amdgcn-amd-amdhsa--gfx90a

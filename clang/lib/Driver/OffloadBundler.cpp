@@ -137,9 +137,9 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
 
   // SYCL bundle entry IDs use a 3-component triple followed by the target ID,
   // e.g. sycl-spir64_gen-unknown-unknown-pvc, so the last component is the
-  // target ID rather than the environment. For spir64_gen, the driver has
-  // already validated the device, which may not be known as an OffloadArch
-  // (e.g. ptl_u), so do not require it to be known by OffloadArch.
+  // target ID rather than the environment. For spir64_gen, the bundler does not
+  // validate the device, which may not be known as an OffloadArch (e.g. ptl_u),
+  // so do not require it to be known by OffloadArch.
   bool IsSPIRGen =
       T.isSPIR() && T.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   if (this->OffloadKind == "sycl" && Components.size() == 5 &&
