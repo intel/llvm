@@ -4,8 +4,8 @@
 
 // Check that vecz handles indirect calls without crashing.
 
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using fn_t = int (*)(int);
 SYCL_EXTERNAL int add1(int x) { return x + 1; }
@@ -24,11 +24,13 @@ int main() {
   q.submit([&](sycl::handler &h) {
     sycl::accessor s(sel, h, sycl::read_only);
     sycl::accessor o(out, h, sycl::write_only);
-    h.parallel_for<class IndirectCall>(sycl::nd_range<1>(sycl::range<1>(16), sycl::range<1>(8)), [=](sycl::nd_item<1> item) {
-      sycl::id<1> i = item.get_global_id();
-      fn_t f = s[i] ? add1 : mul2;
-      o[i] = f(i[0] + 3); // + 3 because 1 + 1 == 1 * 2
-    });
+    h.parallel_for<class IndirectCall>(
+        sycl::nd_range<1>(sycl::range<1>(16), sycl::range<1>(8)),
+        [=](sycl::nd_item<1> item) {
+          sycl::id<1> i = item.get_global_id();
+          fn_t f = s[i] ? add1 : mul2;
+          o[i] = f(i[0] + 3); // + 3 because 1 + 1 == 1 * 2
+        });
   });
   sycl::host_accessor o(out, sycl::read_only);
   int error = 0;
