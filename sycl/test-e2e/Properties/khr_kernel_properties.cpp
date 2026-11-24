@@ -1,6 +1,9 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=incorrect-sub-group-size -o %t.out
 // RUN: %{run} %t.out
-//
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // Checks that the sycl_khr_kernel_properties properties embedded in a kernel
 // have the same effect as the equivalent kernel attributes, including on the
 // kernel information queries and is_compatible. Every get member is declared
