@@ -219,29 +219,23 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
-static bool
-supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
-#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
-  constexpr const char *ExtensionName =
-      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+static bool supportsDriverExtension(ur_platform_handle_t Platform,
+                                    const char *ExtensionName) {
   constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
-
   auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
   return Extension != Platform->zeDriverExtensionMap.end() &&
          Extension->second >= MinVersion;
+}
+
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  return supportsDriverExtension(Platform,
+                                 ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME);
 #else
   std::ignore = Platform;
   return false;
 #endif
-}
-
-static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
-  constexpr const char *ExtensionName = UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME;
-  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
-
-  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
-  return Extension != Platform->zeDriverExtensionMap.end() &&
-         Extension->second >= MinVersion;
 }
 
 static std::optional<uint64_t>
@@ -1631,7 +1625,8 @@ ur_result_t urDeviceGetInfo(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   case UR_DEVICE_INFO_IGCA_TARGET:
   case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
-    if (supportsDeviceIgcaTargetExtension(Device->Platform)) {
+    if (supportsDriverExtension(Device->Platform,
+                                UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME)) {
       const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
       // A device implementing no IGCA feature set has no IGCA target.
       if (IgcaProperties.featureSets != 0) {
@@ -2116,7 +2111,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceIgcaTargetProperties.Compute =
       [ZeDevice, Platform = Platform](
           ZexStruct<ur_ze_device_igca_target_ext_properties_t> &Properties) {
-        if (!supportsDeviceIgcaTargetExtension(Platform))
+        if (!supportsDriverExtension(Platform,
+                                     UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME))
           return; // leave the target and the feature sets zero-initialized
         ZeStruct<ze_device_module_properties_t> P;
         P.pNext = &Properties;
