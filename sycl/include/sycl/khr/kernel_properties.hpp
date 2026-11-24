@@ -12,10 +12,10 @@
 // machinery that extracts properties embedded in a named function object via
 // a `get(khr::property::tag::kernel) const` member function.
 //
-// The embedded properties reuse the compile-time property infrastructure of
-// sycl_ext_oneapi_kernel_properties: each khr property is lowered to the same
-// IR attribute as its oneapi counterpart (see `PropertyMetaInfo` below), so the
-// existing device lowering and kernel information queries apply unchanged.
+// The embedded properties are converted to their
+// sycl_ext_oneapi_kernel_properties counterparts and merged with the other
+// kernel properties, so the existing device lowering and kernel information
+// queries apply unchanged.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,7 +25,6 @@
 
 #include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/feature_test.hpp> // for SYCL_KHR_KERNEL_PROPERTIES
 #include <sycl/khr/properties.hpp>
 
@@ -118,9 +117,7 @@ struct is_property_key_for<property::key::sub_group_size, property::tag::kernel>
 namespace property::detail {
 
 // Maps each khr kernel property to the equivalent
-// sycl_ext_oneapi_kernel_properties property. Used where the kernel properties
-// have to be handed over to code paths that only understand oneapi property
-// lists (e.g. reductions, where the user's function object is wrapped).
+// sycl_ext_oneapi_kernel_properties property.
 template <typename Property> struct to_oneapi_kernel_property;
 template <std::size_t... Dims>
 struct to_oneapi_kernel_property<work_group_size_property<Dims...>> {
@@ -136,34 +133,33 @@ struct to_oneapi_kernel_property<sub_group_size_property<Size>> {
   using type = ext::oneapi::experimental::sub_group_size_key::value_t<Size>;
 };
 
-// Return type of `declval<T>().get(tag::kernel{})`, if well formed.
+// Return type of `declval<T>().get(tag::kernel{})`, if well formed, without
+// cv-qualifiers: `get` may be declared to return the type of a property
+// variable, e.g. `decltype(work_group_size<8>)`, which is const.
 template <typename T, typename = void>
 struct has_kernel_properties_get : std::false_type {};
 template <typename T>
 struct has_kernel_properties_get<T, std::void_t<decltype(std::declval<T>().get(
                                         std::declval<tag::kernel>()))>>
     : std::true_type {
-  using return_type =
-      decltype(std::declval<T>().get(std::declval<tag::kernel>()));
+  using return_type = std::remove_cv_t<decltype(std::declval<T>().get(
+      std::declval<tag::kernel>()))>;
 };
 
-// Unpacks a property or property list into `Pack<Properties...>`.
-template <template <typename...> class Pack, typename R, typename = void>
-struct unpack_kernel_properties {
-  using type = Pack<>;
+// The sycl_ext_oneapi_kernel_properties property list equivalent to the khr
+// property or property list `R`.
+template <typename R, typename = void> struct to_oneapi_kernel_properties {
+  using type = ext::oneapi::experimental::empty_properties_t;
 };
-template <template <typename...> class Pack, typename... Ps>
-struct unpack_kernel_properties<Pack, properties<Ps...>> {
-  using type = Pack<Ps...>;
-};
-template <template <typename...> class Pack, typename R>
-struct unpack_kernel_properties<Pack, R, std::enable_if_t<is_property_v<R>>> {
-  using type = Pack<R>;
-};
-
-template <typename... Ps> struct oneapi_kernel_properties_of {
+template <typename... Ps>
+struct to_oneapi_kernel_properties<properties<Ps...>> {
   using type = decltype(ext::oneapi::experimental::properties{
       typename to_oneapi_kernel_property<Ps>::type{}...});
+};
+template <typename R>
+struct to_oneapi_kernel_properties<R, std::enable_if_t<is_property_v<R>>> {
+  using type = decltype(ext::oneapi::experimental::properties{
+      typename to_oneapi_kernel_property<R>::type{}});
 };
 
 // The kernel properties embedded in the (decayed) kernel function object type
@@ -187,27 +183,24 @@ public:
   using return_type = typename return_type_of<const_get>::type;
   static constexpr bool is_valid =
       is_property_or_list_for_v<return_type, tag::kernel>;
+  static constexpr bool has_valid_get = const_get::value && is_valid;
 
-  // `Pack<Properties...>` with the embedded properties. Empty if there is no
-  // (valid) getter, so that only the diagnostics below are reported.
-  template <template <typename...> class Pack>
-  using unpack_t = typename unpack_kernel_properties<
-      Pack, std::conditional_t<is_valid, return_type, properties<>>>::type;
-
-  // The equivalent sycl_ext_oneapi_kernel_properties property list.
-  using oneapi_properties_t =
-      typename unpack_t<oneapi_kernel_properties_of>::type;
+  // The equivalent sycl_ext_oneapi_kernel_properties property list. Empty if
+  // there is no (valid) getter, so that only the diagnostics below are
+  // reported.
+  using oneapi_properties_t = typename to_oneapi_kernel_properties<
+      std::conditional_t<is_valid, return_type, properties<>>>::type;
 };
 
 template <typename KernelType>
 using embedded_kernel_properties = embedded_kernel_properties_impl<
     std::remove_cv_t<std::remove_reference_t<KernelType>>>;
 
-// Library-side diagnostics of the extension. Conflicts between the embedded
-// properties and kernel attributes, or properties embedded via
-// get(sycl::ext::oneapi::experimental::properties_tag), are diagnosed by the
-// device compiler.
-template <typename KernelType> constexpr void diagnose_kernel_properties_get() {
+// Library-side diagnostics of the getter of the (decayed) kernel function
+// object type `KernelType`. Conflicts between the embedded properties and
+// kernel attributes are diagnosed by the device compiler.
+template <typename KernelType>
+constexpr void diagnose_embedded_kernel_properties() {
   using Props = embedded_kernel_properties_impl<KernelType>;
   static_assert(!Props::has_non_const_get,
                 "get(sycl::khr::property::tag::kernel) member in kernel "
@@ -219,37 +212,8 @@ template <typename KernelType> constexpr void diagnose_kernel_properties_get() {
                 "sycl::khr::property::tag::kernel> is true.");
 }
 
-template <typename KernelType>
-constexpr void diagnose_embedded_kernel_properties() {
-  diagnose_kernel_properties_get<
-      std::remove_cv_t<std::remove_reference_t<KernelType>>>();
-}
-
 } // namespace property::detail
 } // namespace khr
-
-namespace ext::oneapi::experimental::detail {
-// The khr kernel properties lower to the same IR attributes as their
-// sycl_ext_oneapi_kernel_properties counterparts.
-template <size_t Dim0, size_t... Dims>
-struct PropertyMetaInfo<
-    khr::property::detail::work_group_size_property<Dim0, Dims...>> {
-  static constexpr const char *name = "sycl-work-group-size";
-  static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
-};
-template <size_t Dim0, size_t... Dims>
-struct PropertyMetaInfo<
-    khr::property::detail::work_group_size_hint_property<Dim0, Dims...>> {
-  static constexpr const char *name = "sycl-work-group-size-hint";
-  static constexpr const char *value = SizeListToStr<Dim0, Dims...>::value;
-};
-template <uint32_t Size>
-struct PropertyMetaInfo<khr::property::detail::sub_group_size_property<Size>> {
-  static constexpr const char *name = "sycl-sub-group-size";
-  static constexpr uint32_t value = Size;
-};
-} // namespace ext::oneapi::experimental::detail
-
 } // namespace _V1
 } // namespace sycl
 

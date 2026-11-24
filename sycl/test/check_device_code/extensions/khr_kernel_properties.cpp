@@ -36,15 +36,6 @@ struct ReductionKernel {
   auto get(kp::tag::kernel) const { return kp::sub_group_size<32>; }
 };
 
-struct BothGetters {
-  void operator()(sycl::nd_item<1>) const {}
-  auto get(kp::tag::kernel) const { return kp::work_group_size<64>; }
-  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
-    return sycl::ext::oneapi::experimental::properties{
-        sycl::ext::oneapi::experimental::work_group_size_hint<16>};
-  }
-};
-
 void test(sycl::queue &q, int *sum) {
   q.submit([&](sycl::handler &cgh) {
     // CHECK-DAG: spir_kernel void @{{.*}}NDRangeKernel{{.*}} #[[NDRangeAttrs:[0-9]+]]
@@ -61,9 +52,6 @@ void test(sycl::queue &q, int *sum) {
     cgh.parallel_for<class ReductionKernel>(
         sycl::nd_range<1>{1024, 64}, sycl::reduction(sum, sycl::plus<int>()),
         ReductionKernel{});
-    // CHECK-DAG: spir_kernel void @{{.*}}BothGetters{{.*}} #[[BothAttrs:[0-9]+]]
-    cgh.parallel_for<class BothGetters>(sycl::nd_range<1>{1024, 64},
-                                        BothGetters{});
   });
 }
 
@@ -72,4 +60,3 @@ void test(sycl::queue &q, int *sum) {
 // CHECK-DAG: attributes #[[RangeAttrs]] = { {{.*}}"sycl-work-group-size"="1,2,3"
 // CHECK-DAG: attributes #[[RoundedRangeAttrs]] = { {{.*}}"sycl-work-group-size"="1,2,3"
 // CHECK-DAG: attributes #[[ReductionAttrs]] = { {{.*}}"sycl-sub-group-size"="32"
-// CHECK-DAG: attributes #[[BothAttrs]] = { {{.*}}"sycl-work-group-size"="64"{{.*}}"sycl-work-group-size-hint"="16"

@@ -5920,7 +5920,6 @@ void SemaSYCL::MarkDevices() {
       PropagateAndDiagnoseDeviceAttr(*this, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());
     checkSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
-    checkSYCLKhrKernelPropertiesAttrConflicts(T.GetSYCLKernel());
   }
 }
 

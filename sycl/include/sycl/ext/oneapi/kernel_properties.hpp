@@ -162,55 +162,18 @@ struct HasKernelPropertiesGetMethod<T,
 };
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-// True if `GetProps` (the properties embedded via get(properties_tag)) has a
-// property with the key of `KhrProp` (the oneapi equivalent of a property
-// embedded via get(sycl::khr::property::tag::kernel)) but a different value.
-template <typename GetProps, typename KhrProp,
-          bool = GetProps::template has_property<typename KhrProp::key_t>()>
-struct KhrKernelPropertyConflicts : std::false_type {};
-template <typename GetProps, typename KhrProp>
-struct KhrKernelPropertyConflicts<GetProps, KhrProp, true>
-    : std::bool_constant<!std::is_same_v<
-          std::remove_cv_t<decltype(GetProps::template get_property<
-                                    typename KhrProp::key_t>())>,
-          KhrProp>> {};
-
-template <typename GetProps, typename KhrProps>
-struct KhrKernelPropertiesConflict : std::false_type {};
-template <typename GetProps, typename... KhrProps>
-struct KhrKernelPropertiesConflict<GetProps, properties_t<KhrProps...>>
-    : std::bool_constant<(
-          KhrKernelPropertyConflicts<GetProps, KhrProps>::value || ...)> {};
-
-// True if a property embedded via get(sycl::khr::property::tag::kernel) has a
-// different value than the same property embedded via get(properties_tag).
-template <typename KernelType, typename = void>
-struct HasConflictingKhrKernelProperties : std::false_type {};
-template <typename KernelType>
-struct HasConflictingKhrKernelProperties<
-    KernelType,
-    std::enable_if_t<HasKernelPropertiesGetMethod<const KernelType &>::value &&
-                     is_property_list_v<typename HasKernelPropertiesGetMethod<
-                         const KernelType &>::properties_t>>>
-    : KhrKernelPropertiesConflict<
-          typename HasKernelPropertiesGetMethod<
-              const KernelType &>::properties_t,
-          typename khr::property::detail::embedded_kernel_properties<
-              KernelType>::oneapi_properties_t> {};
-
-template <typename KernelType>
-inline constexpr bool HasConflictingKhrKernelPropertiesV =
-    HasConflictingKhrKernelProperties<
-        std::remove_cv_t<std::remove_reference_t<KernelType>>>::value;
-
-template <typename KernelType>
-constexpr void diagnoseConflictingKhrKernelProperties() {
-  static_assert(!HasConflictingKhrKernelPropertiesV<KernelType>,
-                "A kernel property embedded via "
-                "get(sycl::khr::property::tag::kernel) conflicts with the same "
-                "property embedded via "
-                "get(sycl::ext::oneapi::experimental::properties_tag) with a "
-                "different value.");
+// Library-side diagnostics of the sycl_khr_kernel_properties getter of the
+// (decayed) kernel function object type `KernelType`. A kernel function object
+// must not embed properties via both get(properties_tag) and
+// get(sycl::khr::property::tag::kernel).
+template <typename KernelType> constexpr void diagnoseKhrKernelProperties() {
+  khr::property::detail::diagnose_embedded_kernel_properties<KernelType>();
+  static_assert(
+      !(HasKernelPropertiesGetMethod<KernelType>::value &&
+        khr::property::detail::has_kernel_properties_get<KernelType>::value),
+      "A kernel function object must not embed kernel properties via both "
+      "get(sycl::ext::oneapi::experimental::properties_tag) and "
+      "get(sycl::khr::property::tag::kernel).");
 }
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
@@ -218,29 +181,24 @@ template <typename... RestT>
 auto RetrieveGetMethodPropertiesOrEmpty(RestT &&...Rest) {
   auto Identity = [](const auto &x) -> decltype(auto) { return x; };
   const auto &KernelObj = (Identity(Rest), ...);
-  auto Props = [&]() {
-    if constexpr (ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<decltype(KernelObj)>::value)
-      return KernelObj.get(ext::oneapi::experimental::properties_tag{});
-    else
-      return ext::oneapi::experimental::empty_properties_t{};
-  }();
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   // The kernel function object is wrapped (e.g. by reductions), so the
   // properties embedded via the sycl_khr_kernel_properties getter are handed
   // over as their oneapi equivalents.
-  khr::property::detail::diagnose_embedded_kernel_properties<
-      decltype(KernelObj)>();
-  diagnoseConflictingKhrKernelProperties<decltype(KernelObj)>();
-  using KhrProps = typename khr::property::detail::embedded_kernel_properties<
-      decltype(KernelObj)>::oneapi_properties_t;
-  if constexpr (!HasConflictingKhrKernelPropertiesV<decltype(KernelObj)>)
-    return merge_properties(Props, KhrProps{});
-  else
-    return Props;
+  diagnoseKhrKernelProperties<
+      std::remove_cv_t<std::remove_reference_t<decltype(KernelObj)>>>();
+  using EmptyOrKhrProps =
+      typename khr::property::detail::embedded_kernel_properties<
+          decltype(KernelObj)>::oneapi_properties_t;
 #else
-  return Props;
+  using EmptyOrKhrProps = ext::oneapi::experimental::empty_properties_t;
 #endif
+  if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+                    decltype(KernelObj)>::value) {
+    return KernelObj.get(ext::oneapi::experimental::properties_tag{});
+  } else {
+    return EmptyOrKhrProps{};
+  }
 }
 
 } // namespace detail

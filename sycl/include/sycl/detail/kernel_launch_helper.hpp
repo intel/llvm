@@ -21,7 +21,6 @@
 #include <sycl/ext/oneapi/kernel_properties.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/kernel_handler.hpp>
-#include <sycl/khr/kernel_properties.hpp>
 
 #include <assert.h>
 #include <optional>
@@ -37,7 +36,15 @@ enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
 // getter.
 template <typename KernelType, typename PropertiesT, typename Cond = void>
 struct GetMergedKernelProperties {
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // Properties embedded via `get(sycl::khr::property::tag::kernel) const`
+  // (sycl_khr_kernel_properties), as their oneapi equivalents.
+  using type = ext::oneapi::experimental::detail::merged_properties_t<
+      PropertiesT, typename khr::property::detail::embedded_kernel_properties<
+                       KernelType>::oneapi_properties_t>;
+#else
   using type = PropertiesT;
+#endif
 };
 template <typename KernelType, typename PropertiesT>
 struct GetMergedKernelProperties<
@@ -54,22 +61,6 @@ struct GetMergedKernelProperties<
   using type = ext::oneapi::experimental::detail::merged_properties_t<
       PropertiesT, get_method_properties>;
 };
-
-// Properties embedded via `get(sycl::khr::property::tag::kernel) const`
-// (sycl_khr_kernel_properties). They are kept separate from the oneapi
-// properties and passed, as they are, after them to the `kernel_*` entry
-// points below, so that the device compiler can tell which properties came
-// from that getter and diagnose conflicts with kernel attributes.
-template <typename... Props> struct KhrKernelPropertiesPack {};
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-template <typename KernelType>
-using GetKhrKernelProperties =
-    typename khr::property::detail::embedded_kernel_properties<
-        KernelType>::template unpack_t<KhrKernelPropertiesPack>;
-#else
-template <typename KernelType>
-using GetKhrKernelProperties = KhrKernelPropertiesPack<>;
-#endif
 
 struct KernelWrapperHelperFuncs {
 
@@ -221,16 +212,14 @@ template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
           typename ElementType,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename MergedPropertiesT = typename detail::
-              GetMergedKernelProperties<KernelType, PropertiesT>::type,
-          typename KhrPropertiesT = GetKhrKernelProperties<KernelType>>
+              GetMergedKernelProperties<KernelType, PropertiesT>::type>
 struct KernelWrapper;
 template <WrapAs WrapAsVal, typename KernelName, typename KernelType,
-          typename ElementType, typename PropertiesT, typename... MergedProps,
-          typename... KhrProps>
+          typename ElementType, typename PropertiesT, typename... MergedProps>
 struct KernelWrapper<
     WrapAsVal, KernelName, KernelType, ElementType, PropertiesT,
-    ext::oneapi::experimental::detail::properties_t<MergedProps...>,
-    KhrKernelPropertiesPack<KhrProps...>> : public KernelWrapperHelperFuncs {
+    ext::oneapi::experimental::detail::properties_t<MergedProps...>>
+    : public KernelWrapperHelperFuncs {
 
   static void wrap([[maybe_unused]] const KernelType &KernelFunc) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -248,20 +237,20 @@ struct KernelWrapper<
         "get(sycl::ext::oneapi::experimental::properties_tag) member in "
         "kernel functor class must be declared as a const member function");
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
-    khr::property::detail::diagnose_embedded_kernel_properties<KernelType>();
-    ext::oneapi::experimental::detail::diagnoseConflictingKhrKernelProperties<
+    ext::oneapi::experimental::detail::diagnoseKhrKernelProperties<
         KernelType>();
 #endif
     auto L = [&](auto &&...args) {
       if constexpr (WrapAsVal == WrapAs::single_task) {
-        kernel_single_task<KernelName, KernelType, MergedProps..., KhrProps...>(
+        kernel_single_task<KernelName, KernelType, MergedProps...>(
             std::forward<decltype(args)>(args)...);
       } else if constexpr (WrapAsVal == WrapAs::parallel_for) {
-        kernel_parallel_for<KernelName, ElementType, KernelType, MergedProps...,
-                            KhrProps...>(std::forward<decltype(args)>(args)...);
+        kernel_parallel_for<KernelName, ElementType, KernelType,
+                            MergedProps...>(
+            std::forward<decltype(args)>(args)...);
       } else if constexpr (WrapAsVal == WrapAs::parallel_for_work_group) {
         kernel_parallel_for_work_group<KernelName, ElementType, KernelType,
-                                       MergedProps..., KhrProps...>(
+                                       MergedProps...>(
             std::forward<decltype(args)>(args)...);
       } else {
         // Always false, but template-dependent. Can't compare `WrapAsVal`
