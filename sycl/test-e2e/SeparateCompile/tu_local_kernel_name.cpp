@@ -42,7 +42,7 @@
 #include <iostream>
 
 constexpr int NumTUs = 2;
-constexpr int NumTests = 4;
+constexpr int NumTests = 5;
 
 void runTU1(sycl::queue &q, int *Res);
 void runTU2(sycl::queue &q, int *Res);
@@ -89,6 +89,7 @@ void runTU2(sycl::queue &q, int *Res) {
   q.single_task(AnonFunctor{Res + 1}).wait();
   internalLinkage(q, Res + 2);
   rangeRounding<Anonymous>(q, Res + 3);
+  q.single_task<KAnon *>([Res] { Res[4] = TU; }).wait();
 }
 
 #else // TU == 0
