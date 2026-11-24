@@ -96,12 +96,14 @@ list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 # This is very hacky and I don't quite know what I'm doing, but it's necessary
 # to have `resource.cpp` re-generated/re-built when some SYCL header changes.
 #
-# Inspired by the way `sycl-headers` target is created.
-file(GLOB_RECURSE SYCL_JIT_RESOURCE_FILES CONFIGURE_DEPENDS "${SYCL_JIT_RESOURCE_INSTALL_DIR}/*" )
+# The manifest holds the installed files' hashes, rewritten only on change.
+set(SYCL_JIT_RESOURCE_FILES "${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-manifest.txt")
 
 add_custom_target(rtc-prepare-resources
   DEPENDS ${SYCL_JIT_RESOURCE_DEPS}
+  COMMAND ${CMAKE_COMMAND} -E rm -rf ${SYCL_JIT_RESOURCE_INSTALL_DIR}
   ${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}
+  COMMAND ${CMAKE_COMMAND} -DDIR=${SYCL_JIT_RESOURCE_INSTALL_DIR} -DMANIFEST=${SYCL_JIT_RESOURCE_FILES} -P ${CMAKE_CURRENT_SOURCE_DIR}/utils/resource-manifest.cmake
   BYPRODUCTS
   ${SYCL_JIT_RESOURCE_FILES}
 )
