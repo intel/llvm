@@ -1,10 +1,25 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests std::complex<float> arithmetic and mathematical functions in SYCL
+/// device kernels. Compares results with reference values, including zero,
+/// infinity, and exponential-overflow cases. On non-Windows platforms, also
+/// exercises additional transcendental functions and multiplication/division
+/// across finite, infinite, and NaN inputs.
+/// Windows requires FP64 support because MSVC uses double internally.
+///
+//===----------------------------------------------------------------------===//
 // TODO: Remove 'UNSUPPORTED' below once
 // https://github.com/llvm/llvm-project/pull/218528 lands and cherry-picked to
 // intel/llvm.
 // UNSUPPORTED: new-offload-model
 // UNSUPPORTED-TRACKER: CMPLRLLVM-78263
-// XFAIL: windows && run-mode && cuda
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23547
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 // RUN: %{build} %{mathflags} -o %t1.out
 // RUN: %{run} %t1.out
