@@ -23,9 +23,10 @@
 ///
 /// SYCL_EXTERNAL is only defined if the implementation supports external
 /// linkage (SYCL 2020 5.6), so it is never predefined without relocatable
-/// device code.
-// RUN: %clang_cc1 %s -fsycl-is-device -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s
-// RUN: %clang_cc1 %s -fsycl-is-host -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s
+/// device code. With relocatable device code it is defined in both the device
+/// and the host pass, so that its definition agrees across the compilation.
+// RUN: %clang_cc1 %s -fsycl-is-device -fgpu-rdc -E -dM | FileCheck --check-prefixes=CHECK-RDC,CHECK-RDC-DEVICE %s
+// RUN: %clang_cc1 %s -fsycl-is-host -fgpu-rdc -E -dM | FileCheck --check-prefixes=CHECK-RDC,CHECK-RDC-HOST %s
 // RUN: %clang_cc1 %s -fsycl-is-device -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s \
 // RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
 // RUN: %clang_cc1 %s -fsycl-is-host -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s \
@@ -36,32 +37,12 @@
 // RUN: %clang_cc1 %s -x hip -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s \
 // RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
 
-/// The definition of SYCL_EXTERNAL must agree across every pass of a SYCL
-/// compilation driven by -fsycl. With relocatable device code (-fsycl-rdc, the
-/// default) it is defined in both the device and the host pass; with
-/// -fno-sycl-rdc it is defined in neither. -E with -fsycl bundles the output
-/// of each pass, so the checks below see the device and host passes in turn.
-// RUN: %clangxx -fsycl -E -dM %s | FileCheck --check-prefix=CHECK-DRIVER-RDC %s
-// RUN: %clangxx -fsycl -fsycl-rdc -E -dM %s | FileCheck --check-prefix=CHECK-DRIVER-RDC %s
-// RUN: %clangxx -fsycl -fno-sycl-rdc -E -dM %s | FileCheck --check-prefix=CHECK-DRIVER-NO-RDC %s \
-// RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
-
-// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____START__ sycl-spir64
-// CHECK-DRIVER-RDC: #define SYCL_EXTERNAL __attribute__((sycl_device)){{$}}
-// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____END__ sycl-spir64
-// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____START__ host-
-// CHECK-DRIVER-RDC: #define SYCL_EXTERNAL {{$}}
-// CHECK-DRIVER-RDC: __CLANG_OFFLOAD_BUNDLE____END__ host-
-
-// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____START__ sycl-spir64
-// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____END__ sycl-spir64
-// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____START__ host-
-// CHECK-DRIVER-NO-RDC: __CLANG_OFFLOAD_BUNDLE____END__ host-
-
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 
-// CHECK-RDC:#define __CLANG_RDC__ 1
+// CHECK-RDC-DAG:#define __CLANG_RDC__ 1
+// CHECK-RDC-DEVICE-DAG:#define SYCL_EXTERNAL __attribute__((sycl_device)){{$}}
+// CHECK-RDC-HOST-DAG:#define SYCL_EXTERNAL {{$}}
 // CHECK-NO-RDC-NOT:#define __CLANG_RDC__
 
 // CHECK-SYCL-STD:#define SYCL_LANGUAGE_VERSION 202012L
