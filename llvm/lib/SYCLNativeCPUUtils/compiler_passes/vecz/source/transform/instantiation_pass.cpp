@@ -179,9 +179,8 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
     // be instantiated like any other operand.
     Value *Callee = CI->getCalledOperand();
     const bool VaryingCallee = packetizer.uniform().isVarying(Callee);
-    const PacketRange CalleePacket = VaryingCallee
-                                         ? instantiateInternal(Callee)
-                                         : packetizer.getEmptyRange();
+    const PacketRange CalleePacket = VaryingCallee ? instantiateInternal(Callee)
+                                                   : packetizer.getEmptyRange();
     VECZ_FAIL_IF(VaryingCallee && !CalleePacket);
     PacketRange P = packetizer.createPacket(CI, SimdWidth);
     VECZ_FAIL_IF(!P);
@@ -191,10 +190,9 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
       for (unsigned i = 0; i < CI->arg_size(); i++) {
         Ops.push_back(OpPackets[i][j]);
       }
-      auto *NewCI =
-          B.CreateCall(CI->getFunctionType(),
-                       VaryingCallee ? CalleePacket[j] : Callee, Ops,
-                       CI->getName());
+      auto *NewCI = B.CreateCall(CI->getFunctionType(),
+                                 VaryingCallee ? CalleePacket[j] : Callee, Ops,
+                                 CI->getName());
       NewCI->setCallingConv(CI->getCallingConv());
       NewCI->setAttributes(CI->getAttributes());
       P[j] = NewCI;
