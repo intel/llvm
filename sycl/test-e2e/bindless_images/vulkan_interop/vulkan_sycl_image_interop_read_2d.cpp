@@ -50,6 +50,10 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32x33
 // RUN: %{run} %t.out --type int8 --channels 2 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 32x33
+// CUDA doesn't support unorm8
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32x33
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32x33
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32x33
 // RUN: %{run} %t.out --type float --channels 1 --sampled 32x33
 // RUN: %{run} %t.out --type float --channels 2 --sampled 32x33
 // RUN: %{run} %t.out --type float --channels 4 --sampled 32x33
@@ -74,6 +78,10 @@
 // RUN: %{run} %t.out --type int8 --channels 1 --sampled 32x33
 // RUN: %{run} %t.out --type int8 --channels 2 --sampled 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 --sampled 32x33
+// CUDA doesn't support unorm8
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 --sampled 32x33
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 --sampled 32x33
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 --sampled 32x33
 
 // RUN: %{run} %t.out --type float --channels 1 32x33 --semaphores
 // RUN: %{run} %t.out --type float --channels 4 32x33 --semaphores
@@ -113,6 +121,10 @@
     ./vsr_2d_test.bin --linear --type unorm8 16x16
 
   NOTE: --linear is not currently working with 2D images on Linux
+
+    NOTE on unorm8: the bindless images extension requires normalized channel
+    types (unorm_int8) to be read with a floating point DataT. The kernel reads
+    float/float2/float4 and rescales with round(x * 255) back to uint8_t.
 */
 // clang-format on
 #include <iostream>
@@ -283,6 +295,10 @@ int runTest(
     sycl::image_channel_type syclType = syclOverride.has_value()
                                             ? syclOverride.value()
                                             : getSyclChannelType<T>();
+    // Images with a normalized channel type must be read with a floating
+    // point DataT (sycl_ext_oneapi_bindless_images, "Reading and writing
+    // inside the kernel"); the kernel converts the result back to T.
+    const bool isUnorm8 = syclType == sycl::image_channel_type::unorm_int8;
 
     // When the Vulkan image was created with LINEAR tiling, its row stride is
     // not guaranteed to match SYCL's tightly-packed default. Query Vulkan for
@@ -365,6 +381,23 @@ int runTest(
                outAcc[base + 2] = static_cast<T>(pixel.z());
                outAcc[base + 3] = static_cast<T>(pixel.w());
              }
+           } else if (isUnorm8) {
+             sycl::float4 pixel = syclexp::sample_image<sycl::float4>(
+                 sampledHandle, sycl::float2(coordX, coordY));
+
+             size_t base = (y * width + x) * channels;
+             if (channels >= 1)
+               outAcc[base + 0] =
+                   static_cast<T>(sycl::round(pixel.x() * 255.0f));
+             if (channels >= 2)
+               outAcc[base + 1] =
+                   static_cast<T>(sycl::round(pixel.y() * 255.0f));
+             if (channels >= 4) {
+               outAcc[base + 2] =
+                   static_cast<T>(sycl::round(pixel.z() * 255.0f));
+               outAcc[base + 3] =
+                   static_cast<T>(sycl::round(pixel.w() * 255.0f));
+             }
            } else {
              // Integer types: sample as int4/uint4
              if constexpr (std::is_signed_v<T>) {
@@ -400,7 +433,33 @@ int runTest(
            sycl::int2 coords(x, y);
            size_t base = (y * width + x) * channels;
 
-           if (channels == 1) {
+           if (isUnorm8) {
+             // Normalized channel types must be fetched as float; the driver
+             // returns n/255, so scale back to the stored byte.
+             if (channels == 1) {
+               float pixel =
+                   syclexp::fetch_image<float>(unsampledHandle, coords);
+               outAcc[base] = static_cast<T>(sycl::round(pixel * 255.0f));
+             } else if (channels == 2) {
+               sycl::float2 pixel =
+                   syclexp::fetch_image<sycl::float2>(unsampledHandle, coords);
+               outAcc[base + 0] =
+                   static_cast<T>(sycl::round(pixel.x() * 255.0f));
+               outAcc[base + 1] =
+                   static_cast<T>(sycl::round(pixel.y() * 255.0f));
+             } else if (channels == 4) {
+               sycl::float4 pixel =
+                   syclexp::fetch_image<sycl::float4>(unsampledHandle, coords);
+               outAcc[base + 0] =
+                   static_cast<T>(sycl::round(pixel.x() * 255.0f));
+               outAcc[base + 1] =
+                   static_cast<T>(sycl::round(pixel.y() * 255.0f));
+               outAcc[base + 2] =
+                   static_cast<T>(sycl::round(pixel.z() * 255.0f));
+               outAcc[base + 3] =
+                   static_cast<T>(sycl::round(pixel.w() * 255.0f));
+             }
+           } else if (channels == 1) {
              T pixel = syclexp::fetch_image<T>(unsampledHandle, coords);
              outAcc[base] = pixel;
            } else if (channels == 2) {
