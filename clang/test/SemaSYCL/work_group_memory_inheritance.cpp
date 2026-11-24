@@ -30,6 +30,7 @@ int main() {
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::work_group_memory<int>' 'void () noexcept'
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__local int *)' lvalue .__init {{.*}}
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'sycl::work_group_memory<int>' lvalue <DerivedToBase (work_group_memory)>
 // CHECK-NEXT: MemberExpr {{.*}} 'WorkGroupMemoryDerived' lvalue .DerivedObject
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue Var {{.*}} '__SYCLKernel'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__local int *' <LValueToRValue>

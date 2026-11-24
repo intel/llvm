@@ -88,5 +88,6 @@ int main() {
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{[^,]*}} [[ACC1_FIELD]], ptr addrspace(1) noundef [[ACC1_DATA_LOAD]]
 //
 // CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
+// CHECK: [[ACC2_BASE:%[a-zA-Z0-9_.]+]] = getelementptr inbounds i8, ptr addrspace(4) [[GEP3]], i64 20
 // CHECK: [[ACC2_DATA_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[ACC2_DATA]].addr.ascast
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{[^,]*}}, ptr addrspace(1) noundef [[ACC2_DATA_LOAD]]
+// CHECK: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{[^,]*}} [[ACC2_BASE]], ptr addrspace(1) noundef [[ACC2_DATA_LOAD]]
