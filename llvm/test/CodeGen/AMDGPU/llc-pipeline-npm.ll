@@ -34,6 +34,7 @@
 ; GCN-O0-NEXT:   ee-instrument<post-inline>
 ; GCN-O0-NEXT:   scalarize-masked-mem-intrin
 ; GCN-O0-NEXT:   expand-reductions
+; GCN-O0-NEXT:   fpbuiltin-fn-selection
 ; GCN-O0-NEXT:   amdgpu-lower-kernel-arguments
 ; GCN-O0-NEXT: amdgpu-lower-buffer-fat-pointers
 ; GCN-O0-NEXT: amdgpu-lower-intrinsics
@@ -153,6 +154,7 @@
 ; GCN-O2-NEXT:   scalarize-masked-mem-intrin
 ; GCN-O2-NEXT:   expand-reductions
 ; GCN-O2-NEXT:   early-cse<>
+; GCN-O2-NEXT:   fpbuiltin-fn-selection
 ; GCN-O2-NEXT: amdgpu-preload-kernel-arguments
 ; GCN-O2-NEXT: function
 ; GCN-O2-NEXT:   amdgpu-lower-kernel-arguments
@@ -342,6 +344,7 @@
 ; GCN-O3-NEXT:   scalarize-masked-mem-intrin
 ; GCN-O3-NEXT:   expand-reductions
 ; GCN-O3-NEXT:   gvn<>
+; GCN-O3-NEXT:   fpbuiltin-fn-selection
 ; GCN-O3-NEXT: amdgpu-preload-kernel-arguments
 ; GCN-O3-NEXT: function
 ; GCN-O3-NEXT:   amdgpu-lower-kernel-arguments

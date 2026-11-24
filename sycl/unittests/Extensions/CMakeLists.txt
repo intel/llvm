@@ -5,6 +5,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DefaultContext.cpp
   DeviceIsIntegratedGPU.cpp
   DeviceArchitecture.cpp
+  DeviceArchitectureIPVersion.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
   DeviceGlobalStaleProgramHandle.cpp
@@ -31,6 +32,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   RegisterHostMemory.cpp
   ReusableEvents.cpp
   AsyncAlloc.cpp
+  DeviceImageBackendContent.cpp
 )
 
 add_subdirectory(BindlessImages)

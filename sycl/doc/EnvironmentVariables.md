@@ -263,7 +263,7 @@ Supported tracing levels are in the table below
 
 | Option | Description |
 | ------ | ----------- |
-| 1 | Enable basic tracing, which is tracing of UR adapters/devices discovery |
+| 1 | Enable basic tracing, which is tracing of UR adapters/devices discovery. This sets `UR_LOG_LOADER` and, unless they are already set, the UR adapter loggers (`UR_LOG_OPENCL`, `UR_LOG_CUDA`, `UR_LOG_HIP`, `UR_LOG_LEVEL_ZERO`, `UR_LOG_NATIVE_CPU`, `UR_LOG_OFFLOAD`) to `level:info;output:stdout` |
 | 2 | Enable tracing of the UR calls |
 | -1 | Enable all levels of tracing |
 

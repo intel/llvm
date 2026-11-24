@@ -4,6 +4,8 @@
 
 #include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
+#include <cstring>
+#include <limits>
 #include <random>
 
 using namespace llvm;
@@ -271,6 +273,52 @@ void CommonCheck() {
   ASSERT_TRUE(std::unique(ImageIts.begin(), ImageIts.end()) == ImageIts.end());
 }
 
+// Serializes a SYCLBIN holding a single IR module into SYCLBINImage.
+void SerializeSingleIRModuleSYCLBIN(SmallVectorImpl<char> &SYCLBINImage) {
+  SmallString<128> TestDirectory;
+  ASSERT_NO_ERROR(fs::createUniqueDirectory("SYCLBINTest-test", TestDirectory));
+  SmallString<128> File(TestDirectory);
+  llvm::sys::path::append(File, "image_file");
+  Expected<ManagedBinaryFile> ManagedModuleFileOrError =
+      ManagedBinaryFile::create(File, generateRandomImage());
+  ASSERT_THAT_EXPECTED(ManagedModuleFileOrError, Succeeded());
+
+  std::vector<module_split::SplitModule> SplitModules{
+      module_split::SplitModule{File.c_str(), util::PropertySetRegistry{}, ""}};
+  SmallVector<SYCLBIN::SYCLBINModuleDesc> MDs{SYCLBIN::SYCLBINModuleDesc{
+      "", Triple{"spir64-unknown-unknown"}, std::move(SplitModules)}};
+  SYCLBIN::SYCLBINDesc Desc{SYCLBIN::BundleState::Input, MDs};
+  raw_svector_ostream SYCLBINImageOS{SYCLBINImage};
+  ASSERT_THAT_ERROR(SYCLBIN::write(Desc, SYCLBINImageOS), Succeeded());
+}
+
+Expected<std::unique_ptr<SYCLBIN>>
+ReadSYCLBIN(const SmallVectorImpl<char> &SYCLBINImage) {
+  std::unique_ptr<MemoryBuffer> Buffer = MemoryBuffer::getMemBuffer(
+      StringRef{SYCLBINImage.data(), SYCLBINImage.size()}, /*BufferName=*/"",
+      /*RequiresNullTerminator=*/false);
+  return SYCLBIN::read(*Buffer);
+}
+
+// The header structs are private to SYCLBIN, so the tests below patch the
+// serialized image at the on-disk offsets from SYCLBIN.h: FileHeaderType is 56
+// bytes with MetadataByteTableSize at 24 and BinaryByteTableSize at 32; the
+// first AbstractModuleHeaderType follows, starting with MetadataOffset and
+// MetadataSize.
+constexpr size_t FileHeaderSize = 56;
+constexpr size_t MetadataByteTableSizeOffset = 24;
+constexpr size_t BinaryByteTableSizeOffset = 32;
+constexpr size_t FirstAMMetadataOffsetOffset = FileHeaderSize;
+constexpr size_t FirstAMMetadataSizeOffset = FileHeaderSize + 8;
+constexpr uint64_t UInt64Max = std::numeric_limits<uint64_t>::max();
+constexpr char SizeErrorMessage[] = "Unexpected file contents size.";
+
+void PatchUInt64(SmallVectorImpl<char> &SYCLBINImage, size_t Offset,
+                 uint64_t Value) {
+  ASSERT_LE(Offset + sizeof(Value), SYCLBINImage.size());
+  std::memcpy(SYCLBINImage.data() + Offset, &Value, sizeof(Value));
+}
+
 } // namespace
 
 TEST(SYCLBINTest, checkSYCLBINBinaryBasicIRModule) {
@@ -291,4 +339,48 @@ TEST(SYCLBINTest, checkSYCLBINBinaryDoubleBasicNativeDeviceCodeImages) {
 
 TEST(SYCLBINTest, checkSYCLBINBinaryMixBasicImages) {
   CommonCheck</*NumIRModules=*/1, /*NumNativeDeviceCodeImages=*/1>();
+}
+
+TEST(SYCLBINTest, readRejectsTruncatedImage) {
+  SmallString<0> SYCLBINImage;
+  ASSERT_NO_FATAL_FAILURE(SerializeSingleIRModuleSYCLBIN(SYCLBINImage));
+  ASSERT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage), Succeeded());
+
+  SYCLBINImage.resize(SYCLBINImage.size() - 8);
+  EXPECT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage),
+                       FailedWithMessage(SizeErrorMessage));
+}
+
+TEST(SYCLBINTest, readRejectsWrappingMetadataTableSize) {
+  SmallString<0> SYCLBINImage;
+  ASSERT_NO_FATAL_FAILURE(SerializeSingleIRModuleSYCLBIN(SYCLBINImage));
+  ASSERT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage), Succeeded());
+
+  // Aligning this to 8 wraps to 0, so a summed size check would pass it.
+  PatchUInt64(SYCLBINImage, MetadataByteTableSizeOffset, UInt64Max - 3);
+  EXPECT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage),
+                       FailedWithMessage(SizeErrorMessage));
+}
+
+TEST(SYCLBINTest, readRejectsWrappingBinaryTableSize) {
+  SmallString<0> SYCLBINImage;
+  ASSERT_NO_FATAL_FAILURE(SerializeSingleIRModuleSYCLBIN(SYCLBINImage));
+  ASSERT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage), Succeeded());
+
+  // Adding this to the header and metadata sizes wraps below the buffer size.
+  PatchUInt64(SYCLBINImage, BinaryByteTableSizeOffset, UInt64Max - 7);
+  EXPECT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage),
+                       FailedWithMessage(SizeErrorMessage));
+}
+
+TEST(SYCLBINTest, readRejectsWrappingMetadataOffset) {
+  SmallString<0> SYCLBINImage;
+  ASSERT_NO_FATAL_FAILURE(SerializeSingleIRModuleSYCLBIN(SYCLBINImage));
+  ASSERT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage), Succeeded());
+
+  // Offset + size wraps to 8, which the metadata table can hold.
+  PatchUInt64(SYCLBINImage, FirstAMMetadataOffsetOffset, UInt64Max - 7);
+  PatchUInt64(SYCLBINImage, FirstAMMetadataSizeOffset, 16);
+  EXPECT_THAT_EXPECTED(ReadSYCLBIN(SYCLBINImage),
+                       FailedWithMessage(SizeErrorMessage));
 }

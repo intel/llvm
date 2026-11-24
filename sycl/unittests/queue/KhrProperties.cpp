@@ -29,7 +29,7 @@ static_assert(is_property_for_v<kp::enable_profiling, sycl::queue> &&
 static_assert(!is_property_for_v<kp::enable_profiling, OtherClass>);
 // A property list is not itself a property.
 static_assert(!is_property_v<properties<kp::enable_profiling>>);
-static_assert(is_property_list_for_v<
+static_assert(is_property_or_list_for_v<
               decltype(properties{kp::enable_profiling{true}, kp::in_order{}}),
               sycl::queue>);
 static_assert(std::is_trivially_copyable_v<kp::enable_profiling> &&

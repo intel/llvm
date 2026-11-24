@@ -33,6 +33,7 @@
 #include <sycl/sampler.hpp>
 
 #include <cassert>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <vector>
@@ -2059,8 +2060,13 @@ void instrumentationAddExtraKernelMetadata(
       Args.size()};
   xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
   for (size_t i = 0; i < Args.size(); i++) {
-    xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
-                                        Args[i].MSize, Args[i].MIndex};
+    // addMetadata hashes the raw bytes of the struct, so zero the padding too.
+    xpti::offload_kernel_arg_data_t arg;
+    std::memset(static_cast<void *>(&arg), 0, sizeof(arg));
+    arg.type = static_cast<int>(Args[i].MType);
+    arg.pointer = Args[i].MPtr;
+    arg.size = Args[i].MSize;
+    arg.index = Args[i].MIndex;
     xpti::addMetadata(CmdTraceEvent, "arg" + std::to_string(i), arg);
   }
 }
