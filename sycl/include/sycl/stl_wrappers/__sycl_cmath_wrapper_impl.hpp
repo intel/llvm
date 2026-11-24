@@ -476,96 +476,17 @@ _GLIBCXX_END_NAMESPACE_VERSION
 #endif
 
 #if defined(_WIN32)
-union _Dconst2 {
-  unsigned short _Word[2];
-  float _Float;
-};
-
-union _Dconst4 {           // pun float types as integer array
-  unsigned short _Word[4]; // TRANSITION, ABI: Twice as large as necessary.
-  double _Double;
-};
-
-#define INIT2(w0) {0, w0}
-#define INIT4(w0) {0, 0, 0, w0}
-
 __SYCL_DEVICE_C double _Cosh(double x, double y) { return cosh(x) * y; }
 __SYCL_DEVICE_C float _FCosh(float x, float y) { return coshf(x) * y; }
 __SYCL_DEVICE_C short _Dtest(double *p) { return fpclassify(*p); }
 __SYCL_DEVICE_C short _FDtest(float *p) { return fpclassify(*p); }
-__SYCL_DEVICE_C double _Sinh(double x,
-                             double y) { // compute y * sinh(x), |y| <= 1
-  if (isinf(x) && y == 0)
-    return __builtin_signbit(x) ? -y : y;
-  return sinh(x) * y;
+__SYCL_DEVICE_C double _Sinh(double x, double y) { return sinh(x) * y; }
+__SYCL_DEVICE_C float _FSinh(float x, float y) { return sinhf(x) * y; }
+__SYCL_DEVICE_C short _Exp(double *px, double y, short eoff) {
+  return exp(*px) * ldexp(y, eoff);
 }
-__SYCL_DEVICE_C float _FSinh(float x,
-                             float y) { // compute y * sinh(x), |y| <= 1
-  if (isinf(x) && y == 0)
-    return __builtin_signbit(x) ? -y : y;
-  return sinhf(x) * y;
-}
-__SYCL_DEVICE_C
-short _Exp(
-    double *px, double y,
-    short eoff) { // compute y * e^(*px) * 2^eoff, (*px) finite, |y| not huge
-  _Dconst4 _Inf = {INIT4(_DMAX << _DOFF)};
-  // c1 + c2 = ln(2)
-  static const double c1 = 22713.0 / 32768.0;
-  static const double c2 = 1.4286068203094172321214581765680755e-6;
-  constexpr double hugexp = (int)(_DMAX * 900L / 1000);
-  static const double invln2 = 1.4426950408889634073599246810018921;
-
-  short ret = 0;
-
-  if (*px < -hugexp || y == 0.0) { // certain underflow
-    *px = copysign(0.0, y);
-  } else if (hugexp < *px) { // certain overflow
-    *px = copysign(_Inf._Double, y);
-    ret = FP_INFINITE;
-  } else { // xexp won't overflow
-    double xexp = round(*px * invln2);
-    // range reduction, g ~ x - round(x/ln2) * ln2
-    double g = fma(-xexp, c1, *px);
-    g = fma(-xexp, c2, g);
-
-    // reconstruct y * e^(g) * 2^(round(x/ln2) + eoff) = y * e^x * 2^eoff,
-    // avoiding premature overflow or underflow
-    *px = ldexp(exp(g) * y, static_cast<int>(xexp) + eoff);
-    ret = fpclassify(*px);
-  }
-  return ret;
-}
-__SYCL_DEVICE_C
-short _FExp(
-    float *px, float y,
-    short eoff) { // compute y * e^(*px) * 2^eoff, (*px) finite, |y| not huge
-  _Dconst2 _FInf = {INIT2(_FMAX << _FOFF)};
-  // c1 + c2 = ln(2)
-  constexpr float c1 = (22713.0F / 32768.0F);
-  constexpr float c2 = 1.4286068203094172321214581765680755e-6F;
-  constexpr float hugexp = static_cast<int>(_FMAX * 900L / 1000);
-  constexpr float invln2 = 1.4426950408889634073599246810018921F;
-
-  short ret = 0;
-
-  if (*px < -hugexp || y == 0.0F) { // certain underflow
-    *px = copysign(0.0F, y);
-  } else if (hugexp < *px) { // certain overflow
-    *px = copysign(_FInf._Float, y);
-    ret = FP_INFINITE;
-  } else { // xexp won't overflow
-    float xexp = roundf(*px * invln2);
-    // range reduction, g ~ x - round(x/ln2) * ln2
-    float g = fmaf(-xexp, c1, *px);
-    g = fmaf(-xexp, c2, g);
-
-    // reconstruct y * e^(g) * 2^(round(x/ln2) + eoff) = y * e^x * 2^eoff,
-    // avoiding premature overflow or underflow
-    *px = ldexpf(expf(g) * y, static_cast<int>(xexp) + eoff);
-    ret = fpclassify(*px);
-  }
-  return ret;
+__SYCL_DEVICE_C short _FExp(float *px, float y, short eoff) {
+  return exp(*px) * ldexp(y, eoff);
 }
 __SYCL_DEVICE_C float _hypotf(float x, float y) { return hypotf(x, y); }
 __SYCL_DEVICE_C int _fdsign(float x) { return __builtin_signbit(x); }
