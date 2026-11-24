@@ -11,12 +11,14 @@ namespace kp = sycl::khr::property;
 using namespace sycl::khr;
 
 struct AttributeMismatch {
+  // clang-format off
   // expected-error@+3 {{'sycl::reqd_work_group_size' attribute arguments '32' do not match the value '64' of kernel property 'work_group_size'}}
   // expected-error@+3 {{'sycl::work_group_size_hint' attribute arguments '64,1' do not match the value '64' of kernel property 'work_group_size_hint'}}
   // expected-error@+3 {{'sycl::reqd_sub_group_size' attribute arguments '8' do not match the value '16' of kernel property 'sub_group_size'}}
   [[sycl::reqd_work_group_size(32)]]
   [[sycl::work_group_size_hint(64, 1)]]
   [[sycl::reqd_sub_group_size(8)]] void operator()(sycl::nd_item<1>) const {}
+  // clang-format on
   auto get(kp::tag::kernel) const {
     return properties{kp::work_group_size<64>, kp::work_group_size_hint<64>,
                       kp::sub_group_size<16>};
