@@ -181,8 +181,6 @@ public:
 
   /// Queries a characteristic of this graph.
   ///
-  /// Descriptors report the graph's effective state rather than the contents
-  /// of the property list it was constructed with.
   /// @tparam Param One of the descriptors in the `info::graph` namespace which
   /// is valid in the modifiable state.
   /// @return The value of the queried characteristic.
@@ -191,10 +189,12 @@ public:
     static_assert(detail::is_graph_info_desc<Param>::value,
                   "Param must be one of the info descriptors in the "
                   "sycl::ext::oneapi::experimental::info::graph namespace.");
+
     static_assert(
         detail::graph_info_desc<Param, graph_state::modifiable>::valid,
-        "This info descriptor is not valid for a command_graph in "
-        "the graph_state::modifiable state.");
+        "This info descriptor is not valid for a graph in "
+        "the modifiable state.");
+
     return static_cast<typename Param::return_type>(getInfoImpl(
         detail::graph_info_desc<Param, graph_state::modifiable>::kind));
   }
@@ -242,11 +242,6 @@ protected:
 
   void setDestructionCallbackImpl(std::function<void()> Callback);
 
-  /// Templateless implementation of get_info(). Every graph descriptor is
-  /// scalar, so all of them share this one exported entry point and are
-  /// returned widened to uint64_t.
-  /// @param Kind Which characteristic to report.
-  /// @return The characteristic's value, widened to uint64_t.
   uint64_t getInfoImpl(detail::graph_info_kind Kind) const noexcept;
 
   std::shared_ptr<detail::graph_impl> impl;

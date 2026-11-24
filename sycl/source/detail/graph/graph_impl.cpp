@@ -2384,8 +2384,6 @@ size_t modifiable_command_graph::get_id() const noexcept {
 
 uint64_t modifiable_command_graph::getInfoImpl(
     detail::graph_info_kind Kind) const noexcept {
-  // No lock is taken: every characteristic reported here is immutable after
-  // graph construction.
   switch (Kind) {
   case detail::graph_info_kind::recording_mode: {
     const bool IsNative = isNativeRecordingEnabledForGraph(*impl);
@@ -2393,8 +2391,7 @@ uint64_t modifiable_command_graph::getInfoImpl(
                                           : graph_recording_mode::runtime);
   }
   case detail::graph_info_kind::updatable:
-    // Not valid in the modifiable state, rejected by static_assert in
-    // get_info().
+    // not valid in modifiable state
     break;
   }
   assert(false && "Unhandled graph info descriptor");
@@ -2484,9 +2481,6 @@ size_t executable_command_graph::get_required_mem_size() const {
 
 uint64_t executable_command_graph::getInfoImpl(
     detail::graph_info_kind Kind) const noexcept {
-  // No lock is taken: every characteristic reported here is immutable after
-  // finalization. Note that the recording mode is answered from this graph's
-  // own native handle rather than by reaching through to the parent graph.
   switch (Kind) {
   case detail::graph_info_kind::recording_mode: {
     const bool IsNative = impl->getNativeExecutableGraphHandle() != nullptr;

@@ -1,13 +1,6 @@
 // Tests the command_graph information descriptors:
 //   info::graph::recording_mode (modifiable and executable state)
 //   info::graph::updatable      (executable state)
-//
-// Native recording is exercised by two wrappers under
-// RecordReplay/NativeRecording/: one passing
-// property::graph::enable_native_recording, and one setting
-// SYCL_GRAPH_FORCE_NATIVE_RECORDING=1 with an empty property list. The latter
-// checks that the descriptors report effective state rather than property-list
-// contents.
 
 #include "../graph_common.hpp"
 #include <sycl/properties/all_properties.hpp>
@@ -31,8 +24,7 @@ int main() {
   context Ctx{Dev};
   queue Q{Ctx, Dev, {property::queue::in_order{}}};
 
-  // Deliberately empty in the force-env-var configuration: the descriptor must
-  // report `native` without the property ever appearing in a property list.
+  // Deliberately empty in when forcing env var
 #if defined(GRAPH_E2E_NATIVE_RECORDING) &&                                     \
     !defined(GRAPH_E2E_FORCE_NATIVE_RECORDING_ENV)
   const property_list GraphProps{

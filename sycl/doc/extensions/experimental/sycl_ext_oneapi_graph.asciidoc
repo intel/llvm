@@ -691,7 +691,7 @@ enum class graph_state {
   executable
 };
 
-// Which layer owns the graph's node model
+// Which layer manages the graph's nodes and edges
 enum class graph_recording_mode {
   runtime,
   native
@@ -1302,11 +1302,8 @@ struct updatable {
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-A `command_graph` that is declared at one call site and used in a different call site does not have access to information used to
-instruct its creation, such as whether it is updatable or uses native recording. The `get_info` method can be used to obtain information
-descriptors in the `info::graph` namespace to query such information.
-
-These descriptors report the graph's effective state, which may differ from the contents of the
+The `get_info` method can be used to obtain information
+descriptors in the `info::graph` namespace to query such the graph's effective state, which may differ from the contents of the
 `property_list` the graph was constructed or finalized with.
 
 `info::graph::recording_mode` is valid in both the `graph_state::modifiable`
@@ -1315,8 +1312,8 @@ the `graph_state::executable` state.
 
 The `graph_recording_mode` enumerators have the following meaning:
 
-* `graph_recording_mode::runtime` indicates that the SYCL runtime owns the
-  graph's node model. It is the value reported for any graph that does not use
+* `graph_recording_mode::runtime` indicates that the SYCL runtime manages the
+  graph's nodes and edges. It is the value reported for any graph that does not use
   native recording.
 
 * `graph_recording_mode::native` indicates that graph capture is delegated to
@@ -1696,23 +1693,6 @@ recording is in effect for this graph. Otherwise it returns
 passed to the `finalize` call that created the executable graph. This is only available when the `command_graph`
 state is `graph_state::executable`.
 
-[NOTE]
-====
-Example: a consumer of a graph produced elsewhere checking whether it may
-inspect the graph's nodes:
-
-[source,c++]
-----
-namespace exp_ext = sycl::ext::oneapi::experimental;
-
-void consume(const exp_ext::command_graph<exp_ext::graph_state::modifiable>& g) {
-  if (g.get_info<exp_ext::info::graph::recording_mode>() ==
-      exp_ext::graph_recording_mode::runtime) {
-    for (const auto& node : g.get_nodes()) { /* ... */ }
-  }
-}
-----
-====
 
 [source,c++]
 ----
@@ -3011,8 +2991,5 @@ if used in application code.
 |2|2023-08-01|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller,
 Maxime France-Pillois
 |Promote status to experimental
-|3|2026-08-27|Adam Fidel
-|Add graph information descriptors: `info::graph::recording_mode` and
-`info::graph::updatable`, queried via `command_graph::get_info()`
 
 |========================================
