@@ -65,6 +65,11 @@ sRGB values have been added to the `image_channel_order` enumeration. The `image
 image_channel_order::ext_oneapi_srgba
 ----
 
+NOTE: This applies to the `sycl::image` class only. Bindless images instead
+select sRGB through the `image_channel_type::ext_oneapi_unorm_int8_srgb`
+channel type, see
+link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images].
+
 == Limitations of sRGB usage
 
 There are five primary limitations of which any potential user should be aware.

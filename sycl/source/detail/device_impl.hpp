@@ -1533,6 +1533,11 @@ public:
                  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_bindless_images_srgb) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_BINDLESS_IMAGES_SRGB_SUPPORT_EXP>()
+          .value_or(0);
+    }
     CASE(ext_oneapi_cubemap) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP>()
           .value_or(0);

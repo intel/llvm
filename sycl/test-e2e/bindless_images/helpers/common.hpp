@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
@@ -22,6 +23,13 @@ std::ostream &operator<<(std::ostream &os,
 namespace bindless_helpers {
 
 namespace syclexp = sycl::ext::oneapi::experimental;
+
+// IEC 61966-2-1 sRGB decode of one normalized channel.
+inline float srgb_to_linear(float c) {
+  if (c <= 0.04045f)
+    return c / 12.92f;
+  return std::pow((c + 0.055f) / 1.055f, 2.4f);
+}
 
 bool memoryAllocationSupported(syclexp::image_descriptor &imgDesc,
                                syclexp::image_memory_handle_type memHandleType,

@@ -115,6 +115,9 @@ etors:
     - name: BINDLESS_IMAGES_GATHER_SUPPORT_EXP
       value: "0x201D"
       desc: "[$x_bool_t] returns true if the device supports sampled image gather."
+    - name: BINDLESS_IMAGES_SRGB_SUPPORT_EXP
+      value: "0x201E"
+      desc: "[$x_bool_t] returns true if the device supports decoding sRGB encoded images on read."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true

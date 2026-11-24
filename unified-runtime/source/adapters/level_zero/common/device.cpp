@@ -1362,6 +1362,10 @@ ur_result_t urDeviceGetInfo(
     // L0 doesn't support sampled image gather.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SRGB_SUPPORT_EXP: {
+    return ReturnValue(static_cast<ur_bool_t>(
+        supportsDriverExtension(Device->Platform, ZE_SRGB_EXT_NAME)));
+  }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
