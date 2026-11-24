@@ -5,8 +5,8 @@
 #
 # Any value can be overridden with -D on the command line. buildbot/configure.py
 # loads this file and passes -D only for options that differ from the defaults.
-# Use CMAKE_HOST_* for platform defaults: -C runs before CMake initializes
-# the target platform, so APPLE and WIN32 do not yet reflect a cross target.
+# These defaults assume a native build. CMake loads this file before
+# initializing the target platform, so the checks use the host platform.
 
 get_filename_component(DPCPP_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 
