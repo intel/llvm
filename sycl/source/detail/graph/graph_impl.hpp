@@ -1064,6 +1064,11 @@ private:
   // handling for them during update().
   bool MContainsHostTask = false;
 };
+
+/// Get whether native recording is enabled for this graph.
+inline bool isNativeRecordingEnabledForGraph(exec_graph_impl const &graph) {
+  return graph.getNativeExecutableGraphHandle() != nullptr;
+}
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi

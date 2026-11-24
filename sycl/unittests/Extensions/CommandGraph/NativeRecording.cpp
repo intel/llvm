@@ -123,6 +123,48 @@ TEST_F(NativeRecordingTest, DestructionCallbackUrTrace) {
   EXPECT_TRUE(CallbackFired2);
 }
 
+// Both graph states report native recording + no UR calls
+TEST_F(NativeRecordingTest, GetInfoRecordingModeNative) {
+  auto Graph = makeGraph();
+  EXPECT_EQ(Graph.get_info<experimental::info::graph::recording_mode>(),
+            experimental::graph_recording_mode::native);
+
+  Graph.begin_recording(Queue);
+  Queue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); });
+  Graph.end_recording(Queue);
+
+  auto ExecGraph = Graph.finalize();
+  ASSERT_NE(nativeHandle(ExecGraph), nullptr);
+
+  // we shouldn't need to query UR for this
+  const size_t UrCallsBefore = state().Trace.size();
+  EXPECT_EQ(ExecGraph.get_info<experimental::info::graph::recording_mode>(),
+            experimental::graph_recording_mode::native);
+  EXPECT_EQ(Graph.get_info<experimental::info::graph::recording_mode>(),
+            experimental::graph_recording_mode::native);
+  EXPECT_EQ(state().Trace.size(), UrCallsBefore);
+}
+
+// recording_mode reports the mode that is in effect
+TEST_F(NativeRecordingTest, GetInfoRecordingModeForcedByEnv) {
+  sycl::unittest::ScopedEnvVar ForceNative{
+      "SYCL_GRAPH_FORCE_NATIVE_RECORDING", "1",
+      sycl::detail::SYCLConfig<
+          sycl::detail::SYCL_GRAPH_FORCE_NATIVE_RECORDING>::reset};
+
+  // Deliberately without enable_native_recording
+  ModifiableGraph Graph{Queue.get_context(), Dev};
+  ASSERT_NE(nativeHandle(Graph), nullptr);
+
+  EXPECT_EQ(Graph.get_info<experimental::info::graph::recording_mode>(),
+            experimental::graph_recording_mode::native);
+
+  EXPECT_EQ(
+      Graph.finalize().get_info<experimental::info::graph::recording_mode>(),
+      experimental::graph_recording_mode::native);
+}
+
 // Check that the graph ID is going through UR and not the SYCL command buffer
 // or native recording fallback path.
 TEST_F(NativeRecordingTest, GetIdUrTrace) {

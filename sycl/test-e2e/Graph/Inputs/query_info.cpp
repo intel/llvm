@@ -24,12 +24,12 @@ int main() {
   context Ctx{Dev};
   queue Q{Ctx, Dev, {property::queue::in_order{}}};
 
-  // Deliberately empty in when forcing env var
 #if defined(GRAPH_E2E_NATIVE_RECORDING) &&                                     \
     !defined(GRAPH_E2E_FORCE_NATIVE_RECORDING_ENV)
   const property_list GraphProps{
       exp_ext::property::graph::enable_native_recording{}};
 #else
+  // Deliberately empty if forcing env var
   const property_list GraphProps{};
 #endif
 
@@ -53,10 +53,13 @@ int main() {
     Graph.begin_recording(Q);
     assert(Graph.get_info<exp_ext::info::graph::recording_mode>() ==
            ExpectedMode);
+
     Q.submit([&](handler &CGH) {
       CGH.parallel_for(range<1>{N}, [=](id<1> Idx) { Data[Idx] = Idx; });
     });
+
     Graph.end_recording();
+
     assert(Graph.get_info<exp_ext::info::graph::recording_mode>() ==
            ExpectedMode);
 
@@ -70,14 +73,15 @@ int main() {
     Q.ext_oneapi_graph(ExecGraph).wait();
   }
 
-  // Test 2: updatable round-trips through finalize(). Native recording rejects
-  // the updatable property at finalize(), so `true` is unreachable there.
+  // Test 2: updatable
   if (!ExpectNative) {
     exp_ext::command_graph Graph{Ctx, Dev, GraphProps};
     Graph.begin_recording(Q);
+
     Q.submit([&](handler &CGH) {
       CGH.parallel_for(range<1>{N}, [=](id<1> Idx) { Data[Idx] = Idx + 1; });
     });
+
     Graph.end_recording();
 
     auto ExecGraph = Graph.finalize({exp_ext::property::graph::updatable{}});
@@ -88,17 +92,18 @@ int main() {
     Q.ext_oneapi_graph(ExecGraph).wait();
   }
 
-  // Test 3: a graph built only through the explicit API and never recorded
-  // from a queue still reports a mode, and that mode is `runtime`. Not
-  // reachable under native recording, where add() throws.
+  // Test 3: explicit API is not native
   if (!ExpectNative) {
     exp_ext::command_graph Graph{Ctx, Dev};
+
     auto NodeA = Graph.add([&](handler &CGH) {
       CGH.parallel_for(range<1>{N}, [=](id<1> Idx) { Data[Idx] = Idx + 2; });
     });
+
     auto NodeB = Graph.add([&](handler &CGH) {
       CGH.parallel_for(range<1>{N}, [=](id<1> Idx) { Data[Idx] *= 2; });
     });
+
     Graph.make_edge(NodeA, NodeB);
 
     assert(Graph.get_info<exp_ext::info::graph::recording_mode>() ==

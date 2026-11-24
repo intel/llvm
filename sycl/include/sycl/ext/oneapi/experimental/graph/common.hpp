@@ -23,7 +23,7 @@ enum class graph_state {
   executable, ///< In executable state, the graph is ready to execute.
 };
 
-/// Which layer owns manages the graph's nodes and edges
+/// Which layer manages the graph's nodes and edges
 enum class graph_recording_mode {
   runtime, ///< The SYCL runtime owns the model.
   native,   ///< Graph capture is delegated to the backend.

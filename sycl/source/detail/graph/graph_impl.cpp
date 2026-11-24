@@ -2483,7 +2483,7 @@ uint64_t executable_command_graph::getInfoImpl(
     detail::graph_info_kind Kind) const noexcept {
   switch (Kind) {
   case detail::graph_info_kind::recording_mode: {
-    const bool IsNative = impl->getNativeExecutableGraphHandle() != nullptr;
+    const bool IsNative = isNativeRecordingEnabledForGraph(*impl);
     return static_cast<uint64_t>(IsNative ? graph_recording_mode::native
                                           : graph_recording_mode::runtime);
   }
