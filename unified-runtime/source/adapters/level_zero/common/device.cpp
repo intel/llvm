@@ -1363,7 +1363,15 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SRGB_SUPPORT_EXP: {
+    // NEO accepts ze_srgb_ext_desc_t on bindless images since 26.18 but does
+    // not advertise ZE_extension_srgb. Older drivers reject the descriptor
+    // with ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION at image creation, so
+    // claiming support with bindless images fails loudly rather than
+    // returning undecoded values.
+    // shortcut: assumes the driver accepts the descriptor; switch to the
+    // extension check alone once NEO advertises it.
     return ReturnValue(static_cast<ur_bool_t>(
+        Device->Platform->ZeBindlessImagesExtensionSupported ||
         supportsDriverExtension(Device->Platform, ZE_SRGB_EXT_NAME)));
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
