@@ -1792,7 +1792,6 @@ struct SYCLDeviceLibSelectors {
   bool NoOffloadLib = false;
   bool InstrumentDeviceCode = true;
   std::string SanitizeKind;
-  std::string CompilerRTDir;
 };
 
 static SYCLDeviceLibSelectors parseSYCLDeviceLibSelectors(const ArgList &Args) {
@@ -1804,8 +1803,6 @@ static SYCLDeviceLibSelectors parseSYCLDeviceLibSelectors(const ArgList &Args) {
       Sel.InstrumentDeviceCode = false;
     else if (StringRef Val = V; Val.consume_front("-fsanitize="))
       Sel.SanitizeKind = Val.str();
-    else if (StringRef Val = V; Val.consume_front("--sycl-compiler-rt-dir="))
-      Sel.CompilerRTDir = Val.str();
   }
   return Sel;
 }
@@ -1958,13 +1955,11 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   // them resolved here; clang-linker-wrapper knows the default library names
   // itself rather than having them enumerated on the command line.
   if (Triple.isSPIROrSPIRV() && NeedsDeviceLibResolution) {
-    // libclang_rt.builtins.bc's dir comes via --sycl-compiler-rt-dir=, not a
-    // second -sycl-device-library-location= (kept last-one-wins).
     StringRef DeviceLibDir =
         Args.getLastArgValue(OPT_sycl_device_library_location_EQ);
-    SYCLDeviceLibSelectors Sel = parseSYCLDeviceLibSelectors(Args);
+    StringRef CompilerRTDir = Args.getLastArgValue(OPT_sycl_compiler_rt_dir_EQ);
     for (StringRef LibName : getDefaultSYCLDeviceLibNames(Triple, Args)) {
-      for (StringRef Location : {DeviceLibDir, StringRef(Sel.CompilerRTDir)}) {
+      for (StringRef Location : {DeviceLibDir, CompilerRTDir}) {
         if (Location.empty())
           continue;
         SmallString<128> LibPath(Location);

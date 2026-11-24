@@ -12035,7 +12035,7 @@ static const char *renderSYCLBackendOption(const ArgList &Args,
   return Args.MakeArgString(WrapperOption + Key + "=" + Prefix + Value);
 }
 
-/// Forward offloadlib/instrument-device-code/sanitize/compiler-rt-dir to
+/// Forward offloadlib/instrument-device-code/sanitize to
 /// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>, which
 /// clang-linker-wrapper turns into per-target --compiler-arg= (see
 /// ProcessDeviceArgs). That's safe to repurpose for SPIR/SPIR-V: those
@@ -12047,7 +12047,6 @@ static const char *renderSYCLBackendOption(const ArgList &Args,
 /// extra device component (getInputBitcodeLibrary) that breaks exact match.
 static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
                                           ArrayRef<std::string> SPIRArchNames,
-                                          const ToolChain *SPIRTC,
                                           ArgStringList &CmdArgs) {
   if (SPIRArchNames.empty())
     return;
@@ -12060,16 +12059,6 @@ static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
         {options::OPT_fsanitize_EQ, options::OPT_fno_sanitize_EQ}})
     if (Arg *A = Args.getLastArg(Pos, Neg))
       A->render(Args, Selectors);
-
-  // libclang_rt.builtins.bc lives elsewhere; forward it as its own sentinel
-  // (keeps -sycl-device-library-location= last-one-wins, as used elsewhere).
-  if (SPIRTC) {
-    SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
-    llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
-    if (llvm::sys::fs::exists(CompilerRTPath))
-      Selectors.push_back(Args.MakeArgString(Twine("--sycl-compiler-rt-dir=") +
-                                             CompilerRTPath));
-  }
 
   for (StringRef Selector : Selectors)
     for (const std::string &ArchName : SPIRArchNames)
@@ -12427,7 +12416,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(
             Args.MakeArgString(Twine("--bitcode-library=") + Lib));
 
-    forwardSYCLDeviceLibSelectors(Args, SPIRArchNames, SPIRTC, CmdArgs);
+    forwardSYCLDeviceLibSelectors(Args, SPIRArchNames, CmdArgs);
 
     // -sycl-device-library-location=<dir> provides the location of the
     // native CPU/bfloat16 device libraries. Falls back to <Driver>/../lib.
@@ -12439,6 +12428,16 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       DeviceLibDir = llvm::sys::path::parent_path(*FullLibName);
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
+
+    // -sycl-compiler-rt-dir=<dir> provides the location of
+    // libclang_rt.builtins.bc, used by the device sanitizer libraries.
+    if (SPIRTC) {
+      SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
+      llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
+      if (llvm::sys::fs::exists(CompilerRTPath))
+        CmdArgs.push_back(Args.MakeArgString(Twine("-sycl-compiler-rt-dir=") +
+                                             CompilerRTPath));
+    }
 
     if (C.getDriver().isSaveOffloadCodeEnabled()) {
       SmallString<128> DumpDir;

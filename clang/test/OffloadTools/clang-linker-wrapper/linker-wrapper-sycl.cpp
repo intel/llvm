@@ -342,8 +342,8 @@
 
 /// Check ITT instrumentation libraries, bfloat16 (native for AOT pvc,
 /// fallback for JIT), device sanitizer libraries, and libclang_rt.builtins.bc
-/// (resolved from a second -sycl-device-library-location=) are all added for
-/// old-model objects by default, and that forwarding --no-offloadlib and
+/// (resolved from -sycl-compiler-rt-dir=) are all added for old-model
+/// objects by default, and that forwarding --no-offloadlib and
 /// -fno-sycl-instrument-device-code via --device-compiler=<arch>=<value>
 /// (the same per-arch mechanism used for e.g. ocloc options) suppresses the
 /// libraries they control.
@@ -352,7 +352,7 @@
 // RUN: touch %t.libdir/libsycl-asan.bc %t.libdir/libsycl-asan-pvc.bc
 // RUN: mkdir -p %t.rtdir
 // RUN: touch %t.rtdir/libclang_rt.builtins.bc
-// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir --device-compiler=spir64=-fsanitize=address --device-compiler=spir64=--sycl-compiler-rt-dir=%t.rtdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-JIT %s
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir -sycl-compiler-rt-dir=%t.rtdir --device-compiler=spir64=-fsanitize=address --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-JIT %s
 // CHK-DEFAULT-LIBS-JIT: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc {{.*}}libsycl-itt-user-wrappers.bc {{.*}}libsycl-itt-compiler-wrappers.bc {{.*}}libsycl-itt-stubs.bc {{.*}}libsycl-asan.bc {{.*}}libclang_rt.builtins.bc
 // CHK-DEFAULT-LIBS-JIT-NOT: bfloat16.bc
 
