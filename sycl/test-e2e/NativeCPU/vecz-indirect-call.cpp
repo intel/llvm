@@ -1,9 +1,11 @@
 // REQUIRES: native_cpu
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fsycl-allow-func-ptr -O2 -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fsycl-allow-func-ptr -O2 -mllvm -sycl-native-dump-device-ir %s -o %t.out | FileCheck %s
+// RUN: %{run} %t.out
 
 // Check that vecz handles indirect calls without crashing.
 
 #include <sycl/sycl.hpp>
+#include <iostream>
 
 using fn_t = int (*)(int);
 SYCL_EXTERNAL int add1(int x) { return x + 1; }
@@ -11,10 +13,9 @@ SYCL_EXTERNAL int mul2(int x) { return x * 2; }
 
 int main() {
   sycl::queue q;
-  const int wanted[16] = {0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0};
+  const int wanted[16] = {0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0};
   sycl::buffer<int, 1> sel(sycl::range<1>(16));
   {
-
     sycl::host_accessor s(sel, sycl::write_only);
     for (int i = 0; i < 16; ++i)
       s[i] = wanted[i];
@@ -23,16 +24,26 @@ int main() {
   q.submit([&](sycl::handler &h) {
     sycl::accessor s(sel, h, sycl::read_only);
     sycl::accessor o(out, h, sycl::write_only);
-    h.parallel_for<class IndirectCall>(sycl::range<1>(16), [=](sycl::id<1> i) {
+    h.parallel_for<class IndirectCall>(sycl::nd_range<1>(sycl::range<1>(16), sycl::range<1>(8)), [=](sycl::nd_item<1> item) {
+      sycl::id<1> i = item.get_global_id();
       fn_t f = s[i] ? add1 : mul2;
-      o[i] = f(i[0]);
+      o[i] = f(i[0] + 3); // + 3 because 1 + 1 == 1 * 2
     });
   });
   sycl::host_accessor o(out, sycl::read_only);
-  for (int i = 0; i < 16; ++i)
-    assert(o[i] == (wanted[i] ? i + 1 : i * 2));
+  int error = 0;
+  for (int i = 0; i < 16; ++i) {
+    const auto expected = (wanted[i] ? i + 4 : (i + 3) * 2);
+    if (o[i] != expected) {
+      std::cerr << "Mismatch at index " << i << ": got " << o[i]
+                << ", expected " << expected << '\n';
+      ++error;
+    }
+  }
+  return error;
 }
 
 // CHECK-LABEL: define void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E12IndirectCall.NativeCPUKernel(
+// CHECK: [[F:%.*]] = extractelement <8 x ptr>
 // CHECK: [[ARG:%.*]] = extractelement <8 x i32>
-// CHECK: call noundef i32 %{{.*}}(i32 noundef [[ARG]])
+// CHECK: call noundef i32 [[F]](i32 noundef [[ARG]])
