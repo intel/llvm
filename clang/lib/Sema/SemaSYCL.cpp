@@ -1332,7 +1332,9 @@ constructKernelName(SemaSYCL &S, const FunctionDecl *KernelCallerFunc,
       SYCLUniqueStableNameExpr::hasTULocalMangledName(KernelNameType)) {
     if (!SYCLUniqueStableNameExpr::addCUIDQualifier(CUIDHash, MangledName))
       // If we couldn't figure out how to insert a CUID qualifier, fall back
-      // to using StableName instead.
+      // to using StableName instead, since it always has a CUID. This may
+      // happen for e.g. MS-mangled function pointers, where adding a synthetic
+      // CUID scope isn't trivial (see addCUIDQualifier).
       MangledName = StableName;
   }
 
