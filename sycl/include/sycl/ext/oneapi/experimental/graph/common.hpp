@@ -26,7 +26,7 @@ enum class graph_state {
 /// Which layer manages the graph's nodes and edges
 enum class graph_recording_mode {
   runtime, ///< The SYCL runtime owns the model.
-  native,   ///< Graph capture is delegated to the backend.
+  native,  ///< Graph capture is delegated to the backend.
 };
 
 namespace info::graph {
