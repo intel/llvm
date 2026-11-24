@@ -1810,15 +1810,6 @@ static SYCLDeviceLibSelectors parseSYCLDeviceLibSelectors(const ArgList &Args) {
   return Sel;
 }
 
-/// New-model objects carry the AOT device via --arch=; old-model objects
-/// (unbundled, see getInputBitcodeLibrary) bake it into the triple's 4th
-/// component instead.
-static StringRef getAOTDeviceName(const llvm::Triple &Triple,
-                                  const ArgList &Args) {
-  StringRef Device = Args.getLastArgValue(OPT_arch_EQ);
-  return Device.empty() ? Triple.getEnvironmentName() : Device;
-}
-
 /// AOT device family used to pick a sanitizer library variant. Mirrors
 /// addSYCLDeviceSanitizerLibs's JIT/AOT_CPU/AOT_DG2/AOT_PVC classification
 /// (clang/lib/Driver/ToolChains/SYCL.cpp).
@@ -1861,7 +1852,10 @@ getDefaultSYCLDeviceLibNames(const llvm::Triple &Triple, const ArgList &Args) {
     Libs.push_back("libsycl-itt-stubs.bc");
   }
 
-  StringRef Device = getAOTDeviceName(Triple, Args);
+  // getInputBitcodeLibrary populates OPT_arch_EQ for old-model objects too
+  // (by splitting it out of the triple's 4th component), so new-model and
+  // old-model objects both carry the AOT device here the same way.
+  StringRef Device = Args.getLastArgValue(OPT_arch_EQ);
 
   // bfloat16: plain spir64 JIT (NoSubArch) defers to runtime; NVPTX/AMDGCN
   // never reach this SPIR-only branch.
@@ -2097,6 +2091,19 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
     if (*UnbundledFile == Filename)
       continue;
 
+    // Old-model AOT bundle triples embed the target device as a 4th
+    // dash-separated component (e.g. spir64_gen-unknown-unknown-pvc).
+    // Split it into Arch so getInputBitcodeLibrary populates OPT_arch_EQ
+    // the same way it would for a new-model object, rather than leaving it
+    // empty and making callers recover the device from the triple later.
+    StringRef DeviceArch =
+        Triple.isSPIROrSPIRV() ? Triple.getEnvironmentName() : StringRef();
+    llvm::Triple BundleTriple =
+        DeviceArch.empty()
+            ? Triple
+            : llvm::Triple(Triple.getArchName(), Triple.getVendorName(),
+                           Triple.getOSName());
+
     SmallVector<StringRef> ObjectFilePaths;
     if (sycl::isStaticArchiveFile(Filename)) {
       llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> ObjList =
@@ -2120,8 +2127,9 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
             "SPIR-V fat objects must be generated with --offload-new-driver");
       const auto *Arg = Args.MakeArgString(
           "sycl-" +
-          (Triple.isSPIROrSPIRV() ? Triple.str() + "-" : Triple.str()) + "=" +
-          ObjectFilePath);
+          (Triple.isSPIROrSPIRV() ? BundleTriple.str() + "-" + DeviceArch.str()
+                                  : BundleTriple.str()) +
+          "=" + ObjectFilePath);
       auto Binary = getInputBitcodeLibrary(Arg);
 
       if (!Binary)

@@ -66,7 +66,7 @@
 
 // Basic SYCL test.
 //
-// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_old.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
 // CHK-CMDS: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-CMDS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
@@ -245,7 +245,7 @@
 //
 // Run clang-linker-wrapper test
 //
-// RUN: clang-linker-wrapper --bitcode-library=spir64_x86_64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_aot_cpu_old.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-CPU %s
+// RUN: clang-linker-wrapper --bitcode-library=spir64_x86_64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_aot_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-CPU %s
 // CHK-CMDS-AOT-CPU: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-AOT-CPU-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-CMDS-AOT-CPU-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
@@ -324,7 +324,7 @@
 
 /// Check for --device-lib-dir options for sycl-post-link.
 //
-// RUN: clang-linker-wrapper -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_old.o --bitcode-library=spir64-unknown-unknown=%S/Inputs/SYCL/lib/libsycl-crt.bc -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
+// RUN: clang-linker-wrapper -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --bitcode-library=spir64-unknown-unknown=%S/Inputs/SYCL/lib/libsycl-crt.bc -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
 // CHK-CMDS-DEVICE-LIB-DIR: spirv-to-ir-wrapper{{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --suppress-warnings
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings
@@ -363,6 +363,13 @@
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o -sycl-device-library-location=%t.libdir --device-compiler=spir64=--no-offloadlib --device-compiler=spir64=-fno-sycl-instrument-device-code --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-NONE %s
 // CHK-DEFAULT-LIBS-NONE-NOT: llvm-link{{.*}} --only-needed
 
+/// NeedsDeviceLibResolution is computed per linked group, not per file: when
+/// a new-model object (device libs already linked in at compile time) and an
+/// old-model one are linked together, the group still needs resolution
+/// because of the old-model object.
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o %t_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-MIXED %s
+// CHK-DEFAULT-LIBS-MIXED: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{.*}}libsycl-crt.bc {{.*}}libsycl-cmath.bc {{.*}}libsycl-imf.bc
+
 /// Check for libsycl-nativecpu_utils.bc getting linked in for Native CPU.
 //
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu -sycl-device-library-location=%S/Inputs/native_cpu --sycl-post-link-options=SYCL_POST_LINK_OPTIONS --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null %t_native_cpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-NATIVE-CPU %s
@@ -375,7 +382,7 @@
 // CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[OUT1]] [[OUT3]] {{.*\.o}}
 
 // Verify that host linker is not called when --sycl-device-link is passed to clang-linker-wrapper
-// RUN: clang-linker-wrapper --sycl-device-link --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t_old.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEVLINK-CMDS %s
+// RUN: clang-linker-wrapper --sycl-device-link --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS -llvm-spirv-options=LLVM_SPIRV_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEVLINK-CMDS %s
 // CHK-DEVLINK-CMDS: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-DEVLINK-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-DEVLINK-CMDS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
@@ -422,7 +429,7 @@
 // CHK-FATBIN-ONLY-NOTRIPLE: error: can't compile a SYCL device code. target is unknown
 
 // Verify list of commands when syclbin is used
-// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_old.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc -sycl-post-link-options=SYCL_POST_LINK_OPTIONS --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s
 // CHK-SYCLBIN-CMDS:      spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-SYCLBIN-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-SYCLBIN-CMDS-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
@@ -598,13 +605,13 @@ void f() { kernel<class TestKernel>([]() {}); }
 // RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.spir64.devicelib.bc \
 // RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.spir64_gen.devicelib.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
-// RUN:   --linker-path=/usr/bin/ld %t_old.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-JIT %s
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-JIT %s
 // CHECK-WRAPPER-SPIR64-JIT: llvm-link{{.*}} {{.*}}.spir64.devicelib.bc
 // CHECK-WRAPPER-SPIR64-JIT-NOT: spir64_gen.devicelib.bc
 
 // RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.spir64.devicelib.bc \
 // RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.spir64_gen.devicelib.bc \
 // RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
-// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu_old.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-GEN %s
+// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-GEN %s
 // CHECK-WRAPPER-SPIR64-GEN: llvm-link{{.*}} {{.*}}.spir64_gen.devicelib.bc
 // CHECK-WRAPPER-SPIR64-GEN-NOT: {{[.]}}spir64.devicelib.bc

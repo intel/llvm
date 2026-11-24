@@ -12036,8 +12036,13 @@ static const char *renderSYCLBackendOption(const ArgList &Args,
 }
 
 /// Forward offloadlib/instrument-device-code/sanitize/compiler-rt-dir to
-/// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>; SPIR
-/// never reaches a real device-compile step, so this is safe to reuse.
+/// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>, which
+/// clang-linker-wrapper turns into per-target --compiler-arg= (see
+/// ProcessDeviceArgs). That's safe to repurpose for SPIR/SPIR-V: those
+/// triples never reach generic::clang (invokeBackendForSYCLDevice routes
+/// them to runLLVMToSPIRVTranslation/runAOTCompile instead), so these
+/// sentinel values are only ever consumed by our own parser, never passed to
+/// a real compiler invocation that could misinterpret them.
 /// Scoped by arch name, not full triple: old-model AOT triples embed an
 /// extra device component (getInputBitcodeLibrary) that breaks exact match.
 static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
