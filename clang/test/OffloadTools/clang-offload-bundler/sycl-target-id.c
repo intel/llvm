@@ -88,6 +88,63 @@
 // RUN: diff %t.tgt1 %t.res1
 // RUN: diff %t.tgt1 %t.res2
 
+// The entry without a target ID is used for each target ID, including Intel
+// GPUs that are not known as an offload arch. For spir64_gen, the last
+// component is always the target ID, not the triple environment; otherwise
+// only one of those targets would get the code.
+// RUN: clang-offload-bundler -type=ii -input=%t.bundle.noid.ii -unbundle \
+// RUN:   -output=%t.new1 -output=%t.new2 -output=%t.new3 -output=%t.new4 \
+// RUN:   -output=%t.new5 -output=%t.new6 -output=%t.new7 -output=%t.new8 \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-bmg_g31,sycl-spir64_gen-unknown-unknown-ptl_h,sycl-spir64_gen-unknown-unknown-ptl_u,sycl-spir64_gen-unknown-unknown-wcl,sycl-spir64_gen-unknown-unknown-nvl_s,sycl-spir64_gen-unknown-unknown-nvl_u,sycl-spir64_gen-unknown-unknown-nvl_p,sycl-spir64_gen-unknown-unknown-cri
+// RUN: diff %t.tgt1 %t.new1
+// RUN: diff %t.tgt1 %t.new2
+// RUN: diff %t.tgt1 %t.new3
+// RUN: diff %t.tgt1 %t.new4
+// RUN: diff %t.tgt1 %t.new5
+// RUN: diff %t.tgt1 %t.new6
+// RUN: diff %t.tgt1 %t.new7
+// RUN: diff %t.tgt1 %t.new8
+
+// The same for an archive, as for a static library compiled with
+// -fsycl-targets=spir64_gen and linked for many intel_gpu_* targets.
+// RUN: rm -f %t.noid.a
+// RUN: llvm-ar crs %t.noid.a %t.bundle.noid.o
+// RUN: clang-offload-bundler -type=ao -input=%t.noid.a -unbundle -allow-missing-bundles \
+// RUN:   -output=%t.ar1 -output=%t.ar2 -output=%t.ar3 -output=%t.ar4 -output=%t.ar5 \
+// RUN:   -output=%t.ar6 -output=%t.ar7 -output=%t.ar8 -output=%t.ar9 -output=%t.ar10 \
+// RUN:   -output=%t.ar11 -output=%t.ar12 -output=%t.ar13 -output=%t.ar14 \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-tgllp,sycl-spir64_gen-unknown-unknown-adl_s,sycl-spir64_gen-unknown-unknown-adl_p,sycl-spir64_gen-unknown-unknown-adl_n,sycl-spir64_gen-unknown-unknown-dg2,sycl-spir64_gen-unknown-unknown-pvc,sycl-spir64_gen-unknown-unknown-mtl,sycl-spir64_gen-unknown-unknown-mtl_u,sycl-spir64_gen-unknown-unknown-arl_h,sycl-spir64_gen-unknown-unknown-bmg,sycl-spir64_gen-unknown-unknown-lnl_m,sycl-spir64_gen-unknown-unknown-ptl_h,sycl-spir64_gen-unknown-unknown-ptl_u,sycl-spir64_gen-unknown-unknown-nvl_s
+// RUN: diff %t.tgt1 %t.ar1
+// RUN: diff %t.tgt1 %t.ar2
+// RUN: diff %t.tgt1 %t.ar3
+// RUN: diff %t.tgt1 %t.ar4
+// RUN: diff %t.tgt1 %t.ar5
+// RUN: diff %t.tgt1 %t.ar6
+// RUN: diff %t.tgt1 %t.ar7
+// RUN: diff %t.tgt1 %t.ar8
+// RUN: diff %t.tgt1 %t.ar9
+// RUN: diff %t.tgt1 %t.ar10
+// RUN: diff %t.tgt1 %t.ar11
+// RUN: diff %t.tgt1 %t.ar12
+// RUN: diff %t.tgt1 %t.ar13
+// RUN: diff %t.tgt1 %t.ar14
+
+// For other SYCL triples, the last component is still not treated as the
+// target ID unless it is a known offload arch. For
+// sycl-spir64-unknown-unknown-foo, foo is the (unknown) triple environment, so
+// there is no target ID to mismatch with bar. For spir64_gen, foo and bar are
+// different target IDs.
+// RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -output=%t.bundle.env.ii \
+// RUN:   -targets=host-x86_64-unknown-linux-gnu,sycl-spir64-unknown-unknown-foo
+// RUN: clang-offload-bundler -type=ii -input=%t.bundle.env.ii -output=%t.res -unbundle \
+// RUN:   -targets=sycl-spir64-unknown-unknown-bar
+// RUN: diff %t.tgt1 %t.res
+// RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -output=%t.bundle.gen.ii \
+// RUN:   -targets=host-x86_64-unknown-linux-gnu,sycl-spir64_gen-unknown-unknown-foo
+// RUN: not clang-offload-bundler -type=ii -input=%t.bundle.gen.ii -output=%t.res -unbundle \
+// RUN:   -targets=sycl-spir64_gen-unknown-unknown-bar 2>&1 | FileCheck %s --check-prefix=GEN-MISMATCH
+// GEN-MISMATCH: error: Can't find bundles for sycl-spir64_gen-unknown-unknown-bar
+
 // 4-component triples are unaffected.
 // RUN: clang-offload-bundler -type=ii -input=%t.host -input=%t.tgt1 -input=%t.tgt2 -output=%t.bundle.hip.ii \
 // RUN:   -targets=host-x86_64-unknown-linux-gnu,hipv4-amdgcn-amd-amdhsa--gfx908,hipv4-amdgcn-amd-amdhsa--gfx90a
