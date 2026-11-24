@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: arch-intel_gpu_pvc || arch-intel_gpu_cri
+// UNSUPPORTED: arch-intel_gpu_pvc || arch-intel_gpu_cri || arch-intel_gpu_nvl_p
 // UNSUPPORTED-INTENDED: There is a separate version of this test for PVC,
-// and stateful buffer access is not supported on CRI.
+// and stateful buffer access is not supported on CRI/NVL-P.
 // Use -O2 to avoid huge stack usage under -O0.
 // RUN: %{build} -O2 -fno-sycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
