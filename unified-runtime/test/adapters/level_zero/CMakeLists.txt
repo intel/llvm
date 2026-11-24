@@ -51,6 +51,7 @@ add_l0_loader_devices_test(ze_calls event_cache_tests.cpp)
 add_l0_loader_devices_test(multi_queue multi_device_event_cache_tests.cpp)
 add_l0_loader_devices_test(float_atomics_ext urDeviceGetInfoFloatAtomics.cpp)
 add_l0_loader_devices_test(queue_priority_v1 queue_priority.cpp)
+add_l0_loader_devices_test(command_buffer_wait_list command_buffer_wait_list.cpp)
 
 add_conformance_devices_test(ipc ipc.cpp)
 target_link_libraries(ipc-test PRIVATE ur_umf)
