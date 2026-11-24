@@ -177,6 +177,24 @@ template <typename KernelType> constexpr void diagnoseKhrKernelProperties() {
 }
 #endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 
+// Adds the properties embedded via the sycl_khr_kernel_properties getter of the
+// kernel function object (the last of `RestT`) to the properties passed
+// explicitly alongside reductions, as reductions wrap the kernel function
+// object.
+template <typename... RestT, typename PropertiesT>
+auto MergeKhrGetMethodProperties(const PropertiesT &Props) {
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  using KernelType = std::remove_cv_t<std::remove_reference_t<
+      properties_nth_type_t<sizeof...(RestT) - 1, RestT...>>>;
+  diagnoseKhrKernelProperties<KernelType>();
+  return merge_properties(
+      Props, typename khr::property::detail::embedded_kernel_properties<
+                 KernelType>::oneapi_properties_t{});
+#else
+  return Props;
+#endif
+}
+
 template <typename... RestT>
 auto RetrieveGetMethodPropertiesOrEmpty(RestT &&...Rest) {
   auto Identity = [](const auto &x) -> decltype(auto) { return x; };

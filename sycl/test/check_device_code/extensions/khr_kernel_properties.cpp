@@ -36,6 +36,13 @@ struct ReductionKernel {
   auto get(kp::tag::kernel) const { return kp::sub_group_size<32>; }
 };
 
+struct ReductionPropsKernel {
+  template <typename T> void operator()(sycl::nd_item<1>, T &sum) const {
+    sum += 1;
+  }
+  auto get(kp::tag::kernel) const { return kp::work_group_size<64>; }
+};
+
 void test(sycl::queue &q, int *sum) {
   q.submit([&](sycl::handler &cgh) {
     // CHECK-DAG: spir_kernel void @{{.*}}NDRangeKernel{{.*}} #[[NDRangeAttrs:[0-9]+]]
@@ -52,6 +59,14 @@ void test(sycl::queue &q, int *sum) {
     cgh.parallel_for<class ReductionKernel>(
         sycl::nd_range<1>{1024, 64}, sycl::reduction(sum, sycl::plus<int>()),
         ReductionKernel{});
+    // The embedded properties are merged with the properties passed alongside
+    // the reductions.
+    // CHECK-DAG: spir_kernel void @{{.*}}ReductionPropsKernel{{.*}} #[[ReductionPropsAttrs:[0-9]+]]
+    cgh.parallel_for<class ReductionPropsKernel>(
+        sycl::nd_range<1>{1024, 64},
+        sycl::ext::oneapi::experimental::properties{
+            sycl::ext::oneapi::experimental::sub_group_size<16>},
+        sycl::reduction(sum, sycl::plus<int>()), ReductionPropsKernel{});
   });
 }
 
@@ -60,3 +75,4 @@ void test(sycl::queue &q, int *sum) {
 // CHECK-DAG: attributes #[[RangeAttrs]] = { {{.*}}"sycl-work-group-size"="1,2,3"
 // CHECK-DAG: attributes #[[RoundedRangeAttrs]] = { {{.*}}"sycl-work-group-size"="1,2,3"
 // CHECK-DAG: attributes #[[ReductionAttrs]] = { {{.*}}"sycl-sub-group-size"="32"
+// CHECK-DAG: attributes #[[ReductionPropsAttrs]] = { {{.*}}"sycl-sub-group-size"="16"{{.*}}"sycl-work-group-size"="64"

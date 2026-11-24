@@ -4214,6 +4214,12 @@ auto submit_kernel_direct_parallel_for(const queue &Queue, range<Dims> Range,
       "SYCL kernel lambda/functor has an unexpected signature, it should be "
       "invocable with sycl::item");
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // The range rounding wrapper forwards only a valid KHR getter, and the
+  // unwrapped kernel is not instantiated if range rounding is forced.
+  ext::oneapi::experimental::detail::diagnoseKhrKernelProperties<KernelType>();
+#endif
+
   // Range rounding can be disabled by the user.
   // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
