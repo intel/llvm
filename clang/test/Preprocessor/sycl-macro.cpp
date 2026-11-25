@@ -40,9 +40,9 @@
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 
-// CHECK-RDC-DAG:#define __CLANG_RDC__ 1
-// CHECK-RDC-DEVICE-DAG:#define SYCL_EXTERNAL __attribute__((sycl_device)){{$}}
-// CHECK-RDC-HOST-DAG:#define SYCL_EXTERNAL {{$}}
+// CHECK-RDC-DEVICE:#define SYCL_EXTERNAL __attribute__((sycl_device)){{$}}
+// CHECK-RDC-HOST:#define SYCL_EXTERNAL {{$}}
+// CHECK-RDC:#define __CLANG_RDC__ 1
 // CHECK-NO-RDC-NOT:#define __CLANG_RDC__
 
 // CHECK-SYCL-STD:#define SYCL_LANGUAGE_VERSION 202012L
