@@ -919,6 +919,23 @@ void CodeGenModule::computeABIInfoUsingLib(CGFunctionInfo &FI) {
 
   getLLVMABITargetInfo(AbiMapper->getTypeBuilder()).computeInfo(*AbiFI);
 
+  // Downstream, -foffload-use-alloca-addrspace-for-srets (on by default) puts
+  // sret pointers in the alloca address space, see ItaniumCXXABI and
+  // ABIInfoImpl. Apply the same to the LLVM ABI library result so both
+  // lowerings agree.
+  if (getCodeGenOpts().UseAllocaASForSrets) {
+    llvm::abi::ArgInfo &RetInfo = AbiFI->getReturnInfo();
+    unsigned AllocaAS = getDataLayout().getAllocaAddrSpace();
+    if (RetInfo.isIndirect() && RetInfo.getIndirectAddrSpace() != AllocaAS) {
+      llvm::abi::ArgInfo NewInfo = llvm::abi::ArgInfo::getIndirect(
+          RetInfo.getIndirectAlign(), RetInfo.getIndirectByVal(), AllocaAS,
+          RetInfo.getIndirectRealign());
+      NewInfo.setNeededRegs(RetInfo.getNeededIntRegs(),
+                            RetInfo.getNeededSseRegs());
+      RetInfo = NewInfo;
+    }
+  }
+
 #ifndef NDEBUG
   // With assertions enabled, also compute info using Clang ABI logic,
   // so we can ensure the results are consistent.

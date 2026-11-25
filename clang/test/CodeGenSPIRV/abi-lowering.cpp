@@ -48,9 +48,10 @@ DEVICE Small ret_small(Small s) { return s; }
 DEVICE void take_nontrivial(NonTrivial n) {}
 
 // A record that cannot be copied is constructed in place, so its sret pointer
-// is in the default address space.
-// PRIV: define {{.*}}spir_func void @_Z14ret_nontrivialv(ptr dead_on_unwind noalias writable sret(%struct.NoCopy) align 4 %agg.result)
-// GEN:  define {{.*}}spir_func void @_Z14ret_nontrivialv(ptr addrspace(4) dead_on_unwind noalias writable sret(%struct.NoCopy) align 4 %agg.result)
+// is in the default address space upstream. Downstream,
+// -foffload-use-alloca-addrspace-for-srets is on by default, so the sret
+// pointer is in the alloca (private) address space for both PRIV and GEN.
+// CHECK: define {{.*}}spir_func void @_Z14ret_nontrivialv(ptr dead_on_unwind noalias writable sret(%struct.NoCopy) align 4 %agg.result)
 DEVICE NoCopy ret_nontrivial() { return NoCopy(); }
 
 // CHECK: define {{.*}}spir_kernel void @_Z7k_small5Small(ptr noundef byval(%struct.Small) align 4 %s)
