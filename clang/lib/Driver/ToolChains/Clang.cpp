@@ -12049,16 +12049,9 @@ static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
   for (auto [Pos, Neg] :
        {std::pair{options::OPT_offloadlib, options::OPT_no_offloadlib},
         {options::OPT_fsycl_instrument_device_code,
-         options::OPT_fno_sycl_instrument_device_code}})
+         options::OPT_fno_sycl_instrument_device_code},
+        {options::OPT_fsanitize_EQ, options::OPT_fno_sanitize_EQ}})
     if (Arg *A = Args.getLastArg(Pos, Neg))
-      A->render(Args, Selectors);
-
-  // Combining multiple sanitizers is already a driver error elsewhere, so
-  // only forward -fsanitize= when it names a single sanitizer.
-  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
-                               options::OPT_fno_sanitize_EQ))
-    if (A->getOption().matches(options::OPT_fno_sanitize_EQ) ||
-        A->getValues().size() == 1)
       A->render(Args, Selectors);
 
   for (StringRef Selector : Selectors)
@@ -12435,6 +12428,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (!SPIRArchNames.empty()) {
       assert(SPIRTC && "SPIRTC must be set whenever a SPIR/SPIR-V target is "
                        "present");
+      // getCompilerRTPath() doesn't vary across SPIR/SPIR-V toolchains (they
+      // all have OS=unknown), so any one of them works here.
       SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
       llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
       if (llvm::sys::fs::exists(CompilerRTPath))
