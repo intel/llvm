@@ -80,9 +80,6 @@
 /// PropertySetRegistry::SYCL_IGCA_METADATA defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_IGCA_METADATA "SYCL/igca metadata"
 
-/// IGCA metadata tags. The tag must appear after the IGCA target.
-#define __SYCL_IGCA_METADATA_TAG_NO_EMBED_VIRTUAL_ARCH "@no_embed_virtual_arch"
-
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
 #define __SYCL_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE "@reqd_work_group_size"
