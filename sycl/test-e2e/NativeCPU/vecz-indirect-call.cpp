@@ -1,8 +1,11 @@
 // REQUIRES: native_cpu
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fsycl-allow-func-ptr -O2 -mllvm -sycl-native-dump-device-ir %s -o %t.out | FileCheck %s
+// RUN: %{build} -Xclang -fsycl-allow-func-ptr -O2 -o %t.out
 // RUN: %{run} %t.out
 
-// Check that vecz handles indirect calls without crashing.
+// Check that an indirect call whose callee differs between work-items calls
+// the right function for each work-item once the kernel has been vectorized.
+// The matching device-code check lives in
+// sycl/test/check_device_code/native_cpu/vecz-indirect-call.cpp.
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -44,8 +47,3 @@ int main() {
   }
   return error;
 }
-
-// CHECK-LABEL: define void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E12IndirectCall.NativeCPUKernel(
-// CHECK: [[F:%.*]] = extractelement <8 x ptr>
-// CHECK: [[ARG:%.*]] = extractelement <8 x i32>
-// CHECK: call noundef i32 [[F]](i32 noundef [[ARG]])
