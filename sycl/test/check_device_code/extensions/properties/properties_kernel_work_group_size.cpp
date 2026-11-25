@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clangxx -fsycl-device-only -fno-module-local-hints -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/sycl.hpp>
