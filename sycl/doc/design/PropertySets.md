@@ -289,6 +289,10 @@ __Notes:__
    sub-modules. The runtime identifies an IGCA module by "isIgcaModule" rather
    than by the presence of the set, because an empty property set cannot be
    distinguished from a missing one.
+3. `igca_X` is the full IGCA target name, including the feature set suffix if
+   any (e.g. `igca_20`, `igca_20c`, `igca_20ca`). Targets that differ only in
+   the suffix are distinct keys, because the user may drop the virtual
+   architecture sub-module for one of them but keep it for another.
 
 
 ### [SYCLBIN/global metadata]
