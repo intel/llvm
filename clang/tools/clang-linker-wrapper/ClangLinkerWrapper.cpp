@@ -263,9 +263,9 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   Image.TheOffloadKind = getOffloadKind(Kind);
   Image.StringData["triple"] = Triple;
   Image.StringData["arch"] = Arch;
-  // This helper is only used to wrap objects extracted via unbundling
-  // (sycl::extractBundledObjects), i.e. old-model device code. Tag it so
-  // later SPIR/SPIRV device-library resolution knows it's needed here.
+  // This helper is only used to wrap objects extracted via unbundling, i.e.
+  // old-model device code. Tag it so later SPIR/SPIRV device-library
+  // resolution knows it's needed here.
   Image.StringData["old-offload-model"] = "1";
   Image.Image = std::move(*ImageOrError);
 
@@ -1807,6 +1807,11 @@ static SYCLDeviceLibSelectors parseSYCLDeviceLibSelectors(const ArgList &Args) {
   return Sel;
 }
 
+// TODO: getSanitizerAOTFamily and getDefaultSYCLDeviceLibNames below
+// duplicate classification logic from addSYCLDeviceSanitizerLibs and
+// SYCLToolChain::getDeviceLibNames (clang/lib/Driver/ToolChains/SYCL.cpp).
+// Consider sharing this between the driver and clang-linker-wrapper.
+
 /// AOT device family used to pick a sanitizer library variant. Mirrors
 /// addSYCLDeviceSanitizerLibs's JIT/AOT_CPU/AOT_DG2/AOT_PVC classification
 /// (clang/lib/Driver/ToolChains/SYCL.cpp).
@@ -1831,6 +1836,8 @@ static SYCLSanitizerAOTFamily getSanitizerAOTFamily(const llvm::Triple &Triple,
 /// (clang/lib/Driver/ToolChains/SYCL.cpp).
 static SmallVector<std::string, 8>
 getDefaultSYCLDeviceLibNames(const llvm::Triple &Triple, const ArgList &Args) {
+  assert(Triple.isSPIROrSPIRV() && "caller must only resolve default device "
+                                   "libs for SPIR/SPIR-V targets");
   SYCLDeviceLibSelectors Sel = parseSYCLDeviceLibSelectors(Args);
   SmallVector<std::string, 8> Libs;
 
@@ -1849,13 +1856,9 @@ getDefaultSYCLDeviceLibNames(const llvm::Triple &Triple, const ArgList &Args) {
     Libs.push_back("libsycl-itt-stubs.bc");
   }
 
-  // getInputBitcodeLibrary populates OPT_arch_EQ for old-model objects too
-  // (by splitting it out of the triple's 4th component), so new-model and
-  // old-model objects both carry the AOT device here the same way.
   StringRef Device = Args.getLastArgValue(OPT_arch_EQ);
 
-  // bfloat16: plain spir64 JIT (NoSubArch) defers to runtime; NVPTX/AMDGCN
-  // never reach this SPIR-only branch.
+  // Plain spir64 JIT (NoSubArch) defers bfloat16 support to the runtime.
   if (!Sel.NoOffloadLib && Triple.getSubArch() != llvm::Triple::NoSubArch) {
     bool UseNative =
         Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&

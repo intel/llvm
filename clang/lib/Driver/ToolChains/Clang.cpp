@@ -12036,13 +12036,7 @@ static const char *renderSYCLBackendOption(const ArgList &Args,
 }
 
 /// Forward offloadlib/instrument-device-code/sanitize to
-/// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>, which
-/// clang-linker-wrapper turns into per-target --compiler-arg= (see
-/// ProcessDeviceArgs). That's safe to repurpose for SPIR/SPIR-V: those
-/// triples never reach generic::clang (invokeBackendForSYCLDevice routes
-/// them to runLLVMToSPIRVTranslation/runAOTCompile instead), so these
-/// sentinel values are only ever consumed by our own parser, never passed to
-/// a real compiler invocation that could misinterpret them.
+/// getDefaultSYCLDeviceLibNames via --device-compiler=<arch>=<value>.
 /// Scoped by arch name, not full triple: old-model AOT triples embed an
 /// extra device component (getInputBitcodeLibrary) that breaks exact match.
 static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
@@ -12055,9 +12049,16 @@ static void forwardSYCLDeviceLibSelectors(const llvm::opt::ArgList &Args,
   for (auto [Pos, Neg] :
        {std::pair{options::OPT_offloadlib, options::OPT_no_offloadlib},
         {options::OPT_fsycl_instrument_device_code,
-         options::OPT_fno_sycl_instrument_device_code},
-        {options::OPT_fsanitize_EQ, options::OPT_fno_sanitize_EQ}})
+         options::OPT_fno_sycl_instrument_device_code}})
     if (Arg *A = Args.getLastArg(Pos, Neg))
+      A->render(Args, Selectors);
+
+  // Combining multiple sanitizers is already a driver error elsewhere, so
+  // only forward -fsanitize= when it names a single sanitizer.
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                               options::OPT_fno_sanitize_EQ))
+    if (A->getOption().matches(options::OPT_fno_sanitize_EQ) ||
+        A->getValues().size() == 1)
       A->render(Args, Selectors);
 
   for (StringRef Selector : Selectors)
@@ -12431,7 +12432,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // -sycl-compiler-rt-dir=<dir> provides the location of
     // libclang_rt.builtins.bc, used by the device sanitizer libraries.
-    if (SPIRTC) {
+    if (!SPIRArchNames.empty()) {
+      assert(SPIRTC && "SPIRTC must be set whenever a SPIR/SPIR-V target is "
+                       "present");
       SmallString<128> CompilerRTPath(SPIRTC->getCompilerRTPath());
       llvm::sys::path::append(CompilerRTPath, "spirv64-unknown-unknown");
       if (llvm::sys::fs::exists(CompilerRTPath))
