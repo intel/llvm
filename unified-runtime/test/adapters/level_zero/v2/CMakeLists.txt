@@ -45,6 +45,10 @@ add_l0_v2_devices_test(memory_residency
     memory_residency.cpp
 )
 
+add_l0_v2_devices_test(memory_alloc_device
+    memory_alloc_device_test.cpp
+)
+
 add_l0_v2_devices_test(urIPCOpenPhysMemHandleExpInvalidHandleData
     urIPCOpenPhysMemHandleExpInvalidHandleData.cpp
 )

@@ -259,8 +259,12 @@ struct ur_mem_image_t : v2::ur_object_t {
 
   ur_context_handle_t getContext() const { return hContext; }
 
+  // Device the image was created on; null for images from native handles.
+  ur_device_handle_t getDevice() const { return hDevice; }
+
 private:
   const ur_context_handle_t hContext;
+  ur_device_handle_t hDevice = nullptr;
   v2::raii::ze_image_handle_t zeImage;
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };

@@ -776,7 +776,8 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
   ZeImageDesc.stype = ZE_STRUCTURE_TYPE_IMAGE_DESC;
-  ZeImageDesc.pNext = ImageDesc->pNext;
+  // ImageDesc->pNext is a UR chain, which Level Zero cannot parse.
+  ZeImageDesc.pNext = nullptr;
   ZeImageDesc.flags = 0;
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;

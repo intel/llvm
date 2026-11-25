@@ -615,7 +615,7 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
   // Without an explicit request, the "0" device in the context owns the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  ur_device_handle_t hDevice = getRequestedAllocDevice(hContext, pImageDesc);
+  hDevice = getRequestedAllocDevice(hContext, pImageDesc);
   if (!hDevice)
     hDevice = hContext->getDevices()[0];
   ZE2UR_CALL_THROWS(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
