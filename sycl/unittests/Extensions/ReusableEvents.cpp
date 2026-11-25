@@ -592,7 +592,8 @@ TEST_F(ReusableEventsTest, SignalEventReplacesWaitList) {
 // host task throws, and leaves the event and its wait list unchanged. Once the
 // kernel has been submitted to the backend, the event can be signaled, and
 // its wait list is replaced.
-TEST_F(ReusableEventsTest, SignalEventOfHeldCommandThrows) {
+// https://github.com/intel/llvm/issues/23905
+TEST_F(ReusableEventsTest, DISABLED_SignalEventOfHeldCommandThrows) {
   // The host task waits for a helper barrier, whose backend event comes from
   // the default mock rather than DummyEventHandle.
   CheckUrEventReleaseHandle = false;

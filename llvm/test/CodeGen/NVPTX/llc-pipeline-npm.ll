@@ -33,6 +33,7 @@
 ; O0-NEXT:   scalarize-masked-mem-intrin
 ; O0-NEXT:   expand-reductions
 ; O0-NEXT:   nvptx-lower-unreachable
+; O0-NEXT:   fpbuiltin-fn-selection
 ; O0-NEXT:   lower-invoke
 ; O0-NEXT:   unreachableblockelim
 ; O0-NEXT:   inline-asm-prepare
@@ -119,6 +120,7 @@
 ; O2-NEXT:   nvptx-tag-invariant-loads
 ; O2-NEXT:   nvptx-ir-peephole
 ; O2-NEXT:   nvptx-lower-unreachable
+; O2-NEXT:   fpbuiltin-fn-selection
 ; O2-NEXT:   codegenprepare
 ; O2-NEXT:   lower-invoke
 ; O2-NEXT:   unreachableblockelim

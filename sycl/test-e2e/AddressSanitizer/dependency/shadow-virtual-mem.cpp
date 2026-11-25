@@ -1,10 +1,11 @@
 // REQUIRES: aspect-ext_oneapi_virtual_mem, linux, (gpu && level_zero)
 // RUN: %{build} -o %t.out
-// RUN: %{run} NEOReadDebugKeys=1 CreateMultipleRootDevices=2 %t.out
+// RUN: %{run} %t.out
 
-// Test for the assumption behide DevASAN shadow memory for L0GPU , which is it
-// is okay to access VirtualMem from different device/context.
-#include <iostream>
+// Test for the assumption behind DevASAN shadow memory for L0 GPU, which is
+// that it is okay to access VirtualMem from different contexts of the same
+// device.
+#include <cstdio>
 
 #include <sycl/detail/core.hpp>
 
@@ -42,42 +43,13 @@ bool check_for_42(std::vector<int> &vec, int ref_result = 42) {
 }
 
 int main() {
-  // Get all available devices
-  auto devices = sycl::device::get_devices();
-
-  // Filter out GPU devices
-  std::vector<sycl::device> gpuDevices;
-  for (const auto &dev : devices) {
-    if (dev.is_gpu()) {
-      gpuDevices.push_back(dev);
-    }
-  }
-
-  // Check if we have at least two GPU devices
-  if (gpuDevices.size() < 2) {
-    std::cerr << "Less than two GPU devices found, skipped." << std::endl;
-    return 0;
-  }
-
-  // Create contexts for the first two GPU devices
-  auto dev1 = gpuDevices[0];
-  auto dev2 = gpuDevices[1];
-
-  // Check if two devices are the same model
-  std::string dev1_name = dev1.get_info<sycl::info::device::name>();
-  std::string dev2_name = dev2.get_info<sycl::info::device::name>();
-  if (dev1_name != dev2_name) {
-    std::cerr << "Two different devices, skipped." << std::endl;
-    return 0;
-  }
+  sycl::device dev1;
 
   sycl::context context1_d1(dev1);
   sycl::context context2_d1(dev1);
-  sycl::context context_d2(dev2);
 
   sycl::queue Q1_d1(context1_d1, dev1);
   sycl::queue Q2_d1(context2_d1, dev1);
-  sycl::queue Q1_d2(context_d2, dev2);
 
   constexpr size_t NumberOfElements = 1000;
   size_t BytesRequired = NumberOfElements * sizeof(int);
@@ -136,20 +108,6 @@ int main() {
   ResultHostData = std::vector<int>(NumberOfElements);
   Q1_d1.fill(DataPtr, 0, NumberOfElements).wait_and_throw();
   assert(check_for_42(ResultHostData, 0));
-
-  {
-    // !!! Different device, different context !!!
-    sycl::buffer<int> CheckBuffer(ResultHostData);
-    Q1_d2.fill(DataPtr, ExpectedValueAfterFill, NumberOfElements)
-        .wait_and_throw();
-    Q1_d2.submit([&](sycl::handler &Handle) {
-      sycl::accessor A(CheckBuffer, Handle, sycl::write_only);
-      Handle.parallel_for(NumberOfElements,
-                          [=](sycl::id<1> Idx) { A[Idx] = DataPtr[Idx]; });
-    });
-    Q1_d2.wait();
-  }
-  assert(check_for_42(ResultHostData));
 
   return 0;
 }

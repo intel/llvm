@@ -129,9 +129,9 @@ EventImplPtr Scheduler::addCG(
       break;
     }
     default:
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), &Queue,
-                                   AuxiliaryCmds, EventNeeded, CommandBuffer,
-                                   std::move(Dependencies));
+      NewCmd =
+          MGraphBuilder.addCG(std::move(CommandGroup), &Queue, AuxiliaryCmds,
+                              EventNeeded, CommandBuffer, Dependencies);
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();

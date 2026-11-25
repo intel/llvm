@@ -13,6 +13,7 @@
 #include <sycl/range.hpp>
 
 #include <array>
+#include <cassert>
 
 namespace sycl {
 inline namespace _V1 {
@@ -43,6 +44,8 @@ public:
     } else if (!NDRangeView.MLocalSize) {
       init(NDRangeView.MGlobalSize, NDRangeView.MOffset);
     } else {
+      assert(NDRangeView.MOffset &&
+             "An ND-range view with local sizes must provide offset storage");
       init(NDRangeView.MGlobalSize, NDRangeView.MLocalSize,
            NDRangeView.MOffset);
     }

@@ -36,6 +36,7 @@
 ; CHECK-NEXT:   ee-instrument<post-inline>
 ; CHECK-NEXT:   scalarize-masked-mem-intrin
 ; CHECK-NEXT:   expand-reductions
+; CHECK-NEXT:   fpbuiltin-fn-selection
 ; CHECK-NEXT:   typepromotion
 ; CHECK-NEXT:   codegenprepare
 ; CHECK-NEXT:   dwarf-eh-prepare

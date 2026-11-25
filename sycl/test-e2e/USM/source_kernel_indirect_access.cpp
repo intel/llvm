@@ -53,6 +53,11 @@ int main() {
 
   std::cout << "Increment: " << *PInner << " -> " << *QInner << std::endl;
 
+  free(PInner, Q);
+  free(POuter, Q);
+  free(QInner, Q);
+  free(QOuter, Q);
+
   clReleaseKernel(OclKernel);
   clReleaseProgram(Prog);
   clReleaseContext(Ctx);

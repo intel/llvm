@@ -88,6 +88,7 @@ class: $xQueue
 name: EndGraphCaptureExp
 details:
     - "Graph capture is ended on `hQueue` and on all queues that were forked from it."
+    - "If $X_RESULT_ERROR_GRAPH_UNJOINED_FORKS is returned, graph capture is still ended and `phGraph` is still set to the recorded graph. That graph is invalid: it cannot be instantiated, and the application must destroy it with $xGraphDestroyExp."
 params:
     - type: $x_queue_handle_t
       name: hQueue

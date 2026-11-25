@@ -20,7 +20,7 @@ inline namespace _V1 {
 namespace detail {
 
 std::vector<std::string_view> tokenize(const std::string_view &Filter,
-                                       const std::string &Delim,
+                                       std::string_view Delim,
                                        bool ProhibitEmptyTokens = false) {
   std::vector<std::string_view> Tokens;
   size_t Pos = 0;
@@ -34,8 +34,8 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
     } else if (ProhibitEmptyTokens) {
       throw sycl::exception(
           sycl::make_error_code(errc::invalid),
-          "ONEAPI_DEVICE_SELECTOR parsing error. Empty input before '" + Delim +
-              "' delimiter is not allowed.");
+          "ONEAPI_DEVICE_SELECTOR parsing error. Empty input before '" +
+              std::string(Delim) + "' delimiter is not allowed.");
     }
     // move the search starting index
     LastPos = Pos + 1;
@@ -49,8 +49,8 @@ std::vector<std::string_view> tokenize(const std::string_view &Filter,
     // if delimiter is the last sybmol in the string.
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
-        "ONEAPI_DEVICE_SELECTOR parsing error. Empty input after '" + Delim +
-            "' delimiter is not allowed.");
+        "ONEAPI_DEVICE_SELECTOR parsing error. Empty input after '" +
+            std::string(Delim) + "' delimiter is not allowed.");
   }
   return Tokens;
 }

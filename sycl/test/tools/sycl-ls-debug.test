@@ -19,16 +19,30 @@ RUN: FileCheck --input-file debug_trace2.out --check-prefixes CHECK-DEBUG-LOG,CH
 CHECK-DEBUG-CALLS: urAdapterGet
 
 -- '--verbose' and '--debug' are independent.
+-- The selector choices are only printed if at least one platform is available,
+-- so the checks that depend on that are only run when a platform exists, and
+-- the diagnostic for missing platforms is checked otherwise.
 RUN: sycl-ls --verbose --debug > verbose_debug.out
 RUN: FileCheck --input-file verbose_debug.out --check-prefix CHECK-VERBOSE-DEBUG %s
-CHECK-VERBOSE-DEBUG: Platforms:
-CHECK-VERBOSE-DEBUG: default_selector_v
+RUN: not grep -q '^Platforms: [1-9]' verbose_debug.out || \
+RUN:   FileCheck --input-file verbose_debug.out --check-prefix CHECK-VERBOSE-DEBUG-DEV %s
+RUN: grep -q '^Platforms: [1-9]' verbose_debug.out || \
+RUN:   FileCheck --input-file verbose_debug.out --check-prefix CHECK-VERBOSE-DEBUG-NODEV %s
+CHECK-VERBOSE-DEBUG: Platforms: {{[0-9]+}}
 CHECK-VERBOSE-DEBUG-NOT: with '--debug' to get more details
+CHECK-VERBOSE-DEBUG-DEV: default_selector_v
+CHECK-VERBOSE-DEBUG-NODEV: No platforms found.
 
 RUN: sycl-ls --verbose > verbose.out
 RUN: FileCheck --input-file verbose.out --check-prefix CHECK-VERBOSE %s
-CHECK-VERBOSE: default_selector_v
-CHECK-VERBOSE: Run with '--debug' to get more details
+RUN: not grep -q '^Platforms: [1-9]' verbose.out || \
+RUN:   FileCheck --input-file verbose.out --check-prefix CHECK-VERBOSE-DEV %s
+RUN: grep -q '^Platforms: [1-9]' verbose.out || \
+RUN:   FileCheck --input-file verbose.out --check-prefix CHECK-VERBOSE-NODEV %s
+CHECK-VERBOSE: Platforms: {{[0-9]+}}
+CHECK-VERBOSE-DEV: default_selector_v
+CHECK-VERBOSE-DEV: Run with '--debug' to get more details
+CHECK-VERBOSE-NODEV: No platforms found - run with '--debug' to get more details.
 
 RUN: sycl-ls > concise.out
 RUN: FileCheck --input-file concise.out --check-prefix CHECK-CONCISE %s

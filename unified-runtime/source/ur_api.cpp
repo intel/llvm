@@ -10007,6 +10007,10 @@ ur_result_t UR_APICALL urQueueBeginCaptureIntoGraphExp(
 /// @details
 ///     - Graph capture is ended on `hQueue` and on all queues that were forked
 ///       from it.
+///     - If ::UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS is returned, graph capture
+///       is still ended and `phGraph` is still set to the recorded graph. That
+///       graph is invalid: it cannot be instantiated, and the application must
+///       destroy it with ::urGraphDestroyExp.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
