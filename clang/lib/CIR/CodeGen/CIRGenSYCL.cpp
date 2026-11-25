@@ -91,7 +91,7 @@ void CIRGenModule::addSYCLModuleIdAttr(cir::FuncOp fn) {
   // file name. CIR stores that as the module's symbol name; fall back to the
   // main file name so the attribute is never empty, matching classic CodeGen.
   StringRef moduleId =
-      theModule.getSymName().value_or(codeGenOpts.MainFileName);
+      getModule().getSymName().value_or(codeGenOpts.MainFileName);
   fn->setAttr(cir::CIRDialect::getSYCLModuleIdAttrName(),
               mlir::StringAttr::get(&getMLIRContext(), moduleId));
 }
@@ -134,7 +134,20 @@ void CIRGenModule::emitSYCLKernelCaller(const FunctionDecl *kernelEntryPointFn,
   cir::FuncOp funcOp = createCIRFunction(
       getLoc(kernelEntryPointFn->getSourceRange()), kernelInfo.GetKernelName(),
       funcType, /*funcDecl=*/nullptr);
-  funcOp.setLinkage(cir::GlobalLinkageKind::ExternalLinkage);
+  // The entry point inherits the linkage of the sycl_kernel_entry_point
+  // attributed function. If that function may be defined in multiple
+  // translation units (an inline function or an instantiated function
+  // template specialization), the entry point is emitted weak_odr (rather than
+  // linkonce_odr so that it is not discarded). Otherwise it has strong
+  // external linkage. Mirrors classic CodeGen's EmitSYCLKernelCaller.
+  GVALinkage gvaLinkage = ctx.GetGVALinkageForFunction(kernelEntryPointFn);
+  cir::GlobalLinkageKind linkage =
+      (gvaLinkage == GVA_DiscardableODR || gvaLinkage == GVA_StrongODR)
+          ? cir::GlobalLinkageKind::WeakODRLinkage
+          : cir::GlobalLinkageKind::ExternalLinkage;
+  funcOp.setLinkage(linkage);
+  mlir::SymbolTable::setSymbolVisibility(
+      funcOp, getMLIRVisibilityFromCIRLinkage(linkage));
 
   // Emit as a device kernel (e.g. spir_kernel). Classic CodeGen derives this
   // from CC_DeviceKernel via SetLLVMFunctionAttributes; CIR does not yet route
@@ -164,8 +177,5 @@ void CIRGenModule::emitSYCLKernelCaller(const FunctionDecl *kernelEntryPointFn,
   setDSOLocal(static_cast<mlir::Operation *>(funcOp));
 
   setNonAliasAttributes(GlobalDecl(), funcOp);
-  // CIR's setter takes a FunctionDecl; nullptr skips OutlinedFunctionDecl-
-  // derived attributes (e.g. inline hints), not yet handled.
-  assert(!cir::MissingFeatures::opFuncExtraAttrs());
-  setCIRFunctionAttributesForDefinition(/*fd=*/nullptr, funcOp);
+  setCIRFunctionAttributesForDefinition(outlinedFnDecl, funcOp);
 }

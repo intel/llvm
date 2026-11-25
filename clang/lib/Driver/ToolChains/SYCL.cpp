@@ -1612,8 +1612,11 @@ void SYCLToolChain::addClangTargetOptions(
     return;
 
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
-  BCLibs.append(
-      SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
+  // Compilations that stop at or before the compile phase (e.g. -E,
+  // -fsyntax-only) emit no IR, so they need no device libraries.
+  if (getDriver().getFinalPhase(DriverArgs) > phases::Compile)
+    BCLibs.append(
+        SYCLToolChain::getDeviceLibs(DriverArgs, BA, DeviceOffloadingKind));
   for (const auto &BCFile : BCLibs) {
     CC1Args.push_back(BCFile.ShouldInternalize ? "-mlink-builtin-bitcode"
                                                : "-mlink-bitcode-file");
@@ -2142,6 +2145,35 @@ SYCLToolChain::getDeviceLibs(
     }
     if (!LinkDeviceLibc)
       getDriver().Diag(diag::err_drv_no_sycl_device_lib) << "libc.bc";
+  }
+
+  // Link compiler-rt builtins bitcode (libclang_rt.builtins.bc) for spirv64.
+  // The builtins are target infrastructure rather than SYCL runtime, so they
+  // are only suppressed by --no-offloadlib.
+  if (getTriple().getArch() == llvm::Triple::spirv64 &&
+      DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
+                         true)) {
+    bool BuiltinsFound = false;
+    // Per-target layout: lib/<triple>/libclang_rt.builtins.bc.
+    if (std::optional<std::string> RuntimeDir = getRuntimePath()) {
+      SmallString<128> BCPath(*RuntimeDir);
+      llvm::sys::path::append(BCPath, "libclang_rt.builtins.bc");
+      if (getVFS().exists(BCPath)) {
+        BCLibs.emplace_back(std::string(BCPath), /*ShouldInternalize=*/true);
+        BuiltinsFound = true;
+      }
+    }
+    if (!BuiltinsFound) {
+      // Flat layout (LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF):
+      // lib/<os>/libclang_rt.builtins-spirv64.bc.
+      SmallString<128> BCPath(HostTC.getCompilerRTPath());
+      llvm::sys::path::append(BCPath, "libclang_rt.builtins-spirv64.bc");
+      if (getVFS().exists(BCPath))
+        BCLibs.emplace_back(std::string(BCPath), /*ShouldInternalize=*/true);
+      // The builtins only exist if compiler-rt was built for spirv64, so a
+      // missing library is not an error, as with the OpenMP NVPTX and AMDGPU
+      // builtins.
+    }
   }
 
   return BCLibs;

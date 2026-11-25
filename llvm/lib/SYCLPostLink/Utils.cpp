@@ -64,7 +64,7 @@ Error llvm::sycl_post_link::saveModuleIR(Module &M, const StringRef Filename,
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
-  PassBuilder PB;
+  PassBuilder PB(M.getContext());
   PB.registerModuleAnalyses(MAM);
   if (OutputAssembly)
     MPM.addPass(PrintModulePass(Out, /*Banner=*/"",

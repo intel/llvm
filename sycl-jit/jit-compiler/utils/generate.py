@@ -82,15 +82,15 @@ def main():
                 rel_path = os.path.relpath(file_path, toolchain_dir).replace(
                     os.sep, "/"
                 )
-                shard_out.write(f"""extern const char {symbol}[] = {{
+                shard_out.write(f"""extern const unsigned char {symbol}[] = {{
 #embed "{file_path}" if_empty(0)
     , 0}};
 """)
-                externs.append(f"extern const char {symbol}[{array_size}];")
+                externs.append(f"extern const unsigned char {symbol}[{array_size}];")
                 entries.append(f"""
 {{
     {{"{args.prefix}{rel_path}"}} ,
-    []() {{ return resource_string_view{{{symbol}}}; }}()
+    []() {{ return resource_string_view{{reinterpret_cast<const char (&)[{array_size}]>({symbol})}}; }}()
 }},""")
 
     with open(args.output, "w") as out:

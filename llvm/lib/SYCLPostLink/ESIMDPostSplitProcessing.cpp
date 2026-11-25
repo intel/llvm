@@ -110,7 +110,7 @@ bool sycl_post_link::lowerESIMDConstructs(
   FunctionAnalysisManager FAM;
   ModuleAnalysisManager MAM;
 
-  PassBuilder PB;
+  PassBuilder PB(MD.getModule().getContext());
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);

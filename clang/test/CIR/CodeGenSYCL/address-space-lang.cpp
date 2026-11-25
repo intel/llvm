@@ -20,15 +20,15 @@
 // OpenCL counterparts, and are lowered to the same target address spaces as
 // in classic CodeGen. On the host, they only affect mangling.
 
-void foo(int [[clang::sycl_global]] *);
-void foo(int [[clang::sycl_local]] *);
-void foo(int [[clang::sycl_private]] *);
-void foo(int [[clang::sycl_generic]] *);
-void foo(int [[clang::sycl_constant]] *);
+[[clang::sycl_external]] void foo(int [[clang::sycl_global]] *);
+[[clang::sycl_external]] void foo(int [[clang::sycl_local]] *);
+[[clang::sycl_external]] void foo(int [[clang::sycl_private]] *);
+[[clang::sycl_external]] void foo(int [[clang::sycl_generic]] *);
+[[clang::sycl_external]] void foo(int [[clang::sycl_constant]] *);
 // sycl_global_device and sycl_global_host are only spelled via the OpenCL
 // attributes in SYCL mode.
-void foo(int [[clang::opencl_global_device]] *);
-void foo(int [[clang::opencl_global_host]] *);
+[[clang::sycl_external]] void foo(int [[clang::opencl_global_device]] *);
+[[clang::sycl_external]] void foo(int [[clang::opencl_global_host]] *);
 
 // Required by sycl_kernel_entry_point semantics.
 template <typename KernelName, typename... Ts>
@@ -95,10 +95,12 @@ void host_test(int [[clang::sycl_global]] *glob,
 // LLVM-DAG: declare spir_func void @_Z3fooPU3AS5i(ptr addrspace(5) noundef)
 // LLVM-DAG: declare spir_func void @_Z3fooPU3AS6i(ptr addrspace(6) noundef)
 
+// intel/llvm mangles sycl_global_device and sycl_global_host as
+// SYglobaldevice and SYglobalhost.
 // HOST-DAG: declare void @_Z3fooPU8SYglobali(ptr noundef)
 // HOST-DAG: declare void @_Z3fooPU7SYlocali(ptr noundef)
 // HOST-DAG: declare void @_Z3fooPU9SYprivatei(ptr noundef)
 // HOST-DAG: declare void @_Z3fooPU9SYgenerici(ptr noundef)
 // HOST-DAG: declare void @_Z3fooPU10SYconstanti(ptr noundef)
-// HOST-DAG: declare void @_Z3fooPU8SYdevicei(ptr noundef)
-// HOST-DAG: declare void @_Z3fooPU6SYhosti(ptr noundef)
+// HOST-DAG: declare void @_Z3fooPU14SYglobaldevicei(ptr noundef)
+// HOST-DAG: declare void @_Z3fooPU12SYglobalhosti(ptr noundef)

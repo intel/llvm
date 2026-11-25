@@ -17,6 +17,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Type.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -265,7 +266,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
     // instruction.
     if (IsSPIRKernel) {
       Instruction *InsertPt = &*inst_begin(F);
-      if (InsertPt->isDebugOrPseudoInst())
+      if (isa<PseudoProbeInst>(InsertPt))
         InsertPt = InsertPt->getNextNode();
       assert(InsertPt && "Function does not have any real instructions.");
       insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START, InsertPt,

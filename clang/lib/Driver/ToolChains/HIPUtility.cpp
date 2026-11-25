@@ -326,8 +326,11 @@ void HIP::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
 
   // For SYCL, the compression is occurring during the wrapping step, so we do
   // not want to do additional compression here.
-  if (!JA.isDeviceOffloading(Action::OFK_SYCL))
+  if (!JA.isDeviceOffloading(Action::OFK_SYCL)) {
     addOffloadCompressArgs(Args, BundlerArgs);
+    if (Args.hasArg(options::OPT_v))
+      BundlerArgs.push_back("--verbose");
+  }
 
   const char *Bundler = Args.MakeArgString(
       T.getToolChain().GetProgramPath("clang-offload-bundler"));

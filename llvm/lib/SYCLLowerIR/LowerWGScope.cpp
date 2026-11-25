@@ -462,7 +462,7 @@ static Instruction *getFirstInstToProcess(BasicBlock *BB) {
   Instruction *I = &BB->front();
   for (;
        I->getOpcode() == Instruction::Alloca ||
-       I->getOpcode() == Instruction::AddrSpaceCast || I->isDebugOrPseudoInst();
+       I->getOpcode() == Instruction::AddrSpaceCast || isa<PseudoProbeInst>(I);
        I = I->getNextNode()) {
   }
   return I;
@@ -833,7 +833,7 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
 
     for (; I->getOpcode() == Instruction::Alloca ||
            I->getOpcode() == Instruction::AddrSpaceCast ||
-           I->isDebugOrPseudoInst();
+           isa<PseudoProbeInst>(I);
          I = I->getNextNode()) {
       auto *AllocaI = dyn_cast<AllocaInst>(I);
       // Allocas marked with "work_item_scope" are those originating from

@@ -638,8 +638,9 @@ diagnoseUnsupportedCoExecSchedulerSelection(const Function &F,
 static bool useNoopPostScheduler(const Function &F) {
   Attribute PostSchedStrategyAttr =
       F.getFnAttribute("amdgpu-post-sched-strategy");
-  return PostSchedStrategyAttr.isValid() &&
-         PostSchedStrategyAttr.getValueAsString() == "nop";
+  if (PostSchedStrategyAttr.isValid())
+    return PostSchedStrategyAttr.getValueAsString() == "nop";
+  return AMDGPU::getSchedStrategy(F) == "coexec";
 }
 
 static cl::opt<bool> EnableRewritePartialRegUses(
@@ -666,11 +667,6 @@ static cl::opt<bool> EnableUniformIntrinsicCombine(
     "amdgpu-enable-uniform-intrinsic-combine",
     cl::desc("Enable/Disable the Uniform Intrinsic Combine Pass"),
     cl::init(true), cl::Hidden);
-
-static cl::opt<bool>
-    EnableMachinePipeliner("amdgpu-enable-pipeliner",
-                           cl::desc("Enable Machine Pipeliner for AMDGCN"),
-                           cl::init(false), cl::Hidden);
 
 static cl::opt<bool>
     UseSSAMachineScheduler("amdgpu-use-ssa-machine-scheduler",
@@ -1295,7 +1291,7 @@ bool AMDGPUTargetMachine::splitModule(
   CGSCCAnalysisManager CGAM;
   ModuleAnalysisManager MAM;
 
-  PassBuilder PB(this);
+  PassBuilder PB(M.getContext(), this);
   PB.registerModuleAnalyses(MAM);
   PB.registerFunctionAnalyses(FAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
@@ -1386,7 +1382,7 @@ GCNTargetMachine::getSubtargetImpl(const Function &F) const {
   }
   if (SramEcc != TargetIDSetting::Any) {
     SubtargetKey.append(",sramecc=");
-    SubtargetKey.push_back(Xnack == TargetIDSetting::On ? '1' : '0');
+    SubtargetKey.push_back(SramEcc == TargetIDSetting::On ? '1' : '0');
   }
 
   auto &I = SubtargetMap[SubtargetKey];
@@ -1761,7 +1757,7 @@ bool GCNPassConfig::addPreISel() {
 
   // SDAG requires LCSSA, GlobalISel does not. Disable LCSSA for -global-isel
   // without any of the fallback options.
-  if (getCGPassBuilderOption().EnableGlobalISelOption !=
+  if (getCGPassBuilderOption(*TM).EnableGlobalISelOption !=
           cl::boolOrDefault::BOU_TRUE ||
       !isGlobalISelAbortEnabled())
     addPass(createLCSSAPass());
@@ -1866,8 +1862,6 @@ void GCNPassConfig::addFastRegAlloc() {
 void GCNPassConfig::addPreRegAlloc() {
   if (getOptLevel() != CodeGenOptLevel::None)
     addPass(&AMDGPUPrepareAGPRAllocLegacyID);
-  if (getOptLevel() >= CodeGenOptLevel::Default && EnableMachinePipeliner)
-    addPass(&MachinePipelinerID);
 }
 
 void GCNPassConfig::addOptimizedRegAlloc() {
@@ -2030,6 +2024,8 @@ bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
 
   addPreRewrite();
   addPass(&VirtRegRewriterID);
+
+  addPass(createRegAllocScoringPass());
 
   addPass(&AMDGPUMarkLastScratchLoadID);
 
@@ -2374,11 +2370,17 @@ AMDGPUCodeGenPassBuilder::AMDGPUCodeGenPassBuilder(
     : CodeGenPassBuilder(TM, Opts, PIC) {
   Opt.MISchedPostRA = true;
   Opt.RequiresCodeGenSCCOrder = true;
+  Opt.EnableSSAMachineScheduler = UseSSAMachineScheduler;
   // Exceptions and StackMaps are not supported, so these passes will never do
   // anything.
   // Garbage collection is not supported.
   disablePass<StackMapLivenessPass, FuncletLayoutPass, PatchableFunctionPass,
               ShadowStackGCLoweringPass, GCLoweringPass>();
+
+  // If enabled, use the SSA machine scheduler instead of the regular machine
+  // scheduler.
+  if (Opt.EnableSSAMachineScheduler)
+    disablePass<MachineSchedulerPass>();
 }
 
 void AMDGPUCodeGenPassBuilder::addIRPasses(PassManagerWrapper &PMW) {
@@ -2525,7 +2527,7 @@ void AMDGPUCodeGenPassBuilder::addPreISel(PassManagerWrapper &PMW) {
   // control flow modifications.
   addFunctionPass(AMDGPURewriteUndefForPHIPass(), PMW);
 
-  if (getCGPassBuilderOption().EnableGlobalISelOption !=
+  if (getCGPassBuilderOption(TM).EnableGlobalISelOption !=
           cl::boolOrDefault::BOU_TRUE ||
       !isGlobalISelAbortEnabled())
     addFunctionPass(LCSSAPass(), PMW);
@@ -2692,20 +2694,29 @@ Error AMDGPUCodeGenPassBuilder::addOptimizedRegAlloc(PassManagerWrapper &PMW) {
   if (EnableRewritePartialRegUses)
     insertPass<RenameIndependentSubregsPass>(GCNRewritePartialRegUsesPass());
 
+  // Following passes run at the end of the pre-RA pipeline, so the pass they
+  // are anchored on depends on which scheduler is enabled.
+  auto insertAtEndOfPreRA = [this](auto &&Pass) {
+    if (Opt.EnableSSAMachineScheduler)
+      insertPass<RenameIndependentSubregsPass>(std::move(Pass));
+    else
+      insertPass<MachineSchedulerPass>(std::move(Pass));
+  };
+
   if (isPassEnabled(EnablePreRAOptimizations))
-    insertPass<MachineSchedulerPass>(GCNPreRAOptimizationsPass());
+    insertAtEndOfPreRA(GCNPreRAOptimizationsPass());
 
   // Allow the scheduler to run before SIWholeQuadMode inserts exec manipulation
   // instructions that cause scheduling barriers.
-  insertPass<MachineSchedulerPass>(SIWholeQuadModePass());
+  insertAtEndOfPreRA(SIWholeQuadModePass());
 
   if (OptExecMaskPreRA)
-    insertPass<MachineSchedulerPass>(SIOptimizeExecMaskingPreRAPass());
+    insertAtEndOfPreRA(SIOptimizeExecMaskingPreRAPass());
 
   // This is not an essential optimization and it has a noticeable impact on
   // compilation time, so we only enable it from O2.
   if (TM.getOptLevel() > CodeGenOptLevel::Less)
-    insertPass<MachineSchedulerPass>(SIFormMemoryClausesPass());
+    insertAtEndOfPreRA(SIFormMemoryClausesPass());
 
   return Base::addOptimizedRegAlloc(PMW);
 }
@@ -2713,8 +2724,6 @@ Error AMDGPUCodeGenPassBuilder::addOptimizedRegAlloc(PassManagerWrapper &PMW) {
 void AMDGPUCodeGenPassBuilder::addPreRegAlloc(PassManagerWrapper &PMW) {
   if (getOptLevel() != CodeGenOptLevel::None)
     addMachineFunctionPass(AMDGPUPrepareAGPRAllocPass(), PMW);
-  if (getOptLevel() >= CodeGenOptLevel::Default && EnableMachinePipeliner)
-    addMachineFunctionPass(MachinePipelinerPass(), PMW);
 }
 
 Expected<bool> AMDGPUCodeGenPassBuilder::addRegAssignAndRewriteOptimized(

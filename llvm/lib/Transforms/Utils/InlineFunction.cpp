@@ -162,8 +162,7 @@ namespace {
     /// a simple branch. When there is more than one predecessor, we need to
     /// split the landing pad block after the landingpad instruction and jump
     /// to there.
-    void forwardResume(ResumeInst *RI,
-                       SmallPtrSetImpl<LandingPadInst*> &InlinedLPads);
+    void forwardResume(ResumeInst *RI);
 
     /// Add incoming-PHI values to the unwind destination block for the given
     /// basic block, using the values for the original invoke's source block.
@@ -234,8 +233,7 @@ BasicBlock *LandingPadInliningInfo::getInnerResumeDest() {
 /// When the landing pad block has only one predecessor, this is a simple
 /// branch. When there is more than one predecessor, we need to split the
 /// landing pad block after the landingpad instruction and jump to there.
-void LandingPadInliningInfo::forwardResume(
-    ResumeInst *RI, SmallPtrSetImpl<LandingPadInst *> &InlinedLPads) {
+void LandingPadInliningInfo::forwardResume(ResumeInst *RI) {
   BasicBlock *Dest = getInnerResumeDest();
   BasicBlock *Src = RI->getParent();
 
@@ -631,8 +629,9 @@ static void HandleInlinedLandingPad(InvokeInst *II, BasicBlock *FirstNewBlock,
   // rewrite.
   LandingPadInliningInfo Invoke(II);
 
-  // Get all of the inlined landing pad instructions.
-  SmallPtrSet<LandingPadInst*, 16> InlinedLPads;
+  // Get all of the inlined landing pad instructions. Keep them in block order
+  // so the clauses appended below get a deterministic use-list order.
+  SmallSetVector<LandingPadInst *, 16> InlinedLPads;
   for (Function::iterator I = FirstNewBlock->getIterator(), E = Caller->end();
        I != E; ++I)
     if (InvokeInst *II = dyn_cast<InvokeInst>(I->getTerminator()))
@@ -662,7 +661,7 @@ static void HandleInlinedLandingPad(InvokeInst *II, BasicBlock *FirstNewBlock,
 
     // Forward any resumes that are remaining here.
     if (ResumeInst *RI = dyn_cast<ResumeInst>(BB->getTerminator()))
-      Invoke.forwardResume(RI, InlinedLPads);
+      Invoke.forwardResume(RI);
   }
 
   // Now that everything is happy, we have one final detail.  The PHI nodes in
@@ -1257,9 +1256,12 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
       Arch == Triple::ArchType::spir || Arch == Triple::ArchType::spir64 ||
       Arch == Triple::ArchType::spirv || Arch == Triple::ArchType::spirv64;
 
-  // Create a new scope domain for this function.
+  // Create a new scope domain for this function. Its scopes are disjoint,
+  // since accesses based on one noalias argument don't alias accesses based on
+  // another one.
   MDNode *NewDomain = MDB.createAnonymousAliasScopeDomain(
-      IsSPIRModule ? StringRef() : CalledFunc->getName());
+      IsSPIRModule ? StringRef() : CalledFunc->getName(),
+      /*DisjointScopes=*/true);
   for (unsigned i = 0, e = NoAliasArgs.size(); i != e; ++i) {
     const Argument *A = NoAliasArgs[i];
 
@@ -1415,7 +1417,34 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
       if (IsFuncCall && !IsArgMemOnlyCall)
         RequiresNoCaptureBefore = true;
 
-      // First, we want to figure out all of the sets with which we definitely
+      // First, we want to figure out all of the sets to which we might belong.
+      // We might belong to a set if the noalias argument is in the set of
+      // underlying objects. If there is some non-noalias argument in our list
+      // of underlying objects, then we cannot add a scope because the fact
+      // that some access does not alias with any set of our noalias arguments
+      // cannot itself guarantee that it does not alias with this access
+      // (because there is some pointer of unknown origin involved and the
+      // other access might also depend on this pointer). We also cannot add
+      // scopes to arbitrary functions unless we know they don't access any
+      // non-parameter pointer-values.
+      bool CanAddScopes = !UsesAliasingPtr && (!IsFuncCall || IsArgMemOnlyCall);
+      if (CanAddScopes) {
+        for (const Argument *A : NoAliasArgs) {
+          if (ObjSet.count(A))
+            Scopes.push_back(NewScopes[A]);
+        }
+      }
+
+      if (!Scopes.empty()) {
+        NI->setMetadata(
+            LLVMContext::MD_alias_scope,
+            MDNode::concatenate(NI->getMetadata(LLVMContext::MD_alias_scope),
+                                MDNode::get(CalledFunc->getContext(), Scopes)));
+        // Being in these scopes already means being noalias with the rest.
+        continue;
+      }
+
+      // Next, we want to figure out all of the sets with which we definitely
       // don't alias. Iterate over all noalias set, and add those for which:
       //   1. The noalias argument is not in the set of objects from which we
       //      definitely derive.
@@ -1443,32 +1472,6 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
                         MDNode::concatenate(
                             NI->getMetadata(LLVMContext::MD_noalias),
                             MDNode::get(CalledFunc->getContext(), NoAliases)));
-
-      // Next, we want to figure out all of the sets to which we might belong.
-      // We might belong to a set if the noalias argument is in the set of
-      // underlying objects. If there is some non-noalias argument in our list
-      // of underlying objects, then we cannot add a scope because the fact
-      // that some access does not alias with any set of our noalias arguments
-      // cannot itself guarantee that it does not alias with this access
-      // (because there is some pointer of unknown origin involved and the
-      // other access might also depend on this pointer). We also cannot add
-      // scopes to arbitrary functions unless we know they don't access any
-      // non-parameter pointer-values.
-      bool CanAddScopes = !UsesAliasingPtr;
-      if (CanAddScopes && IsFuncCall)
-        CanAddScopes = IsArgMemOnlyCall;
-
-      if (CanAddScopes)
-        for (const Argument *A : NoAliasArgs) {
-          if (ObjSet.count(A))
-            Scopes.push_back(NewScopes[A]);
-        }
-
-      if (!Scopes.empty())
-        NI->setMetadata(
-            LLVMContext::MD_alias_scope,
-            MDNode::concatenate(NI->getMetadata(LLVMContext::MD_alias_scope),
-                                MDNode::get(CalledFunc->getContext(), Scopes)));
     }
   }
 }
@@ -1843,7 +1846,7 @@ static void HandleByValArgumentInit(Type *ByValType, Value *Dst, Value *Src,
   IRBuilder<> Builder(InsertBlock->begin());
 
   Value *Size =
-      Builder.getInt64(M->getDataLayout().getTypeStoreSize(ByValType));
+      Builder.getInt64(M->getDataLayout().getTypeAllocSize(ByValType));
 
   Align DstAlign = Dst->getPointerAlignment(M->getDataLayout());
 
@@ -1910,33 +1913,6 @@ static Value *HandleByValArgument(Type *ByValType, Value *Arg,
   // Uses of the argument in the function should use our new alloca
   // instead.
   return NewAlloca;
-}
-
-// Check whether this Value is used by a lifetime intrinsic.
-static bool isUsedByLifetimeMarker(Value *V) {
-  for (User *U : V->users())
-    if (isa<LifetimeIntrinsic>(U))
-      return true;
-  return false;
-}
-
-// Check whether the given alloca already has
-// lifetime.start or lifetime.end intrinsics.
-static bool hasLifetimeMarkers(AllocaInst *AI) {
-  Type *Ty = AI->getType();
-  Type *Int8PtrTy =
-      PointerType::get(Ty->getContext(), Ty->getPointerAddressSpace());
-  if (Ty == Int8PtrTy)
-    return isUsedByLifetimeMarker(AI);
-
-  // Do a scan to find all the casts to i8*.
-  for (User *U : AI->users()) {
-    if (U->getType() != Int8PtrTy) continue;
-    if (U->stripPointerCasts() != AI) continue;
-    if (isUsedByLifetimeMarker(U))
-      return true;
-  }
-  return false;
 }
 
 /// Return the result of AI->isStaticAlloca() if AI were moved to the entry
@@ -3180,7 +3156,7 @@ void llvm::InlineFunctionImpl(CallBase &CB, InlineFunctionInfo &IFI,
 
       // If the alloca is already scoped to something smaller than the whole
       // function then there's no need to add redundant, less accurate markers.
-      if (hasLifetimeMarkers(AI))
+      if (any_of(AI->users(), IsaPred<LifetimeIntrinsic>))
         continue;
 
       std::optional<TypeSize> Size = AI->getAllocationSize(AI->getDataLayout());
