@@ -138,6 +138,14 @@ void SaveReport(const uint32_t size, const char __SYCL_CONSTANT__ *file,
 // The CPU mapping is based on compiler-rt/msan
 inline uptr MemToShadow_CPU(uptr addr) { return addr ^ 0x500000000000ULL; }
 
+inline uptr GetLocalWindowSize() {
+#if defined(__LIBDEVICE_PVC__)
+  return 128 * 1024;
+#else
+  return GetMsanLaunchInfo->LocalWindowSize;
+#endif
+}
+
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
@@ -174,9 +182,8 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
     const size_t wid = WorkGroupLinearId();
     if (shadow_offset != 0 && wid < MSAN_MAX_WG_LOCAL) {
-      // The size of SLM is 128KB on PVC
-      constexpr unsigned SLM_SIZE = 128 * 1024;
-      return shadow_offset + (wid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
+      const uptr window_size = GetLocalWindowSize();
+      return shadow_offset + (wid * window_size) + (addr & (window_size - 1));
     }
   } else if (as == ADDRESS_SPACE_PRIVATE) {
     const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
