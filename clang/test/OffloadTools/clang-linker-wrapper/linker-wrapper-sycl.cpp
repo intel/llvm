@@ -358,7 +358,7 @@
 // CHK-DEFAULT-LIBS-JIT-NOT: bfloat16.bc
 
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-PVC %s
-// CHK-DEFAULT-LIBS-PVC: llvm-link{{.*}} --only-needed --suppress-warnings {{.*}} {{[^ ]*}}.libdir/libsycl-native-bfloat16.bc
+// CHK-DEFAULT-LIBS-PVC: llvm-link{{[^ ]*}} --only-needed --suppress-warnings {{[^ ]*}} {{[^ ]*}}.libdir/libsycl-crt.bc {{[^ ]*}}.libdir/libsycl-cmath.bc {{[^ ]*}}.libdir/libsycl-imf.bc {{[^ ]*}}.libdir/libsycl-itt-user-wrappers.bc {{[^ ]*}}.libdir/libsycl-itt-compiler-wrappers.bc {{[^ ]*}}.libdir/libsycl-itt-stubs.bc {{[^ ]*}}.libdir/libsycl-native-bfloat16.bc
 // CHK-DEFAULT-LIBS-PVC-NOT: fallback-bfloat16
 
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_jit_old.o -sycl-device-library-location=%t.libdir --device-compiler=spir64=--no-offloadlib --device-compiler=spir64=-fno-sycl-instrument-device-code --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-NONE %s
