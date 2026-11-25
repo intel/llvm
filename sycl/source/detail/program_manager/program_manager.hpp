@@ -430,9 +430,12 @@ private:
   bool shouldBF16DeviceImageBeUsed(const RTDeviceBinaryImage *BinImage,
                                    const device_impl &DeviceImpl);
 
-  /// Returns a comma-separated list of available image target names for the
-  /// given kernel ID, for use in error messages.
-  std::string getKernelTargetList(const kernel_id &KernelID);
+  /// Builds the diagnostic for a kernel none of whose images target the
+  /// selected device, naming the device and what the kernel's images do
+  /// target.
+  std::string getNoImageForDeviceMessage(std::string_view KernelName,
+                                         const kernel_id &KernelID,
+                                         const device_impl &DeviceImpl);
 
 protected:
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;

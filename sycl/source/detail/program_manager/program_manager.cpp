@@ -30,6 +30,7 @@
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 
+#include <sycl/ext/intel/info/device.hpp>
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
 #include <algorithm>
@@ -526,6 +527,86 @@ static void emitBuiltProgramInfo(const ur_program_handle_t &Prog,
   }
 }
 
+// Joins the IGCA targets a module holds sub-modules for into a list usable in
+// error messages, e.g. "igca_10, igca_20". Empty when the module does not
+// record its targets.
+static std::string getIgcaTargetList(const RTDeviceBinaryImage &Img) {
+  std::string List;
+  for (std::string_view Target : Img.getIgcaTargets()) {
+    if (!List.empty())
+      List += ", ";
+    List += Target;
+  }
+  return List;
+}
+
+// Describes a device's IGCA target for error messages, e.g. "10 (compute)".
+// Empty when the device does not report an IGCA target.
+static std::string getDeviceIgcaTargetLabel(const device_impl &Dev) {
+  if (!Dev.has(aspect::ext_intel_igca))
+    return {};
+
+  ext::intel::info::igca Igca = Dev.get_info<ext::intel::info::device::igca>();
+  std::string Label = std::to_string(Igca.target);
+  const bool Compute =
+      Igca.feature_sets & ext::intel::info::igca_feature_set_compute;
+  const bool Render =
+      Igca.feature_sets & ext::intel::info::igca_feature_set_render;
+  if (Compute || Render) {
+    Label += " (";
+    Label += Compute ? (Render ? "compute, render" : "compute") : "render";
+    Label += ")";
+  }
+  return Label;
+}
+
+// Describes the device a module was about to be loaded on, usable in error
+// messages, e.g. "'Intel(R) Graphics', IGCA target 20 (compute)". The IGCA
+// target is left out unless \p WithIgcaTarget, or when the device does not
+// report one.
+static std::string getDeviceLabel(const device_impl &Dev,
+                                  bool WithIgcaTarget = true) {
+  std::string Label = "'" + Dev.get_info<info::device::name>() + "'";
+  if (!WithIgcaTarget)
+    return Label;
+
+  std::string IgcaTarget = getDeviceIgcaTargetLabel(Dev);
+  if (!IgcaTarget.empty())
+    Label += ", IGCA target " + std::move(IgcaTarget);
+  return Label;
+}
+
+// A module built in --offload-arch mode is the only module that defines its
+// kernels, so when the backend refuses to load it there is no other module to
+// fall back to and the failure reaches the user as is. Restate it with the
+// devices the module was built for and the IGCA targets it holds code for: the
+// usual cause is a binary built for a newer IGCA target than the device
+// supports, and the remedy is a rebuild with a different --offload-arch.
+static exception augmentIgcaBuildError(const exception &E,
+                                       const RTDeviceBinaryImage &Img,
+                                       devices_range Devs) {
+  std::string DeviceList;
+  for (device_impl &Dev : Devs) {
+    if (!DeviceList.empty())
+      DeviceList += ", ";
+    DeviceList += getDeviceLabel(Dev);
+  }
+  std::string Msg =
+      "Failed to build a module compiled with --offload-arch for " +
+      DeviceList + ";";
+
+  std::string Targets = getIgcaTargetList(Img);
+  Msg += Targets.empty()
+             ? " the module does not record which IGCA targets it holds code"
+               " for"
+             : " the module holds code for IGCA targets [" + Targets + "]";
+  Msg += ". A module compiled with --offload-arch is the only module defining "
+         "its kernels, so no other module can be tried. Backend error: ";
+  Msg += E.what();
+  return detail::set_ur_error(exception(E.code(), Msg),
+                              detail::get_ur_error(E));
+}
+
 static const char *getUrDeviceTarget(const char *URDeviceTarget) {
   if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
     return UR_DEVICE_BINARY_TARGET_UNKNOWN;
@@ -967,12 +1048,19 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
 
     auto URDevices = Devs.to<std::vector<ur_device_handle_t>>();
 
-    Managed<ur_program_handle_t> BuiltProgram =
-        build(std::move(NativePrg), ContextImpl, CompileOpts, LinkOpts,
-              URDevices, ProgramsToLink,
-              /*CreatedFromBinary*/ MainImg.getFormat() !=
-                  SYCL_DEVICE_BINARY_TYPE_SPIRV,
-              AllowUnresolvedSymbols);
+    Managed<ur_program_handle_t> BuiltProgram = [&] {
+      try {
+        return build(std::move(NativePrg), ContextImpl, CompileOpts, LinkOpts,
+                     URDevices, ProgramsToLink,
+                     /*CreatedFromBinary*/ MainImg.getFormat() !=
+                         SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                     AllowUnresolvedSymbols);
+      } catch (exception &E) {
+        if (!MainImg.isIgcaModule())
+          throw;
+        throw augmentIgcaBuildError(E, MainImg, Devs);
+      }
+    }();
 
     // Those extra programs won't be used anymore, just the final
     // linked result:
@@ -1309,17 +1397,25 @@ const char *getArchName(const device_impl &DeviceImpl) {
 
 // Get a human-readable target label for a device binary image, usable in
 // error messages.
+// - For modules built in --offload-arch mode returns the IGCA targets the
+// module holds sub-modules for, since no single architecture describes it
 // - For AOT-compiled images with a compile_target property returns the
 // architecture name (e.g. "intel_gpu_bdw")
 // - For JIT / generic images returns the raw DeviceTargetSpec string
-static std::string_view getImageTargetLabel(const RTDeviceBinaryImage &Img) {
+static std::string getImageTargetLabel(const RTDeviceBinaryImage &Img) {
+  if (Img.isIgcaModule()) {
+    std::string Targets = getIgcaTargetList(Img);
+    return Targets.empty() ? "--offload-arch"
+                           : "--offload-arch " + std::move(Targets);
+  }
+
   auto PropRange = Img.getDeviceRequirements();
   auto PropIt =
       std::find_if(PropRange.begin(), PropRange.end(), [](const auto &Prop) {
         return Prop->Name == std::string_view("compile_target");
       });
   if (PropIt != PropRange.end())
-    return DeviceBinaryProperty(*PropIt).asStringView();
+    return std::string(DeviceBinaryProperty(*PropIt).asStringView());
   return Img.getRawData().DeviceTargetSpec;
 }
 
@@ -1347,6 +1443,23 @@ const RTDeviceBinaryImage *getBinImageFromMultiMap(
 
   if (DeviceFilteredImgs.empty())
     return nullptr;
+
+  // A kernel defined in a module built in --offload-arch mode is defined in
+  // that module alone, so there is nothing to rank: hand the module to the
+  // backend and let it pick the sub-module that suits the device. A binary may
+  // link objects built in --offload-arch mode with objects that were not, so
+  // which algorithm applies is decided per module, not once per program.
+  auto IgcaImgIt = std::find_if(
+      DeviceFilteredImgs.begin(), DeviceFilteredImgs.end(),
+      [](const RTDeviceBinaryImage *Img) { return Img->isIgcaModule(); });
+  if (IgcaImgIt != DeviceFilteredImgs.end()) {
+    assert(std::none_of(std::next(IgcaImgIt), DeviceFilteredImgs.end(),
+                        [](const RTDeviceBinaryImage *Img) {
+                          return Img->isIgcaModule();
+                        }) &&
+           "a kernel must be defined in at most one --offload-arch module");
+    return *IgcaImgIt;
+  }
 
   const size_t NumImgs = DeviceFilteredImgs.size();
   // Pass extra information to the HIP adapter to aid in binary selection. We
@@ -1377,17 +1490,32 @@ const RTDeviceBinaryImage *getBinImageFromMultiMap(
   return DeviceFilteredImgs[ImgInd];
 }
 
-std::string ProgramManager::getKernelTargetList(const kernel_id &KernelID) {
-  std::lock_guard<std::mutex> Guard(m_ImgMapsMutex);
-  auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelID);
-  assert(ItBegin != ItEnd && "Expected at least one image");
+std::string
+ProgramManager::getNoImageForDeviceMessage(std::string_view KernelName,
+                                           const kernel_id &KernelID,
+                                           const device_impl &DeviceImpl) {
+  std::string TargetList;
+  bool AnyIgcaModule = false;
+  {
+    std::lock_guard<std::mutex> Guard(m_ImgMapsMutex);
+    auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelID);
+    assert(ItBegin != ItEnd && "Expected at least one image");
 
-  std::string TargetList{getImageTargetLabel(*ItBegin->second)};
-  for (auto It = std::next(ItBegin); It != ItEnd; ++It) {
-    TargetList += ", ";
-    TargetList += getImageTargetLabel(*It->second);
+    for (auto It = ItBegin; It != ItEnd; ++It) {
+      if (!TargetList.empty())
+        TargetList += ", ";
+      TargetList += getImageTargetLabel(*It->second);
+      AnyIgcaModule |= It->second->isIgcaModule();
+    }
   }
-  return TargetList;
+
+  // The device's IGCA target is only named when one of the kernel's images is
+  // a module built in --offload-arch mode, because that is when the IGCA
+  // target is what decides whether a module can run on the device.
+  return "Kernel " + std::string(KernelName) +
+         " has no image for the selected device " +
+         getDeviceLabel(DeviceImpl, AnyIgcaModule) +
+         ". Its available images target: [" + TargetList + "].";
 }
 
 const RTDeviceBinaryImage &
@@ -1432,11 +1560,9 @@ ProgramManager::getDeviceImage(std::string_view KernelName,
     // The kernel is registered but none of its images target the selected
     // device. Enumerate the available targets so the user can see what the
     // binary supports.
-    throw exception(make_error_code(errc::runtime),
-                    "Kernel " + std::string(KernelName) +
-                        " has no image for the selected device. "
-                        "Its available images target: [" +
-                        getKernelTargetList(*FoundKernelID) + "].");
+    throw exception(
+        make_error_code(errc::runtime),
+        getNoImageForDeviceMessage(KernelName, *FoundKernelID, DeviceImpl));
   }
 
   if constexpr (DbgProgMgr > 0) {
@@ -3597,8 +3723,15 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
       std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
         return Prop->Name == std::string_view("compile_target");
       });
+  // A module built in --offload-arch mode holds a sub-module per IGCA target,
+  // and for AOT a sub-module per device, so no single compile_target can
+  // describe it. Picking a sub-module for the device is the backend's job, so
+  // such a module is matched on its target spec alone, which tells which
+  // backends can load the module at all.
+  const bool HasCompileTarget =
+      PropIt != PropRange.end() && !Img.isIgcaModule();
   // Device image has no compile_target property, check target.
-  if (PropIt == PropRange.end()) {
+  if (!HasCompileTarget) {
     sycl::backend BE = DevImpl.getBackend();
     const char *Target = Img.getRawData().DeviceTargetSpec;
     // On Offload, the image format depends on the platform. As with the UR CTS,

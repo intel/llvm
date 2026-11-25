@@ -21,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include <string_view>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -253,6 +254,17 @@ public:
   }
   const PropertyRange &getMiscProperties() const { return Misc; }
 
+  /// Returns true if this module was built in `--offload-arch` mode, i.e. it
+  /// holds one sub-module per IGCA target it was built for. Such a module is
+  /// handled differently from a module built via `-fsycl-targets`, and a
+  /// single binary may contain both kinds, so this is asked per module.
+  bool isIgcaModule() const { return IsIgcaModule; }
+
+  /// Returns the IGCA targets this module holds sub-modules for, e.g.
+  /// {"igca_10", "igca_20"}. Only used for diagnostics, and best-effort: the
+  /// list is empty when the producer did not record it.
+  std::vector<std::string_view> getIgcaTargets() const;
+
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
     return ImageId;
@@ -291,6 +303,8 @@ protected:
   RTDeviceBinaryImage::PropertyRange WorkGroupDynamicLocalMem;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;
   RTDeviceBinaryImage::PropertyRange Misc;
+  RTDeviceBinaryImage::PropertyRange IgcaMetadata;
+  bool IsIgcaModule = false;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
