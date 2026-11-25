@@ -253,8 +253,42 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   foreach(library ur_loaderd umfd)
     list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/${library}.lib)
   endforeach()
+  # Static adapters that are linked into the static loader, and whether any of
+  # them is a Level Zero adapter (which additionally needs ze_loader).
+  set(_urd_static_adapters)
+  set(_urd_static_l0 FALSE)
   if(UR_STATIC_LOADER)
     list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ur_commond.lib)
+    foreach(adapter ${SYCL_ENABLE_BACKENDS})
+      ur_adapter_is_static(${adapter} adapter_is_static)
+      # The Level Zero adapters use the abbreviated build flags
+      # UR_BUILD_ADAPTER_L0 / _L0_V2 rather than the backend name.
+      string(TOUPPER "${adapter}" adapter_upper)
+      if(adapter_upper STREQUAL "LEVEL_ZERO")
+        set(build_var "UR_BUILD_ADAPTER_L0")
+      elseif(adapter_upper STREQUAL "LEVEL_ZERO_V2")
+        set(build_var "UR_BUILD_ADAPTER_L0_V2")
+      else()
+        set(build_var "UR_BUILD_ADAPTER_${adapter_upper}")
+      endif()
+      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
+        list(APPEND _urd_static_adapters ${adapter})
+        if(build_var STREQUAL "UR_BUILD_ADAPTER_L0" OR
+           build_var STREQUAL "UR_BUILD_ADAPTER_L0_V2")
+          set(_urd_static_l0 TRUE)
+        endif()
+      endif()
+    endforeach()
+    if(_urd_static_l0)
+      list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ze_loader.lib)
+    endif()
+  endif()
+  # The private UMF helper archives aren't installed, but are copied from the
+  # subbuild's lib directory when UMF is static.
+  if(NOT UMF_BUILD_SHARED_LIBRARY)
+    foreach(_umfd_helper umf_ba umf_utils umf_coarse)
+      list(APPEND URD_BYPRODUCTS ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib)
+    endforeach()
   endif()
   list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/ur_loaderd.dll)
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
@@ -369,28 +403,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
       ${LLVM_BINARY_DIR}/lib/ur_commond.lib
       dbghelp)
-    set(_urd_static_l0 FALSE)
     # Link static adapters into the loader
-    foreach(adapter ${SYCL_ENABLE_BACKENDS})
-      ur_adapter_is_static(${adapter} adapter_is_static)
-      # The Level Zero adapters use the abbreviated build flags
-      # UR_BUILD_ADAPTER_L0 / _L0_V2 rather than the backend name.
-      string(TOUPPER "${adapter}" adapter_upper)
-      if(adapter_upper STREQUAL "LEVEL_ZERO")
-        set(build_var "UR_BUILD_ADAPTER_L0")
-      elseif(adapter_upper STREQUAL "LEVEL_ZERO_V2")
-        set(build_var "UR_BUILD_ADAPTER_L0_V2")
-      else()
-        set(build_var "UR_BUILD_ADAPTER_${adapter_upper}")
-      endif()
-      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
-        target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
-          ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
-        if(build_var STREQUAL "UR_BUILD_ADAPTER_L0" OR
-           build_var STREQUAL "UR_BUILD_ADAPTER_L0_V2")
-          set(_urd_static_l0 TRUE)
-        endif()
-      endif()
+    foreach(adapter ${_urd_static_adapters})
+      target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+        ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
     endforeach()
     # A static umfd.lib does not absorb its private helper archives, so link
     # them too. umfd and the helpers are copied below.
@@ -409,6 +425,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_INSTALL_DIR}/lib/ze_loader.lib
           ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib
+        DEPENDS ${URD_INSTALL_DIR}/lib/ze_loader.lib
       )
       target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
         ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib)
@@ -439,7 +456,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
           ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
-        DEPENDS unified-runtimed
+        DEPENDS ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib
       )
     endforeach()
   endif()
