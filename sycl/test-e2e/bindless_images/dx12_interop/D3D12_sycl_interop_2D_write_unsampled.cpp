@@ -44,6 +44,9 @@
 // RUN: %{run} %t.exe --type int8 --channels 1 32x33
 // RUN: %{run} %t.exe --type int8 --channels 2 32x33
 // RUN: %{run} %t.exe --type int8 --channels 4 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 1 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 2 32x33
+// RUN: %{run} %t.exe --type unorm8 --channels 4 32x33
 
 // Semaphore coverage tests
 

@@ -478,8 +478,10 @@ public:
       detail::kernel_bundle_impl *KernelBundleImpPtr,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
+  /// DepEvents may be adopted by the event. Callers must not rely on the list's
+  /// contents after this call, even on paths that do not move it.
   EventImplPtr
-  submit_barrier_scheduler_bypass(std::vector<detail::EventImplPtr> &DepEvents,
+  submit_barrier_scheduler_bypass(std::vector<detail::EventImplPtr> &&DepEvents,
                                   detail::CGType BarrierType, bool EventNeeded,
                                   const EventImplPtr &EventForReuse);
 
@@ -490,22 +492,24 @@ public:
   /// \param UREvent is the event of the enqueued allocation, if one was
   ///        requested.
   /// \param DepEvents is the list of event dependencies of the allocation.
+  ///        Its contents may be adopted by the event and must not be reused.
   /// \param EventNeeded should be true, if the resulting event is needed.
   ///
   /// \return a SYCL event representing the allocation or nullptr.
   EventImplPtr submit_async_alloc_scheduler_bypass(
-      ur_event_handle_t UREvent, std::vector<detail::EventImplPtr> &DepEvents,
+      ur_event_handle_t UREvent, std::vector<detail::EventImplPtr> &&DepEvents,
       bool EventNeeded);
 
   /// Submits an asynchronous free using the scheduler bypass fast path.
   ///
   /// \param Ptr is the pointer to be freed.
   /// \param DepEvents is the list of event dependencies of the free.
+  ///        Its contents may be adopted by the event and must not be reused.
   /// \param EventNeeded should be true, if the resulting event is needed.
   ///
   /// \return a SYCL event representing the free or nullptr.
   EventImplPtr submit_async_free_scheduler_bypass(
-      void *Ptr, std::vector<detail::EventImplPtr> &DepEvents,
+      void *Ptr, std::vector<detail::EventImplPtr> &&DepEvents,
       bool EventNeeded);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the

@@ -506,11 +506,11 @@ public:
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
+    auto It = MSpecConstSymMap.find(std::string{SpecName});
+    if (It == MSpecConstSymMap.end())
       return false;
 
-    const std::vector<SpecConstDescT> &Descs =
-        MSpecConstSymMap.at(std::string{SpecName});
+    const std::vector<SpecConstDescT> &Descs = It->second;
     return Descs.front().IsSet;
   }
 
