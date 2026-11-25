@@ -94,8 +94,18 @@ The easiest way to get started is to use the buildbot
 [configure](https://github.com/intel/llvm/blob/sycl/buildbot/configure.py) and
 [compile](https://github.com/intel/llvm/blob/sycl/buildbot/compile.py) scripts.
 
-In case you want to configure CMake manually the up-to-date reference for
-variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
+In case you want to configure CMake manually, the default configuration is
+available as a CMake cache file
+[DPCPP.cmake](../cmake/caches/DPCPP.cmake), which is also used by
+`configure.py`:
+
+```bash
+cmake -G Ninja -C $DPCPP_HOME/llvm/sycl/cmake/caches/DPCPP.cmake \
+  -S $DPCPP_HOME/llvm/llvm -B $DPCPP_HOME/llvm/build
+```
+
+Any of the defaults can be overridden with `-D` options. The up-to-date
+reference for variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
  DPC++ developers and might not necessarily suffice for your project-specific needs.
 
 **Linux**:
