@@ -146,6 +146,14 @@ the event of the submitted kernel and propagate it to the subscriber tool.
 It is up to the tool to register a callback for this event completion and
 close the task opened for the command object.
 
+#### Direct kernel submission tracepoint lifetime
+
+Kernel submissions that bypass the scheduler, including direct insertion into
+a command buffer, keep their XPTI event and metadata available through the last
+enqueue callback. Once the enqueue scope exits, lookup by ID no longer returns
+the event. Subscribers that need the data later must copy it during a callback.
+This lifetime follows host enqueue, not device execution.
+
 ### The Edges
 
 As discussed in the previous section, the command groups submitted to the
