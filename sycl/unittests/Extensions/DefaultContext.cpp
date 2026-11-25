@@ -110,3 +110,74 @@ TEST(DefaultContextTest, DefaultContextValueChangedAfterQueueCreated) {
 
   ASSERT_EQ(Queue2.get_context(), Queue3.get_context());
 }
+
+namespace {
+const auto DEVICE_CPU = reinterpret_cast<ur_device_handle_t>(1u);
+const auto DEVICE_GPU = reinterpret_cast<ur_device_handle_t>(2u);
+
+ur_result_t redefine_urDeviceGet_CpuFirst(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
+  if (*params.ppNumDevices)
+    **params.ppNumDevices = 2;
+  if (*params.pphDevices) {
+    if (*params.pNumEntries > 0)
+      (*params.pphDevices)[0] = DEVICE_CPU;
+    if (*params.pNumEntries > 1)
+      (*params.pphDevices)[1] = DEVICE_GPU;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t after_urDeviceGetInfo_CpuGpu(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName != UR_DEVICE_INFO_TYPE)
+    return UR_RESULT_SUCCESS;
+
+  ur_device_type_t Type =
+      *params.phDevice == DEVICE_CPU ? UR_DEVICE_TYPE_CPU : UR_DEVICE_TYPE_GPU;
+  if (*params.ppPropValue)
+    *static_cast<ur_device_type_t *>(*params.ppPropValue) = Type;
+  if (*params.ppPropSizeRet)
+    **params.ppPropSizeRet = sizeof(Type);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_device_handle_t FirstDeviceInUrContext = nullptr;
+
+ur_result_t after_urContextCreate(void *pParams) {
+  auto params = *static_cast<ur_context_create_params_t *>(pParams);
+  if (*params.pDeviceCount > 0)
+    FirstDeviceInUrContext = (*params.pphDevices)[0];
+  return UR_RESULT_SUCCESS;
+}
+} // namespace
+
+// The default context's first device must be the default queue's device, since
+// backends treat the context's first device as the owner of e.g. images.
+TEST(DefaultContextTest, FirstDeviceIsDefaultSelectedDevice) {
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "1",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
+
+  UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefine_urDeviceGet_CpuFirst);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo_CpuGpu);
+  mock::getCallbacks().set_after_callback("urContextCreate",
+                                          &after_urContextCreate);
+  FirstDeviceInUrContext = nullptr;
+
+  sycl::platform Plt = sycl::platform();
+  // Precondition: the default-selected device is not first on the platform.
+  ASSERT_EQ(Plt.get_devices().size(), 2u);
+  ASSERT_TRUE(Plt.get_devices()[0].is_cpu());
+
+  sycl::queue Q;
+  ASSERT_TRUE(Q.get_device().is_gpu());
+
+  ASSERT_EQ(Q.get_context(), Plt.khr_get_default_context());
+  EXPECT_EQ(Q.get_context().get_devices()[0], Q.get_device());
+  EXPECT_EQ(FirstDeviceInUrContext, DEVICE_GPU);
+}

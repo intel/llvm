@@ -66,8 +66,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2023-11-06
-| Revision           | 15
+| Last Modified Date | 2026-11-10
+| Revision           | 16
 |========================================
 
 == Dependencies
@@ -179,9 +179,6 @@ to specify Component Type Interpretation
 [options="header"]
 |====
 2+^| Interpretation ^| Enabling capability
-| 0x20 | *MatrixAAndBTF32ComponentsINTEL* +
-'Component Type' of 'A' and 'B' must be 32-bit _floating-point type_. Interpret 'Component Type' of
-'A' and 'B' cooperative matrices as TF32. | *{tf32_capability_name}*
 | 0x40 | *MatrixAAndBBFloat16ComponentsINTEL* +
 'Component Type' of 'A' and 'B' must be 16-bit _integer_. Interpret 'Component Type' of
 'A' and 'B' cooperative matrices as BFloat16. +
@@ -218,7 +215,7 @@ instructions. +
 | *{main_capability_name}* +
 | {tf32_capability_token} | *{tf32_capability_name}* +
  +
-Uses *TF32* in 3.X, Cooperative Matrix Operands +
+Allows *OpRoundFToTF32INTEL* on cooperative matrices, see 3.42.11. +
  +
 | *{main_capability_name}* +
 | {bf16_capability_token} | *{bf16_capability_name}* +
@@ -395,7 +392,6 @@ entire matrix. +
  +
 *RESOLVED*: No, *OpCooperativeMatrixGetElementCoordINTEL* will be removed, for now put deprecation note. +
 
-
 Revision History
 ----------------
 
@@ -419,4 +415,5 @@ Revision History
 |13|2023-09-25|Dmitry Sidorov|Add convertion instructions for tf32 and bf16
 |14|2023-10-11|Dmitry Sidorov|Add matrix prefetch instruction
 |15|2023-11-06|Dmitry Sidorov|Put deprecation note on OpCooperativeMatrixGetElementCoordINTEL
+|16|2026-11-10|Dounia Khaldi|Remove MatrixAAndBTF32ComponentsINTEL
 |========================================

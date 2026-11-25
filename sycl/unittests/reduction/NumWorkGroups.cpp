@@ -51,11 +51,12 @@ protected:
                                             &redefinedDeviceGetInfoAfter);
   }
 
-  size_t getMaxNumWorkGroups(size_t NWorkItems, size_t WGSize) {
+  size_t getMaxNumWorkGroups(size_t NWorkItems, size_t WGSize,
+                             size_t ElemSize = sizeof(double)) {
     size_t Result = 0;
     sycl::queue{}.submit([&](sycl::handler &CGH) {
-      Result = sycl::detail::reduGetMaxNumWorkGroupsForRange(
-          CGH, NWorkItems, WGSize, /*ElemSize=*/sizeof(double));
+      Result = sycl::detail::reduGetMaxNumWorkGroupsForRange(CGH, NWorkItems,
+                                                             WGSize, ElemSize);
     });
     return Result;
   }
@@ -75,6 +76,12 @@ TEST_F(ReductionNumWorkGroupsTest, SmallRangeKeepsBaseLimit) {
 TEST_F(ReductionNumWorkGroupsTest, LargeRangeIncreasesLimit) {
   // 128 bytes per work-item: 16 doubles, so 2^27 / (1024 * 16) work-groups.
   EXPECT_EQ(getMaxNumWorkGroups(LargeRange, 1024), 8192u);
+  EXPECT_EQ(getMaxNumWorkGroups(LargeRange, 1024, sizeof(float)), 4096u);
+}
+
+TEST_F(ReductionNumWorkGroupsTest, HugeRangeBoundsPartialReductions) {
+  EXPECT_EQ(getMaxNumWorkGroups(4194304000ULL, 1024, sizeof(float)), 8192u);
+  EXPECT_EQ(getMaxNumWorkGroups(4194304000ULL, 1024, sizeof(double)), 8192u);
 }
 
 TEST_F(ReductionNumWorkGroupsTest, NonIntelGPUKeepsBaseLimit) {
@@ -89,6 +96,7 @@ TEST_F(ReductionNumWorkGroupsTest, IntegratedGPUKeepsHigherBaseLimit) {
 }
 
 TEST_F(ReductionNumWorkGroupsTest, HugeRangeKeepsGlobalRangeWithinInt) {
+  ComputeUnits = UINT32_MAX;
   EXPECT_EQ(getMaxNumWorkGroups(size_t{1} << 40, 1024), size_t{INT_MAX} / 1024);
 }
 

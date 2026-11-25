@@ -224,7 +224,8 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
     NativePrograms.insert({Res, {ContextImpl.shared_from_this(), &Img}});
   }
 
-  ContextImpl.addDeviceGlobalInitializer(Res, Devices, &Img);
+  // No device_global registration here: this may be only a link input that is
+  // released once linked. The callers register the final built/linked program.
 
   if constexpr (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
@@ -1857,20 +1858,22 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
        EntriesIt = EntriesIt->Increment()) {
 
     auto name = EntriesIt->GetName();
+    const std::string KernelName{name};
 
     // Skip creating device kernel information if it is an exported device
     // function. Exported device functions appear in the offload entries
     // among kernels, but are identifiable by being listed in properties.
-    if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
+    if (m_ExportedSymbolImages.find(KernelName) != m_ExportedSymbolImages.end())
       continue;
 
-    auto It = m_DeviceKernelInfoMap.find(name);
+    auto It = m_DeviceKernelInfoMap.find(KernelName);
     if (It == m_DeviceKernelInfoMap.end()) {
       sycl::kernel_id KernelID = detail::createSyclObjFromImpl<sycl::kernel_id>(
-          std::make_shared<detail::kernel_id_impl>(name));
+          std::make_shared<detail::kernel_id_impl>(KernelName));
       CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
       It = m_DeviceKernelInfoMap
-               .emplace(std::piecewise_construct, std::forward_as_tuple(name),
+               .emplace(std::piecewise_construct,
+                        std::forward_as_tuple(KernelName),
                         std::forward_as_tuple(DefaultCompileTimeInfo, KernelID))
                .first;
     }

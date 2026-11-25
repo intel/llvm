@@ -5,8 +5,10 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DefaultContext.cpp
   DeviceIsIntegratedGPU.cpp
   DeviceArchitecture.cpp
+  DeviceArchitectureIPVersion.cpp
   USMMemcpy2D.cpp
   DeviceGlobal.cpp
+  DeviceGlobalStaleProgramHandle.cpp
   OneAPISubGroupMask.cpp
   USMP2P.cpp
   CompositeDevice.cpp
@@ -17,6 +19,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
+  KernelCompilerOpenCL.cpp
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp
@@ -29,6 +32,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   RegisterHostMemory.cpp
   ReusableEvents.cpp
   AsyncAlloc.cpp
+  DeviceImageBackendContent.cpp
 )
 
 add_subdirectory(BindlessImages)

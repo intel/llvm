@@ -2155,7 +2155,7 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResults(
                     << LTag.loop->getName() << "\n");
 
   // First create instructions to save the value of the last iteration ...
-  IRBuilder<> B(LTag.header, LTag.header->getFirstNonPHIIt());
+  IRBuilder<> B(LTag.header->getFirstNonPHIIt());
   for (Value *LLV : LTag.loopLiveValues) {
     LTag.loopResultPrevs[LLV] =
         B.CreatePHI(LLV->getType(), 2, LLV->getName() + ".prev");

@@ -242,8 +242,8 @@ size_t getFileSize(const std::string &Path) {
 
 // Function to recursively iterate over the directory and execute
 // 'Func' on each regular file.
-void fileTreeWalk(const std::string Path,
-                  std::function<void(const std::string)> Func,
+void fileTreeWalk(const std::string &Path,
+                  std::function<void(const std::string &)> Func,
                   bool ignoreErrors) {
 
   std::error_code EC;
@@ -278,7 +278,7 @@ void fileTreeWalk(const std::string Path,
 size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
   size_t DirSizeVar = 0;
 
-  auto CollectFIleSize = [&DirSizeVar](const std::string Path) {
+  auto CollectFIleSize = [&DirSizeVar](const std::string &Path) {
     DirSizeVar += getFileSize(Path);
   };
   fileTreeWalk(Path, CollectFIleSize, ignoreErrors);

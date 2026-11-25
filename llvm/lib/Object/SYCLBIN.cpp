@@ -24,7 +24,7 @@ protected:
   SYCLBINBlockReader(const char *Data, size_t Size) : Data{Data}, Size{Size} {}
 
   Error ReadSizeCheck(size_t ByteOffset, size_t ReadSize) {
-    if (ByteOffset + ReadSize > Size)
+    if (ByteOffset > Size || ReadSize > Size - ByteOffset)
       return createStringError(inconvertibleErrorCode(),
                                "Unexpected file contents size.");
     return Error::success();
@@ -117,7 +117,7 @@ SYCLBIN::SYCLBINDesc::SYCLBINDesc(BundleState State,
         // TODO: Determine type from the input.
         IRMMetadata.add(
             llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA, "type",
-            /*SPIR-V*/ 0);
+            static_cast<uint32_t>(SYCLBIN::IRModuleType::SPIRV));
         IRMMetadata.add(
             llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
             "target", MD.TargetTriple.str());
@@ -342,10 +342,18 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                                      FileHeader->NativeDeviceCodeImageCount;
   const size_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
                                  IRMHeaderBlockSize + NDCIHeaderBlockSize;
+  // Ensure the sizes are all legal. That the buffer is bigger than its header,
+  // that the metadata fits into what remains. Same for the binary table.
+  const size_t BufferSize = Source.getBufferSize();
+  if (BufferSize < HeaderBlockSize ||
+      FileHeader->MetadataByteTableSize > BufferSize - HeaderBlockSize)
+    return createStringError(inconvertibleErrorCode(),
+                             "Unexpected file contents size.");
   const size_t AlignedMetadataByteTableSize =
       alignTo(FileHeader->MetadataByteTableSize, 8);
-  if (Source.getBufferSize() < HeaderBlockSize + AlignedMetadataByteTableSize +
-                                   FileHeader->BinaryByteTableSize)
+  if (AlignedMetadataByteTableSize > BufferSize - HeaderBlockSize ||
+      FileHeader->BinaryByteTableSize >
+          BufferSize - HeaderBlockSize - AlignedMetadataByteTableSize)
     return createStringError(inconvertibleErrorCode(),
                              "Unexpected file contents size.");
 

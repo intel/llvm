@@ -237,6 +237,14 @@ public:
 
   ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
+  /// Track memory that isn't allocated by us (e.g. IPC memory, registered host
+  /// memory). If Device is null, the memory is accessible by all devices in
+  /// the context.
+  ur_result_t registerMemory(ur_context_handle_t Context,
+                             ur_device_handle_t Device, uptr Addr, size_t Size);
+
+  ur_result_t unregisterMemory(ur_context_handle_t Context, uptr Addr);
+
   ur_result_t registerProgram(ur_program_handle_t Program);
 
   ur_result_t unregisterProgram(ur_program_handle_t Program);

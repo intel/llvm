@@ -26,6 +26,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -295,14 +296,27 @@ bool hasDoubleType(const Instruction &I) {
   }
 
   // Opaque pointer arguments may hide types of pointer arguments until elements
-  // inside the types are accessed through a GEP instruction. However, this will
-  // not be caught by the operands check above, so we must extract the
-  // information directly from the GEP.
-  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
-    if (hasDoubleType(GEPI->getSourceElementType()))
+  // inside the types are accessed through a GEP-like instruction. However, this
+  // will not be caught by the operands check above, so we must extract the
+  // information directly from the GEP-like.
+  if (auto *Ty = sycl::utils::getAddressSourceElementType(&I))
+    if (hasDoubleType(Ty))
       return true;
 
   return false;
+}
+
+/// Returns the aspect value from an operand of !sycl_used_aspects /
+/// !sycl_declared_aspects. Accepts both the plain form (i32 N) and the
+/// form produced by RecordSYCLAspectNames ({!"name", i32 N}), which can
+/// appear when pre-lowered device bitcode is linked in.
+int getAspectValueFromMDOperand(const MDOperand &Op) {
+  const Metadata *MD = Op.get();
+  if (const auto *Pair = dyn_cast<MDNode>(MD)) {
+    assert(Pair->getNumOperands() == 2 && "Expected {name, value} pair");
+    MD = Pair->getOperand(1).get();
+  }
+  return mdconst::extract<ConstantInt>(MD)->getSExtValue();
 }
 
 /// Returns aspects which might be used in instruction @I.
@@ -332,17 +346,15 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   }
 
   // Opaque pointer arguments may hide types of pointer arguments until elements
-  // inside the types are accessed through a GEP instruction. However, this will
-  // not be caught by the operands check above, so we must extract the
-  // information directly from the GEP.
-  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
-    AddAspectsFromType(GEPI->getSourceElementType());
+  // inside the types are accessed through a GEP-like instruction. However, this
+  // will not be caught by the operands check above, so we must extract the
+  // information directly from the GEP-like.
+  if (auto *Ty = sycl::utils::getAddressSourceElementType(&I))
+    AddAspectsFromType(Ty);
 
   if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {
-    for (const MDOperand &MDOp : InstApsects->operands()) {
-      const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
-      Result.insert(cast<ConstantInt>(C)->getSExtValue());
-    }
+    for (const MDOperand &MDOp : InstApsects->operands())
+      Result.insert(getAspectValueFromMDOperand(MDOp));
   }
 
   return Result;
@@ -424,10 +436,8 @@ void createUsedAspectsMetadataForFunctions(
     // If there is new metadata, merge it with the old aspects. We preserve
     // the excluded ones.
     if (const MDNode *ExistingAspects = F->getMetadata("sycl_used_aspects")) {
-      for (const MDOperand &MDOp : ExistingAspects->operands()) {
-        const Constant *C = cast<ConstantAsMetadata>(MDOp)->getValue();
-        UniqueAspects.insert(cast<ConstantInt>(C)->getSExtValue());
-      }
+      for (const MDOperand &MDOp : ExistingAspects->operands())
+        UniqueAspects.insert(getAspectValueFromMDOperand(MDOp));
     }
 
     // Create new metadata.
@@ -461,11 +471,8 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
       // To avoid double warnings, we skip them.
       if (is_contained(EntryPoints, F))
         continue;
-      for (const MDOperand &DeviceHasMDOp : DeviceHasMD->operands()) {
-        const auto *CAM = cast<ConstantAsMetadata>(DeviceHasMDOp);
-        const Constant *C = CAM->getValue();
-        DeviceHasAspectSet.insert(cast<ConstantInt>(C)->getSExtValue());
-      }
+      for (const MDOperand &DeviceHasMDOp : DeviceHasMD->operands())
+        DeviceHasAspectSet.insert(getAspectValueFromMDOperand(DeviceHasMDOp));
       OriginatedFromAttribute = true;
     } else if (F->hasFnAttribute("sycl-device-has")) {
       Attribute DeviceHasAttr = F->getFnAttribute("sycl-device-has");
@@ -580,10 +587,8 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
   auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
     if (const MDNode *MD = F.getMetadata(MDName)) {
       AspectsSetTy Aspects;
-      for (const MDOperand &Op : MD->operands()) {
-        Constant *C = cast<ConstantAsMetadata>(Op.get())->getValue();
-        Aspects.insert(cast<ConstantInt>(C)->getSExtValue());
-      }
+      for (const MDOperand &Op : MD->operands())
+        Aspects.insert(getAspectValueFromMDOperand(Op));
       Map[&F].insert(Aspects.begin(), Aspects.end());
     }
   };

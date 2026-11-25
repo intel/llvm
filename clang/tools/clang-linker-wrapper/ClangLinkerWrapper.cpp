@@ -930,7 +930,7 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 /// function in clang/lib/Driver/ToolChains/Clang.cpp.
 static void
 getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
-                             const llvm::Triple Triple) {
+                             const llvm::Triple Triple, StringRef Arch) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
   TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
@@ -941,7 +941,7 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
             : "-spirv-allow-unknown-intrinsics=llvm.genx.");
 
   // Disable all the extensions by default
-  static constexpr char ExtArg[] =
+  static const std::string BaseExtArg =
       "-spirv-ext=-all"
       ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
@@ -959,6 +959,9 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
       ",+SPV_INTEL_cache_controls"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
+      ",+SPV_INTEL_split_barrier"
+      ",+SPV_INTEL_2d_block_io"
+      ",+SPV_INTEL_subgroup_matrix_multiply_accumulate"
       ",+SPV_INTEL_bfloat16_conversion"
       ",+SPV_INTEL_joint_matrix"
       ",+SPV_KHR_uniform_group_instructions"
@@ -971,7 +974,13 @@ getTripleBasedSPIRVTransOpts(SmallVector<StringRef, 8> &TranslatorArgs,
       ",+SPV_INTEL_fp_max_error"
       ",+SPV_INTEL_memory_access_aliasing"
       ",+SPV_INTEL_maximum_registers";
-  TranslatorArgs.push_back(ExtArg);
+
+  // Function-local statics: initialized once, thread-safe, and outlive the
+  // StringRefs stored in TranslatorArgs.
+  static const std::string CRIExtArg =
+      BaseExtArg + ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
+  TranslatorArgs.push_back(
+      llvm::offloading::supportsBFloat16(Arch) ? CRIExtArg : BaseExtArg);
 }
 
 /// Run LLVM to SPIR-V translation.
@@ -989,7 +998,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  getTripleBasedSPIRVTransOpts(CmdArgs, Triple);
+  getTripleBasedSPIRVTransOpts(CmdArgs, Triple,
+                               Args.getLastArgValue(OPT_arch_EQ));
   for (const Arg *A : Args.filtered(OPT_llvm_spirv_arg_EQ))
     CmdArgs.push_back(A->getValue());
   CmdArgs.push_back("-o");
@@ -2583,6 +2593,47 @@ Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   return *TempFileOrErr;
 }
 
+static std::unique_ptr<Module> createHostWrapperModule(LLVMContext &C,
+                                                       const ArgList &Args) {
+  auto M = std::make_unique<Module>("offload.wrapper.module", C);
+  Triple HostTriple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  M->setTargetTriple(HostTriple);
+  M->setDataLayout(HostTriple.computeDataLayout());
+  return M;
+}
+
+static Expected<StringRef> emitWrapperObject(Module &M, const ArgList &Args,
+                                             OffloadKind Kind) {
+  if (Args.hasArg(OPT_print_wrapped_module))
+    errs() << M;
+  if (Args.hasArg(OPT_save_temps)) {
+    int FD = -1;
+    auto TempFileOrErr = createOutputFile(
+        ExecutableName + "." + getOffloadKindName(Kind) + ".image.wrapper",
+        "bc");
+    if (!TempFileOrErr)
+      return TempFileOrErr.takeError();
+    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
+      return errorCodeToError(EC);
+    llvm::raw_fd_ostream OS(FD, true);
+    WriteBitcodeToFile(M, OS);
+  }
+  if (DryRun)
+    return createOutputFile(ExecutableName + "." + getOffloadKindName(Kind) +
+                                ".image.wrapper",
+                            "o");
+  return compileModule(M, Kind);
+}
+
+/// Emit the host object required by device pre-linking when there are no device
+/// inputs, without requiring a device triple or introducing runtime references.
+static Expected<StringRef> emitEmptySYCLWrapperObject(const ArgList &Args) {
+  LLVMContext C;
+  auto M = createHostWrapperModule(C, Args);
+  return emitWrapperObject(*M, Args, OFK_SYCL);
+}
+
 /// Performs the wrapping stage with individual tool invocations for verbose
 /// printing.
 Expected<StringRef>
@@ -2661,11 +2712,8 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
         ArrayRef<char>(Buffer->getBufferStart(), Buffer->getBufferSize()));
 
   LLVMContext Context;
-  Module M("offload.wrapper.module", Context);
-  Triple TheTriple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  M.setTargetTriple(TheTriple);
-  M.setDataLayout(TheTriple.computeDataLayout());
+  auto WrapperModule = createHostWrapperModule(Context, Args);
+  Module &M = *WrapperModule;
 
   switch (Kind) {
   case OFK_OpenMP:
@@ -2698,25 +2746,7 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
                              " wrapping is not supported");
   }
 
-  if (Args.hasArg(OPT_print_wrapped_module))
-    errs() << M;
-  if (Args.hasArg(OPT_save_temps)) {
-    int FD = -1;
-    auto TempFileOrErr = createOutputFile(
-        ExecutableName + "." + getOffloadKindName(Kind) + ".image.wrapper",
-        "bc");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
-    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
-      return errorCodeToError(EC);
-    llvm::raw_fd_ostream OS(FD, true);
-    WriteBitcodeToFile(M, OS);
-  }
-
-  auto FileOrErr = compileModule(M, Kind);
-  if (!FileOrErr)
-    return FileOrErr.takeError();
-  return *FileOrErr;
+  return emitWrapperObject(M, Args, Kind);
 }
 
 /// Perform the OpenMP bundling with 'llvm-offload-binary' in verbose mode.
@@ -3155,6 +3185,9 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           return SYCLImagesOrErr.takeError();
 
         std::scoped_lock<decltype(ImageMtx)> Guard(ImageMtx);
+        // Keep the SYCL group even if post-link removed every image so the
+        // fatbin-only path below can emit the container needed by the host.
+        auto &SYCLImages = Images[OFK_SYCL];
         for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
           OffloadingImage TheImage{};
           TheImage.TheImageKind =
@@ -3168,7 +3201,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                                           SYCLImageStringSaver);
           TheImage.Image = std::move(SYCLImage.Image);
 
-          Images[OFK_SYCL].emplace_back(std::move(TheImage));
+          SYCLImages.emplace_back(std::move(TheImage));
         }
       } else {
         // TODO(NOM7): Remove this call and use community flow for bundle/wrap
@@ -3279,6 +3312,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       return A.TheOffloadKind < B.TheOffloadKind;
     });
     if (Kind == OFK_SYCL) {
+      // Keep a valid container when post-link removes all device images.
+      if (Input.empty()) {
+        offloading::SYCLImage EmptyImage(MemoryBuffer::getMemBuffer(""),
+                                         util::PropertySetRegistry(), "");
+        OffloadingImage &TheImage = Input.emplace_back();
+        TheImage.TheImageKind = IMG_Object;
+        TheImage.TheOffloadKind = OFK_SYCL;
+        offloading::addSYCLImageStrings(EmptyImage, TheImage.StringData,
+                                        SYCLImageStringSaver);
+        TheImage.Image = std::move(EmptyImage.Image);
+      }
       // Package all post-link images into a single offload container.
       SmallString<0> Buffer = OffloadBinary::write(Input);
       auto FOBOrErr = FileOutputBuffer::create(ExecutableName, Buffer.size());
@@ -3685,10 +3729,15 @@ getDeviceInput(const ArgList &Args) {
   for (StringRef Arg : Args.getAllArgValues(OPT_should_extract))
     ShouldExtract.insert(Saver.save(Arg));
 
-  // When no other input provides device code, such as when all objects are
-  // created with -fsycl-host-only, SYCL device code from archives is always
-  // extracted.
-  bool ExtractSYCLFromArchives = InputFiles.empty();
+  // When no other input provides SYCL device code, such as when SYCL sources
+  // are compiled with -fsycl-host-only, SYCL device code from archives is
+  // extracted. Device code of other offload kinds does not affect this.
+  bool ExtractSYCLFromArchives =
+      llvm::none_of(InputFiles, [](const auto &Entry) {
+        return llvm::any_of(Entry.second, [](const OffloadFile &File) {
+          return File.getBinary()->getOffloadKind() == OFK_SYCL;
+        });
+      });
 
   // We only extract archive members from the fat binary if we find a used or
   // requested target. Unlike normal static archive handling, we just extract
@@ -3896,6 +3945,12 @@ int main(int Argc, char **Argv) {
       if (Args.hasArg(OPT_sycl_device_link)) {
         // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
+        if (FilesOrErr->empty()) {
+          auto OutputFile = emitEmptySYCLWrapperObject(Args);
+          if (!OutputFile)
+            reportError(OutputFile.takeError());
+          FilesOrErr->push_back(*OutputFile);
+        }
         if (FilesOrErr->size() != 1)
           reportError(createStringError(
               "Expect single output from the device linker."));

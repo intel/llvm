@@ -186,12 +186,16 @@ add_custom_target(UnifiedRuntimeAdapters)
 function(add_sycl_ur_adapter NAME)
   add_dependencies(UnifiedRuntimeAdapters ur_adapter_${NAME})
 
-  install(TARGETS ur_adapter_${NAME}
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
-    RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
+  ur_adapter_is_static(${NAME} adapter_is_static)
+  # A static adapter is linked into the UR loader, so do not install it.
+  if(NOT adapter_is_static)
+    install(TARGETS ur_adapter_${NAME}
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${NAME}
+      RUNTIME DESTINATION "bin" COMPONENT ur_adapter_${NAME})
 
-  set_property(GLOBAL APPEND PROPERTY
-    SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+    set_property(GLOBAL APPEND PROPERTY
+      SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
+  endif()
 endfunction()
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -282,8 +286,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
       -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
-      # Enable d suffix in UMF
-      -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
+      # Enable d suffix in UMF. This configures and builds UMF again in a nested
+      # Debug build, which is only needed for a shared UMF: its DLL can't just
+      # be renamed. A static UMF is copied from this subbuild below.
+      -DUMF_USE_DEBUG_POSTFIX:BOOL=${UMF_BUILD_SHARED_LIBRARY}
   )
 
   # Copy the debug UR runtime libraries to <build>/bin & <build>/lib for use in
@@ -380,20 +386,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     endif()
     urd_copy_library_to_build(ur_adapter_${adapter}d "${shared}")
   endforeach()
-  # Also copy umfd.dll/umfd.lib
-  urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
-  # A static umfd.lib doesn't absorb its private helper archives (umf_ba /
-  # umf_utils / umf_coarse), so a consumer linking umfd.lib must link them too.
-  # They aren't installed, but the debug sub-build produces them (debug CRT) at
-  # ${URD_BINARY_DIR}/lib without a 'd' postfix, so copy them under a 'd' name.
-  if(NOT UMF_BUILD_SHARED_LIBRARY)
-    foreach(_umfd_helper umf_ba umf_utils umf_coarse)
-      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib)
+  if(UMF_BUILD_SHARED_LIBRARY)
+    # Also copy umfd.dll/umfd.lib
+    urd_copy_library_to_build(umfd TRUE)
+  else()
+    # A static umf.lib doesn't absorb its private helper archives (umf_ba /
+    # umf_utils / umf_coarse), so a consumer linking umfd.lib must link them
+    # too. None of them are installed, but the debug sub-build produces them
+    # (debug CRT) at ${URD_BINARY_DIR}/lib without a 'd' postfix, so copy them
+    # under a 'd' name.
+    foreach(_umf_lib umf umf_ba umf_utils umf_coarse)
+      list(APPEND URD_COPY_FILES ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib)
       add_custom_command(
-        OUTPUT ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+        OUTPUT ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
         COMMAND ${CMAKE_COMMAND} -E copy
-          ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib
-          ${LLVM_BINARY_DIR}/lib/${_umfd_helper}d.lib
+          ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
+          ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
         DEPENDS unified-runtimed
       )
     endforeach()

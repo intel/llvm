@@ -116,8 +116,8 @@ const char *output_format_str[MAX_OUTPUT_FORMAT] = {"human readable", "json"};
  */
 static class cli_args {
   std::optional<std::string>
-  arg_with_value(std::string_view name, const std::string arg_name,
-                 const std::vector<std::string> arg_values) {
+  arg_with_value(std::string_view name, const std::string &arg_name,
+                 const std::vector<std::string> &arg_values) {
     if (arg_name != name) {
       return std::nullopt;
     }
@@ -155,12 +155,13 @@ public:
               break;
             }
           }
-        } else if (auto filter_str =
+        } else if (auto filter_value =
                        arg_with_value("filter", arg_name, arg_values)) {
           try {
-            filter = filter_str;
+            filter = filter_value;
+            filter_str = filter_value;
           } catch (const std::regex_error &err) {
-            UR_LOG_L(out, WARN, "invalid filter regex {} {}", *filter_str,
+            UR_LOG_L(out, WARN, "invalid filter regex {} {}", *filter_value,
                      err.what());
           }
         } else {

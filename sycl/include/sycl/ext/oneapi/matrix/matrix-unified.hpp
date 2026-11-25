@@ -13,7 +13,9 @@
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #include "matrix-tensorcores.hpp"
-#elif defined(__gfx90a__)
+// gfx940 and gfx941 are pre-release MI300 revisions and match gfx942.
+#elif defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||     \
+    defined(__gfx942__)
 #include "matrix-hip.hpp"
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -613,7 +615,7 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename To, typename From, typename Group, std::size_t M,
+template <typename Group, typename From, typename To, std::size_t M,
           std::size_t N, use Use, layout Layout>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_convert(Group,

@@ -76,12 +76,12 @@ __SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
       Dev.get_info<sycl::info::device::vendor_id>() != IntelVendorId)
     return NumWorkGroups;
 
-  // Each work-group processes one contiguous chunk of the range. The number
+  // Each work-group processes part of the range. The number
   // of work-groups above does not depend on the range size, so big ranges are
   // processed by a few long-running work-groups with large chunks, which
   // results in low memory bandwidth for memory-bound reductions. Use enough
   // work-groups for each work-item to process about BytesPerWorkItem bytes of
-  // data instead, so that the chunk size no longer grows with the range. The
+  // data instead, until MaxNumWorkGroupsForRange is reached. The
   // amount of data is estimated from the size of the reduction element, which
   // matches the size of the data read per work-item for common reductions
   // (sum, dot product, min/max, etc.). Never use fewer work-groups than above
@@ -90,11 +90,16 @@ __SYCL_EXPORT size_t reduGetMaxNumWorkGroupsForRange(handler &cgh,
   // BytesPerWorkItem is a tuning parameter chosen empirically on several Intel
   // GPUs, it is not derived from a hardware property. It may be adjusted for
   // particular devices if needed.
+  // MaxNumWorkGroupsForRange is also an empirical tuning parameter. It bounds
+  // scheduling and partial-reduction overhead for huge ranges.
   constexpr size_t BytesPerWorkItem = 128;
+  constexpr size_t MaxNumWorkGroupsForRange = 8192;
   size_t ElemsPerWorkItem =
       (std::max)(size_t{1}, BytesPerWorkItem / (std::max)(size_t{1}, ElemSize));
   size_t NumWorkGroupsForRange = NWorkItems / WGSize / ElemsPerWorkItem;
-  NumWorkGroups = (std::max)(NumWorkGroups, NumWorkGroupsForRange);
+  NumWorkGroups =
+      (std::max)(NumWorkGroups,
+                 (std::min)(NumWorkGroupsForRange, MaxNumWorkGroupsForRange));
 
   // Kernels are compiled with -fsycl-id-queries-range=int by default, and such
   // kernels can't be launched with a global range that doesn't fit in int, so

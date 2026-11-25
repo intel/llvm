@@ -1772,6 +1772,7 @@ public:
   ur_native_handle_t getNative() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
+  ur_device_handle_t getRootDeviceHandle() const { return MRootDevice; }
 
   bool
   extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
@@ -2338,6 +2339,31 @@ public:
           {0, 0, 0, 32, 32, 8, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64},
+      };
+    // gfx942 is production CDNA3. gfx940 and gfx941 are the pre-release MI300A
+    // and MI300X revisions and report the same combinations.
+    else if ((architecture::amd_gpu_gfx940 == DeviceArch) ||
+             (architecture::amd_gpu_gfx941 == DeviceArch) ||
+             (architecture::amd_gpu_gfx942 == DeviceArch))
+      return {
+          {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 2, matrix_type::fp32, matrix_type::fp32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp32, matrix_type::fp32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},

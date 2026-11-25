@@ -12,6 +12,7 @@
 #include <detail/device_binary_image.hpp>
 #include <fcntl.h>
 #include <string>
+#include <string_view>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
@@ -233,19 +234,19 @@ public:
                                     const std::vector<char> &IR);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
-  static void trace(const std::string &msg, const std::string &path = "") {
+  static void trace(std::string_view msg, std::string_view path = {}) {
     if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache(),
                          false)) {
-      auto outputPath = path;
+      std::string outputPath{path};
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
       std::cerr << "[Persistent Cache]: " << msg << outputPath << std::endl;
     }
   }
-  static void trace_KernelCompiler(const std::string &msg,
-                                   const std::string &path = "") {
+  static void trace_KernelCompiler(std::string_view msg,
+                                   std::string_view path = {}) {
     if (__builtin_expect(SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler(),
                          false)) {
-      auto outputPath = path;
+      std::string outputPath{path};
       std::replace(outputPath.begin(), outputPath.end(), '\\', '/');
       std::cerr << "[kernel_compiler Persistent Cache]: " << msg << outputPath
                 << std::endl;
@@ -266,7 +267,7 @@ private:
   static void evictItemsFromCache(const std::string &CacheRoot,
                                   size_t CacheSize, size_t MaxCacheSize);
 
-  static void saveCurrentTimeInAFile(std::string FileName);
+  static void saveCurrentTimeInAFile(const std::string &FileName);
 
   // Check if eviction is enabled.
   static bool isEvictionEnabled() {

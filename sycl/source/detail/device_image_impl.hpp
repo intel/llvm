@@ -506,11 +506,11 @@ public:
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-    if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
+    auto It = MSpecConstSymMap.find(std::string{SpecName});
+    if (It == MSpecConstSymMap.end())
       return false;
 
-    const std::vector<SpecConstDescT> &Descs =
-        MSpecConstSymMap.at(std::string{SpecName});
+    const std::vector<SpecConstDescT> &Descs = It->second;
     return Descs.front().IsSet;
   }
 
@@ -643,6 +643,72 @@ public:
       retainOpenCLProgram(NativeProgram);
 
     return NativeProgram;
+  }
+
+  // sycl_ext_oneapi_device_image_backend_content: hand out the binary the
+  // backend built, not the IR we fed it. Cached because the _view overload
+  // promises image lifetime.
+  std::pair<const std::byte *, const std::byte *> getBackendContent() const {
+    const RTDeviceBinaryImage *const *BinPtr =
+        std::get_if<const RTDeviceBinaryImage *>(&MBinImage);
+    const RTDeviceBinaryImage *Bin = BinPtr ? *BinPtr : nullptr;
+    const bool StoredIsNative =
+        Bin && Bin->getFormat() == SYCL_DEVICE_BINARY_TYPE_NATIVE;
+
+    // Only Level Zero and OpenCL answer the binary query reliably today; the
+    // other adapters keep handing out the stored bytes.
+    context_impl &ContextImpl = *getSyclObjImpl(MContext);
+    const backend BE = ContextImpl.getBackend();
+    const bool BackendHasNativeBinary =
+        BE == backend::ext_oneapi_level_zero || BE == backend::opencl;
+
+    if (!StoredIsNative && BackendHasNativeBinary && !MDevices.empty()) {
+      std::call_once(MBackendContentOnce, [this, Bin, &ContextImpl] {
+        // The API takes no device; the first device the image was built for
+        // selects the binary.
+        device_impl *Dev = MDevices.front();
+        Managed<ur_program_handle_t> Built;
+        ur_program_handle_t Program = MProgram;
+        if (!Program) {
+          if (!Bin)
+            return;
+          // Selector-built executable bundles never build their images and
+          // keep the whole requested device list, so pick a device the image
+          // can be built for and get the (normally cached) program the way a
+          // launch would.
+          auto It = std::find_if(
+              MDevices.begin(), MDevices.end(), [Bin](device_impl *D) {
+                return doesDevSupportDeviceRequirements(*D, *Bin) &&
+                       doesImageTargetMatchDevice(*Bin, *D);
+              });
+          if (It == MDevices.end())
+            return;
+          Dev = *It;
+          ProgramManager &PM = ProgramManager::getInstance();
+          std::vector<const RTDeviceBinaryImage *> Imgs{Bin};
+          for (const RTDeviceBinaryImage *Dep : PM.collectDeviceImageDeps(
+                   *Bin, *Dev, /*ErrorOnUnresolvableImport=*/true))
+            Imgs.push_back(Dep);
+          Built = PM.getBuiltURProgram(std::move(Imgs), ContextImpl,
+                                       devices_range{*Dev}, nullptr,
+                                       MSpecConstsBlob);
+          Program = Built;
+        }
+        MBackendContent = std::move(
+            getProgramBinaryData(Program, devices_range{*Dev}).front());
+      });
+      if (!MBackendContent.empty()) {
+        const std::byte *Begin =
+            reinterpret_cast<const std::byte *>(MBackendContent.data());
+        return {Begin, Begin + MBackendContent.size()};
+      }
+    }
+
+    if (!Bin)
+      return {nullptr, nullptr};
+    const sycl_device_binary_struct &Raw = Bin->getRawData();
+    return {reinterpret_cast<const std::byte *>(Raw.BinaryStart),
+            reinterpret_cast<const std::byte *>(Raw.BinaryEnd)};
   }
 
 #ifdef _MSC_VER
@@ -1442,6 +1508,9 @@ private:
   bundle_state MState;
   // Native program handler which this device image represents
   Managed<ur_program_handle_t> MProgram;
+  // Native binary handed out by getBackendContent().
+  mutable std::once_flag MBackendContentOnce;
+  mutable std::vector<char> MBackendContent;
 
   // List of kernel ids available in this image, elements should be sorted
   // according to LessByNameComp. Shared between images for performance reasons

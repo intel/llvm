@@ -91,8 +91,8 @@ size_t getFileSize(const std::string &Path);
 
 // Function to recursively iterate over the directory and execute
 // 'Func' on each regular file.
-void fileTreeWalk(const std::string Path,
-                  std::function<void(const std::string)> Func,
+void fileTreeWalk(const std::string &Path,
+                  std::function<void(const std::string &)> Func,
                   bool ignoreErrors = false);
 
 // Look up a function name that was dynamically linked

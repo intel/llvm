@@ -633,10 +633,11 @@ detail::EventImplPtr handler::finalize() {
   if (SchedulerBypass) {
     if (type == detail::CGType::AsyncAlloc)
       return impl->get_queue().submit_async_alloc_scheduler_bypass(
-          impl->MAsyncAllocEvent, impl->CGData.MEvents, impl->MEventNeeded);
+          impl->MAsyncAllocEvent, std::move(impl->CGData.MEvents),
+          impl->MEventNeeded);
     if (type == detail::CGType::AsyncFree)
       return impl->get_queue().submit_async_free_scheduler_bypass(
-          impl->MFreePtr, impl->CGData.MEvents, impl->MEventNeeded);
+          impl->MFreePtr, std::move(impl->CGData.MEvents), impl->MEventNeeded);
   }
 
   std::unique_ptr<detail::CG> CommandGroup;

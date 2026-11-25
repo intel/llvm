@@ -39,7 +39,7 @@ int main() {
     });
 
     auto BarrierEvent2 = Q.ext_oneapi_submit_barrier();
-    assert(checkBarrierEvent(Q.get_backend(), Event1, BarrierEvent1, true));
+    assert(checkBarrierEvent(Q.get_backend(), Event2, BarrierEvent2, true));
     BarrierEvent2.wait();
 
     // Check that kernel events are completed after waiting for barrier event.
@@ -89,5 +89,6 @@ int main() {
     }
   }
 
+  sycl::free(Res, Q);
   return 0;
 }
