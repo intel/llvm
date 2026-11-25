@@ -53,8 +53,9 @@ PreservedAnalyses RecordSYCLAspectNamesPass::run(Module &M,
       // a format like {{"cpu", 1}, {"gpu", 2}}
       SmallVector<Metadata *, 8> AspectNameValuePairs;
       for (const auto &MDOp : MDNode->operands()) {
-        const Metadata *MD = MDOp.get();
         if (isa<llvm::MDNode>(MDOp.get())) {
+          // Already in {name, value} form (e.g. from linked-in bitcode that has
+          // been through this pass); keep it unchanged.
           assert(cast<llvm::MDNode>(MDOp.get())->getNumOperands() == 2 &&
                  "Expected {name, value} pair");
           AspectNameValuePairs.push_back(MDOp);
