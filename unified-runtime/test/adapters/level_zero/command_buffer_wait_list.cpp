@@ -3,7 +3,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// RUN: %with-v1 ZE_ENABLE_TRACING_LAYER=1 UR_L0_CMD_BUFFER_USE_IMMEDIATE_APPEND_PATH=0 ./command_buffer_wait_list-test
+// RUN: %with-v1 ZE_ENABLE_TRACING_LAYER=1 UR_L0_CMD_BUFFER_USE_IMMEDIATE_APPEND_PATH=0 UR_L0_USE_IMMEDIATE_COMMANDLISTS=1 ./command_buffer_wait_list-test
+// RUN: %with-v1 ZE_ENABLE_TRACING_LAYER=1 UR_L0_CMD_BUFFER_USE_IMMEDIATE_APPEND_PATH=0 UR_L0_USE_IMMEDIATE_COMMANDLISTS=0 ./command_buffer_wait_list-test
 // REQUIRES: v1
 
 #include "ze_tracer_common.hpp"
@@ -111,10 +112,10 @@ TEST_P(urCommandBufferWaitListTest, DependencyBarrierDoesNotGrow) {
   ASSERT_SUCCESS(urQueueFinish(queue));
   ASSERT_SUCCESS(urQueueFinish(OtherQueue));
 
-  // From the second submission on, the in-order queue's last command is waited
-  // for too, so the count is only expected to be stable after the first one.
-  ASSERT_GE(WaitEvents[1], 1u);
-  for (size_t I = 2; I < NumSubmissions; ++I) {
-    EXPECT_EQ(WaitEvents[I], WaitEvents[1]) << "at submission " << I;
+  // Each barrier waits for the dependency and, unless the queue has already
+  // cleaned it up, the in-order queue's last command.
+  for (size_t I = 0; I < NumSubmissions; ++I) {
+    EXPECT_GE(WaitEvents[I], 1u) << "at submission " << I;
+    EXPECT_LE(WaitEvents[I], 2u) << "at submission " << I;
   }
 }
