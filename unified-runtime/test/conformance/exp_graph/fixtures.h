@@ -188,8 +188,10 @@ struct urGraphMultiQueueCaptureExpTest : urGraphSupportedExpMultiQueueTest {
     if (queue2) {
       EXPECT_SUCCESS(urQueueFinish(queue2));
     }
-    if (graph1) {
-      EXPECT_SUCCESS(urGraphDestroyExp(graph1));
+    for (auto *g : {graph1, graph2}) {
+      if (g) {
+        EXPECT_SUCCESS(urGraphDestroyExp(g));
+      }
     }
 
     UUR_RETURN_ON_FATAL_FAILURE(urGraphSupportedExpMultiQueueTest::TearDown());
@@ -201,9 +203,9 @@ struct urGraphMultiQueueCaptureExpTest : urGraphSupportedExpMultiQueueTest {
         urQueueIsGraphCaptureEnabledExp(q, &isCapturing) == UR_RESULT_SUCCESS &&
         isCapturing) {
       ur_exp_graph_handle_t g = nullptr;
-      // The result is ignored, the capture may end with an error.
+      // Unjoined forks still end the capture and return a graph to destroy.
       urQueueEndGraphCaptureExp(q, &g);
-      if (g && g != graph1) {
+      if (g && g != graph1 && g != graph2) {
         EXPECT_SUCCESS(urGraphDestroyExp(g));
       }
     }
@@ -226,11 +228,13 @@ struct urGraphMultiQueueCaptureExpTest : urGraphSupportedExpMultiQueueTest {
     ur_exp_graph_handle_t capturedGraph = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_GRAPH_UNJOINED_FORKS,
                      urQueueEndGraphCaptureExp(queue1, &capturedGraph));
+    ASSERT_EQ(capturedGraph, graph1);
   }
 
   uur::raii::Event forkEvent = nullptr;
   uur::raii::Event capturedEvent = nullptr;
   ur_exp_graph_handle_t graph1 = nullptr;
+  ur_exp_graph_handle_t graph2 = nullptr;
 };
 
 } // namespace uur
