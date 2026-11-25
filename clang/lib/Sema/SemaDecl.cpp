@@ -7084,7 +7084,8 @@ Sema::CheckTypedefForVariablyModifiedType(Scope *S, TypedefNameDecl *NewTD) {
   TypeSourceInfo *TInfo = NewTD->getTypeSourceInfo();
   QualType T = TInfo->getType();
 
-  if (!CheckVariablyModifiedTypeUse(T, TInfo->getTypeLoc().getBeginLoc())) {
+  if (T.getCanonicalType()->isVariablyModifiedType() &&
+      !CheckVariablyModifiedTypeUse(T, TInfo->getTypeLoc().getBeginLoc())) {
     NewTD->setInvalidDecl();
     return;
   }
@@ -9145,12 +9146,14 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   if (NewVD->isInvalidDecl())
     return;
 
-  SourceLocation VMLoc = NewVD->getLocation();
-  if (TypeSourceInfo *TSI = NewVD->getTypeSourceInfo())
-    VMLoc = TSI->getTypeLoc().getBeginLoc();
-  if (!CheckVariablyModifiedTypeUse(NewVD->getType(), VMLoc)) {
-    NewVD->setInvalidDecl();
-    return;
+  if (NewVD->getType().getCanonicalType()->isVariablyModifiedType()) {
+    SourceLocation VMLoc = NewVD->getLocation();
+    if (TypeSourceInfo *TSI = NewVD->getTypeSourceInfo())
+      VMLoc = TSI->getTypeLoc().getBeginLoc();
+    if (!CheckVariablyModifiedTypeUse(NewVD->getType(), VMLoc)) {
+      NewVD->setInvalidDecl();
+      return;
+    }
   }
 
   QualType T = NewVD->getType();
@@ -16328,8 +16331,9 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
                                          Context.getAdjustedParameterType(T),
                                          TSInfo, SC, nullptr);
 
-  SourceLocation VMLoc = TSInfo ? TSInfo->getTypeLoc().getBeginLoc() : NameLoc;
-  if (!CheckVariablyModifiedTypeUse(T, VMLoc))
+  if (T.getCanonicalType()->isVariablyModifiedType() &&
+      !CheckVariablyModifiedTypeUse(
+          T, TSInfo ? TSInfo->getTypeLoc().getBeginLoc() : NameLoc))
     New->setInvalidDecl();
 
   // Make a note if we created a new pack in the scope of a lambda, so that

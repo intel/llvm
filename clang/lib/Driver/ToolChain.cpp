@@ -1690,7 +1690,9 @@ ToolChain::RuntimeLibType ToolChain::GetRuntimeLibType(
   StringRef LibName = A ? A->getValue() : CLANG_DEFAULT_RTLIB;
 
   // Only use "platform" in tests to override CLANG_DEFAULT_RTLIB!
-  if (LibName == "compiler-rt")
+  if (LibName == "none")
+    runtimeLibType = ToolChain::RLT_None;
+  else if (LibName == "compiler-rt")
     runtimeLibType = ToolChain::RLT_CompilerRT;
   else if (LibName == "libgcc")
     runtimeLibType = ToolChain::RLT_Libgcc;
@@ -1719,7 +1721,9 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
     unwindLibType = ToolChain::UNW_None;
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
-    if (RtLibType == ToolChain::RLT_CompilerRT) {
+    if (RtLibType == ToolChain::RLT_None)
+      unwindLibType = ToolChain::UNW_None;
+    else if (RtLibType == ToolChain::RLT_CompilerRT) {
       if (getTriple().isAndroid() || getTriple().isOSAIX() ||
           getTriple().isOSSerenity())
         unwindLibType = ToolChain::UNW_CompilerRT;

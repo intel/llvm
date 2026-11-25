@@ -1305,6 +1305,24 @@ static bool isBFloat16Type(SPIRVTypeInst TypeDef) {
          TypeDef->getOperand(2).getImm() == SPIRV::FPEncoding::BFloat16KHR;
 }
 
+// Adds the requirements for bfloat16 arithmetic. Prefers
+// SPV_EXT_bfloat16_arithmetic and falls back to the legacy
+// SPV_INTEL_bfloat16_arithmetic which enables the same capability.
+static bool addBFloat16ArithmeticRequirements(SPIRV::RequirementHandler &Reqs,
+                                              const SPIRVSubtarget &ST) {
+  if (ST.canUseExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic)) {
+    Reqs.addExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic);
+    Reqs.addCapability(SPIRV::Capability::BFloat16ArithmeticEXT);
+    return true;
+  }
+  if (ST.canUseExtension(SPIRV::Extension::SPV_INTEL_bfloat16_arithmetic)) {
+    Reqs.addExtension(SPIRV::Extension::SPV_INTEL_bfloat16_arithmetic);
+    Reqs.addCapability(SPIRV::Capability::BFloat16ArithmeticINTEL);
+    return true;
+  }
+  return false;
+}
+
 // Registers created after isel (e.g. by MachineCSE) may lack registry entries.
 // Fall back to the defining instruction's result type.
 static SPIRVTypeInst getRegType(Register Reg, const MachineFunction &MF,
@@ -1831,17 +1849,10 @@ void addInstrRequirements(const MachineInstr &MI,
               MO.getReg(), const_cast<MachineFunction *>(MF)));
       }
 
-      if (UsesBFloat16) {
-        if (!ST.canUseExtension(
-                SPIRV::Extension::SPV_EXT_bfloat16_arithmetic)) {
-          reportUnsupported(
-              MI, "OpenCL Extended instructions with bfloat16 require the "
-                  "following SPIR-V extension: SPV_EXT_bfloat16_arithmetic");
-          break;
-        }
-        Reqs.addExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic);
-        Reqs.addCapability(SPIRV::Capability::BFloat16ArithmeticEXT);
-      }
+      if (UsesBFloat16 && !addBFloat16ArithmeticRequirements(Reqs, ST))
+        reportUnsupported(
+            MI, "OpenCL Extended instructions with bfloat16 require the "
+                "following SPIR-V extension: SPV_EXT_bfloat16_arithmetic");
     }
     break;
   }
@@ -2742,15 +2753,11 @@ void addInstrRequirements(const MachineInstr &MI,
     SPIRVTypeInst TypeDef = MRI.getVRegDef(MI.getOperand(1).getReg());
     if (isVectorType(TypeDef))
       TypeDef = MRI.getVRegDef(TypeDef->getOperand(1).getReg());
-    if (isBFloat16Type(TypeDef)) {
-      if (!ST.canUseExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic))
-        report_fatal_error(
-            "Arithmetic instructions with bfloat16 arguments require the "
-            "following SPIR-V extension: SPV_EXT_bfloat16_arithmetic",
-            false);
-      Reqs.addExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic);
-      Reqs.addCapability(SPIRV::Capability::BFloat16ArithmeticEXT);
-    }
+    if (isBFloat16Type(TypeDef) && !addBFloat16ArithmeticRequirements(Reqs, ST))
+      report_fatal_error(
+          "Arithmetic instructions with bfloat16 arguments require the "
+          "following SPIR-V extension: SPV_EXT_bfloat16_arithmetic",
+          false);
     break;
   }
   case SPIRV::OpOrdered:
@@ -2773,15 +2780,11 @@ void addInstrRequirements(const MachineInstr &MI,
     assert(TypeDef && "Unexpected type instruction for comparison operand");
     if (isVectorType(TypeDef))
       TypeDef = MRI.getVRegDef(TypeDef->getOperand(1).getReg());
-    if (isBFloat16Type(TypeDef)) {
-      if (!ST.canUseExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic))
-        report_fatal_error(
-            "Relational instructions with bfloat16 arguments require the "
-            "following SPIR-V extension: SPV_EXT_bfloat16_arithmetic",
-            false);
-      Reqs.addExtension(SPIRV::Extension::SPV_EXT_bfloat16_arithmetic);
-      Reqs.addCapability(SPIRV::Capability::BFloat16ArithmeticEXT);
-    }
+    if (isBFloat16Type(TypeDef) && !addBFloat16ArithmeticRequirements(Reqs, ST))
+      report_fatal_error(
+          "Relational instructions with bfloat16 arguments require the "
+          "following SPIR-V extension: SPV_EXT_bfloat16_arithmetic",
+          false);
     break;
   }
   case SPIRV::OpDPdxCoarse:

@@ -427,6 +427,8 @@ phases::ID Driver::getFinalPhase(const ArgList &Args,
   } else if ((PhaseArg = Args.getLastArg(options::OPT_fsyntax_only)) ||
              (PhaseArg = Args.getLastArg(options::OPT_print_supported_cpus)) ||
              (PhaseArg =
+                  Args.getLastArg(options::OPT_print_supported_tune_cpus)) ||
+             (PhaseArg =
                   Args.getLastArg(options::OPT_print_enabled_extensions)) ||
              (PhaseArg = Args.getLastArg(options::OPT_module_file_info)) ||
              (PhaseArg = Args.getLastArg(options::OPT_verify_pch)) ||
@@ -3308,6 +3310,7 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_v) ||
       C.getArgs().hasArg(options::OPT__HASH_HASH_HASH) ||
       C.getArgs().hasArg(options::OPT_print_supported_cpus) ||
+      C.getArgs().hasArg(options::OPT_print_supported_tune_cpus) ||
       C.getArgs().hasArg(options::OPT_print_supported_extensions) ||
       C.getArgs().hasArg(options::OPT_print_enabled_extensions)) {
     PrintVersion(C, llvm::errs());
@@ -3440,6 +3443,8 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
                           Action::OFK_Host);
     RegisterEffectiveTriple TripleRAII(TC, Triple);
     switch (RLT) {
+    case ToolChain::RLT_None:
+      break;
     case ToolChain::RLT_CompilerRT:
       llvm::outs() << TC.getCompilerRT(C.getArgs(), "builtins") << "\n";
       break;
@@ -7973,6 +7978,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   for (auto Opt : {options::OPT_print_supported_cpus,
+                   options::OPT_print_supported_tune_cpus,
                    options::OPT_print_supported_extensions,
                    options::OPT_print_enabled_extensions}) {
     // If --print-supported-cpus, -mcpu=? or -mtune=? is specified, build a

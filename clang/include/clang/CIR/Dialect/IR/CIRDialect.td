@@ -25,7 +25,9 @@ def CIR_Dialect : Dialect {
 
   let cppNamespace = "::cir";
 
-  let useDefaultAttributePrinterParser = 1;
+  let hasAttributes = 1;
+  let hasTypes = 1;
+  let useDefaultTypePrinterParser = 0;
 
   let hasOperationAttrVerify = 1;
   let hasRegionArgAttrVerify = 1;
@@ -157,9 +159,6 @@ def CIR_Dialect : Dialect {
     static llvm::StringRef getSYCLDeviceAttrName() { return "cir.sycl_device"; }
     static llvm::StringRef getSYCLExplicitSimdAttrName() { return "cir.sycl_explicit_simd"; }
     static llvm::StringRef getDefaultTlsModelAttrName() { return "cir.default_tls_model"; }
-
-    void registerAttributes();
-    void registerTypes();
 
     mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
     void printType(mlir::Type type,

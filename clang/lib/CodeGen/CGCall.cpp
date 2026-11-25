@@ -2485,9 +2485,6 @@ static void getTrivialDefaultFunctionAttributes(
                                  CodeGenOpts.getFramePointer()));
     }
 
-    if (CodeGenOpts.LessPreciseFPMAD)
-      FuncAttrs.addAttribute("less-precise-fpmad", "true");
-
     if (CodeGenOpts.NullPointerIsValid)
       FuncAttrs.addAttribute(llvm::Attribute::NullPointerIsValid);
 
