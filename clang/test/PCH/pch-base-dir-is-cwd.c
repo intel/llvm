@@ -41,7 +41,7 @@
 // PCHs built in different working directories are bit-identical when all their
 // inputs are inside those directories. Preserve input timestamps when copying.
 // RUN: cd %t/original && %clang_cc1 -emit-pch -x c-header headers/identical.h -o pch/identical.pch -fpch-base-dir-is-cwd
-// RUN: cp -pR %t/original %t/relocated
+// RUN: %python -c "import shutil, sys; shutil.copytree(sys.argv[1], sys.argv[2])" "%/t/original" "%/t/relocated"
 // RUN: cd %t/relocated && %clang_cc1 -emit-pch -x c-header headers/identical.h -o pch/identical.pch -fpch-base-dir-is-cwd
 // RUN: cmp %t/original/pch/identical.pch %t/relocated/pch/identical.pch
 
