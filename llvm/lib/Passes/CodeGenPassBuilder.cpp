@@ -373,7 +373,7 @@ void CodeGenPassBuilder::addISelPasses(PassManagerWrapper &PMW) {
   addFunctionPass(ExpandIRInstsPass(TM, getOptLevel()), PMW);
 
   addIRPasses(PMW);
-  //addFunctionPass(FPBuiltinFnSelectionPass(), PMW);
+  addFunctionPass(FPBuiltinFnSelectionPass(), PMW);
   addCodeGenPrepare(PMW);
   addPassesToHandleExceptions(PMW);
   addISelPrepare(PMW);

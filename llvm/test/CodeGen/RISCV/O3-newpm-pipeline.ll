@@ -37,6 +37,7 @@
 ; CHECK-NEXT:   scalarize-masked-mem-intrin
 ; CHECK-NEXT:   expand-reductions
 ; CHECK-NEXT:   select-optimize
+; CHECK-NEXT:   fpbuiltin-fn-selection
 ; CHECK-NEXT:   typepromotion
 ; CHECK-NEXT:   codegenprepare
 ; CHECK-NEXT:   sjlj-eh-prepare

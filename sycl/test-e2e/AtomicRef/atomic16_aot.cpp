@@ -9,6 +9,9 @@
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/23865
 
+// XFAIL: new-offload-model
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/23870
+
 // Native atomic16 kernels must survive CRI AOT filtering, but not appear in
 // BMG/PVC images. No spir64 image is provided to hide a missing CRI image.
 // CRI: [Code|Properties|Symbols]

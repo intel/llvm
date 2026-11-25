@@ -962,7 +962,7 @@ private:
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
   template <typename PropertyOrList>
   static constexpr bool KhrPropsForStream =
-      khr::property::detail::is_property_or_list_for_v<PropertyOrList, stream>;
+      khr::is_property_or_list_for_v<PropertyOrList, stream>;
 #endif
 
 public:

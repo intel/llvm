@@ -54,9 +54,10 @@ Which one to use:
     property; for any other use define a tag type that is declared but never
     defined (`khr::property::tag::reduction`).
   * An API that accepts properties takes `PropertyOrList props` (a template
-    parameter) with "_Constraints:_ `khr::is_property_for_v<PropertyOrList, C>`
-    is `true`, or `khr::is_property_list_for_v<PropertyOrList, C>` is `true`". A
-    single property is treated as `khr::properties{props}`.
+    parameter) with "_Constraints:_
+    `khr::is_property_or_list_for_v<PropertyOrList, C>` is `true`". The trait
+    covers both a bare property and a property list; a single property is
+    treated as `khr::properties{props}`.
 - oneAPI model: follow the oneAPI template below. Properties of this model go
   directly in `...::experimental`; `property::<class>::` nesting (Pass 3's
   `property::queue::discard_events`) is for the SYCL 2020 model.
