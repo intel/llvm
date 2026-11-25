@@ -88,11 +88,25 @@ inline void inlineFn(sycl::queue &q) {
   // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_(
   // INT-HEADER-DAG: getName() { return "_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_"; }
   // HOST-DAG: c"_ZTSZ8inlineFnRN4sycl3_V15queueEEUlvE_\00"
+
+  // Likewise, local types of an inline function are the same types in every TU,
+  // so don't add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task<class KInline>([] {}); });
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZZ8inlineFnRN4sycl3_V15queueEENKUlRNS0_7handlerEE0_clES4_E7KInline(
+  // INT-HEADER-DAG: getName() { return "_ZTSZZ8inlineFnRN4sycl3_V15queueEENKUlRNS0_7handlerEE0_clES4_E7KInline"; }
+  // MSVC-DAG: define {{.*}}spir_kernel void @"?AVKInline@?0???R<lambda_3>@?0??inlineFn@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"(
+  // MSVC-INT-HEADER-DAG: getName() { return "?AVKInline@?0???R<lambda_3>@?0??inlineFn@@YAXAEAVqueue@_V1@sycl@@@Z@QEBA?A?<auto>@@AEAVhandler@45@@Z@"; }
+
+  struct LocalFunc { void operator()() const {} };
+  q.submit([&](sycl::handler &h) { h.single_task(LocalFunc{}); });
+  (void) __builtin_sycl_unique_stable_name(LocalFunc);
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZ8inlineFnRN4sycl3_V15queueEE9LocalFunc(
+  // INT-HEADER-DAG: getName() { return "_ZTSZ8inlineFnRN4sycl3_V15queueEE9LocalFunc"; }
+  // HOST-DAG: c"_ZTSZ8inlineFnRN4sycl3_V15queueEE9LocalFunc\00"
 }
 
 static inline void staticInlineFn(sycl::queue &q) {
-  // 'inline' doesn't make a function with internal linkage shared between TUs:
-  // each TU has its own staticInlineFn, so add CUID:
+  // Static inline is still internal linkage, so add CUID:
   auto k = [] {};
   q.submit([&](sycl::handler &h) { h.single_task(k); });
   (void) __builtin_sycl_unique_stable_name(decltype(k));
@@ -101,6 +115,49 @@ static inline void staticInlineFn(sycl::queue &q) {
   // HOST-DAG: c"_ZTSU21cuid_[[HASH]]ZL14staticInlineFnRN4sycl3_V15queueEEUlvE_\00"
   // NOCUID-DAG: _ZTSZL14staticInlineFnRN4sycl3_V15queueEEUlvE_
   // HOST-NOCUID-DAG: c"_ZTSZL14staticInlineFnRN4sycl3_V15queueEEUlvE_\00"
+}
+
+struct InClassDef {
+  // Implicitly inline, still externally visible, so don't add CUID:
+  void run(sycl::queue &q) {
+    auto k = [] {};
+    q.submit([&](sycl::handler &h) { h.single_task(k); });
+    (void) __builtin_sycl_unique_stable_name(decltype(k));
+    // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSZN10InClassDef3runERN4sycl3_V15queueEEUlvE_(
+    // INT-HEADER-DAG: getName() { return "_ZTSZN10InClassDef3runERN4sycl3_V15queueEEUlvE_"; }
+    // HOST-DAG: c"_ZTSZN10InClassDef3runERN4sycl3_V15queueEEUlvE_\00"
+  }
+};
+
+inline auto inlineVar = [] {};
+static inline auto staticInlineVar = [] {};
+struct StaticMember { static inline auto lambda = [] {}; };
+
+void varLambdas(sycl::queue &q) {
+  // Inline variable, don't add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task(inlineVar); });
+  (void) __builtin_sycl_unique_stable_name(decltype(inlineVar));
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSN9inlineVarMUlvE_E(
+  // INT-HEADER-DAG: getName() { return "_ZTSN9inlineVarMUlvE_E"; }
+  // HOST-DAG: c"_ZTSN9inlineVarMUlvE_E\00"
+
+  // Static member of an externally visible struct, don't add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task(StaticMember::lambda); });
+  (void) __builtin_sycl_unique_stable_name(decltype(StaticMember::lambda));
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSN12StaticMember6lambdaMUlvE_E(
+  // INT-HEADER-DAG: getName() { return "_ZTSN12StaticMember6lambdaMUlvE_E"; }
+  // HOST-DAG: c"_ZTSN12StaticMember6lambdaMUlvE_E\00"
+
+  // Namespace-scope static variable has internal linkage, so add CUID:
+  q.submit([&](sycl::handler &h) { h.single_task(staticInlineVar); });
+  (void) __builtin_sycl_unique_stable_name(decltype(staticInlineVar));
+  // DEVICE-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]NL15staticInlineVarMUlvE_E(
+  // INT-HEADER-DAG: getName() { return "_ZTSU21cuid_[[HASH]]NL15staticInlineVarMUlvE_E"; }
+  // HOST-DAG: c"_ZTSU21cuid_[[HASH]]NL15staticInlineVarMUlvE_E\00"
+  // NOCUID-DAG: _ZTSNL15staticInlineVarMUlvE_E
+  // HOST-NOCUID-DAG: c"_ZTSNL15staticInlineVarMUlvE_E\00"
+  // MSVC-DAG: define {{.*}}spir_kernel void @_ZTSU21cuid_[[HASH]]NL15staticInlineVarMUlvE_E(
+  // MSVC-NOCUID-DAG: define {{.*}}spir_kernel void @_ZTSNL15staticInlineVarMUlvE_E(
 }
 
 namespace {
@@ -371,6 +428,8 @@ int main() {
   extUnnamed(q);
   inlineFn(q);
   staticInlineFn(q);
+  InClassDef{}.run(q);
+  varLambdas(q);
   funcObjects(q);
   staticNamed(q);
   sameNamedLocals(q);
