@@ -6,6 +6,7 @@
 ; }
 ;
 
+; REQUIRES: spirv-as
 ; RUN: spirv-as %s -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
