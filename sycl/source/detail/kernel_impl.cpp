@@ -111,6 +111,12 @@ bool kernel_impl::isInteropOrSourceBased() const noexcept {
           (MDeviceImageImpl->getOriginMask() & ImageOriginKernelCompiler));
 }
 
+const std::vector<size_t> *kernel_impl::tryGetKernelArgSizes() const {
+  if (!MDeviceImageImpl || !MDeviceImageImpl->isNonSYCLSourceBased())
+    return nullptr;
+  return MDeviceImageImpl->tryGetKernelArgSizes(getName());
+}
+
 bool kernel_impl::hasSYCLMetadata() const noexcept {
   return !isInteropOrSourceBased() ||
          (MDeviceImageImpl &&

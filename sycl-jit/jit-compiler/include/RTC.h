@@ -172,6 +172,14 @@ private:
   const sycl::detail::string BuildLog;
 };
 
+/// Argument sizes of one kernel of a SPIR-V module: the value size for
+/// by-value parameters, the pointer size for CrossWorkgroup pointers, and 0 for
+/// parameters whose argument has no size to check or whose size is unknown.
+struct SPIRVKernelInfo {
+  sycl::detail::string Name;
+  DynArray<uint64_t> ArgSizes;
+};
+
 //===- Entrypoints --------------------------------------------------------===//
 
 /// Calculates a BLAKE3 hash of the pre-processed source string described by
@@ -204,5 +212,11 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
 /// Requests that the JIT binary referenced by \p Address is deleted from the
 /// `JITContext`.
 JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
+
+/// Parses \p SPIRVBinary with SPIRV-Tools and returns the argument sizes of its
+/// kernels. Returns an empty array if the module cannot be parsed
+/// or sycl-jit was built without SPIRV-Tools.
+JIT_EXPORT_SYMBOL DynArray<SPIRVKernelInfo>
+getSPIRVKernelInfo(View<uint8_t> SPIRVBinary);
 
 } // namespace jit_compiler
