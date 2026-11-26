@@ -38,8 +38,6 @@
 // RUN: llvm-objdump --offloading %t/multi.fatbin | FileCheck %s --check-prefix=CONTAINER
 // CONTAINER: OFFLOADING IMAGE [0]:
 // CONTAINER: kind elf
-// CONTAINER: arch igca_20ca,igca_30r
-// CONTAINER: triple spir64-unknown-unknown
 // CONTAINER: producer sycl
 // CONTAINER-NOT: OFFLOADING IMAGE
 
@@ -71,7 +69,7 @@
 // RUN:   --sycl-post-link-options=-allow-device-image-dependencies \
 // RUN:   --linker-path=/usr/bin/ld %t/unresolved.pack -o %t/deps.fatbin
 // RUN: llvm-objdump --offloading %t/deps.fatbin | FileCheck %s --check-prefix=DEPS
-// DEPS: arch igca_20ca
+// DEPS: producer sycl
 // RUN: clang-linker-wrapper --dry-run --no-sycl-rdc --emit-fatbin-only \
 // RUN:   --sycl-allow-device-image-dependencies --linker-path=/usr/bin/ld \
 // RUN:   %t/unresolved.pack -o %t/deps.fatbin 2>&1 \
@@ -89,7 +87,7 @@
 // SPLIT-COUNT-2: ocloc-stub: concat {{.*}}.spv {{.*}}.spv -out {{.*}}.bin
 // SPLIT-NOT: ocloc-stub
 // RUN: llvm-objdump --offloading %t/split.fatbin | FileCheck %s --check-prefix=SPLIT-CONTAINER
-// SPLIT-CONTAINER-COUNT-2: arch igca_20ca,igca_30r
+// SPLIT-CONTAINER-COUNT-2: producer sycl
 // SPLIT-CONTAINER-NOT: OFFLOADING IMAGE
 
 // IGCA targets which define different kernels are diagnosed.

@@ -3418,20 +3418,14 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       if (!SYCLImagesOrErr)
         return SYCLImagesOrErr.takeError();
 
-      std::string Archs =
-          llvm::join(llvm::map_range(IGCAModules,
-                                     [](const sycl::IGCATargetModules &Target) {
-                                       return Target.Arch;
-                                     }),
-                     ",");
+      // The uber-modules are final, so they carry only the SYCL runtime
+      // metadata and no compilation target.
       auto &SYCLImages = Images[OFK_SYCL];
       for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
         OffloadingImage TheImage{};
         TheImage.TheImageKind =
             Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
         TheImage.TheOffloadKind = OFK_SYCL;
-        TheImage.StringData["triple"] = Args.MakeArgString(Triple.str());
-        TheImage.StringData["arch"] = Args.MakeArgString(Archs);
         offloading::addSYCLImageStrings(SYCLImage, TheImage.StringData,
                                         SYCLImageStringSaver);
         TheImage.Image = std::move(SYCLImage.Image);
