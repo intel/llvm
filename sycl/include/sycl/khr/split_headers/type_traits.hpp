@@ -15,6 +15,5 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/device_aspect_traits.hpp>
 #include <sycl/known_identity.hpp>
-#include <sycl/properties/property_traits.hpp>
 
 #endif // __SYCL_KHR_SPLIT_HEADERS_TYPE_TRAITS
