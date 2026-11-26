@@ -63,6 +63,10 @@ struct MsanShadowMemory {
   uptr ShadowBegin = 0;
 
   uptr ShadowEnd = 0;
+
+  // See MsanRuntimeData::LocalWindowSize. Unused on CPU, where local memory
+  // is shadowed like global memory.
+  uint32_t LocalWindowSize = 0;
 };
 
 // clang-format off
