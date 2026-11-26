@@ -141,7 +141,10 @@ if (LLVM_LIB_WERROR_GLOBAL_CTORS)
   endforeach()
 
   # Downstream (SYCL) libraries that still have static initializers.
+  # LLVMGenXIntrinsics comes from vc-intrinsics, fetched via FetchContent in
+  # SYCLLowerIR, and so inherits this directory's CMAKE_CXX_FLAGS.
   foreach(lib
+      LLVMGenXIntrinsics
       LLVMNativeCPUPipeline
       LLVMNativeCPUVecz
       LLVMSYCLLowerIR
@@ -149,7 +152,10 @@ if (LLVM_LIB_WERROR_GLOBAL_CTORS)
       LLVMSYCLPostLink
       )
     if (TARGET ${lib})
-      target_compile_options(${lib} PRIVATE -Wno-global-constructors)
+      get_target_property(is_imported ${lib} IMPORTED)
+      if (NOT is_imported)
+        target_compile_options(${lib} PRIVATE -Wno-global-constructors)
+      endif()
     endif()
   endforeach()
 endif()
