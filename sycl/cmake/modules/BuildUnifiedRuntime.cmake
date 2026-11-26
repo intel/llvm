@@ -247,16 +247,85 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   set(URD_BINARY_DIR ${CMAKE_BINARY_DIR}/unified-runtimed)
   set(URD_INSTALL_DIR ${URD_BINARY_DIR}/install)
 
+  # Files installed by the subbuild. These are declared as byproducts so that
+  # the copy commands below can depend on them.
+  set(URD_BYPRODUCTS)
+  list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ur_loaderd.lib)
+  # Static adapters that are linked into the static loader, and whether any of
+  # them is a Level Zero adapter (which additionally needs ze_loader).
+  set(_urd_static_adapters)
+  set(_urd_static_l0 FALSE)
+  if(UR_STATIC_LOADER)
+    list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ur_commond.lib)
+    foreach(adapter ${SYCL_ENABLE_BACKENDS})
+      ur_adapter_is_static(${adapter} adapter_is_static)
+      # The Level Zero adapters use the abbreviated build flags
+      # UR_BUILD_ADAPTER_L0 / _L0_V2 rather than the backend name.
+      string(TOUPPER "${adapter}" adapter_upper)
+      if(adapter_upper STREQUAL "LEVEL_ZERO")
+        set(build_var "UR_BUILD_ADAPTER_L0")
+      elseif(adapter_upper STREQUAL "LEVEL_ZERO_V2")
+        set(build_var "UR_BUILD_ADAPTER_L0_V2")
+      else()
+        set(build_var "UR_BUILD_ADAPTER_${adapter_upper}")
+      endif()
+      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
+        list(APPEND _urd_static_adapters ${adapter})
+        if(build_var STREQUAL "UR_BUILD_ADAPTER_L0" OR
+           build_var STREQUAL "UR_BUILD_ADAPTER_L0_V2")
+          set(_urd_static_l0 TRUE)
+        endif()
+      endif()
+    endforeach()
+    if(_urd_static_l0)
+      list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ze_loader.lib)
+    endif()
+  endif()
+  # A static UMF and its private helper archives aren't installed, but are
+  # copied from the subbuild's lib directory.
+  if(NOT UMF_BUILD_SHARED_LIBRARY)
+    foreach(_umf_lib umf umf_ba umf_utils umf_coarse)
+      list(APPEND URD_BYPRODUCTS ${URD_BINARY_DIR}/lib/${_umf_lib}.lib)
+    endforeach()
+  endif()
+  list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/ur_loaderd.dll)
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    list(APPEND URD_BYPRODUCTS
+      ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
+      ${URD_INSTALL_DIR}/lib/ur_adapter_${adapter}d.lib)
+  endforeach()
+  if(UMF_BUILD_SHARED_LIBRARY)
+    list(APPEND URD_BYPRODUCTS
+      ${URD_INSTALL_DIR}/bin/umfd.dll
+      ${URD_INSTALL_DIR}/lib/umfd.lib)
+  endif()
+
   # This creates a subbuild which can be used in dependencies with the
-  # unified-runtimed target. It invokes the install-unified-runtime-libraries
-  # target to install the UR runtime libraries.
+  # unified-runtimed target. It builds all targets and then invokes the
+  # install-unified-runtime-libraries target to install the UR runtime
+  # libraries. The full build is required because the install target does not
+  # depend on everything it installs, e.g. umfd.lib.
+  #
+  # Both steps are part of the build step, rather than the install step, so
+  # that the installed files can be declared with BUILD_BYPRODUCTS
+  # (INSTALL_BYPRODUCTS requires CMake 3.26).
+  #
+  # BUILD_ALWAYS makes the subbuild run on every build, so that it checks
+  # whether its own sources are out of date. Without it, the build step only
+  # re-runs when its stamp file is outdated, and changes to UR would not cause
+  # the debug libraries to be rebuilt. llvm_ExternalProject_Add does the same
+  # for the in-tree LLVM runtimes.
   ExternalProject_Add(unified-runtimed
     SOURCE_DIR ${UNIFIED_RUNTIME_SOURCE_DIR}
     BINARY_DIR ${URD_BINARY_DIR}
     INSTALL_DIR ${URD_INSTALL_DIR}
-    INSTALL_COMMAND ${CMAKE_COMMAND}
+    BUILD_ALWAYS ON
+    BUILD_BYPRODUCTS ${URD_BYPRODUCTS}
+    BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Debug
+    COMMAND ${CMAKE_COMMAND}
       --build <BINARY_DIR> --config Debug
       --target install-unified-runtime-libraries
+    INSTALL_COMMAND ""
     CMAKE_CACHE_ARGS
       -DCMAKE_BUILD_TYPE:STRING=Debug
       -DCMAKE_MSVC_RUNTIME_LIBRARY:STRING=MultiThreadedDebugDLL
@@ -306,6 +375,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_INSTALL_DIR}/bin/${library}.dll
           ${LLVM_BINARY_DIR}/bin/${library}.dll
+        DEPENDS ${URD_INSTALL_DIR}/bin/${library}.dll
       )
     endif()
 
@@ -318,6 +388,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       COMMAND ${CMAKE_COMMAND} -E copy
         ${URD_INSTALL_DIR}/lib/${library}.lib
         ${LLVM_BINARY_DIR}/lib/${library}.lib
+      DEPENDS ${URD_INSTALL_DIR}/lib/${library}.lib
     )
   endmacro()
 
@@ -332,28 +403,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       ${LLVM_BINARY_DIR}/lib/ur_loaderd.lib
       ${LLVM_BINARY_DIR}/lib/ur_commond.lib
       dbghelp)
-    set(_urd_static_l0 FALSE)
     # Link static adapters into the loader
-    foreach(adapter ${SYCL_ENABLE_BACKENDS})
-      ur_adapter_is_static(${adapter} adapter_is_static)
-      # The Level Zero adapters use the abbreviated build flags
-      # UR_BUILD_ADAPTER_L0 / _L0_V2 rather than the backend name.
-      string(TOUPPER "${adapter}" adapter_upper)
-      if(adapter_upper STREQUAL "LEVEL_ZERO")
-        set(build_var "UR_BUILD_ADAPTER_L0")
-      elseif(adapter_upper STREQUAL "LEVEL_ZERO_V2")
-        set(build_var "UR_BUILD_ADAPTER_L0_V2")
-      else()
-        set(build_var "UR_BUILD_ADAPTER_${adapter_upper}")
-      endif()
-      if(adapter_is_static AND DEFINED ${build_var} AND ${build_var})
-        target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
-          ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
-        if(build_var STREQUAL "UR_BUILD_ADAPTER_L0" OR
-           build_var STREQUAL "UR_BUILD_ADAPTER_L0_V2")
-          set(_urd_static_l0 TRUE)
-        endif()
-      endif()
+    foreach(adapter ${_urd_static_adapters})
+      target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
+        ${LLVM_BINARY_DIR}/lib/ur_adapter_${adapter}d.lib)
     endforeach()
     # A static umfd.lib does not absorb its private helper archives, so link
     # them too. umfd and the helpers are copied below.
@@ -372,6 +425,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_INSTALL_DIR}/lib/ze_loader.lib
           ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib
+        DEPENDS ${URD_INSTALL_DIR}/lib/ze_loader.lib
       )
       target_link_libraries(UnifiedRuntimeLoaderDebug INTERFACE
         ${LLVM_BINARY_DIR}/lib/ze_loaderd.lib)
@@ -402,7 +456,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
           ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
-        DEPENDS unified-runtimed
+        DEPENDS ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
       )
     endforeach()
   endif()
