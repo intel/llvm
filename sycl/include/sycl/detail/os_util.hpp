@@ -123,9 +123,8 @@ constexpr std::array<const char *, 1> OCLLibNames = {"OpenCL"};
 constexpr std::array<const char *, 2> OCLLibNames = {"libOpenCL.so.1",
                                                      "libOpenCL.so"};
 #else
-constexpr std::array<const char *, 4> OCLLibNames = {
-    "libur_adapter_opencl.so", "libur_adapter_opencl.so.0", "libOpenCL.so.1",
-    "libOpenCL.so"};
+constexpr std::array<const char *, 2> OCLLibNames = {
+    "libur_adapter_opencl.so", "libur_adapter_opencl.so.0"};
 #endif
 
 #define __SYCL_OCL_CALL(FN, ...)                                               \

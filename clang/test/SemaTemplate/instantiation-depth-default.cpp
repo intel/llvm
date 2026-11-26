@@ -13,7 +13,6 @@ template<int N, typename T> struct X : X<N+1, T*> {};
 // expected-note@11 {{instantiation of template class}}
 // expected-note@11 {{skipping 1023 contexts in backtrace}}
 // expected-note@11 {{use -ftemplate-depth=N to increase recursive template instantiation depth}}
-// expected-warning@11 0-1 {{stack nearly exhausted}}
 
 X<0, int> x; // expected-note {{in instantiation of}}
 

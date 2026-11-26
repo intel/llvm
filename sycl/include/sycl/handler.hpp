@@ -1025,8 +1025,7 @@ private:
   void setHandlerKernelBundle(kernel Kernel);
 
   template <typename SharedPtrT>
-  __SYCL_DLL_LOCAL void
-  setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
+  void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> Func);
   void SetHostTaskFromExtEnqueueFunctions(std::function<void()> Func);
