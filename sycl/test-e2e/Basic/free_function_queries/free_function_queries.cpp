@@ -17,6 +17,7 @@
 #include <cassert>
 #include <iostream>
 #include <type_traits>
+#include <vector>
 
 int main() {
   constexpr std::size_t n = 1030;
@@ -26,25 +27,28 @@ int main() {
 
   {
     constexpr int checks_number{3};
-    int results[checks_number]{41, 42, 43};
+    std::vector<int> results(n * checks_number, 0);
     {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
-      sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
+      sycl::buffer<int> results_buf(results.data(),
+                                    sycl::range<1>(results.size()));
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access_mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::read_write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access_mode::write>(cgh));
+            acc(buf.get_access<sycl::access_mode::read_write>(cgh));
         sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class IdTest>(n, [=](sycl::id<1> i) {
+          const size_t ResultOffset = i[0] * checks_number;
           auto that_id = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-          results_acc[0] = that_id.get_global_id() == i;
+          results_acc[ResultOffset] = that_id.get_global_id() == i;
 
           auto that_item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-          results_acc[1] = that_item.get_global_id() == i;
-          results_acc[2] = that_item.get_global_range() == sycl::range<1>(n);
+          results_acc[ResultOffset + 1] = that_item.get_global_id() == i;
+          results_acc[ResultOffset + 2] =
+              that_item.get_global_range() == sycl::range<1>(n);
           acc[i]++;
         });
       });
@@ -60,25 +64,27 @@ int main() {
 
   {
     constexpr int checks_number{2};
-    int results[checks_number]{41, 42};
+    std::vector<int> results(n * checks_number, 0);
     {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
-      sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
+      sycl::buffer<int> results_buf(results.data(),
+                                    sycl::range<1>(results.size()));
       sycl::queue q;
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access_mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::read_write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access_mode::write>(cgh));
+            acc(buf.get_access<sycl::access_mode::read_write>(cgh));
         sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class ItemTest>(n, [=](auto i) {
           static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
                         "lambda arg type is unexpected");
+          const size_t ResultOffset = i.get_linear_id() * checks_number;
           auto that_id = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-          results_acc[0] = that_id.get_global_id() == i;
+          results_acc[ResultOffset] = that_id.get_global_id() == i;
           auto that_item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-          results_acc[1] = that_item.get_global_id() == i;
+          results_acc[ResultOffset + 1] = that_item.get_global_id() == i;
           acc[i]++;
         });
       });
@@ -97,27 +103,29 @@ int main() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     constexpr int checks_number{2};
-    int results[checks_number]{41, 42};
+    std::vector<int> results(n * checks_number, 0);
     {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
-      sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
+      sycl::buffer<int> results_buf(results.data(),
+                                    sycl::range<1>(results.size()));
       sycl::queue q;
       sycl::id<1> offset(1);
       q.submit([&](sycl::handler &cgh) {
-        sycl::accessor<int, 1, sycl::access_mode::write,
+        sycl::accessor<int, 1, sycl::access_mode::read_write,
                        sycl::access::target::device>
-            acc(buf.get_access<sycl::access_mode::write>(cgh));
+            acc(buf.get_access<sycl::access_mode::read_write>(cgh));
         sycl::accessor<int, 1, sycl::access_mode::write,
                        sycl::access::target::device>
             results_acc(results_buf.get_access<sycl::access_mode::write>(cgh));
         cgh.parallel_for<class ItemOffsetTest>(
             sycl::range<1>{n}, offset, [=](sycl::item<1, true> i) {
+              const size_t ResultOffset = i.get_linear_id() * checks_number;
               auto that_id =
                   sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-              results_acc[0] = i.get_id() == that_id.get_global_id();
+              results_acc[ResultOffset] = i.get_id() == that_id.get_global_id();
               auto that_item =
                   sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-              results_acc[1] = i == that_item.get_global_id();
+              results_acc[ResultOffset + 1] = i == that_item.get_global_id();
               acc[that_item.get_global_linear_id()]++;
             });
       });

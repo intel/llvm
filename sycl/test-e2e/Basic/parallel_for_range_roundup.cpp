@@ -1,4 +1,4 @@
-// REQUIRES: gpu
+// REQUIRES: gpu, aspect-usm_shared_allocations
 // RUN: %{build} -o %t1.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t1.out | FileCheck %s --check-prefix=CHECK-DEFAULT
 
@@ -76,8 +76,10 @@ void try_1d_range(size_t size, bool useShortcutFunction) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,
                           sycl::memory_scope::device>(*CounterPtr);
     atm.fetch_add(1);
-    if constexpr (std::is_same_v<KernelIdT, item<1>>)
-      (*RangePtr) = range<1>(I.get_range(0));
+    if constexpr (std::is_same_v<KernelIdT, item<1>>) {
+      if (I.get_linear_id() == 0)
+        (*RangePtr) = range<1>(I.get_range(0));
+    }
     int Idx = I[0];
     ItemIndexesPtr[Idx] = IndexCheckT(I[0]);
   };
@@ -120,8 +122,10 @@ void try_2d_range(size_t size, bool useShortcutFunction) {
                           sycl::memory_scope::device>(*CounterPtr);
     atm.fetch_add(1);
 
-    if constexpr (std::is_same_v<KernelIdT, item<2>>)
-      (*RangePtr) = range<2>(I.get_range(0), I.get_range(1));
+    if constexpr (std::is_same_v<KernelIdT, item<2>>) {
+      if (I.get_linear_id() == 0)
+        (*RangePtr) = range<2>(I.get_range(0), I.get_range(1));
+    }
     int Idx = I[0] * Range[1] + I[1];
     ItemIndexesPtr[Idx] = IndexCheckT(I[0], I[1]);
   };
@@ -165,8 +169,10 @@ void try_3d_range(size_t size, bool useShortcutFunction) {
                           sycl::memory_scope::device>(*CounterPtr);
     atm.fetch_add(1);
 
-    if constexpr (std::is_same_v<KernelIdT, item<3>>)
-      (*RangePtr) = range<3>(I.get_range(0), I.get_range(1), I.get_range(2));
+    if constexpr (std::is_same_v<KernelIdT, item<3>>) {
+      if (I.get_linear_id() == 0)
+        (*RangePtr) = range<3>(I.get_range(0), I.get_range(1), I.get_range(2));
+    }
     int Idx = I[0] * Range[1] * Range[2] + I[1] * Range[2] + I[2];
     ItemIndexesPtr[Idx] = IndexCheckT(I[0], I[1], I[2]);
   };
@@ -208,7 +214,8 @@ void try_unnamed_lambda(size_t size, bool useShortcutFunction) {
     auto atm = atomic_ref<int, sycl::memory_order::relaxed,
                           sycl::memory_scope::device>(*CounterPtr);
     atm.fetch_add(1);
-    (*RangePtr)[0] = ID[0];
+    if (ID == id<3>{0, 0, 0})
+      (*RangePtr)[0] = ID[0];
   };
 
   command_submit_wrappers::parallel_for_wrapper<class TestKernel>(
