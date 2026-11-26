@@ -86,7 +86,6 @@ int strncmp(const char *s1, const char *s2, size_t n) {
 
   return s1[idx] - s2[idx];
 }
-#endif // !__SPIR__ && !__SPIRV__
 
 // This simple rand is for ease of use only, the implementation aligns with
 // LLVM libc rand which is based on xorshift64star pseudo random number
@@ -136,6 +135,7 @@ void srand(unsigned int seed) {
       (global_size > RAND_NEXT_LEN) ? (gid & (RAND_NEXT_LEN - 1)) : gid;
   RAND_NEXT_ACC[gid1] = seed;
 }
+#endif // !__SPIR__ && !__SPIRV__
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)
 DEVICE_EXTERN_C void __assertfail(const char *__message, const char *__file,
