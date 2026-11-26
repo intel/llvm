@@ -17,6 +17,7 @@
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
+#include "clang/Driver/SyclGPUArchs.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
@@ -262,6 +263,10 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   Image.TheOffloadKind = getOffloadKind(Kind);
   Image.StringData["triple"] = Triple;
   Image.StringData["arch"] = Arch;
+  // This helper is only used to wrap objects extracted via unbundling, i.e.
+  // old-model device code. Tag it so later SPIR/SPIRV device-library
+  // resolution knows it's needed here.
+  Image.StringData["old-offload-model"] = "1";
   Image.Image = std::move(*ImageOrError);
 
   std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
@@ -1790,6 +1795,117 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
+/// Device-lib selection signals, forwarded via --device-compiler=<arch>=
+/// <value> (forwardSYCLDeviceLibSelectors in Clang.cpp) and decoded here
+/// from --compiler-arg=.
+struct SYCLDeviceLibSelectors {
+  bool NoOffloadLib = false;
+  bool InstrumentDeviceCode = true;
+  std::string SanitizeKind;
+};
+
+static SYCLDeviceLibSelectors parseSYCLDeviceLibSelectors(const ArgList &Args) {
+  SYCLDeviceLibSelectors Sel;
+  for (StringRef V : Args.getAllArgValues(OPT_compiler_arg_EQ)) {
+    if (V == "--no-offloadlib")
+      Sel.NoOffloadLib = true;
+    else if (V == "-fno-sycl-instrument-device-code")
+      Sel.InstrumentDeviceCode = false;
+    else if (StringRef Val = V; Val.consume_front("-fsanitize="))
+      Sel.SanitizeKind = Val.str();
+  }
+  return Sel;
+}
+
+// TODO: getSanitizerAOTFamily and getDefaultSYCLDeviceLibNames below
+// duplicate classification logic from addSYCLDeviceSanitizerLibs and
+// SYCLToolChain::getDeviceLibNames (clang/lib/Driver/ToolChains/SYCL.cpp).
+// Consider sharing this between the driver and clang-linker-wrapper.
+
+/// AOT device family used to pick a sanitizer library variant. Mirrors
+/// addSYCLDeviceSanitizerLibs's JIT/AOT_CPU/AOT_DG2/AOT_PVC classification
+/// (clang/lib/Driver/ToolChains/SYCL.cpp).
+enum class SYCLSanitizerAOTFamily { JIT, AOT_CPU, AOT_DG2, AOT_PVC };
+
+static SYCLSanitizerAOTFamily getSanitizerAOTFamily(const llvm::Triple &Triple,
+                                                    StringRef Device) {
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    return SYCLSanitizerAOTFamily::AOT_CPU;
+  if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+    if (Device == "pvc")
+      return SYCLSanitizerAOTFamily::AOT_PVC;
+    if (Device == "dg2")
+      return SYCLSanitizerAOTFamily::AOT_DG2;
+  }
+  return SYCLSanitizerAOTFamily::JIT;
+}
+
+/// Return the default SYCL device library file names that clang-linker-wrapper
+/// should resolve for an old-model \p Triple device image. Mirrors
+/// SYCLToolChain::getDeviceLibNames/addSYCLDeviceSanitizerLibs
+/// (clang/lib/Driver/ToolChains/SYCL.cpp).
+static SmallVector<std::string, 8>
+getDefaultSYCLDeviceLibNames(const llvm::Triple &Triple, const ArgList &Args) {
+  assert(Triple.isSPIROrSPIRV() && "caller must only resolve default device "
+                                   "libs for SPIR/SPIR-V targets");
+  SYCLDeviceLibSelectors Sel = parseSYCLDeviceLibSelectors(Args);
+  SmallVector<std::string, 8> Libs;
+
+  if (!Sel.NoOffloadLib) {
+    Libs.push_back("libsycl-crt.bc");
+    Libs.push_back("libsycl-cmath.bc");
+    if (Args.hasArg(OPT_sycl_is_windows_msvc_env))
+      Libs.push_back("libsycl-msvc-math.bc");
+    Libs.push_back("libsycl-imf.bc");
+  }
+
+  // ITT instrumentation libraries are independent of --no-offloadlib.
+  if (Sel.InstrumentDeviceCode) {
+    Libs.push_back("libsycl-itt-user-wrappers.bc");
+    Libs.push_back("libsycl-itt-compiler-wrappers.bc");
+    Libs.push_back("libsycl-itt-stubs.bc");
+  }
+
+  StringRef Device = Args.getLastArgValue(OPT_arch_EQ);
+
+  // Plain spir64 JIT (NoSubArch) defers bfloat16 support to the runtime.
+  if (!Sel.NoOffloadLib && Triple.getSubArch() != llvm::Triple::NoSubArch) {
+    bool UseNative =
+        Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+        llvm::is_contained(clang::driver::SYCLGPUArchsWithNativeBF16, Device);
+    Libs.push_back(UseNative ? "libsycl-native-bfloat16.bc"
+                             : "libsycl-fallback-bfloat16.bc");
+  }
+
+  // Device sanitizer libraries are independent of --no-offloadlib.
+  if (!Sel.SanitizeKind.empty()) {
+    auto Family = static_cast<size_t>(getSanitizerAOTFamily(Triple, Device));
+    static constexpr llvm::StringLiteral AsanLibs[] = {
+        "libsycl-asan.bc", "libsycl-asan-cpu.bc", "libsycl-asan-dg2.bc",
+        "libsycl-asan-pvc.bc"};
+    static constexpr llvm::StringLiteral MsanLibs[] = {
+        "libsycl-msan.bc", "libsycl-msan-cpu.bc",
+        // Currently only PVC and CPU have AOT msan libdevice; DG2 uses the
+        // JIT library as a placeholder, mirroring the driver.
+        "libsycl-msan.bc", "libsycl-msan-pvc.bc"};
+    static constexpr llvm::StringLiteral TsanLibs[] = {
+        "libsycl-tsan.bc", "libsycl-tsan-cpu.bc",
+        // Same DG2 placeholder note as msan above.
+        "libsycl-tsan.bc", "libsycl-tsan-pvc.bc"};
+    if (Sel.SanitizeKind == "address")
+      Libs.push_back(AsanLibs[Family].str());
+    else if (Sel.SanitizeKind == "memory")
+      Libs.push_back(MsanLibs[Family].str());
+    else if (Sel.SanitizeKind == "thread")
+      Libs.push_back(TsanLibs[Family].str());
+  }
+
+  if (!Sel.NoOffloadLib)
+    Libs.push_back("libclang_rt.builtins.bc");
+
+  return Libs;
+}
+
 /// Link all SYCL device input files into a single LLVM IR file, then link
 /// with device library files specified via --bitcode-library option.
 ///
@@ -1804,7 +1920,8 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
 /// \param Args Command line arguments for linking and wrapping device code
 /// \return Path to the final linked device file
 static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                                      const ArgList &Args) {
+                                      const ArgList &Args,
+                                      bool NeedsDeviceLibResolution) {
   // Non-RDC callers process one user module at a time. Only skip the user
   // module link; device-library resolution below is needed in both modes.
   assert((!Args.hasArg(OPT_no_sycl_rdc) || InputFiles.size() == 1) &&
@@ -1831,6 +1948,11 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
         LibTriple.getVendor() != Triple.getVendor() ||
         LibTriple.getOS() != Triple.getOS())
       continue;
+    // SPIR AOT variants (spir64_gen, spir64_x86_64, ...) share arch/vendor/OS
+    // and differ only in SubArch, unlike AMDGPU above, so enforce it here to
+    // avoid mixing libraries across SPIR variants (e.g. spir64 vs spir64_gen).
+    if (Triple.isSPIROrSPIRV() && LibTriple.getSubArch() != Triple.getSubArch())
+      continue;
 
     if (!llvm::sys::fs::exists(LibraryPath))
       return createStringError(inconvertibleErrorCode(),
@@ -1838,6 +1960,29 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
                                    " does not exist.");
 
     DeviceLibFiles.emplace_back(LibraryPath.str());
+  }
+
+  // SPIR/SPIRV device libraries are linked in at compile time for new-model
+  // objects, so the driver never passes them via --bitcode-library=. Old-model
+  // objects (detected via unbundling, see getInputBitcodeLibrary) still need
+  // them resolved here; clang-linker-wrapper knows the default library names
+  // itself rather than having them enumerated on the command line.
+  if (Triple.isSPIROrSPIRV() && NeedsDeviceLibResolution) {
+    StringRef DeviceLibDir =
+        Args.getLastArgValue(OPT_sycl_device_library_location_EQ);
+    StringRef CompilerRTDir = Args.getLastArgValue(OPT_sycl_compiler_rt_dir_EQ);
+    for (StringRef LibName : getDefaultSYCLDeviceLibNames(Triple, Args)) {
+      for (StringRef Location : {DeviceLibDir, CompilerRTDir}) {
+        if (Location.empty())
+          continue;
+        SmallString<128> LibPath(Location);
+        llvm::sys::path::append(LibPath, LibName);
+        if (llvm::sys::fs::exists(LibPath)) {
+          DeviceLibFiles.emplace_back(LibPath.str());
+          break;
+        }
+      }
+    }
   }
 
   // No device library files provided, second device linking step not required.
@@ -1954,6 +2099,19 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
     if (*UnbundledFile == Filename)
       continue;
 
+    // Old-model AOT bundle triples embed the target device as a 4th
+    // dash-separated component (e.g. spir64_gen-unknown-unknown-pvc).
+    // Split it into Arch so getInputBitcodeLibrary populates OPT_arch_EQ
+    // the same way it would for a new-model object, rather than leaving it
+    // empty and making callers recover the device from the triple later.
+    StringRef DeviceArch =
+        Triple.isSPIROrSPIRV() ? Triple.getEnvironmentName() : StringRef();
+    llvm::Triple BundleTriple =
+        DeviceArch.empty()
+            ? Triple
+            : llvm::Triple(Triple.getArchName(), Triple.getVendorName(),
+                           Triple.getOSName());
+
     SmallVector<StringRef> ObjectFilePaths;
     if (sycl::isStaticArchiveFile(Filename)) {
       llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> ObjList =
@@ -1977,8 +2135,9 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
             "SPIR-V fat objects must be generated with --offload-new-driver");
       const auto *Arg = Args.MakeArgString(
           "sycl-" +
-          (Triple.isSPIROrSPIRV() ? Triple.str() + "-" : Triple.str()) + "=" +
-          ObjectFilePath);
+          (Triple.isSPIROrSPIRV() ? BundleTriple.str() + "-" + DeviceArch.str()
+                                  : BundleTriple.str()) +
+          "=" + ObjectFilePath);
       auto Binary = getInputBitcodeLibrary(Arg);
 
       if (!Binary)
@@ -2384,7 +2543,8 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     ArrayRef<StringRef> InputModules, const ArgList &LinkerArgs,
     const std::pair<std::string, std::string> &CompileLinkOptions,
     ArrayRef<std::string> AOTDeviceArgs,
-    function_ref<void(StringRef)> WrappedOutputCallback) {
+    function_ref<void(StringRef)> WrappedOutputCallback,
+    bool NeedsDeviceLibResolution) {
   const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
 
   // AOT tools (ocloc/opencl-aot) don't distinguish compile vs. link options,
@@ -2455,14 +2615,15 @@ Expected<std::vector<module_split::SplitModule>> runSYCLOffloadingPipeline(
     // for each one just as in the RDC pipeline.
     Modules = std::vector<StringRef>(InputModules.begin(), InputModules.end());
     for (StringRef &Module : Modules) {
-      auto LinkedFile = sycl::linkDevice({Module}, LinkerArgs);
+      auto LinkedFile =
+          sycl::linkDevice({Module}, LinkerArgs, NeedsDeviceLibResolution);
       if (!LinkedFile)
         return LinkedFile.takeError();
       Module = *LinkedFile;
     }
   } else {
     Expected<StringRef> OutputOrErr =
-        sycl::linkDevice(InputModules, LinkerArgs);
+        sycl::linkDevice(InputModules, LinkerArgs, NeedsDeviceLibResolution);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
 
@@ -3159,10 +3320,17 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         InputFiles.emplace_back(*FileNameOrErr);
       }
 
+      // Old-model objects are detected by having been unbundled rather than
+      // extracted from an embedded OffloadBinary (see getInputBitcodeLibrary).
+      // Only those need SPIR/SPIRV device libraries resolved here.
+      bool NeedsDeviceLibResolution = llvm::any_of(Input, [](const auto &File) {
+        return !File.getBinary()->getString("old-offload-model").empty();
+      });
+
       Expected<std::vector<module_split::SplitModule>> ModulesOrErr =
-          sycl::runSYCLOffloadingPipeline(InputFiles, LinkerArgs,
-                                          CompileLinkOptions, AOTDeviceArgs,
-                                          AppendImageToWrapperOutput);
+          sycl::runSYCLOffloadingPipeline(
+              InputFiles, LinkerArgs, CompileLinkOptions, AOTDeviceArgs,
+              AppendImageToWrapperOutput, NeedsDeviceLibResolution);
       if (!ModulesOrErr)
         return ModulesOrErr.takeError();
 

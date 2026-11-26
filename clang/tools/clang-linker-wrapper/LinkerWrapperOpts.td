@@ -164,6 +164,11 @@ def sycl_device_library_location_EQ : Joined<["--", "-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
 
+def sycl_compiler_rt_dir_EQ : Joined<["--", "-"],
+  "sycl-compiler-rt-dir=">, Flags<[WrapperOnlyOption]>,
+  HelpText<"Location of libclang_rt.builtins.bc for SYCL device sanitizer "
+           "libraries">;
+
 def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"[<kind>:][<triple>=]<value>">,
   HelpText<"Options that will control sycl-post-link step">;

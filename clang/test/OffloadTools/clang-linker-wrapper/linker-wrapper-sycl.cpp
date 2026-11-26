@@ -14,6 +14,12 @@
 // RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx803 -fgpu-rdc -nogpulib -fno-sycl-libspirv -c --offload-new-driver -o %t_amdgcn.o
 // RUN: %clang %s -fno-sycl-use-header -fsycl -fsycl-targets=native_cpu -fno-sycl-libspirv -c --offload-new-driver -o %t_native_cpu.o
 //
+// Old-model objects (device libraries linked at link time, not compile
+// time) for testing clang-linker-wrapper's old-model device-lib fallback.
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --no-offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_jit_old.o
+// RUN: %clang %s -fsycl -fsycl-targets=intel_gpu_pvc -c --no-offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_gpu_old.o
+// RUN: %clang %s -fsycl -fsycl-targets=spir64_x86_64 -c --no-offload-new-driver --no-offloadlib -fno-sycl-instrument-device-code -o %t_aot_cpu_old.o
+//
 // Generate .bc file as SYCL device library file.
 //
 // RUN: touch %t.devicelib.bc
@@ -168,6 +174,12 @@
 // CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o /dev/null [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
+// Check the old-model device-lib fallback also runs for AOT (spir64_gen).
+// RUN: clang-linker-wrapper --bitcode-library=spir64_gen-unknown-unknown=%t.devicelib.bc --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu_old.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-AOT-GEN-OLDMODEL %s
+// CHK-CMDS-AOT-GEN-OLDMODEL: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-AOT-GEN-OLDMODEL-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-CMDS-AOT-GEN-OLDMODEL-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.devicelib.bc -o {{.*}}.bc
+
 // Check that mapped "-device pvc" tokens in separate --device-linker=
 // occurrences are detected and forwarded to ocloc.
 // RUN: clang-linker-wrapper --device-linker=spir64_gen-unknown-unknown=--ocloc-options=-device --device-linker=spir64_gen-unknown-unknown=--ocloc-options=pvc --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-NO-CMDS-AOT-GEN-LINKERARG %s
@@ -318,6 +330,47 @@
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --suppress-warnings
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: llvm-link{{.*}} --only-needed --suppress-warnings
 // CHK-CMDS-DEVICE-LIB-DIR-NEXT: sycl-post-link"{{.*}} --device-lib-dir={{.*}}/Inputs/SYCL/lib {{.*}} SYCL_POST_LINK_OPTIONS {{.*}}
+
+/// Check that default SYCL device libraries are resolved by
+/// clang-linker-wrapper itself from -sycl-device-library-location= for
+/// old-model objects, without the driver enumerating them via
+/// --bitcode-library=.
+// RUN: mkdir -p %t.libdir
+// RUN: touch %t.libdir/libsycl-crt.bc %t.libdir/libsycl-cmath.bc %t.libdir/libsycl-imf.bc
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_jit_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEFAULT-LIBS %s
+// CHK-CMDS-DEFAULT-LIBS: llvm-link{{[^ ]*}} --suppress-warnings
+// CHK-CMDS-DEFAULT-LIBS-NEXT: llvm-link{{[^ ]*}} --only-needed --suppress-warnings {{[^ ]*}} {{[^ ]*}}.libdir/libsycl-crt.bc {{[^ ]*}}.libdir/libsycl-cmath.bc {{[^ ]*}}.libdir/libsycl-imf.bc
+
+/// Check ITT instrumentation libraries, bfloat16 (native for AOT pvc,
+/// fallback for JIT), device sanitizer libraries, and libclang_rt.builtins.bc
+/// (resolved from -sycl-compiler-rt-dir=) are all added for old-model
+/// objects by default, and that forwarding --no-offloadlib and
+/// -fno-sycl-instrument-device-code via --device-compiler=<arch>=<value>
+/// (the same per-arch mechanism used for e.g. ocloc options) suppresses the
+/// libraries they control.
+// RUN: touch %t.libdir/libsycl-itt-user-wrappers.bc %t.libdir/libsycl-itt-compiler-wrappers.bc %t.libdir/libsycl-itt-stubs.bc
+// RUN: touch %t.libdir/libsycl-native-bfloat16.bc %t.libdir/libsycl-fallback-bfloat16.bc
+// RUN: touch %t.libdir/libsycl-asan.bc %t.libdir/libsycl-asan-pvc.bc
+// RUN: mkdir -p %t.rtdir
+// RUN: touch %t.rtdir/libclang_rt.builtins.bc
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_jit_old.o -sycl-device-library-location=%t.libdir -sycl-compiler-rt-dir=%t.rtdir --device-compiler=spir64=-fsanitize=address --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-JIT %s
+// CHK-DEFAULT-LIBS-JIT: llvm-link{{[^ ]*}} --only-needed --suppress-warnings {{[^ ]*}} {{[^ ]*}}.libdir/libsycl-crt.bc {{[^ ]*}}.libdir/libsycl-cmath.bc {{[^ ]*}}.libdir/libsycl-imf.bc {{[^ ]*}}.libdir/libsycl-itt-user-wrappers.bc {{[^ ]*}}.libdir/libsycl-itt-compiler-wrappers.bc {{[^ ]*}}.libdir/libsycl-itt-stubs.bc {{[^ ]*}}.libdir/libsycl-asan.bc {{[^ ]*}}.rtdir/libclang_rt.builtins.bc
+// CHK-DEFAULT-LIBS-JIT-NOT: bfloat16.bc
+
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_aot_gpu_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-PVC %s
+// CHK-DEFAULT-LIBS-PVC: llvm-link{{[^ ]*}} --only-needed --suppress-warnings {{[^ ]*}} {{[^ ]*}}.libdir/libsycl-crt.bc {{[^ ]*}}.libdir/libsycl-cmath.bc {{[^ ]*}}.libdir/libsycl-imf.bc {{[^ ]*}}.libdir/libsycl-itt-user-wrappers.bc {{[^ ]*}}.libdir/libsycl-itt-compiler-wrappers.bc {{[^ ]*}}.libdir/libsycl-itt-stubs.bc {{[^ ]*}}.libdir/libsycl-native-bfloat16.bc
+// CHK-DEFAULT-LIBS-PVC-NOT: fallback-bfloat16
+
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t_jit_old.o -sycl-device-library-location=%t.libdir --device-compiler=spir64=--no-offloadlib --device-compiler=spir64=-fno-sycl-instrument-device-code --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-NONE %s
+// CHK-DEFAULT-LIBS-NONE-NOT: llvm-link{{.*}} --only-needed
+
+/// Linking a new-model object (%t.o, device libs already linked in at
+/// compile time) together with an old-model one (%t_jit_old.o) still
+/// produces the --only-needed llvm-link default-lib resolution step below,
+/// because NeedsDeviceLibResolution is computed for the whole linked group
+/// and the old-model object in the group requires it.
+// RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --linker-path=/usr/bin/ld -o /dev/null %t.o %t_jit_old.o -sycl-device-library-location=%t.libdir --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEFAULT-LIBS-MIXED %s
+// CHK-DEFAULT-LIBS-MIXED: llvm-link{{[^ ]*}} --only-needed --suppress-warnings {{[^ ]*}} {{[^ ]*}}.libdir/libsycl-crt.bc {{[^ ]*}}.libdir/libsycl-cmath.bc {{[^ ]*}}.libdir/libsycl-imf.bc
 
 /// Check for libsycl-nativecpu_utils.bc getting linked in for Native CPU.
 //
@@ -547,3 +600,20 @@ __attribute__((sycl_kernel)) void kernel(const Func &func) {
 }
 
 void f() { kernel<class TestKernel>([]() {}); }
+
+// Check that SPIR libraries are matched by SubArch, not just arch/vendor/OS.
+// RUN: %clang -cc1 %s -triple spir64-unknown-unknown -emit-llvm-bc -o %t.spir64.devicelib.bc
+// RUN: %clang -cc1 %s -triple spir64_gen-unknown-unknown -emit-llvm-bc -o %t.spir64_gen.devicelib.bc
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.spir64.devicelib.bc \
+// RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.spir64_gen.devicelib.bc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-JIT %s
+// CHECK-WRAPPER-SPIR64-JIT: llvm-link{{.*}} {{[^ ]*}}.spir64.devicelib.bc -o
+// CHECK-WRAPPER-SPIR64-JIT-NOT: spir64_gen.devicelib.bc
+
+// RUN: clang-linker-wrapper --bitcode-library=spir64-unknown-unknown=%t.spir64.devicelib.bc \
+// RUN:   --bitcode-library=spir64_gen-unknown-unknown=%t.spir64_gen.devicelib.bc \
+// RUN:   --host-triple=x86_64-unknown-linux-gnu --dry-run \
+// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o /dev/null 2>&1 | FileCheck -check-prefix=CHECK-WRAPPER-SPIR64-GEN %s
+// CHECK-WRAPPER-SPIR64-GEN: llvm-link{{.*}} {{[^ ]*}}.spir64_gen.devicelib.bc -o
+// CHECK-WRAPPER-SPIR64-GEN-NOT: {{[.]}}spir64.devicelib.bc
