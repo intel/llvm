@@ -157,6 +157,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+// Timeline semaphores are not supported; the loader reports a null entry as
+// unsupported.
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    ur_api_version_t version, ur_timeline_semaphore_exp_dditable_t *pDdiTable) {
+  return validateProcInputs(version, pDdiTable);
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     ur_api_version_t version, ur_sampler_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -561,6 +568,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetQueueProcAddrTable(version, &pDdiTable->Queue);
   urGetQueueExpProcAddrTable(version, &pDdiTable->QueueExp);
   urGetSamplerProcAddrTable(version, &pDdiTable->Sampler);
+  urGetTimelineSemaphoreExpProcAddrTable(version,
+                                         &pDdiTable->TimelineSemaphoreExp);
   urGetUSMProcAddrTable(version, &pDdiTable->USM);
   urGetUSMExpProcAddrTable(version, &pDdiTable->USMExp);
   urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);

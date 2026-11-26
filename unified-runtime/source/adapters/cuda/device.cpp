@@ -1217,6 +1217,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_REUSABLE_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_TIMELINE_SEMAPHORE_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:

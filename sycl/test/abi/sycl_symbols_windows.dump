@@ -460,6 +460,9 @@
 ??0stream@_V1@sycl@@QEAA@AEBV012@@Z
 ??0stream@_V1@sycl@@QEAA@_K0AEAVhandler@12@@Z
 ??0stream@_V1@sycl@@QEAA@_K0AEAVhandler@12@AEBVproperty_list@12@@Z
+??0timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@AEAA@V?$shared_ptr@Vtimeline_semaphore_impl@detail@_V1@sycl@@@std@@@Z
+??0timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
+??0timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
 ??0tls_code_loc_t@detail@_V1@sycl@@QEAA@AEBUcode_location@123@@Z
 ??0tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
@@ -500,6 +503,7 @@
 ??1queue@_V1@sycl@@QEAA@XZ
 ??1sampler@_V1@sycl@@QEAA@XZ
 ??1stream@_V1@sycl@@QEAA@XZ
+??1timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??1tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
@@ -521,6 +525,8 @@
 ??4?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??4?$OwnerLessBase@Vtimeline_semaphore@experimental@oneapi@ext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
+??4?$OwnerLessBase@Vtimeline_semaphore@experimental@oneapi@ext@_V1@sycl@@@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@$$QEAU01@@Z
 ??4?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@AEBU01@@Z
 ??4?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEAAAEAU01@$$QEAU01@@Z
@@ -603,6 +609,8 @@
 ??4sampler@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4stream@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4stream@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
+??4timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV012345@$$QEAV012345@@Z
+??4timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV012345@AEBV012345@@Z
 ??5half_impl@detail@_V1@sycl@@YAAEAV?$basic_istream@DU?$char_traits@D@std@@@std@@AEAV45@AEAVhalf@0123@@Z
 ??5oneapi@ext@_V1@sycl@@YAAEAV?$basic_istream@DU?$char_traits@D@std@@@std@@AEAV45@AEAVbfloat16@0123@@Z
 ??6_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV23@W4backend@01@@Z
@@ -622,6 +630,7 @@
 ??8queue@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8sampler@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8stream@_V1@sycl@@QEBA_NAEBV012@@Z
+??8timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEBA_NAEBV012345@@Z
 ??9context@_V1@sycl@@QEBA_NAEBV012@@Z
 ??9device@_V1@sycl@@QEBA_NAEBV012@@Z
 ??9device_image_plain@detail@_V1@sycl@@QEBA_NAEBV0123@@Z
@@ -636,6 +645,7 @@
 ??9queue@_V1@sycl@@QEBA_NAEBV012@@Z
 ??9sampler@_V1@sycl@@QEBA_NAEBV012@@Z
 ??9stream@_V1@sycl@@QEBA_NAEBV012@@Z
+??9timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEBA_NAEBV012345@@Z
 ??R?$hash@Vdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVdynamic_command_group@experimental@oneapi@ext@_V1@sycl@@@Z
 ??R?$hash@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@QEBA_KAEBVnode@experimental@oneapi@ext@_V1@sycl@@@Z
 ??R?$hash@Vqueue@_V1@sycl@@@std@@QEBA_KAEBVqueue@_V1@sycl@@@Z
@@ -3779,6 +3789,7 @@
 ?copyCodeLoc@handler@_V1@sycl@@AEAAXAEBV123@@Z
 ?cpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?create@physical_mem@experimental@oneapi@ext@_V1@sycl@@AEAAXAEBVdevice@56@AEBVcontext@56@_K_N@Z
+?create@timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@AEAAXAEBVcontext@56@_K@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@AEAVimage_mem@12345@AEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUsampled_image_handle@12345@PEAX_KAEBUbindless_image_sampler@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
@@ -3808,8 +3819,10 @@
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEAVqueue@67@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
+?enqueue_signal@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEAVtimeline_semaphore@12345@_KAEBUcode_location@detail@45@@Z
 ?enqueue_signal_event@detail@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@56@AEAVevent@56@I@Z
 ?enqueue_signal_event@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEAVevent@45@@Z
+?enqueue_wait@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEBVtimeline_semaphore@12345@_KAEBUcode_location@detail@45@@Z
 ?enqueue_wait_event@detail@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@56@AEBVevent@56@I@Z
 ?enqueue_wait_event@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@AEBVevent@45@@Z
 ?enqueue_wait_events@detail@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@56@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@I@Z
@@ -3940,6 +3953,8 @@
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVqueue@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vstream@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVstream@34@@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vtimeline_semaphore@experimental@oneapi@ext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vtimeline_semaphore@experimental@oneapi@ext@_V1@sycl@@@2oneapi@ext@34@@Z
+?ext_oneapi_owner_before@?$OwnerLessBase@Vtimeline_semaphore@experimental@oneapi@ext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVtimeline_semaphore@experimental@oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@device@_V1@sycl@@QEBA_NAEBV123@@Z
 ?ext_oneapi_owner_before@device@_V1@sycl@@QEBA_NAEBV?$weak_object@Vdevice@_V1@sycl@@@oneapi@ext@23@@Z
 ?ext_oneapi_prod@queue@_V1@sycl@@QEAAXXZ
@@ -4107,6 +4122,7 @@
 ?get_context@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEBA?AVcontext@56@XZ
 ?get_context@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVcontext@56@XZ
 ?get_context@queue@_V1@sycl@@QEBA?AVcontext@23@XZ
+?get_context@timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEBA?AVcontext@56@XZ
 ?get_coordinate_normalization_mode@sampler@_V1@sycl@@QEBA?AW4coordinate_normalization_mode@23@XZ
 ?get_count@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_descriptor@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAAEBUimage_descriptor@23456@XZ
@@ -4387,6 +4403,7 @@
 ?set_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEAAXPEBDPEAX_K@Z
 ?set_write_back@buffer_plain@detail@_V1@sycl@@IEAAX_N@Z
 ?set_write_back@image_plain@detail@_V1@sycl@@IEAAX_N@Z
+?signal@timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
 ?sincos_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@PEAV45123@@Z
 ?sincos_impl@detail@_V1@sycl@@YAMMPEAM@Z
 ?sincos_impl@detail@_V1@sycl@@YANNPEAN@Z
@@ -4437,6 +4454,7 @@
 ?wait@event@_V1@sycl@@QEAAXXZ
 ?wait@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?wait@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
+?wait@timeline_semaphore@experimental@oneapi@ext@_V1@sycl@@QEBAX_K@Z
 ?wait_and_throw@event@_V1@sycl@@QEAAXXZ
 ?wait_and_throw@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?wait_and_throw@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z

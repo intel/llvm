@@ -321,6 +321,10 @@ public:
       return createCGCopy<sycl::detail::CGAsyncFree>();
     case sycl::detail::CGType::None:
       return nullptr;
+    case sycl::detail::CGType::TimelineSemaphoreSignal:
+    case sycl::detail::CGType::TimelineSemaphoreWait:
+      // Timeline semaphore operations cannot be recorded into a graph.
+      return nullptr;
     }
     return nullptr;
   }

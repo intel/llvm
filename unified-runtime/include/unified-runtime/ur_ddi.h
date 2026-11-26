@@ -1218,6 +1218,18 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
     const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueTimelineSemaphoreSignalExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueTimelineSemaphoreSignalExp_t)(
+    ur_queue_handle_t, ur_exp_timeline_semaphore_handle_t, uint64_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueTimelineSemaphoreWaitExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueTimelineSemaphoreWaitExp_t)(
+    ur_queue_handle_t, ur_exp_timeline_semaphore_handle_t, uint64_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueGraphExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueGraphExp_t)(
     ur_queue_handle_t, ur_exp_executable_graph_handle_t, uint32_t,
@@ -1235,6 +1247,8 @@ typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueHostTaskExp_t pfnHostTaskExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
+  ur_pfnEnqueueTimelineSemaphoreSignalExp_t pfnTimelineSemaphoreSignalExp;
+  ur_pfnEnqueueTimelineSemaphoreWaitExp_t pfnTimelineSemaphoreWaitExp;
   ur_pfnEnqueueGraphExp_t pfnGraphExp;
 } ur_enqueue_exp_dditable_t;
 
@@ -2120,6 +2134,62 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetMemoryExportExpProcAddrTable_t)(
     ur_api_version_t, ur_memory_export_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urTimelineSemaphoreCreateExp
+typedef ur_result_t(UR_APICALL *ur_pfnTimelineSemaphoreCreateExp_t)(
+    ur_context_handle_t, uint64_t, ur_exp_timeline_semaphore_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urTimelineSemaphoreRetainExp
+typedef ur_result_t(UR_APICALL *ur_pfnTimelineSemaphoreRetainExp_t)(
+    ur_exp_timeline_semaphore_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urTimelineSemaphoreReleaseExp
+typedef ur_result_t(UR_APICALL *ur_pfnTimelineSemaphoreReleaseExp_t)(
+    ur_exp_timeline_semaphore_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urTimelineSemaphoreHostWaitExp
+typedef ur_result_t(UR_APICALL *ur_pfnTimelineSemaphoreHostWaitExp_t)(
+    ur_exp_timeline_semaphore_handle_t, uint64_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urTimelineSemaphoreHostSignalExp
+typedef ur_result_t(UR_APICALL *ur_pfnTimelineSemaphoreHostSignalExp_t)(
+    ur_exp_timeline_semaphore_handle_t, uint64_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of TimelineSemaphoreExp functions pointers
+typedef struct ur_timeline_semaphore_exp_dditable_t {
+  ur_pfnTimelineSemaphoreCreateExp_t pfnCreateExp;
+  ur_pfnTimelineSemaphoreRetainExp_t pfnRetainExp;
+  ur_pfnTimelineSemaphoreReleaseExp_t pfnReleaseExp;
+  ur_pfnTimelineSemaphoreHostWaitExp_t pfnHostWaitExp;
+  ur_pfnTimelineSemaphoreHostSignalExp_t pfnHostSignalExp;
+} ur_timeline_semaphore_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's TimelineSemaphoreExp
+/// table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetTimelineSemaphoreExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_timeline_semaphore_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetTimelineSemaphoreExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetTimelineSemaphoreExpProcAddrTable_t)(
+    ur_api_version_t, ur_timeline_semaphore_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUsmP2PEnablePeerAccessExp
 typedef ur_result_t(UR_APICALL *ur_pfnUsmP2PEnablePeerAccessExp_t)(
     ur_device_handle_t, ur_device_handle_t);
@@ -2371,6 +2441,7 @@ typedef struct ur_dditable_t {
   ur_graph_exp_dditable_t GraphExp;
   ur_ipc_exp_dditable_t IPCExp;
   ur_memory_export_exp_dditable_t MemoryExportExp;
+  ur_timeline_semaphore_exp_dditable_t TimelineSemaphoreExp;
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;
   ur_device_dditable_t Device;

@@ -52,6 +52,8 @@ enum class CGType : unsigned int {
   AsyncAlloc = 27,
   AsyncFree = 28,
   NativeHostTask = 29,
+  TimelineSemaphoreSignal = 30,
+  TimelineSemaphoreWait = 31,
 };
 
 template <typename, typename T> struct check_fn_signature {

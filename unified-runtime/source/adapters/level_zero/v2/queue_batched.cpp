@@ -120,11 +120,22 @@ ur_result_t batch_manager::renewRegularUnlocked(
 ur_result_t
 ur_queue_batched_t::renewBatchUnlocked(locked<batch_manager> &batchLocked) {
   if (batchLocked->isLimitOfUsedCommandListsReached()) {
-    return queueFinishUnlocked(batchLocked);
-  } else {
-    UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
-    return batchLocked->renewRegularUnlocked(getNewRegularCmdList());
+    if (!batchLocked->isExternalWaitSubmitted()) {
+      return queueFinishUnlocked(batchLocked);
+    }
+
+    // Waiting for the submitted batches could block forever on a command that
+    // waits for a value the calling thread has yet to signal. Reclaim them only
+    // if they have all completed, otherwise keep them and grow the list.
+    bool completed = false;
+    UR_CALL(batchLocked->queryCompletion(completed));
+    if (completed) {
+      batchLocked->reclaimSubmittedBatches();
+    }
   }
+
+  UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
+  return batchLocked->renewRegularUnlocked(getNewRegularCmdList());
 }
 
 ur_result_t batch_manager::enqueueCurrentBatchUnlocked() {
@@ -170,7 +181,13 @@ ur_result_t ur_queue_batched_t::markIssuedCommandInBatch(
   }
 
   if (batchLocked->isLimitOfEnqueuedCommandsReached()) {
-    UR_CALL(queueFinishUnlocked(batchLocked));
+    // See renewBatchUnlocked for why the queue is not synchronized here after
+    // an external wait.
+    if (batchLocked->isExternalWaitSubmitted()) {
+      UR_CALL(renewBatchUnlocked(batchLocked));
+    } else {
+      UR_CALL(queueFinishUnlocked(batchLocked));
+    }
 
     batchLocked->setBatchEmpty();
   }
@@ -186,6 +203,16 @@ ur_result_t batch_manager::hostSynchronize() {
   ZE2UR_CALL(zeCommandListHostSynchronize,
              (immediateList.getZeCommandList(), UINT64_MAX));
 
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t batch_manager::queryCompletion(bool &completed) {
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                                         (immediateList.getZeCommandList(), 0));
+  completed = ZeResult == ZE_RESULT_SUCCESS;
+  if (ZeResult != ZE_RESULT_SUCCESS && ZeResult != ZE_RESULT_NOT_READY) {
+    return ze2urResult(ZeResult);
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -218,6 +245,8 @@ ur_result_t batch_manager::batchFinish() {
   }
 
   runBatches.clear();
+  // All submitted commands have completed, including any external waits.
+  externalWaitSubmitted = false;
 
   return UR_RESULT_SUCCESS;
 }
@@ -896,6 +925,58 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
 
   // Submit the external signal immediately so the external consumer can
   // observe it without relying on a later operation to flush the batch.
+  return renewBatchUnlocked(lockedBatch);
+}
+
+// Timeline semaphore operations are submitted immediately, in their own batch,
+// for the same reasons as the external semaphore operations above: a wait must
+// not hold back preceding work, and a signal must not depend on a later flush.
+ur_result_t ur_queue_batched_t::enqueueTimelineSemaphoreSignalExp(
+    ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList, this);
+
+  auto lockedBatch = currentCmdLists.lock();
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
+  markIssuedCommandInBatch(lockedBatch);
+
+  UR_CALL(lockedBatch->getListManager().appendTimelineSemaphoreSignalExp(
+      hSemaphore, value, waitListView, getEvent(lockedBatch, phEvent)));
+
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
+  return renewBatchUnlocked(lockedBatch);
+}
+
+ur_result_t ur_queue_batched_t::enqueueTimelineSemaphoreWaitExp(
+    ur_exp_timeline_semaphore_handle_t hSemaphore, uint64_t value,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  wait_list_view waitListView =
+      wait_list_view(phEventWaitList, numEventsInWaitList, this);
+
+  auto lockedBatch = currentCmdLists.lock();
+  if (!lockedBatch->isGraphCaptureActive() &&
+      !lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(renewBatchUnlocked(lockedBatch));
+  }
+
+  markIssuedCommandInBatch(lockedBatch);
+  lockedBatch->markExternalWaitSubmitted();
+
+  UR_CALL(lockedBatch->getListManager().appendTimelineSemaphoreWaitExp(
+      hSemaphore, value, waitListView, getEvent(lockedBatch, phEvent)));
+
+  if (lockedBatch->isGraphCaptureActive()) {
+    return UR_RESULT_SUCCESS;
+  }
   return renewBatchUnlocked(lockedBatch);
 }
 
