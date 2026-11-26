@@ -75,5 +75,8 @@ __kernel void RawArgKernel(int scalar, __global int *out) {
     assert(HostDataA[i] == (i + ScalarA));
     assert(HostDataB[i] == (i + ScalarB));
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
   return 0;
 }

@@ -60,5 +60,8 @@ int main() {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == i);
   }
+
+  free(PtrA, Queue);
+  free(PtrB, Queue);
   return 0;
 }
