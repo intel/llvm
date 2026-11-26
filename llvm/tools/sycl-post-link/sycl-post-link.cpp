@@ -248,6 +248,12 @@ cl::opt<bool> SuppressUndefinedFuncWarnings{
              "in a device image."),
     cl::cat(PostLinkCat), cl::init(false)};
 
+cl::opt<bool> UndefinedSymbolsAreErrors{
+    "undefined-symbols-are-errors",
+    cl::desc("Report undefined symbols in a device image as errors. Has no "
+             "effect with -allow-device-image-dependencies."),
+    cl::cat(PostLinkCat), cl::init(false)};
+
 enum class IdQueriesRangeMode { IDQR_INT = 0, IDQR_UINT = 1, IDQR_SIZE_T = 2 };
 
 cl::opt<IdQueriesRangeMode> IdQueriesRange{
@@ -446,7 +452,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
       module_split::getDeviceCodeSplitter(
           std::make_unique<module_split::ModuleDesc>(std::move(M)), SplitMode,
           IROutputOnly, EmitOnlyKernelsAsEntryPoints,
-          AllowDeviceImageDependencies, SuppressUndefinedFuncWarnings);
+          AllowDeviceImageDependencies,
+          SuppressUndefinedFuncWarnings || UndefinedSymbolsAreErrors);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -467,13 +474,16 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     std::unique_ptr<module_split::ModuleDesc> MDesc = Splitter->nextSplit();
     DUMP_ENTRY_POINTS(MDesc->entries(), MDesc->Name.c_str(), 1);
 
+    if (UndefinedSymbolsAreErrors && !AllowDeviceImageDependencies)
+      ExitOnErr(module_split::diagnoseUndefinedSymbols(MDesc->getModule()));
+
     MDesc->fixupLinkageOfDirectInvokeSimdTargets();
 
     llvm::sycl_post_link::ESIMDProcessingOptions Options = {
         SplitMode,
         EmitOnlyKernelsAsEntryPoints,
         AllowDeviceImageDependencies,
-        SuppressUndefinedFuncWarnings,
+        SuppressUndefinedFuncWarnings || UndefinedSymbolsAreErrors,
         LowerEsimd,
         SplitEsimd,
         getOptLevel(),

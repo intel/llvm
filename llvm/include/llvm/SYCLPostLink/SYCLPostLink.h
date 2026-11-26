@@ -79,6 +79,8 @@ struct PostLinkSettings {
   bool EmitExportedSymbols = false;
   bool EmitImportedSymbols = false;
   bool SuppressUndefinedFuncWarnings = false;
+  // Report undefined symbols as errors rather than warnings.
+  bool UndefinedSymbolsAreErrors = false;
   llvm::sycl_post_link::ESIMDProcessingOptions ESIMDOptions;
 };
 

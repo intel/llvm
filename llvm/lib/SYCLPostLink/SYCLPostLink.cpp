@@ -148,8 +148,8 @@ std::string llvm::sycl_post_link::convertSettingsToString(
       "EmitOnlyKernelsAsEntryPoints: {4}, EmitParamInfo: {5}, "
       "EmitProgramMetadata: {6}, EmitKernelNames: {7}, "
       "EmitExportedSymbols: {8}, EmitImportedSymbols: {9}, "
-      "SuppressUndefinedFuncWarnings: {10}, "
-      "{11}",
+      "SuppressUndefinedFuncWarnings: {10}, UndefinedSymbolsAreErrors: {11}, "
+      "{12}",
       Settings.OutputAssembly,
       module_split::convertSplitModeToString(Settings.SplitMode), SpecConstMode,
       Settings.GenerateModuleDescWithDefaultSpecConsts,
@@ -157,6 +157,7 @@ std::string llvm::sycl_post_link::convertSettingsToString(
       Settings.EmitProgramMetadata, Settings.EmitKernelNames,
       Settings.EmitExportedSymbols, Settings.EmitImportedSymbols,
       Settings.SuppressUndefinedFuncWarnings,
+      Settings.UndefinedSymbolsAreErrors,
       sycl_post_link::convertESIMDOptionsToString(Settings.ESIMDOptions));
 }
 
@@ -168,6 +169,10 @@ llvm::sycl_post_link::performPostLinkProcessing(
   auto PostSplitCallback =
       [&SplitModules,
        Settings](std::unique_ptr<module_split::ModuleDesc> M) -> Error {
+    if (Settings.UndefinedSymbolsAreErrors)
+      if (Error E = module_split::diagnoseUndefinedSymbols(M->getModule()))
+        return E;
+
     M->fixupLinkageOfDirectInvokeSimdTargets();
 
     bool Modified = false;
@@ -215,11 +220,12 @@ llvm::sycl_post_link::performPostLinkProcessing(
   module_split::ModuleSplitterSettings SplitSettings;
   SplitSettings.Mode = Settings.SplitMode;
   SplitSettings.SuppressUndefinedFuncWarnings =
-      Settings.SuppressUndefinedFuncWarnings;
+      Settings.SuppressUndefinedFuncWarnings ||
+      Settings.UndefinedSymbolsAreErrors;
   if (Error E = module_split::splitSYCLModule(std::move(M), SplitSettings,
                                               PostSplitCallback))
-    return createStringError(
-        formatv("sycl post link processing failed. {0}", E));
+    return createStringError(formatv("sycl post link processing failed. {0}",
+                                     toString(std::move(E))));
 
   return SplitModules;
 }
