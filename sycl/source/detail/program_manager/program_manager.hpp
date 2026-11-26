@@ -69,6 +69,8 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
 /// for \p DeviceImpl, or "unknown" when the architecture is not recognized.
 const char *getArchName(const device_impl &DeviceImpl);
 
+std::string getAspectNameStr(sycl::aspect AspectNum);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
