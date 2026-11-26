@@ -3,11 +3,11 @@
 
 struct Base {
   int A, B;
-  sycl::accessor<char, 1, sycl::access::mode::read> AccField;
+  sycl::accessor<char, 1, sycl::access_mode::read> AccField;
 };
 
 struct Captured : Base,
-                  sycl::accessor<char, 1, sycl::access::mode::read> {
+                  sycl::accessor<char, 1, sycl::access_mode::read> {
   int C;
 };
 

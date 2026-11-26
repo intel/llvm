@@ -6,13 +6,13 @@
 // derived object, which would leave the base accessor uninitialized and
 // overwrite the preceding base.
 
-#include <sycl/detail/core.hpp>
+#include <sycl/sycl.hpp>
 
 #include <array>
 #include <cstddef>
 #include <iostream>
 
-using AccT = sycl::accessor<unsigned, 1, sycl::access::mode::read_write>;
+using AccT = sycl::accessor<unsigned, 1, sycl::access_mode::read_write>;
 
 // A, B and C are canaries around both accessors: initializing an accessor at
 // the wrong address overwrites them.
