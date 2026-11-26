@@ -195,6 +195,17 @@
 
 /// ###########################################################################
 
+/// Check that compiling an assembly file creates a bundle with a host and a
+/// SYCL entry (the device part is the unbundled device assembly).
+// RUN: touch %t.s
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -c %t.s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=CHK-ASM-INPUT
+// CHK-ASM-INPUT: clang-offload-bundler{{.*}} "-type=s" "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64-unknown-unknown" "-input={{.*}}.s" "-output=[[HOSTASM:.+\.s]]" "-output=[[DEVASM:.+\.s]]" "-unbundle"
+// CHK-ASM-INPUT: clang{{.*}} "-cc1as"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]" "[[HOSTASM]]"
+// CHK-ASM-INPUT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu" "-output={{.*}}" "-input=[[DEVASM]]" "-input=[[HOSTOBJ]]"
+
+/// ###########################################################################
+
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl --no-offload-new-driver -fsycl-targets=spir64-unknown-unknown -fno-sycl-instrument-device-code --no-offloadlib %s 2>&1 \
