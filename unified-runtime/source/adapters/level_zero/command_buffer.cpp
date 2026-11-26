@@ -1683,12 +1683,12 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
   UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
       NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-  // Update the WaitList of the Wait Event
-  // Events are appended to the WaitList if the WaitList is not empty
-  if (CommandBuffer->WaitEvent->WaitList.isEmpty())
-    CommandBuffer->WaitEvent->WaitList = TmpWaitList;
-  else
-    CommandBuffer->WaitEvent->WaitList.insert(TmpWaitList);
+  // The previous submission has already completed (see
+  // waitForOngoingExecution), so the events it waited for are no longer needed.
+  // Keeping them would make the barrier below wait on one more event with every
+  // submission.
+  CommandBuffer->WaitEvent->WaitList.releaseAndDestroyUrZeEventList();
+  CommandBuffer->WaitEvent->WaitList = TmpWaitList;
 
   if (!CommandBuffer->WaitEvent->WaitList.isEmpty()) {
     // Create command-list to execute before `CommandListPtr` and will signal
