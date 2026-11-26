@@ -1402,6 +1402,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///       UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32}, {UR_IMAGE_CHANNEL_ORDER_RGBA,
 ///       UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT}, {UR_IMAGE_CHANNEL_ORDER_RGBA,
 ///       UR_IMAGE_CHANNEL_TYPE_FLOAT}.
+///     - See also ::ur_mem_alloc_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
@@ -1422,6 +1423,9 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///         + `NULL == phMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///         + `::ur_mem_alloc_properties_t::hDevice` is not a device of
+///         `hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype`
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
@@ -1464,6 +1468,7 @@ ur_result_t UR_APICALL urMemImageCreate(
 /// @details
 ///     - See also ::ur_buffer_channel_properties_t.
 ///     - See also ::ur_buffer_alloc_location_properties_t.
+///     - See also ::ur_mem_alloc_properties_t.
 ///
 /// @remarks
 ///   _Analogues_
@@ -1482,6 +1487,9 @@ ur_result_t UR_APICALL urMemImageCreate(
 ///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///         + `::ur_mem_alloc_properties_t::hDevice` is not a device of
+///         `hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
 ///         + `size == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR

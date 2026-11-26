@@ -473,6 +473,7 @@ EXPORTS
 	urPrintLoaderTearDownParams
 	urPrintLoggerLevel
 	urPrintMapFlags
+	urPrintMemAllocProperties
 	urPrintMemBufferCreateParams
 	urPrintMemBufferCreateWithNativeHandleParams
 	urPrintMemBufferPartitionParams
