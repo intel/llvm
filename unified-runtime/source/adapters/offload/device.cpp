@@ -336,11 +336,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(size_t{0});
   }
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE: {
-    return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_NONE);
+    return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_LOCAL);
   }
-  case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
-    return ReturnValue(size_t{0});
-  }
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
+    olInfo = OL_DEVICE_INFO_WORK_GROUP_LOCAL_MEM_SIZE;
+    break;
   case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
     return ReturnValue(ur_bool_t{false});
   }

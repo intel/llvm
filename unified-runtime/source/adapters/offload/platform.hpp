@@ -15,9 +15,11 @@
 #include <vector>
 
 struct ur_platform_handle_t_ : ur::offload::handle_base {
-  ur_platform_handle_t_(ol_platform_handle_t OffloadPlatform)
-      : handle_base(), OffloadPlatform(OffloadPlatform) {};
+  ur_platform_handle_t_(ol_platform_handle_t OffloadPlatform,
+                        ol_platform_backend_t Backend)
+      : handle_base(), OffloadPlatform(OffloadPlatform), Backend(Backend) {};
 
   ol_platform_handle_t OffloadPlatform;
+  ol_platform_backend_t Backend;
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
 };
