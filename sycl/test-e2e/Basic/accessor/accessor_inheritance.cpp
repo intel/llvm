@@ -6,7 +6,7 @@
 // derived object, which would leave the base accessor uninitialized and
 // overwrite the preceding base.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <array>
 #include <cstddef>
