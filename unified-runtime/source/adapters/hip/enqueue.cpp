@@ -1477,9 +1477,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   // this is feature complete, it is still open to changes and outstanding
   // issues.
   size_t PointerRangeSize = 0;
-  UR_CHECK_ERROR(hipPointerGetAttribute(
-      &PointerRangeSize, HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
-      static_cast<hipDeviceptr_t>(HIPDevicePtr)));
+  UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
+                                        HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
+                                        asHipDevicePtr(HIPDevicePtr)));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 #endif
 
@@ -1739,7 +1739,7 @@ ur_result_t deviceGlobalCopyHelper(
     ur_event_handle_t *phEvent, GlobalVariableCopy CopyType) {
 
   try {
-    hipDeviceptr_t DeviceGlobal = nullptr;
+    hipDeviceptr_t DeviceGlobal{};
     size_t DeviceGlobalSize = 0;
     UR_CHECK_ERROR(hProgram->getGlobalVariablePointer(name, &DeviceGlobal,
                                                       &DeviceGlobalSize));
@@ -1858,27 +1858,8 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
       Kernel->setImplicitOffsetArg(sizeof(ImplicitOffset), ImplicitOffset);
     }
 
-    uint32_t LocalSize = Kernel->getLocalSize();
-    if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
-      setErrorMessage("Excessive allocation of local memory on the device",
-                      UR_RESULT_ERROR_OUT_OF_RESOURCES);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-    }
-
-    if (int MaxLocalMem = Device->getMaxChosenLocalMem()) {
-      if (LocalSize > static_cast<uint32_t>(MaxLocalMem)) {
-        setErrorMessage(
-            "Local memory for kernel exceeds the amount requested using "
-            "UR_HIP_MAX_LOCAL_MEM_SIZE (or deprecated "
-            "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE). Try increasing the maximum "
-            "local memory.",
-            UR_RESULT_ERROR_OUT_OF_RESOURCES);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-
-      UR_CHECK_ERROR(hipFuncSetAttribute(
-          HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, MaxLocalMem));
-    }
+    Kernel->getProgram()->prepareFunctionLocalMemory(HIPFunc,
+                                                     Kernel->getLocalSize());
   } catch (ur_result_t Err) {
     return Err;
   }

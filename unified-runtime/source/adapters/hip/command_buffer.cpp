@@ -147,9 +147,9 @@ static ur_result_t enqueueCommandBufferFillHelper(
   hipGraphNode_t GraphNode;
 
   const size_t N = Size / PatternSize;
-  auto DstPtr = DstType == hipMemoryTypeDevice
-                    ? *static_cast<hipDeviceptr_t *>(DstDevice)
-                    : DstDevice;
+  void *DstPtr = DstType == hipMemoryTypeDevice
+                     ? asVoidPtr(*static_cast<hipDeviceptr_t *>(DstDevice))
+                     : DstDevice;
 
   if ((PatternSize == 1) || (PatternSize == 2) || (PatternSize == 4)) {
     hipMemsetParams NodeParams = {};
@@ -531,7 +531,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
     UR_CHECK_ERROR(hipGraphAddMemcpyNode1D(
         &GraphNode, hCommandBuffer->HIPGraph, DepsList.data(), DepsList.size(),
-        Dst, Src, size, hipMemcpyDeviceToDevice));
+        asVoidPtr(Dst), asVoidPtr(Src), size, hipMemcpyDeviceToDevice));
 
     // Get sync point and register the node with it.
     auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
@@ -569,9 +569,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         std::get<BufferMem>(hDstMem->Mem).getPtr(hCommandBuffer->Device);
     hipMemcpy3DParms NodeParams = {};
 
-    setCopyRectParams(region, SrcPtr, hipMemoryTypeDevice, srcOrigin,
-                      srcRowPitch, srcSlicePitch, DstPtr, hipMemoryTypeDevice,
-                      dstOrigin, dstRowPitch, dstSlicePitch, NodeParams);
+    setCopyRectParams(region, asVoidPtr(SrcPtr), hipMemoryTypeDevice, srcOrigin,
+                      srcRowPitch, srcSlicePitch, asVoidPtr(DstPtr),
+                      hipMemoryTypeDevice, dstOrigin, dstRowPitch,
+                      dstSlicePitch, NodeParams);
 
     UR_CHECK_ERROR(hipGraphAddMemcpyNode(&GraphNode, hCommandBuffer->HIPGraph,
                                          DepsList.data(), DepsList.size(),
@@ -611,7 +612,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 
     UR_CHECK_ERROR(hipGraphAddMemcpyNode1D(
         &GraphNode, hCommandBuffer->HIPGraph, DepsList.data(), DepsList.size(),
-        Dst, pSrc, size, hipMemcpyHostToDevice));
+        asVoidPtr(Dst), pSrc, size, hipMemcpyHostToDevice));
 
     // Get sync point and register the node with it.
     auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
@@ -646,7 +647,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 
     UR_CHECK_ERROR(hipGraphAddMemcpyNode1D(
         &GraphNode, hCommandBuffer->HIPGraph, DepsList.data(), DepsList.size(),
-        pDst, Src, size, hipMemcpyDeviceToHost));
+        pDst, asVoidPtr(Src), size, hipMemcpyDeviceToHost));
 
     // Get sync point and register the node with it.
     auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
@@ -684,8 +685,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     hipMemcpy3DParms NodeParams = {};
 
     setCopyRectParams(region, pSrc, hipMemoryTypeHost, hostOffset, hostRowPitch,
-                      hostSlicePitch, DstPtr, hipMemoryTypeDevice, bufferOffset,
-                      bufferRowPitch, bufferSlicePitch, NodeParams);
+                      hostSlicePitch, asVoidPtr(DstPtr), hipMemoryTypeDevice,
+                      bufferOffset, bufferRowPitch, bufferSlicePitch,
+                      NodeParams);
 
     UR_CHECK_ERROR(hipGraphAddMemcpyNode(&GraphNode, hCommandBuffer->HIPGraph,
                                          DepsList.data(), DepsList.size(),
@@ -726,9 +728,10 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         std::get<BufferMem>(hBuffer->Mem).getPtr(hCommandBuffer->Device);
     hipMemcpy3DParms NodeParams = {};
 
-    setCopyRectParams(region, SrcPtr, hipMemoryTypeDevice, bufferOffset,
-                      bufferRowPitch, bufferSlicePitch, pDst, hipMemoryTypeHost,
-                      hostOffset, hostRowPitch, hostSlicePitch, NodeParams);
+    setCopyRectParams(region, asVoidPtr(SrcPtr), hipMemoryTypeDevice,
+                      bufferOffset, bufferRowPitch, bufferSlicePitch, pDst,
+                      hipMemoryTypeHost, hostOffset, hostRowPitch,
+                      hostSlicePitch, NodeParams);
 
     UR_CHECK_ERROR(hipGraphAddMemcpyNode(&GraphNode, hCommandBuffer->HIPGraph,
                                          DepsList.data(), DepsList.size(),

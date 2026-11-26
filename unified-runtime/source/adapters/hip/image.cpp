@@ -278,7 +278,7 @@ ur_result_t urTextureCreate(const ur_sampler_desc_t *pSamplerDesc,
     hipTextureObject_t Texture;
     UR_CHECK_ERROR(
         hipTexObjectCreate(&Texture, &ResourceDesc, &ImageTexDesc, nullptr));
-    *phRetImage = reinterpret_cast<ur_exp_image_native_handle_t>(Texture);
+    *phRetImage = hipBitCast<ur_exp_image_native_handle_t>(Texture);
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -311,9 +311,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedDevice Active(hDevice);
-    UR_CHECK_ERROR(hipMemAllocPitch(static_cast<hipDeviceptr_t *>(ppMem),
-                                    pResultPitch, widthInBytes, height,
+    hipDeviceptr_t DevPtr{};
+    UR_CHECK_ERROR(hipMemAllocPitch(&DevPtr, pResultPitch, widthInBytes, height,
                                     elementSizeBytes));
+    *ppMem = asVoidPtr(DevPtr);
   } catch (ur_result_t error) {
     Result = error;
   } catch (...) {
@@ -334,7 +335,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 
   try {
     UR_CHECK_ERROR(
-        hipDestroySurfaceObject(reinterpret_cast<hipSurfaceObject_t>(hImage)));
+        hipDestroySurfaceObject(hipBitCast<hipSurfaceObject_t>(hImage)));
   } catch (ur_result_t error) {
     return error;
   } catch (...) {
@@ -353,8 +354,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
   try {
-    UR_CHECK_ERROR(
-        hipTexObjectDestroy(reinterpret_cast<hipTextureObject_t>(hImage)));
+    UR_CHECK_ERROR(hipTexObjectDestroy(hipBitCast<hipTextureObject_t>(hImage)));
   } catch (ur_result_t error) {
     return error;
   } catch (...) {
@@ -519,7 +519,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     // HIP deals with unsampled images.
     hipSurfaceObject_t surface;
     UR_CHECK_ERROR(hipCreateSurfaceObject(&surface, &image_res_desc));
-    *phImage = reinterpret_cast<ur_exp_image_native_handle_t>(surface);
+    *phImage = hipBitCast<ur_exp_image_native_handle_t>(surface);
 
   } catch (ur_result_t Err) {
     return Err;
@@ -560,9 +560,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     unsigned int memType{};
     // hipPointerGetAttribute can detect HIP-registered memory of types:
     // hipMemoryTypeHost, hipMemoryTypeDevice, or hipMemoryTypeArray.
-    UR_CHECK_ERROR(
-        hipPointerGetAttribute(&memType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
-                               reinterpret_cast<hipDeviceptr_t>(hImageMem)));
+    UR_CHECK_ERROR(hipPointerGetAttribute(&memType,
+                                          HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                          asHipDevicePtr(hImageMem)));
     UR_ASSERT(memType == hipMemoryTypeDevice || memType == hipMemoryTypeArray,
               UR_RESULT_ERROR_INVALID_VALUE);
     if (memType == hipMemoryTypeArray) {
@@ -582,16 +582,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
       // We have a USM pointer
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
         image_res_desc.resType = HIP_RESOURCE_TYPE_LINEAR;
-        image_res_desc.res.linear.devPtr =
-            reinterpret_cast<hipDeviceptr_t>(hImageMem);
+        image_res_desc.res.linear.devPtr = asHipDevicePtr(hImageMem);
         image_res_desc.res.linear.format = format;
         image_res_desc.res.linear.numChannels = NumChannels;
         image_res_desc.res.linear.sizeInBytes =
             pImageDesc->width * PixelSizeBytes;
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         image_res_desc.resType = HIP_RESOURCE_TYPE_PITCH2D;
-        image_res_desc.res.pitch2D.devPtr =
-            reinterpret_cast<hipDeviceptr_t>(hImageMem);
+        image_res_desc.res.pitch2D.devPtr = asHipDevicePtr(hImageMem);
         image_res_desc.res.pitch2D.format = format;
         image_res_desc.res.pitch2D.numChannels = NumChannels;
         image_res_desc.res.pitch2D.width = pImageDesc->width;
@@ -693,7 +691,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
           void *DstWithOffset = static_cast<void *>(static_cast<char *>(pDst) +
                                                     pCopyRegion->dstOffset.x);
           UR_CHECK_ERROR(hipMemcpyHtoDAsync(
-              static_cast<hipDeviceptr_t>(DstWithOffset),
+              asHipDevicePtr(DstWithOffset),
               const_cast<void *>(static_cast<const void *>(SrcWithOffset)),
               CopyExtentBytes, Stream));
         } else {
@@ -715,7 +713,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         } else {
           // Pitched memory
           cpy_desc.dstMemoryType = hipMemoryTypeDevice;
-          cpy_desc.dstDevice = static_cast<hipDeviceptr_t>(pDst);
+          cpy_desc.dstDevice = asHipDevicePtr(pDst);
           cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         }
         cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
@@ -798,8 +796,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
           const char *SrcWithOffset =
               static_cast<const char *>(pSrc) + pCopyRegion->srcOffset.x;
           UR_CHECK_ERROR(hipMemcpyDtoHAsync(
-              DstWithOffset,
-              static_cast<hipDeviceptr_t>(const_cast<char *>(SrcWithOffset)),
+              DstWithOffset, asHipDevicePtr(const_cast<char *>(SrcWithOffset)),
               CopyExtentBytes, Stream));
         } else {
           // This should be unreachable.
@@ -820,8 +817,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
           // Pitched memory
           cpy_desc.srcMemoryType = hipMemoryTypeDevice;
           cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
-          cpy_desc.srcDevice =
-              static_cast<hipDeviceptr_t>(const_cast<void *>(pSrc));
+          cpy_desc.srcDevice = asHipDevicePtr(const_cast<void *>(pSrc));
         }
         cpy_desc.dstMemoryType = hipMemoryTypeHost;
         cpy_desc.dstHost = pDst;
@@ -985,9 +981,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   // ROCm 5.6.0, so we can't query image array information for older versions.
 #if HIP_VERSION >= 50600000
   unsigned int memType{};
-  hipError_t Err =
-      hipPointerGetAttribute(&memType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
-                             reinterpret_cast<hipDeviceptr_t>(hImageMem));
+  hipError_t Err = hipPointerGetAttribute(
+      &memType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE, asHipDevicePtr(hImageMem));
   if (Err != hipSuccess) {
     return mapErrorUR(Err);
   }
@@ -1458,12 +1453,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     BufferDesc.offset = offset;
     BufferDesc.flags = 0;
 
-    hipDeviceptr_t retMem;
+    void *retMem = nullptr;
     UR_CHECK_ERROR(hipExternalMemoryGetMappedBuffer(
         &retMem, reinterpret_cast<hipExternalMemory_t>(hExternalMem),
         &BufferDesc));
 
-    *ppRetMem = static_cast<void *>(retMem);
+    *ppRetMem = retMem;
 
   } catch (ur_result_t Err) {
     return Err;
@@ -1503,7 +1498,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
 
   try {
     ScopedDevice Active(hDevice);
-    UR_CHECK_ERROR(hipFree(static_cast<hipDeviceptr_t>(pMem)));
+    UR_CHECK_ERROR(hipFree(pMem));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
