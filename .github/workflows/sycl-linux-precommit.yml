@@ -158,7 +158,7 @@ jobs:
       matrix:
         include:
           - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
+            runner: '["Linux", "gen12-test"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
@@ -174,7 +174,7 @@ jobs:
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
           - name: Preview Mode
-            runner: '["Linux", "gen12"]'
+            runner: '["Linux", "gen12-test"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             binaries_artifact: e2e_bin_preview
@@ -240,7 +240,7 @@ jobs:
       matrix:
         include:
           - name: Intel / GEN 12 Integrated
-            runner: '["Linux", "gen12"]'
+            runner: '["Linux", "gen12-test"]'
             target_devices: opencl:cpu;opencl:gpu
           - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
@@ -287,7 +287,7 @@ jobs:
       matrix:
         include:
           - name: Intel GEN12 Graphics system
-            runner: '["Linux", "gen12"]'
+            runner: '["Linux", "gen12-test"]'
             image_extra_opts: --device=/dev/dri
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
