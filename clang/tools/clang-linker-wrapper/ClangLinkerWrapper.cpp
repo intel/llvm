@@ -1207,7 +1207,7 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
   if (!Args.hasArg(OPT_compress))
     return Error::success();
 
-  int Level = llvm::offloading::DefaultSYCLCompressionLevel;
+  int Level = llvm::offloading::sycl::DefaultCompressionLevel;
   if (auto *A = Args.getLastArg(OPT_compression_level_eq))
     if (StringRef(A->getValue()).getAsInteger(10, Level))
       return createStringError(
@@ -1216,7 +1216,7 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
 
   for (auto &Image : Images) {
     SmallVector<uint8_t, 0> CompressedBytes;
-    Expected<bool> DidCompressOrErr = offloading::compressSYCLDeviceImage(
+    Expected<bool> DidCompressOrErr = offloading::sycl::compressDeviceImage(
         ArrayRef<uint8_t>(
             reinterpret_cast<const uint8_t *>(Image.Image->getBufferStart()),
             Image.Image->getBufferSize()),

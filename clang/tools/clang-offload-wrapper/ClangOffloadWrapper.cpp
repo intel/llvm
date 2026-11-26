@@ -1069,14 +1069,14 @@ private:
       } else {
 
         // Compress only for SYCL images that don't have an explicitly-pinned
-        // binary image format. compressSYCLDeviceImage() surfaces the
+        // binary image format. sycl::compressDeviceImage() surfaces the
         // zstd-unavailable error when it actually attempts compression, so
         // there's no separate up-front check.
         SmallVector<uint8_t, 512> CompressedBuffer;
         bool DidCompress = false;
         if (OffloadCompressDevImgs && Kind == OldOffloadKind::SYCL &&
             Img.Fmt == BinaryImageFormat::none) {
-          Expected<bool> Compressed = offloading::compressSYCLDeviceImage(
+          Expected<bool> Compressed = offloading::sycl::compressDeviceImage(
               ArrayRef<uint8_t>(
                   reinterpret_cast<const uint8_t *>(Bin->getBufferStart()),
                   Bin->getBufferSize()),
