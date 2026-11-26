@@ -108,12 +108,18 @@
 // SYCL: clang{{.*}} --target=x86_64-unknown-linux-gnu -c -o {{.*}}.o {{.*}}.sycl.image.wrapper{{.*}}.bc
 
 //
-// The '--relocatable' flag is forwarded to the wrapper tool for SYCL.
+// Relocatable linking for SYCL wraps the device image internally and performs
+// a relocatable host link.
+// FIXME: sycl-web uses the in-process offload-wrapper rather than
+// 'llvm-offload-wrapper', so '--relocatable' is not forwarded to the wrapper
+// tool as it is upstream.
 //
 // RUN: clang-linker-wrapper --host-triple=x86_64-unknown-linux-gnu --wrapper-verbose --save-temps --dry-run \
 // RUN:   --linker-path=/usr/bin/ld -r %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=RELOCATABLE-SYCL
 
-// RELOCATABLE-SYCL: llvm-offload-wrapper{{.*}} --kind=sycl --triple=x86_64-unknown-linux-gnu -o {{.*}}.bc --relocatable {{.*}}.img
+// RELOCATABLE-SYCL: offload-wrapper: output: {{.*}}.bc
+// RELOCATABLE-SYCL: clang{{.*}} --target=x86_64-unknown-linux-gnu -c -o {{.*}}.o {{.*}}.sycl.image.wrapper{{.*}}.bc
+// RELOCATABLE-SYCL: ld{{.*}} --relocatable
 
 //
 // Images pulled from a static archive are extracted from the archive path and
