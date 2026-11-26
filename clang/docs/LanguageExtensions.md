@@ -4366,6 +4366,12 @@ the SYCL kernel and emits a stable local ordering of the respective lambdas.
 The resulting pattern is demanglable. When non-lambda types are passed to the
 builtin, the mangler emits their usual pattern without any special treatment.
 
+To prevent name collisions across translation units, names of types that are
+only guaranteed to be unique within their translation unit (for example, a type
+in an unnamed namespace or a lambda in a function with internal linkage) are
+given a vendor-extended type qualifier containing a compilation unit ID (CUID).
+The CUID is controlled using the `-fuse-cuid=` or `-cuid=` options.
+
 **Syntax**:
 
 ```c

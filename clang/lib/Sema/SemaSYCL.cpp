@@ -1323,6 +1323,20 @@ constructKernelName(SemaSYCL &S, const FunctionDecl *KernelCallerFunc,
   std::string StableName =
       SYCLUniqueStableNameExpr::ComputeName(S.getASTContext(), KernelNameType);
 
+  // If the kernel is TU-local, its name is only guaranteed to be unique within
+  // its own TU. If a CUID is provided, add CUID to its mangled name so the
+  // resulting mangled name is distinct across TUs.
+  StringRef CUIDHash = S.getASTContext().getCUIDHash();
+  if (!CUIDHash.empty() &&
+      SYCLUniqueStableNameExpr::hasTULocalMangledName(KernelNameType)) {
+    if (!SYCLUniqueStableNameExpr::addCUIDQualifier(CUIDHash, MangledName))
+      // If we couldn't figure out how to insert a CUID qualifier, fall back
+      // to using StableName instead, since it always has a CUID. This may
+      // happen for e.g. MS-mangled function pointers, where adding a synthetic
+      // CUID scope isn't trivial (see addCUIDQualifier).
+      MangledName = StableName;
+  }
+
   // For NativeCPU the kernel name is set to the stable GNU-mangled name
   // because the default mangling may be different, for example on Windows.
   // This is needed for compiling kernels for multiple SYCL targets to ensure
