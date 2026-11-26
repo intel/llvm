@@ -26,6 +26,8 @@
 
 namespace s = sycl;
 
+constexpr size_t NumPixels = 10;
+
 template <typename WriteDataT, int ImgType, int read_write> class kernel_class;
 
 template <typename ReadDataT,
@@ -105,7 +107,7 @@ void write_type_order(char *HostPtr, const s::image_channel_order ImgOrder,
   int Coord(2);
   {
     // image with dim = 1;
-    s::image<1> Img(HostPtr, ImgOrder, ImgType, s::range<1>{10});
+    s::image<1> Img(HostPtr, ImgOrder, ImgType, s::range<1>{NumPixels});
     s::queue Queue;
     Queue.submit([&](s::handler &cgh) {
       auto WriteAcc = Img.get_access<WriteDataT, s::access_mode::write>(cgh);
@@ -124,7 +126,7 @@ void check_read_type_order(char *HostPtr, const s::image_channel_order ImgOrder,
   ReadDataT ReadData;
   {
     // image with dim = 1
-    s::image<1> Img(HostPtr, ImgOrder, ImgType, s::range<1>{10});
+    s::image<1> Img(HostPtr, ImgOrder, ImgType, s::range<1>{NumPixels});
     s::queue Queue;
     s::buffer<ReadDataT, 1> ReadDataBuf(&ReadData, s::range<1>(1));
     Queue.submit([&](s::handler &cgh) {
@@ -277,9 +279,9 @@ int main() {
   // 4 datatypes possible: s::uint4, s::int4, s::float4,
   // s::half4. s::half4 datatype is checked in a different test case. create
   // image:
-  char HostPtr[100];
-  for (int i = 0; i < 100; i++)
-    HostPtr[i] = i;
+  char HostPtr[NumPixels * sizeof(s::float4)]{};
+  for (size_t i = 0; i < sizeof(HostPtr); ++i)
+    HostPtr[i] = static_cast<char>(i);
 
   check<s::int4>(HostPtr);
   check<s::uint4>(HostPtr);

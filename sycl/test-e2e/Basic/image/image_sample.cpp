@@ -16,13 +16,13 @@ namespace s = sycl;
 template <typename dataT>
 bool check_result(dataT resultData, dataT expectedData, float epsilon = 0.1) {
   bool correct = true;
-  if (std::abs(resultData.r() - expectedData.r()) > epsilon)
+  if (!(std::abs(resultData.r() - expectedData.r()) <= epsilon))
     correct = false;
-  if (std::abs(resultData.g() - expectedData.g()) > epsilon)
+  if (!(std::abs(resultData.g() - expectedData.g()) <= epsilon))
     correct = false;
-  if (std::abs(resultData.b() - expectedData.b()) > epsilon)
+  if (!(std::abs(resultData.b() - expectedData.b()) <= epsilon))
     correct = false;
-  if (std::abs(resultData.a() - expectedData.a()) > epsilon)
+  if (!(std::abs(resultData.a() - expectedData.a()) <= epsilon))
     correct = false;
 #ifdef DEBUG_OUTPUT
   if (!correct) {

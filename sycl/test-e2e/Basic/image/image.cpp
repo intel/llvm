@@ -79,7 +79,9 @@ int main() {
 
   {
     const sycl::range<1> ImgPitch(4 * 4 * 4 * 2);
-    sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, Img1Size,
+    std::vector<sycl::float4> PitchedHostData(
+        ImgPitch[0] * Img1Size[1] / sizeof(sycl::float4), {1, 2, 3, 4});
+    sycl::image<2> Img(PitchedHostData.data(), ChanOrder, ChanType, Img1Size,
                        ImgPitch);
     TestQueue Q{sycl::default_selector_v};
     Q.submit([&](sycl::handler &CGH) {

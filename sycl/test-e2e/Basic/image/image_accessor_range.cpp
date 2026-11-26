@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_intel_legacy_image
+// REQUIRES: aspect-ext_intel_legacy_image, aspect-usm_host_allocations
 
 // UNSUPPORTED: target-nvidia
 // UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images. Bindless
@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <memory>
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/image.hpp>
@@ -25,8 +26,8 @@ using namespace sycl;
 void try_1D(queue &Q) {
   int X = -55;
   buffer<int, 1> BX{&X, 1};
-  int *host_array = new int[M * C];
-  image im1(host_array, image_channel_order::rgba,
+  auto host_array = std::make_unique<int[]>(M * C);
+  image im1(host_array.get(), image_channel_order::rgba,
             image_channel_type::unsigned_int8, range{M});
 
   Q.submit([&](handler &h) {
@@ -45,18 +46,16 @@ void try_1D(queue &Q) {
   });
   {
     host_accessor HABX{BX, read_only};
-    std::cout << "From Device acs1.get_range()=" << X << "\n";
-    assert(X == M);
+    std::cout << "From Device acs1.get_range()=" << HABX[0] << "\n";
+    assert(HABX[0] == M);
   }
-
-  delete[] host_array;
 }
 
 void try_2D(queue &Q) {
   range<2> X = {55, 66};
   buffer<range<2>, 1> BX{&X, 1};
-  int *host_array = new int[M * N * C];
-  image im2(host_array, image_channel_order::rgba,
+  auto host_array = std::make_unique<int[]>(M * N * C);
+  image im2(host_array.get(), image_channel_order::rgba,
             image_channel_type::unsigned_int8, range{M, N});
 
   Q.submit([&](handler &h) {
@@ -80,15 +79,15 @@ void try_2D(queue &Q) {
     assert(HABX[0][0] == M);
     assert(HABX[0][1] == N);
   }
-
-  delete[] host_array;
 }
 
 void try_3D(queue &Q) {
   range<3> X{55, 66, 77};
   buffer<range<3>, 1> BX{&X, 1};
-  int *host_array3_2 = malloc_host<int>(N * M * C * L, Q);
-  image im3(host_array3_2, image_channel_order::rgba,
+  auto FreeHost = [&Q](int *Ptr) { sycl::free(Ptr, Q); };
+  std::unique_ptr<int, decltype(FreeHost)> host_array3_2(
+      malloc_host<int>(N * M * C * L, Q), FreeHost);
+  image im3(host_array3_2.get(), image_channel_order::rgba,
             image_channel_type::unsigned_int8, range{M, N, L});
 
   Q.submit([&](handler &h) {
@@ -117,8 +116,6 @@ void try_3D(queue &Q) {
     assert(HABX[0][1] == N);
     assert(HABX[0][2] == L);
   }
-
-  free(host_array3_2, Q);
 }
 
 int main() {

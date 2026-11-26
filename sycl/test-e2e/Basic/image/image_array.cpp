@@ -38,8 +38,8 @@ int main() {
 
   enum ResType {
     READ_I = 0,
-    READ_SAMPLER_F = 0,
-    READ_SAMPLER_I = 0,
+    READ_SAMPLER_F,
+    READ_SAMPLER_I,
     GET_RANGE,
     GET_COUNT,
     WRITE1,
@@ -48,12 +48,12 @@ int main() {
   };
 
   constexpr int ResBufSize = ENUM_SIZE;
-  std::vector<int> ResBufData(ResBufSize, 0);
+  std::vector<int> ResBufData(ImgSize.size() * ResBufSize, 0);
 
   {
     sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, ImgSize);
 
-    sycl::buffer<int, 1> ResBuf(ResBufData.data(), {ResBufSize});
+    sycl::buffer<int, 1> ResBuf(ResBufData.data(), {ResBufData.size()});
 
     TestQueue Q{sycl::default_selector_v};
 
@@ -74,6 +74,7 @@ int main() {
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
       CGH.parallel_for<class Check1>(ImgSize, [=](sycl::item<2> Item) {
+        const size_t ResultOffset = Item.get_linear_id() * ResBufSize;
         sycl::int2 CoordI{Item[0], Item[1]};
         sycl::float2 CoordF{(Item[0] / (float)ImgSize[0]),
                             (Item[1] / (float)ImgSize[1])};
@@ -84,30 +85,34 @@ int main() {
           auto ValRef = ImgAcc.read(sycl::int2{Item[0], Item[1]});
           auto Val = ImgArrayAcc[Item[1]].read((int)Item[0]);
 
-          ResAcc[READ_I] |= sycl::any(sycl::isnotequal(Val, ValRef));
+          ResAcc[ResultOffset + READ_I] |=
+              sycl::any(sycl::isnotequal(Val, ValRef));
         }
 
         {
           auto ValRef = ImgAcc.read(CoordI, Sampler);
           auto Val = ImgArrayAcc[CoordI.y()].read((int)CoordI.x(), Sampler);
 
-          ResAcc[READ_SAMPLER_I] |= sycl::any(sycl::isnotequal(Val, ValRef));
+          ResAcc[ResultOffset + READ_SAMPLER_I] |=
+              sycl::any(sycl::isnotequal(Val, ValRef));
         }
 
         {
           auto ValRef = ImgAcc.read(CoordF, Sampler);
           auto Val = ImgArrayAcc[CoordI.y()].read((float)CoordF.x(), Sampler);
 
-          ResAcc[READ_SAMPLER_F] |= sycl::any(sycl::isnotequal(Val, ValRef));
+          ResAcc[ResultOffset + READ_SAMPLER_F] |=
+              sycl::any(sycl::isnotequal(Val, ValRef));
         }
 
         // Check that the range and count of 1D image in 1D image array == width
         // of 2d image.
 
-        ResAcc[GET_RANGE] |= sycl::range<1>(ImgAcc.get_range()[0]) !=
-                             ImgArrayAcc[CoordI.y()].get_range();
+        ResAcc[ResultOffset + GET_RANGE] |=
+            sycl::range<1>(ImgAcc.get_range()[0]) !=
+            ImgArrayAcc[CoordI.y()].get_range();
 
-        ResAcc[GET_COUNT] |=
+        ResAcc[ResultOffset + GET_COUNT] |=
             (ImgAcc.size() / ImgSize[1]) != ImgArrayAcc[CoordI.y()].size();
       });
     });
@@ -121,6 +126,7 @@ int main() {
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
       CGH.parallel_for<class Check2>(NDImgSize, [=](sycl::nd_item<2> Item) {
+        const size_t ResultOffset = Item.get_global_linear_id() * ResBufSize;
         sycl::int2 CoordI{Item.get_global_id(0), Item.get_global_id(1)};
 
         // CHeck that data written using image array
@@ -129,7 +135,8 @@ int main() {
         sycl::group_barrier(Item.get_group());
         auto Val = ImgAcc.read(CoordI);
 
-        ResAcc[WRITE1] |= sycl::any(sycl::isnotequal(Val, ValRef));
+        ResAcc[ResultOffset + WRITE1] |=
+            sycl::any(sycl::isnotequal(Val, ValRef));
       });
     });
 
@@ -142,6 +149,7 @@ int main() {
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
       CGH.parallel_for<class Check3>(NDImgSize, [=](sycl::nd_item<2> Item) {
+        const size_t ResultOffset = Item.get_global_linear_id() * ResBufSize;
         sycl::int2 CoordI{Item.get_global_id(0), Item.get_global_id(1)};
 
         // CHeck that data read using image array
@@ -150,7 +158,8 @@ int main() {
         sycl::group_barrier(Item.get_group());
         auto Val = ImgArrayAcc[CoordI.y()].read((int)CoordI.x());
 
-        ResAcc[WRITE2] |= sycl::any(sycl::isnotequal(Val, ValRef));
+        ResAcc[ResultOffset + WRITE2] |=
+            sycl::any(sycl::isnotequal(Val, ValRef));
       });
     });
   }
