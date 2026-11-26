@@ -343,7 +343,7 @@ def main():
         type=str,
         choices=["V1", "V2", "ALL", "NONE"],
         default="ALL",
-        help="Choose version of Level Zero adapter to build, or NONE to not build it (e.g. for CUDA or HIP only builds)",
+        help="Choose Level Zero adapter version to build; use NONE to disable Level Zero",
     )
     parser.add_argument(
         "--host-target",
