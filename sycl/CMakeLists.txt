@@ -592,7 +592,7 @@ get_targets_building_llvm_runtime(libc libc_targets)
 # Ensure that libc and compiler-rt are enabled for the spirv64 target, the SYCL
 # driver links libc.bc and libclang_rt.builtins.bc for spirv64 device code.
 # libc and compiler-rt for spirv64 are not enabled for Mac.
-if(NOT APPLE)
+if(NOT APPLE AND "SPIRV" IN_LIST LLVM_TARGETS_TO_BUILD)
   foreach(runtime IN ITEMS libc compiler-rt)
     if(NOT ("spirv64-unknown-unknown" IN_LIST ${runtime}_targets))
       message(FATAL_ERROR
