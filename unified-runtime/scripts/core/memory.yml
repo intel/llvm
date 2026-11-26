@@ -251,6 +251,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_DEVICE:
+      - "`$x_mem_alloc_properties_t::hDevice` is not a device of `hContext`"
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
       - "`pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype`"
       - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
@@ -368,6 +370,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_DEVICE:
+      - "`$x_mem_alloc_properties_t::hDevice` is not a device of `hContext`"
     - $X_RESULT_ERROR_INVALID_BUFFER_SIZE:
       - "`size == 0`"
     - $X_RESULT_ERROR_INVALID_HOST_PTR:

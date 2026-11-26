@@ -3815,6 +3815,9 @@ typedef struct ur_image_desc_t {
 ///         + `NULL == phMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///         + `::ur_mem_alloc_properties_t::hDevice` is not a device of
+///         `hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype`
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
@@ -3957,6 +3960,9 @@ typedef struct ur_mem_alloc_properties_t {
 ///         + `NULL == phBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///         + `::ur_mem_alloc_properties_t::hDevice` is not a device of
+///         `hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
 ///         + `size == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
