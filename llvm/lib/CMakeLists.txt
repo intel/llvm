@@ -139,6 +139,19 @@ if (LLVM_LIB_WERROR_GLOBAL_CTORS)
       target_compile_options(${lib} PRIVATE -Wno-global-constructors)
     endif()
   endforeach()
+
+  # Downstream (SYCL) libraries that still have static initializers.
+  foreach(lib
+      LLVMNativeCPUPipeline
+      LLVMNativeCPUVecz
+      LLVMSYCLLowerIR
+      LLVMSYCLNativeCPUUtils
+      LLVMSYCLPostLink
+      )
+    if (TARGET ${lib})
+      target_compile_options(${lib} PRIVATE -Wno-global-constructors)
+    endif()
+  endforeach()
 endif()
 
 set(LLVMCONFIGLIBRARYDEPENDENCIESINC "${LLVM_BINARY_DIR}/tools/llvm-config/LibraryDependencies.inc")
