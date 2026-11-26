@@ -111,9 +111,9 @@ inline uptr GetLocalWindowSize(
     [[maybe_unused]] __SYCL_GLOBAL__ const AsanRuntimeData *launch_info) {
 #if defined(__LIBDEVICE_PVC__)
   return 128 * 1024;
-#elif defined(__LIBDEVICE_DG2__)
-  return 64 * 1024;
 #else
+  // The DG2 library is also used for BMG, whose local memory is larger than
+  // DG2's, so it takes the window from the runtime too.
   return launch_info->LocalWindowSize;
 #endif
 }
