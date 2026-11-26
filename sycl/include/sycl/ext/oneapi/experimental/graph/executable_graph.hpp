@@ -14,8 +14,9 @@
 #include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node class
 #include <sycl/property_list.hpp>                      // for property_list
 
-#include <memory> // for shared_ptr
-#include <vector> // for vector
+#include <cstdint> // for uint64_t
+#include <memory>  // for shared_ptr
+#include <vector>  // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -57,6 +58,26 @@ public:
   /// memory allocations.
   size_t get_required_mem_size() const;
 
+  /// Queries a characteristic of this graph.
+  ///
+  /// @tparam Param One of the descriptors in the `info::graph` namespace which
+  /// is valid in the executable state.
+  /// @return The value of the queried characteristic.
+  template <typename Param>
+  typename Param::return_type get_info() const noexcept {
+    static_assert(detail::is_graph_info_desc<Param>::value,
+                  "Param must be one of the info descriptors in the "
+                  "sycl::ext::oneapi::experimental::info::graph namespace.");
+
+    static_assert(
+        detail::graph_info_desc<Param, graph_state::executable>::valid,
+        "This info descriptor is not valid for a graph in "
+        "the executable state.");
+
+    return static_cast<typename Param::return_type>(getInfoImpl(
+        detail::graph_info_desc<Param, graph_state::executable>::kind));
+  }
+
   /// Common Reference Semantics
   friend bool operator==(const executable_command_graph &LHS,
                          const executable_command_graph &RHS) {
@@ -78,6 +99,8 @@ protected:
 
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
+
+  uint64_t getInfoImpl(detail::graph_info_kind Kind) const noexcept;
 
   std::shared_ptr<detail::exec_graph_impl> impl;
 };

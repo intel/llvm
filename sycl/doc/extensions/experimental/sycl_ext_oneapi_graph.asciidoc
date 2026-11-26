@@ -691,6 +691,18 @@ enum class graph_state {
   executable
 };
 
+// Which layer manages the graph's nodes and edges
+enum class graph_recording_mode {
+  runtime,
+  native
+};
+
+// Graph information descriptors
+namespace info::graph {
+struct recording_mode;
+struct updatable;
+} // namespace info::graph
+
 // New object representing graph
 template<graph_state State = graph_state::modifiable>
 class command_graph {};
@@ -734,6 +746,9 @@ public:
   void set_destruction_callback(Func&& callback, ArgTs&&... cbArgs);
 
   size_t get_id() const noexcept;
+
+  template<typename Param>
+  typename Param::return_type get_info() const noexcept;
 };
 
 template<>
@@ -746,6 +761,9 @@ public:
     void update(const command_graph<graph_state::modifiable>& graph);
 
     size_t get_required_mem_size() const noexcept;
+
+    template<typename Param>
+    typename Param::return_type get_info() const noexcept;
 };
 
 }  // namespace sycl::ext::oneapi::experimental
@@ -1248,12 +1266,59 @@ capture the constructor will throw `feature_not_supported`.
 See the <<native-recording, Native Recording>> section for a full description
 of the feature.
 
+Whether native recording is in effect for a given graph can be queried with the
+`info::graph::recording_mode` <<graph-info-descriptors, information
+descriptor>>.
+
 ===== Interaction with the SYCL_GRAPH_FORCE_NATIVE_RECORDING environment variable
 
 {dpcpp} supports an environment variable `SYCL_GRAPH_FORCE_NATIVE_RECORDING`.
 When set to `1`, all `command_graph` instances behave as if
 `property::graph::enable_native_recording` were included in the property list
 at construction time.
+
+==== Graph Information Descriptors [[graph-info-descriptors]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class graph_recording_mode {
+  runtime,
+  native
+};
+
+namespace info::graph {
+
+struct recording_mode {
+  using return_type = graph_recording_mode;
+};
+
+struct updatable {
+  using return_type = bool;
+};
+
+} // namespace info::graph
+} // namespace sycl::ext::oneapi::experimental
+----
+
+The `get_info` method can be used to obtain information
+descriptors in the `info::graph` namespace to query such the graph's effective state, which may differ from the contents of the
+`property_list` the graph was constructed or finalized with.
+
+`info::graph::recording_mode` is valid in both the `graph_state::modifiable`
+and `graph_state::executable` states. `info::graph::updatable` is valid only in
+the `graph_state::executable` state.
+
+The `graph_recording_mode` enumerators have the following meaning:
+
+* `graph_recording_mode::runtime` indicates that the SYCL runtime manages the
+  graph's nodes and edges. It is the value reported for any graph that does not use
+  native recording.
+
+* `graph_recording_mode::native` indicates that graph capture is delegated to
+  the backend, and that the restrictions listed in
+  <<native-recording-limitations, Limitations of Native Recording>> apply.
 
 ==== Graph Member Functions
 
@@ -1610,6 +1675,27 @@ auto& pool = memory_pools[id];
 
 [source,c++]
 ----
+template<typename Param>
+typename Param::return_type get_info() const noexcept;
+----
+
+_Constraints:_ `Param` must be one of the
+<<graph-info-descriptors, graph information descriptors>> that is valid in the
+`graph_state::modifiable` state, that is, `info::graph::recording_mode`.
+
+_Returns:_ Information about the graph as described by `Param`.
+
+`info::graph::recording_mode` returns `graph_recording_mode::native` if native
+recording is in effect for this graph. Otherwise it returns
+`graph_recording_mode::runtime`.
+
+`info::graph::updatable` returns `true` if `property::graph::updatable` was
+passed to the `finalize` call that created the executable graph. This is only available when the `command_graph`
+state is `graph_state::executable`.
+
+
+[source,c++]
+----
 size_t get_required_mem_size() const noexcept;
 ----
 
@@ -1618,6 +1704,7 @@ _Constraints:_ This member function is only available when the `command_graph` s
 
 _Returns:_ The total size in bytes of the memory required for
 <<graph-memory-allocations, graph-owned memory allocations>> in this graph.
+
 
 =====  Member functions of the `command_graph` class for graph update
 

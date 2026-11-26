@@ -764,6 +764,10 @@ public:
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
 
+  /// Query whether this graph was finalized with the updatable property.
+  /// @return True if the graph can be updated, false otherwise.
+  bool isUpdatable() const { return MIsUpdatable; }
+
   /// Query the native executable graph handle.
   /// @return Native UR executable graph handle, or nullptr if not using native
   /// recording.
@@ -1060,6 +1064,11 @@ private:
   // handling for them during update().
   bool MContainsHostTask = false;
 };
+
+/// Get whether native recording is enabled for this graph.
+inline bool isNativeRecordingEnabledForGraph(exec_graph_impl const &graph) {
+  return graph.getNativeExecutableGraphHandle() != nullptr;
+}
 } // namespace detail
 } // namespace experimental
 } // namespace oneapi
