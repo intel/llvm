@@ -1,14 +1,18 @@
 get_target_property(SYCL_BINARY_DIR sycl-toolchain BINARY_DIR)
 
-# On Windows: mock provides libOpenCL.dll (always).
-# On Linux: mock is always OpenCL (the ICD), with VERSION 1 so CMake produces
-# both libOpenCL.so.1 and libOpenCL.so symlinks. The static adapter dlopens
-# libOpenCL.so.1, and the dynamic adapter links to it at build time.
+# On Windows, the mock is named OpenCL.dll.
+# On Linux, its name depends on the adapter mode:
+# With a static adapter, it is named libOpenCL.so.1 (with a
+# libOpenCL.so symlink), which the adapter dlopens.
+# With a dynamic adapter, it is named libur_adapter_opencl.so so SYCL can
+# resolve OpenCL symbols through the dynamic adapter.
 if(WIN32)
   set(LIBNAME OpenCL)
-else()
+elseif(UR_STATIC_ADAPTER_OPENCL)
   set(LIBNAME OpenCL)
   set(MOCK_OCL_VERSION 1)
+else()
+  set(LIBNAME ur_adapter_opencl)
 endif()
 
 add_library(mockOpenCL SHARED EXCLUDE_FROM_ALL mock_opencl.cpp)
