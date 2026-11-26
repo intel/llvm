@@ -170,6 +170,10 @@ def sycl_post_link_options_EQ : Joined<["--", "-"], "sycl-post-link-options=">,
 def sycl_post_link_arg_EQ : Joined<["--", "-"], "sycl-post-link-arg=">,
   Flags<[DeviceOnlyOption, HelpHidden]>,
   HelpText<"An extra argument to be passed to sycl-post-link">;
+def sycl_host_compiler_arg_EQ : Joined<["--", "-"], "sycl-host-compiler-arg=">,
+  Flags<[WrapperOnlyOption, HelpHidden]>,
+  HelpText<"Extra argument for the clang command that compiles the SYCL "
+           "wrapper for the host">;
 
 def sycl_module_split_mode_EQ :
   Joined<["--", "-"], "sycl-module-split-mode=">,
