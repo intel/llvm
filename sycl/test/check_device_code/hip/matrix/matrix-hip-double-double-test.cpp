@@ -1,6 +1,9 @@
 // REQUIRES: hip
-// REQUIRES: hip-arch-gfx90a
+// REQUIRES: hip-arch-gfx90a || hip-arch-gfx940 || hip-arch-gfx941 || hip-arch-gfx942 || hip-arch-gfx950
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
+
+// The double MFMA shape is the same on every AMD target with joint_matrix
+// support.
 
 #include <sycl/sycl.hpp>
 

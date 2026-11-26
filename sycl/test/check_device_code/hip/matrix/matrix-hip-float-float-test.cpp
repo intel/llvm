@@ -1,9 +1,9 @@
 // REQUIRES: hip
-// gfx940 and gfx941 are pre-release MI300 revisions and match gfx942.
-// REQUIRES: hip-arch-gfx942 || hip-arch-gfx941 || hip-arch-gfx940
+// REQUIRES: hip-arch-gfx940 || hip-arch-gfx941 || hip-arch-gfx942 || hip-arch-gfx950
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amdgcn-amd-amdhsa -S %s -o -| FileCheck %s
 
-// CDNA3 supports one-block F32 MFMA shapes: 16x16x4 and 32x32x2.
+// CDNA3 (gfx940, gfx941, gfx942) and CDNA4 (gfx950) support the one-block F32
+// MFMA shapes 16x16x4 and 32x32x2. gfx90a has no float joint_matrix shape.
 
 #include <sycl/sycl.hpp>
 

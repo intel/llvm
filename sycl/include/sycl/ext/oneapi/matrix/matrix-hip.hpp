@@ -13,6 +13,8 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/float_4bit/types.hpp>
+#include <sycl/ext/oneapi/experimental/float_8bit/types.hpp>
 #include <sycl/marray.hpp>
 #include <sycl/multi_ptr.hpp>
 
@@ -29,11 +31,18 @@ namespace detail {
 constexpr int WAVEFRONT_SIZE = 64;
 
 // gfx942 is production CDNA3 (MI300). gfx940 and gfx941 are the pre-release
-// MI300A and MI300X revisions; they expose the same MFMA shapes.
+// MI300A and MI300X revisions; they expose the same MFMA shapes. gfx950
+// (CDNA4) keeps those shapes and adds its own.
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #define __SYCL_HIP_MATRIX_CDNA3 1
 #else
 #define __SYCL_HIP_MATRIX_CDNA3 0
+#endif
+
+#if defined(__gfx950__)
+#define __SYCL_HIP_MATRIX_CDNA4 1
+#else
+#define __SYCL_HIP_MATRIX_CDNA4 0
 #endif
 
 template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
@@ -50,6 +59,54 @@ using floatx16 = __attribute__((__vector_size__(16 * sizeof(float)))) float;
 using int32x4 = __attribute__((__vector_size__(4 * sizeof(int32_t)))) int;
 using int32x16 = __attribute__((__vector_size__(16 * sizeof(int32_t)))) int;
 using doublex4 = __attribute__((__vector_size__(4 * sizeof(double)))) double;
+using half_x8 = _Float16 __attribute__((ext_vector_type(8)));
+using bfloat16_x8 = __bf16 __attribute__((ext_vector_type(8)));
+using int32_x4 = int __attribute__((ext_vector_type(4)));
+using int32_x8 = int __attribute__((ext_vector_type(8)));
+
+// OCP 8-bit and 4-bit floating-point element types. They are only consumed by
+// the gfx950 (CDNA4) MFMA instructions, whose FP8/BF8 encodings follow the OCP
+// E4M3/E5M2 formats used by sycl_ext_oneapi_fp8. The gfx94x (CDNA3) FP8 MFMAs
+// use the incompatible E4M3FNUZ/E5M2FNUZ encodings and are not exposed.
+//
+// FP4 matrices use the packed fp4_e2m1_x<2> element type: each element holds
+// two 4-bit values that are adjacent in memory, the first one in the low
+// nibble. As for every other type, Rows and Cols count 4-bit values, while the
+// pointer and stride of joint_matrix_load are in fp4_e2m1_x<2> elements.
+using fp8_e4m3_t = sycl::ext::oneapi::experimental::fp8_e4m3_x<1>;
+using fp8_e5m2_t = sycl::ext::oneapi::experimental::fp8_e5m2_x<1>;
+using fp4_e2m1_t = sycl::ext::oneapi::experimental::fp4_e2m1_x<2>;
+
+template <typename T>
+inline constexpr bool is_hip_fp8_v =
+    std::is_same_v<T, fp8_e4m3_t> || std::is_same_v<T, fp8_e5m2_t>;
+
+template <typename T>
+inline constexpr bool is_hip_fp4_v = std::is_same_v<T, fp4_e2m1_t>;
+
+template <typename T>
+inline constexpr bool is_hip_small_float_v = is_hip_fp8_v<T> || is_hip_fp4_v<T>;
+
+// Number of matrix values held by one element of type T.
+template <typename T>
+inline constexpr size_t hip_values_per_element_v = is_hip_fp4_v<T> ? 2 : 1;
+
+// The gfx950 FP8/FP4 MFMAs take independent A and B formats, so these are the
+// only multiplicand types that may differ between A and B.
+template <typename Ta, typename Tb>
+inline constexpr bool is_hip_mixed_mfma_v =
+    is_hip_small_float_v<Ta> && is_hip_small_float_v<Tb>;
+
+// Format selector for the CBSZ (A) / BLGP (B) operands of the
+// V_MFMA_F32_{16X16X128,32X32X64}_F8F6F4 instructions.
+template <typename T> constexpr int f8f6f4_format() {
+  if constexpr (std::is_same_v<T, fp8_e4m3_t>)
+    return 0;
+  else if constexpr (std::is_same_v<T, fp8_e5m2_t>)
+    return 1;
+  else
+    return 4;
+}
 
 template <typename T> struct to_hip_type {
   using type = T;
@@ -94,15 +151,19 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
+// CDNA3 and CDNA4 have no int8 MFMA with these shapes, so they are gfx90a only.
+#if defined(__gfx90a__)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 8, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
+#endif
 
-// Shapes that only joint_matrix_mad_hip's CDNA3 path lowers. They must stay
-// undefined for other targets, so that using them is a compile error rather
-// than a MAD that silently leaves the accumulator unwritten.
-#if __SYCL_HIP_MATRIX_CDNA3
+// Shapes that only joint_matrix_mad_hip's CDNA3/CDNA4 path lowers. They must
+// stay undefined on gfx90a, so that using them is a compile error rather than
+// a MAD that silently leaves the accumulator unwritten. gfx950 keeps every
+// CDNA3 shape.
+#if __SYCL_HIP_MATRIX_CDNA3 || __SYCL_HIP_MATRIX_CDNA4
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, b, 4, 16, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(float, a, 32, 2, 1)
@@ -116,7 +177,64 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 16, 8)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 32, 8)
 #endif
 
+// gfx950 (CDNA4) doubles K for the fp16/bf16 (16x16x32, 32x32x16) and int8
+// (16x16x64, 32x32x32) MFMAs: 8 fp16/bf16 or 16 int8 values per work-item.
+// Undefined on other AMD targets, where joint_matrix_mad_hip would otherwise
+// leave the accumulator unwritten.
+#if __SYCL_HIP_MATRIX_CDNA4
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 16, 32, 8)
+
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, b, 16, 32, 8)
+
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 64, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 64, 16, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 32, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 32, 32, 16)
+#endif
+
+// gfx950 FP8 (E4M3/E5M2) MFMAs: 16x16x32 and 32x32x16 (8 values per
+// work-item), plus the F8F6F4 shapes 16x16x128 and 32x32x64 (32 values per
+// work-item), which are shared with FP4 (E2M1).
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, b, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, a, 16, 128, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, b, 128, 16, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, a, 32, 64, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e4m3_t, b, 64, 32, 32)
+
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, a, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, b, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, a, 32, 16, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, b, 16, 32, 8)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, a, 16, 128, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, b, 128, 16, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, a, 32, 64, 32)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp8_e5m2_t, b, 64, 32, 32)
+
+// FP4: 32 values per work-item, packed into 16 fp4_e2m1_x<2> elements that
+// hold consecutive K positions, as the F8F6F4 MFMAs consume them.
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp4_e2m1_t, a, 16, 128, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp4_e2m1_t, b, 128, 16, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp4_e2m1_t, a, 32, 64, 16)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(fp4_e2m1_t, b, 64, 32, 16)
+
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
+
+template <sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout>
+struct joint_matrix_hip<sycl::ext::oneapi::experimental::fp4_e2m1_x<1>, Use,
+                        Rows, Cols, Layout> {
+  static_assert(Rows != Rows, "joint_matrix supports fp4_e2m1 only in the "
+                              "packed fp4_e2m1_x<2> form");
+};
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N)                       \
   template <>                                                                  \
@@ -190,7 +308,7 @@ void load_accumulator_layoutT(
         for (int j = 0; j < 4; ++j) {
           for (int i = 0; i < 4; ++i) {
             const int s_idx =
-                thread_x + i * stride + thread_y * 4 * stride + j * 8 * N;
+                thread_x + i * stride + thread_y * 4 * stride + j * 8 * stride;
             res.wi_marray[i + 4 * j] = src[s_idx];
           }
         }
@@ -271,19 +389,49 @@ void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
   // `Size` elements (Size == 1 for the double shapes).
   constexpr int FreeDim =
       (Use == sycl::ext::oneapi::experimental::matrix::use::a) ? M : N;
-  constexpr int Size = (M * N) / WAVEFRONT_SIZE;
+  constexpr int Size = (M * N) / WAVEFRONT_SIZE / hip_values_per_element_v<S>;
 
   const auto thread_x = idx % FreeDim;
   const auto thread_y = idx / FreeDim;
 
-  if constexpr (StridedFreeDim) {
+  // Position along K of the work-item's i-th element. FP8 operands of the
+  // F8F6F4 MFMAs (32 elements per work-item) are split in two 16-element
+  // halves, the second one offset by K / 2, rather than being one contiguous
+  // K-block like FP4. Matching the hardware layout keeps K consistent when
+  // FP8 is mixed with FP4.
+  auto k_index = [&](int i) -> int {
+    if constexpr (is_hip_fp8_v<S> && Size == 32) {
+      constexpr int KGroups = WAVEFRONT_SIZE / FreeDim;
+      return (i / 16) * (KGroups * 16) + thread_y * 16 + i % 16;
+    } else {
+      return thread_y * Size + i;
+    }
+  };
+
+  if constexpr (is_hip_fp4_v<S> && !StridedFreeDim) {
+    // Element i of the work-item packs K positions 2 * k_index(i) and
+    // 2 * k_index(i) + 1. Here memory packs two adjacent rows (A) or columns
+    // (B) of one K position instead, so each nibble is read from its own K
+    // row and the pairs are rebuilt.
+    const int nibble_shift = 4 * (thread_x % 2);
     for (int i = 0; i < Size; ++i) {
-      const int c_idx = thread_x * stride + i + thread_y * Size;
+      const int k = 2 * k_index(i);
+      const uint8_t lo =
+          (src[k * stride + thread_x / 2].vals[0] >> nibble_shift) & 0xF;
+      const uint8_t hi =
+          (src[(k + 1) * stride + thread_x / 2].vals[0] >> nibble_shift) & 0xF;
+      res.wi_marray[i].vals[0] = static_cast<uint8_t>(lo | (hi << 4));
+    }
+  } else if constexpr (StridedFreeDim) {
+    // For FP4, K is the contiguous dimension here, so memory already packs
+    // pairs of consecutive K positions.
+    for (int i = 0; i < Size; ++i) {
+      const int c_idx = thread_x * stride + k_index(i);
       res.wi_marray[i] = src[c_idx];
     }
   } else {
     for (int i = 0; i < Size; ++i) {
-      const int r_idx = thread_x + i * stride + thread_y * stride * Size;
+      const int r_idx = thread_x + k_index(i) * stride;
       res.wi_marray[i] = src[r_idx];
     }
   }
@@ -381,23 +529,54 @@ void joint_matrix_store_hip(
   }
 }
 
-template <typename Tm, typename Tc, std::size_t M, std::size_t K, std::size_t N,
+// Builds the 256-bit A/B operand of the gfx950 F8F6F4 MFMAs from the 32 values
+// a work-item holds. FP8 values are one per byte and fill the operand; packed
+// FP4 values, the lower K index in the low nibble, fill the low 128 bits (the
+// instruction ignores the upper registers for FP4).
+template <typename T, size_t Size>
+int32_x8 make_f8f6f4_operand(const sycl::marray<T, Size> &Vals) {
+  static_assert(Size * hip_values_per_element_v<T> == 32,
+                "F8F6F4 MFMA operands hold 32 values per lane");
+  int32_x8 Operand{};
+  std::memcpy(&Operand, &Vals, sizeof(Vals));
+  return Operand;
+}
+
+// marray is aligned only to its element type. Copying its object
+// representation is defined; a pointer cast to a wider MFMA operand would be
+// misaligned and would violate strict aliasing.
+template <typename To, typename From> To pack_mfma_operand(const From &Frag) {
+  static_assert(sizeof(To) == sizeof(From),
+                "MFMA operand size does not match the fragment");
+  return sycl::bit_cast<To>(Frag);
+}
+
+template <typename Ta, typename Tb, typename Tc, std::size_t M, std::size_t K,
+          std::size_t N,
           sycl::ext::oneapi::experimental::matrix::layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::layout LayoutB>
 void joint_matrix_mad_hip(
     joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
-    const joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::a,
+    const joint_matrix_hip<Ta, sycl::ext::oneapi::experimental::matrix::use::a,
                            M, K, LayoutA> &A,
-    const joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::b,
+    const joint_matrix_hip<Tb, sycl::ext::oneapi::experimental::matrix::use::b,
                            K, N, LayoutB> &B,
     const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
-#if defined(__gfx90a__) || __SYCL_HIP_MATRIX_CDNA3
-  if constexpr (std::is_same_v<Tm, float>) {
-#if __SYCL_HIP_MATRIX_CDNA3
+#if defined(__gfx950__)
+  constexpr bool HasSmallFloatMFMA = true;
+#else
+  constexpr bool HasSmallFloatMFMA = false;
+#endif
+  static_assert(!is_hip_mixed_mfma_v<Ta, Tb> || HasSmallFloatMFMA,
+                "joint_matrix with fp8_e4m3, fp8_e5m2 or fp4_e2m1 "
+                "multiplicands is only supported on AMD gfx950");
+#if defined(__gfx90a__) || __SYCL_HIP_MATRIX_CDNA3 || __SYCL_HIP_MATRIX_CDNA4
+  if constexpr (std::is_same_v<Ta, float>) {
+#if __SYCL_HIP_MATRIX_CDNA3 || __SYCL_HIP_MATRIX_CDNA4
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x4f32(
           A.wi_marray[0], B.wi_marray[0],
@@ -410,63 +589,108 @@ void joint_matrix_mad_hip(
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
 #endif
-  } else if constexpr (std::is_same_v<Tm, sycl::half>) {
-    if constexpr (M == 16 && N == 16) {
+  } else if constexpr (std::is_same_v<Ta, sycl::half>) {
+    if constexpr (M == 16 && N == 16 && K == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
           *reinterpret_cast<const float16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
-    } else if constexpr (M == 32 && N == 32) {
+    } else if constexpr (M == 32 && N == 32 && K == 8) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x8f16(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
           *reinterpret_cast<const float16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
-  } else if constexpr (std::is_same_v<Tm, bfloat16>) {
-    if constexpr (M == 16 && N == 16) {
+#if defined(__gfx950__)
+    else if constexpr (M == 16 && N == 16 && K == 32) {
+      auto result = __builtin_amdgcn_mfma_f32_16x16x32_f16(
+          pack_mfma_operand<half_x8>(A.wi_marray),
+          pack_mfma_operand<half_x8>(B.wi_marray),
+          *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+    } else if constexpr (M == 32 && N == 32 && K == 16) {
+      auto result = __builtin_amdgcn_mfma_f32_32x32x16_f16(
+          pack_mfma_operand<half_x8>(A.wi_marray),
+          pack_mfma_operand<half_x8>(B.wi_marray),
+          *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
+    }
+#endif
+  } else if constexpr (std::is_same_v<Ta, bfloat16>) {
+    if constexpr (M == 16 && N == 16 && K == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
           *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
           *reinterpret_cast<const bfloat16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
-    } else if constexpr (M == 32 && N == 32) {
+    } else if constexpr (M == 32 && N == 32 && K == 8) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
           *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
           *reinterpret_cast<const bfloat16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
-  } else if constexpr (std::is_same_v<Tm, double>) {
+#if defined(__gfx950__)
+    else if constexpr (M == 16 && N == 16 && K == 32) {
+      auto result = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+          pack_mfma_operand<bfloat16_x8>(A.wi_marray),
+          pack_mfma_operand<bfloat16_x8>(B.wi_marray),
+          *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+    } else if constexpr (M == 32 && N == 32 && K == 16) {
+      auto result = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+          pack_mfma_operand<bfloat16_x8>(A.wi_marray),
+          pack_mfma_operand<bfloat16_x8>(B.wi_marray),
+          *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
+    }
+#endif
+  } else if constexpr (std::is_same_v<Ta, double>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f64_16x16x4f64(
           A.wi_marray[0], B.wi_marray[0],
           *reinterpret_cast<const doublex4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(double));
     }
-  } else if constexpr (std::is_same_v<Tm, int8_t>) {
-#if __SYCL_HIP_MATRIX_CDNA3
+  } else if constexpr (std::is_same_v<Ta, int8_t>) {
+#if __SYCL_HIP_MATRIX_CDNA3 || __SYCL_HIP_MATRIX_CDNA4
     // CDNA3 int8 MFMA: 16x16x32 / 32x32x16 with packed i64 operands
-    // (8 int8 values per work-item). bit_cast copies the marray object
+    // (8 int8 values per work-item). gfx940/gfx941 share these instructions
+    // with gfx942, and gfx950 keeps them. bit_cast copies the marray object
     // representation: marray<int8_t, 8> is only 1-byte aligned, so an int64_t*
     // load would be misaligned and would violate strict aliasing.
-    static_assert(sizeof(A.wi_marray) == sizeof(int64_t) &&
-                      sizeof(B.wi_marray) == sizeof(int64_t),
-                  "CDNA3 int8 MFMA operands are 8 packed int8 values");
-    const int64_t PackedA = sycl::bit_cast<int64_t>(A.wi_marray);
-    const int64_t PackedB = sycl::bit_cast<int64_t>(B.wi_marray);
-    if constexpr (M == 16 && N == 16) {
+    if constexpr (M == 16 && N == 16 && K == 32) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x32_i8(
-          PackedA, PackedB, *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0,
-          0, 0);
+          pack_mfma_operand<int64_t>(A.wi_marray),
+          pack_mfma_operand<int64_t>(B.wi_marray),
+          *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
-    } else if constexpr (M == 32 && N == 32) {
+    } else if constexpr (M == 32 && N == 32 && K == 16) {
       auto result = __builtin_amdgcn_mfma_i32_32x32x16_i8(
-          PackedA, PackedB, *reinterpret_cast<const int32x16 *>(&C.wi_marray),
-          0, 0, 0);
+          pack_mfma_operand<int64_t>(A.wi_marray),
+          pack_mfma_operand<int64_t>(B.wi_marray),
+          *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
+#if defined(__gfx950__)
+    // CDNA4 (gfx950) int8 MFMA: 16x16x64 / 32x32x32 with 128-bit operands
+    // (16 int8 values per work-item).
+    else if constexpr (M == 16 && N == 16 && K == 64) {
+      auto result = __builtin_amdgcn_mfma_i32_16x16x64_i8(
+          pack_mfma_operand<int32_x4>(A.wi_marray),
+          pack_mfma_operand<int32_x4>(B.wi_marray),
+          *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
+    } else if constexpr (M == 32 && N == 32 && K == 32) {
+      auto result = __builtin_amdgcn_mfma_i32_32x32x32_i8(
+          pack_mfma_operand<int32_x4>(A.wi_marray),
+          pack_mfma_operand<int32_x4>(B.wi_marray),
+          *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
+    }
+#endif
 #else
     // CDNA2 (gfx90a) int8 MFMA: 16x16x16 / 32x32x8 with i32 operands
     // (4 int8 values per work-item).
@@ -485,10 +709,66 @@ void joint_matrix_mad_hip(
     }
 #endif
   }
-#endif // __gfx90a__ || __SYCL_HIP_MATRIX_CDNA3
+#if defined(__gfx950__)
+  else if constexpr (is_hip_mixed_mfma_v<Ta, Tb>) {
+    if constexpr ((M == 16 && K == 32) || (M == 32 && K == 16)) {
+      // FP8 MFMAs with 64-bit operands (8 values per work-item). On gfx950
+      // these opcodes interpret FP8/BF8 as OCP E4M3/E5M2.
+      const auto a = pack_mfma_operand<int64_t>(A.wi_marray);
+      const auto b = pack_mfma_operand<int64_t>(B.wi_marray);
+      constexpr bool AIsE4M3 = std::is_same_v<Ta, fp8_e4m3_t>;
+      constexpr bool BIsE4M3 = std::is_same_v<Tb, fp8_e4m3_t>;
+      if constexpr (M == 16) {
+        const auto c = *reinterpret_cast<const floatx4 *>(&C.wi_marray);
+        floatx4 result;
+        if constexpr (AIsE4M3 && BIsE4M3)
+          result = __builtin_amdgcn_mfma_f32_16x16x32_fp8_fp8(a, b, c, 0, 0, 0);
+        else if constexpr (AIsE4M3)
+          result = __builtin_amdgcn_mfma_f32_16x16x32_fp8_bf8(a, b, c, 0, 0, 0);
+        else if constexpr (BIsE4M3)
+          result = __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(a, b, c, 0, 0, 0);
+        else
+          result = __builtin_amdgcn_mfma_f32_16x16x32_bf8_bf8(a, b, c, 0, 0, 0);
+        std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+      } else {
+        const auto c = *reinterpret_cast<const floatx16 *>(&C.wi_marray);
+        floatx16 result;
+        if constexpr (AIsE4M3 && BIsE4M3)
+          result = __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(a, b, c, 0, 0, 0);
+        else if constexpr (AIsE4M3)
+          result = __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(a, b, c, 0, 0, 0);
+        else if constexpr (BIsE4M3)
+          result = __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(a, b, c, 0, 0, 0);
+        else
+          result = __builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(a, b, c, 0, 0, 0);
+        std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
+      }
+    } else if constexpr ((M == 16 && K == 128) || (M == 32 && K == 64)) {
+      // F8F6F4 MFMAs. CBSZ/BLGP select the A/B formats; the scale operands are
+      // zero, which selects the unscaled V_MFMA_F32_*_F8F6F4 encoding.
+      const int32_x8 a = make_f8f6f4_operand(A.wi_marray);
+      const int32_x8 b = make_f8f6f4_operand(B.wi_marray);
+      constexpr int FmtA = f8f6f4_format<Ta>();
+      constexpr int FmtB = f8f6f4_format<Tb>();
+      if constexpr (M == 16) {
+        auto result = __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(
+            a, b, *reinterpret_cast<const floatx4 *>(&C.wi_marray), FmtA, FmtB,
+            0, 0, 0, 0);
+        std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
+      } else {
+        auto result = __builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4(
+            a, b, *reinterpret_cast<const floatx16 *>(&C.wi_marray), FmtA, FmtB,
+            0, 0, 0, 0);
+        std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
+      }
+    }
+  }
+#endif // __gfx950__
+#endif // __gfx90a__ || __SYCL_HIP_MATRIX_CDNA3 || __SYCL_HIP_MATRIX_CDNA4
 }
 
 #undef __SYCL_HIP_MATRIX_CDNA3
+#undef __SYCL_HIP_MATRIX_CDNA4
 
 } // namespace detail
 } // namespace oneapi
