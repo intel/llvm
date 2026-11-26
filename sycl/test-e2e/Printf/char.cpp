@@ -6,6 +6,11 @@
 //
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/22300
+// FIXME: On OpenCL the format string follows OpenCL C rules: %c needs a 32-bit
+//        operand and the driver rejects the %s cases, reporting
+//        "printf_buffer_metadata corrupt!" and dropping all output.
+// UNSUPPORTED: opencl
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/23895
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s

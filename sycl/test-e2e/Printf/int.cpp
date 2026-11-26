@@ -23,7 +23,8 @@
 using namespace sycl;
 
 void do_d_i_test(
-    bool is_cuda) { // %d, %i signed integer, decimal representation
+    bool is_cuda,
+    bool is_opencl) { // %d, %i signed integer, decimal representation
   // Some reference values
   constexpr char CHAR_VALUE = 0x7B;     // 123
   constexpr short SHORT_VALUE = 0x3039; // 12345
@@ -58,6 +59,14 @@ void do_d_i_test(
                               "\tintmax_t: %lld\n"
                               "\tsigned size_t: %lld\n"
                               "\tptrdiff_t: %lld\n";
+  FORMAT_STRING(fmt_d_opencl) = "\tsigned char: %d\n"
+                                "\tshort: %d\n"
+                                "\tint: %d\n"
+                                "\tlong: %ld\n"
+                                "\tlong long: %ld\n"
+                                "\tintmax_t: %ld\n"
+                                "\tsigned size_t: %ld\n"
+                                "\tptrdiff_t: %ld\n";
   // Format strings for %i specifier
   FORMAT_STRING(fmt_i_default) = "\tsigned char: %hhi\n"
                                  "\tshort: %hi\n"
@@ -75,11 +84,22 @@ void do_d_i_test(
                               "\tintmax_t: %lli\n"
                               "\tsigned size_t: %lli\n"
                               "\tptrdiff_t: %lli\n";
+  FORMAT_STRING(fmt_i_opencl) = "\tsigned char: %i\n"
+                                "\tshort: %i\n"
+                                "\tint: %i\n"
+                                "\tlong: %li\n"
+                                "\tlong long: %li\n"
+                                "\tintmax_t: %li\n"
+                                "\tsigned size_t: %li\n"
+                                "\tptrdiff_t: %li\n";
 
   ext::oneapi::experimental::printf("Decimal positive values:\n");
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_d_cuda, hhd, hd, d, ld, lld, jd, zd,
                                       td);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_d_opencl, (int)hhd, (int)hd, d,
+                                      (long long)ld, lld, jd, zd, td);
   } else {
     ext::oneapi::experimental::printf(fmt_d_default, hhd, hd, d, ld, lld, jd,
                                       zd, td);
@@ -98,6 +118,9 @@ void do_d_i_test(
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_i_cuda, hhd, hd, d, ld, lld, jd, zd,
                                       td);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_i_opencl, (int)hhd, (int)hd, d,
+                                      (long long)ld, lld, jd, zd, td);
   } else {
     ext::oneapi::experimental::printf(fmt_i_default, hhd, hd, d, ld, lld, jd,
                                       zd, td);
@@ -125,6 +148,9 @@ void do_d_i_test(
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_d_cuda, hhd, hd, d, ld, lld, jd, zd,
                                       td);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_d_opencl, (int)hhd, (int)hd, d,
+                                      (long long)ld, lld, jd, zd, td);
   } else {
     ext::oneapi::experimental::printf(fmt_d_default, hhd, hd, d, ld, lld, jd,
                                       zd, td);
@@ -143,6 +169,9 @@ void do_d_i_test(
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_i_cuda, hhd, hd, d, ld, lld, jd, zd,
                                       td);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_i_opencl, (int)hhd, (int)hd, d,
+                                      (long long)ld, lld, jd, zd, td);
   } else {
     ext::oneapi::experimental::printf(fmt_i_default, hhd, hd, d, ld, lld, jd,
                                       zd, td);
@@ -158,7 +187,8 @@ void do_d_i_test(
   // CHECK-NEXT: ptrdiff_t: -1234567891011121314
 }
 
-void do_o_test(bool is_cuda) { // %o unsigned integer, octal representation
+void do_o_test(bool is_cuda,
+               bool is_opencl) { // %o unsigned integer, octal representation
   // Some reference values
   constexpr unsigned char CHAR_VALUE = 0123;
   constexpr unsigned short SHORT_VALUE = 0123456;
@@ -191,10 +221,22 @@ void do_o_test(bool is_cuda) { // %o unsigned integer, octal representation
                               "\tuintmax_t: %llo\n"
                               "\tsize_t: %llo\n"
                               "\tptrdiff_t (unsigned version): %llo\n";
+  FORMAT_STRING(fmt_o_opencl) = "\tunsigned char: %o\n"
+                                "\tunsigned short: %o\n"
+                                "\tunsigned int: %o\n"
+                                "\tunsigned long: %lo\n"
+                                "\tunsigned long long: %lo\n"
+                                "\tuintmax_t: %lo\n"
+                                "\tsize_t: %lo\n"
+                                "\tptrdiff_t (unsigned version): %lo\n";
 
   ext::oneapi::experimental::printf("Octal:\n");
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_o_cuda, hho, ho, o, lo, llo, jo, zo,
+                                      to);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_o_opencl, (unsigned)hho, (unsigned)ho,
+                                      o, (unsigned long long)lo, llo, jo, zo,
                                       to);
   } else {
     ext::oneapi::experimental::printf(fmt_o_default, hho, ho, o, lo, llo, jo,
@@ -212,7 +254,8 @@ void do_o_test(bool is_cuda) { // %o unsigned integer, octal representation
 }
 
 void do_x_test(
-    bool is_cuda) { // %x, %X unsigned integer, hexadecimal representation
+    bool is_cuda,
+    bool is_opencl) { // %x, %X unsigned integer, hexadecimal representation
   // Some reference values
   constexpr unsigned char CHAR_VALUE = 0x12;
   constexpr unsigned short SHORT_VALUE = 0x1234;
@@ -245,6 +288,14 @@ void do_x_test(
                               "\tuintmax_t: %llx\n"
                               "\tsize_t: %llx\n"
                               "\tptrdiff_t: %llx\n";
+  FORMAT_STRING(fmt_x_opencl) = "\tunsigned char: %x\n"
+                                "\tunsigned short: %x\n"
+                                "\tunsigned int: %x\n"
+                                "\tunsigned long: %lx\n"
+                                "\tunsigned long long: %lx\n"
+                                "\tuintmax_t: %lx\n"
+                                "\tsize_t: %lx\n"
+                                "\tptrdiff_t: %lx\n";
   FORMAT_STRING(fmt_X_default) = "\tunsigned char: %hhX\n"
                                  "\tunsigned short: %hX\n"
                                  "\tunsigned int: %X\n"
@@ -261,10 +312,22 @@ void do_x_test(
                               "\tuintmax_t: %llX\n"
                               "\tsize_t: %llX\n"
                               "\tptrdiff_t: %llX\n";
+  FORMAT_STRING(fmt_X_opencl) = "\tunsigned char: %X\n"
+                                "\tunsigned short: %X\n"
+                                "\tunsigned int: %X\n"
+                                "\tunsigned long: %lX\n"
+                                "\tunsigned long long: %lX\n"
+                                "\tuintmax_t: %lX\n"
+                                "\tsize_t: %lX\n"
+                                "\tptrdiff_t: %lX\n";
 
   ext::oneapi::experimental::printf("Hexadecimal:\n");
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_x_cuda, hhx, hx, x, lx, llx, jx, zx,
+                                      tx);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_x_opencl, (unsigned)hhx, (unsigned)hx,
+                                      x, (unsigned long long)lx, llx, jx, zx,
                                       tx);
   } else {
     ext::oneapi::experimental::printf(fmt_x_default, hhx, hx, x, lx, llx, jx,
@@ -284,6 +347,10 @@ void do_x_test(
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_X_cuda, hhx, hx, x, lx, llx, jx, zx,
                                       tx);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_X_opencl, (unsigned)hhx, (unsigned)hx,
+                                      x, (unsigned long long)lx, llx, jx, zx,
+                                      tx);
   } else {
     ext::oneapi::experimental::printf(fmt_X_default, hhx, hx, x, lx, llx, jx,
                                       zx, tx);
@@ -299,7 +366,8 @@ void do_x_test(
   // CHECK-NEXT: ptrdiff_t: 123456789ABCDEF0
 }
 
-void do_u_test(bool is_cuda) { // %u unsigned integer, decimal representation
+void do_u_test(bool is_cuda,
+               bool is_opencl) { // %u unsigned integer, decimal representation
   // Some reference values
   constexpr char CHAR_VALUE = 0x7B;     // 123
   constexpr short SHORT_VALUE = 0x3039; // 12345
@@ -333,10 +401,22 @@ void do_u_test(bool is_cuda) { // %u unsigned integer, decimal representation
                               "\tuintmax_t: %llu\n"
                               "\tsize_t: %llu\n"
                               "\tptrdiff_t: %llu\n";
+  FORMAT_STRING(fmt_u_opencl) = "\tunsigned char: %u\n"
+                                "\tunsigned short: %u\n"
+                                "\tunsigned int: %u\n"
+                                "\tunsigned long: %lu\n"
+                                "\tunsigned long long: %lu\n"
+                                "\tuintmax_t: %lu\n"
+                                "\tsize_t: %lu\n"
+                                "\tptrdiff_t: %lu\n";
 
   ext::oneapi::experimental::printf("Unsigned decimal:\n");
   if (is_cuda) {
     ext::oneapi::experimental::printf(fmt_u_cuda, hhu, hu, u, lu, llu, ju, zu,
+                                      tu);
+  } else if (is_opencl) {
+    ext::oneapi::experimental::printf(fmt_u_opencl, (unsigned)hhu, (unsigned)hu,
+                                      u, (unsigned long long)lu, llu, ju, zu,
                                       tu);
   } else {
     ext::oneapi::experimental::printf(fmt_u_default, hhu, hu, u, lu, llu, ju,
@@ -366,12 +446,20 @@ int main() {
   // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#formatted-output
   const bool is_cuda = (q.get_backend() == backend::ext_oneapi_cuda);
 
+  // OpenCL printf follows OpenCL C rules: operands of conversions without a
+  // length modifier or with hh/h must be 32-bit integers, 'l' requires a 64-bit
+  // operand and the ll, j, z and t modifiers are undefined. When running on the
+  // OpenCL backend, this test passes char/short types as int and uses
+  // %ld/%li/%lo/%lx/%lX/%lu with 64-bit operands for long, long long, intmax_t,
+  // size_t and ptrdiff_t types. See the OpenCL SPIR-V environment spec, 2.11.
+  const bool is_opencl = (q.get_backend() == backend::opencl);
+
   q.submit([&](handler &cgh) {
     cgh.single_task<IntTest>([=]() {
-      do_d_i_test(is_cuda);
-      do_o_test(is_cuda);
-      do_x_test(is_cuda);
-      do_u_test(is_cuda);
+      do_d_i_test(is_cuda, is_opencl);
+      do_o_test(is_cuda, is_opencl);
+      do_x_test(is_cuda, is_opencl);
+      do_u_test(is_cuda, is_opencl);
     });
   });
   q.wait();
