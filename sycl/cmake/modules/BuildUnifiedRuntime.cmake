@@ -250,9 +250,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   # Files installed by the subbuild. These are declared as byproducts so that
   # the copy commands below can depend on them.
   set(URD_BYPRODUCTS)
-  foreach(library ur_loaderd umfd)
-    list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/${library}.lib)
-  endforeach()
+  list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ur_loaderd.lib)
   # Static adapters that are linked into the static loader, and whether any of
   # them is a Level Zero adapter (which additionally needs ze_loader).
   set(_urd_static_adapters)
@@ -283,11 +281,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/lib/ze_loader.lib)
     endif()
   endif()
-  # The private UMF helper archives aren't installed, but are copied from the
-  # subbuild's lib directory when UMF is static.
+  # A static UMF and its private helper archives aren't installed, but are
+  # copied from the subbuild's lib directory.
   if(NOT UMF_BUILD_SHARED_LIBRARY)
-    foreach(_umfd_helper umf_ba umf_utils umf_coarse)
-      list(APPEND URD_BYPRODUCTS ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib)
+    foreach(_umf_lib umf umf_ba umf_utils umf_coarse)
+      list(APPEND URD_BYPRODUCTS ${URD_BINARY_DIR}/lib/${_umf_lib}.lib)
     endforeach()
   endif()
   list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/ur_loaderd.dll)
@@ -297,7 +295,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       ${URD_INSTALL_DIR}/lib/ur_adapter_${adapter}d.lib)
   endforeach()
   if(UMF_BUILD_SHARED_LIBRARY)
-    list(APPEND URD_BYPRODUCTS ${URD_INSTALL_DIR}/bin/umfd.dll)
+    list(APPEND URD_BYPRODUCTS
+      ${URD_INSTALL_DIR}/bin/umfd.dll
+      ${URD_INSTALL_DIR}/lib/umfd.lib)
   endif()
 
   # This creates a subbuild which can be used in dependencies with the
@@ -456,7 +456,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
         COMMAND ${CMAKE_COMMAND} -E copy
           ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
           ${LLVM_BINARY_DIR}/lib/${_umf_lib}d.lib
-        DEPENDS ${URD_BINARY_DIR}/lib/${_umfd_helper}.lib
+        DEPENDS ${URD_BINARY_DIR}/lib/${_umf_lib}.lib
       )
     endforeach()
   endif()
