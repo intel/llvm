@@ -102,6 +102,20 @@ public:
   auto get(ext::oneapi::experimental::properties_tag) const {
     return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // Same for a valid sycl_khr_kernel_properties getter. An invalid one, or one
+  // next to a properties_tag getter, is diagnosed for the original kernel.
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<
+          khr::property::detail::embedded_kernel_properties<T>::has_valid_get &&
+          !ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+              T>::value>>
+  auto get(khr::property::tag::kernel) const {
+    return KernelFunc.get(khr::property::tag::kernel{});
+  }
+#endif
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -127,6 +141,20 @@ public:
   auto get(ext::oneapi::experimental::properties_tag) const {
     return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // Same for a valid sycl_khr_kernel_properties getter. An invalid one, or one
+  // next to a properties_tag getter, is diagnosed for the original kernel.
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<
+          khr::property::detail::embedded_kernel_properties<T>::has_valid_get &&
+          !ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+              T>::value>>
+  auto get(khr::property::tag::kernel) const {
+    return KernelFunc.get(khr::property::tag::kernel{});
+  }
+#endif
 };
 
 template <typename WrapperT, typename TransformedArgType, int Dims,

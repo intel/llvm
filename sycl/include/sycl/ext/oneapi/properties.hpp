@@ -316,7 +316,7 @@ struct filter_properties_impl {
     constexpr int N = sizeof...(property_tys);
     std::array<int, N> indexes{};
     int num_matched = 0;
-    int idx = 0;
+    [[maybe_unused]] int idx = 0;
     (((predicate<property_tys>::value ? indexes[num_matched++] = idx++ : idx++),
       ...));
 

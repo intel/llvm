@@ -1677,6 +1677,40 @@ void SemaSYCL::handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL) {
                                    SYCLScopeAttr::Level::WorkGroup, AL));
 }
 
+// Renders the arguments of a kernel attribute the way the value of the
+// equivalent kernel property is rendered in the IR attribute ("X[,Y[,Z]]").
+// Returns std::nullopt if an argument is not a constant.
+static std::optional<std::string> getKernelAttrArgsAsString(const Attr *A) {
+  SmallVector<std::optional<llvm::APSInt>, 3> Vals;
+  if (const auto *RWGS = dyn_cast<SYCLReqdWorkGroupSizeAttr>(A)) {
+    Vals.push_back(RWGS->getXDimVal());
+    if (RWGS->getYDim())
+      Vals.push_back(RWGS->getYDimVal());
+    if (RWGS->getZDim())
+      Vals.push_back(RWGS->getZDimVal());
+  } else if (const auto *WGSH = dyn_cast<SYCLWorkGroupSizeHintAttr>(A)) {
+    Vals.push_back(WGSH->getXDimVal());
+    if (WGSH->getYDim())
+      Vals.push_back(WGSH->getYDimVal());
+    if (WGSH->getZDim())
+      Vals.push_back(WGSH->getZDimVal());
+  } else if (const auto *RSGS = dyn_cast<IntelReqdSubGroupSizeAttr>(A)) {
+    const auto *CE = dyn_cast<ConstantExpr>(RSGS->getValue());
+    if (!CE)
+      return std::nullopt;
+    Vals.push_back(CE->getResultAsAPSInt());
+  }
+
+  std::string Str;
+  llvm::raw_string_ostream OS(Str);
+  for (const auto &[I, Val] : llvm::enumerate(Vals)) {
+    if (!Val)
+      return std::nullopt;
+    OS << (I ? "," : "") << *Val;
+  }
+  return Str;
+}
+
 void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   const auto *AddIRFuncAttr = D->getAttr<SYCLAddIRAttributesFunctionAttr>();
 
@@ -1705,20 +1739,35 @@ void SemaSYCL::checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
       return;
   }
 
-  // If there are potentially conflicting attributes, we issue a warning.
-  for (const auto [Attr, PotentialConflictProp] :
-       std::vector<std::pair<AttributeCommonInfo *, StringRef>>{
-           {D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
-            "sycl::ext::oneapi::experimental::work_group_size"},
-           {D->getAttr<IntelReqdSubGroupSizeAttr>(),
-            "sycl::ext::oneapi::experimental::sub_group_size"},
-           {D->getAttr<SYCLWorkGroupSizeHintAttr>(),
-            "sycl::ext::oneapi::experimental::work_group_size_hint"},
-           {D->getAttr<SYCLDeviceHasAttr>(),
-            "sycl::ext::oneapi::experimental::device_has"}})
-    if (Attr)
-      Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
-          << Attr << PotentialConflictProp;
+  // Kernel attributes that are equivalent to a kernel property must have the
+  // same value as that property, if it is also given.
+  auto NameValuePairs =
+      AddIRFuncAttr->getFilteredAttributeNameValuePairs(Context);
+  for (const auto &[A, PropName, IRName] :
+       std::initializer_list<std::tuple<const Attr *, StringRef, StringRef>>{
+           {D->getAttr<SYCLReqdWorkGroupSizeAttr>(), "work_group_size",
+            "sycl-work-group-size"},
+           {D->getAttr<SYCLWorkGroupSizeHintAttr>(), "work_group_size_hint",
+            "sycl-work-group-size-hint"},
+           {D->getAttr<IntelReqdSubGroupSizeAttr>(), "sub_group_size",
+            "sycl-sub-group-size"}}) {
+    if (!A)
+      continue;
+    const auto *Prop = llvm::find_if(
+        NameValuePairs, [&](const auto &NV) { return NV.first == IRName; });
+    if (Prop == NameValuePairs.end())
+      continue;
+    std::optional<std::string> AttrArgs = getKernelAttrArgsAsString(A);
+    if (AttrArgs && *AttrArgs != Prop->second)
+      Diag(A->getLocation(), diag::err_sycl_kernel_attr_property_mismatch)
+          << A << *AttrArgs << Prop->second << PropName;
+  }
+
+  // The device_has attribute is not compared with the property, so we issue a
+  // warning that it may be ignored.
+  if (const auto *Attr = D->getAttr<SYCLDeviceHasAttr>())
+    Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
+        << Attr << "sycl::ext::oneapi::experimental::device_has";
 }
 
 void SemaSYCL::handleSYCLRegisteredKernels(Decl *D, const ParsedAttr &A) {

@@ -13993,6 +13993,9 @@ def warn_sycl_old_and_new_kernel_attributes : Warning<
   "kernel has both attribute %0 and kernel properties; if the kernel "
   "properties contains the property \"%1\" it will be ignored">,
   InGroup<IgnoredAttributes>;
+def err_sycl_kernel_attr_property_mismatch : Error<
+  "%0 attribute arguments '%1' do not match the value '%2' of kernel property "
+  "'%3'">;
 def err_attribute_argument_is_not_valid : Error<
   "%0 attribute requires integer constant value 0 or 1">;
 def warn_sycl_work_group_scope_dtor : Warning<

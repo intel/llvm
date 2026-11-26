@@ -862,6 +862,13 @@ private:
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+    // The range rounding wrapper forwards only a valid KHR getter, and the
+    // unwrapped kernel is not instantiated if range rounding is forced.
+    ext::oneapi::experimental::detail::diagnoseKhrKernelProperties<
+        KernelType>();
+#endif
+
     // Range rounding can be disabled by the user.
     // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
@@ -1614,8 +1621,11 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
-                                               std::forward<RestT>(Rest)...);
+    detail::reduction_parallel_for<KernelName>(
+        *this, Range,
+        ext::oneapi::experimental::detail::MergeKhrGetMethodProperties<
+            RestT...>(Properties),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
@@ -1634,8 +1644,11 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
-                                               std::forward<RestT>(Rest)...);
+    detail::reduction_parallel_for<KernelName>(
+        *this, Range,
+        ext::oneapi::experimental::detail::MergeKhrGetMethodProperties<
+            RestT...>(Properties),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
@@ -1654,8 +1667,11 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
-                                               std::forward<RestT>(Rest)...);
+    detail::reduction_parallel_for<KernelName>(
+        *this, Range,
+        ext::oneapi::experimental::detail::MergeKhrGetMethodProperties<
+            RestT...>(Properties),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
@@ -1707,8 +1723,11 @@ public:
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
 #endif
-    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
-                                               std::forward<RestT>(Rest)...);
+    detail::reduction_parallel_for<KernelName>(
+        *this, Range,
+        ext::oneapi::experimental::detail::MergeKhrGetMethodProperties<
+            RestT...>(Properties),
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, int Dims,

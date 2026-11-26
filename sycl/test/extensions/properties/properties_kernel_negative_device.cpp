@@ -3,7 +3,7 @@
 #include <sycl/sycl.hpp>
 
 template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
+  // expected-error@+1 {{'sycl::reqd_work_group_size' attribute arguments '32' do not match the value '1' of kernel property 'work_group_size'}}
   void operator() [[sycl::reqd_work_group_size(32)]] () const {}
   auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
@@ -12,7 +12,7 @@ template <size_t... Is> struct KernelFunctorWithWGSizeWithAttr {
 };
 
 template <size_t... Is> struct KernelFunctorWithWGSizeHintWithAttr {
-  // expected-warning@+1 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
+  // expected-error@+1 {{'sycl::work_group_size_hint' attribute arguments '32' do not match the value '1' of kernel property 'work_group_size_hint'}}
   void operator() [[sycl::work_group_size_hint(32)]] () const {}
   auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
@@ -21,7 +21,7 @@ template <size_t... Is> struct KernelFunctorWithWGSizeHintWithAttr {
 };
 
 template <uint32_t I> struct KernelFunctorWithSGSizeWithAttr {
-  // expected-warning@+1 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
+  // expected-error@+1 {{'sycl::reqd_sub_group_size' attribute arguments '32' do not match the value '1' of kernel property 'sub_group_size'}}
   void operator() [[sycl::reqd_sub_group_size(32)]] () const {}
   auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
@@ -39,9 +39,6 @@ template <sycl::aspect Aspect> struct KernelFunctorWithDeviceHasWithAttr {
 };
 
 template <sycl::aspect Aspect> struct KernelFunctorWithAllAttrs {
-  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_work_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size" it will be ignored}}
-  // expected-warning@+4 {{kernel has both attribute 'sycl::work_group_size_hint' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::work_group_size_hint" it will be ignored}}
-  // expected-warning@+4 {{kernel has both attribute 'sycl::reqd_sub_group_size' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::sub_group_size" it will be ignored}}
   // expected-warning@+4 {{kernel has both attribute 'sycl::device_has' and kernel properties; if the kernel properties contains the property "sycl::ext::oneapi::experimental::device_has" it will be ignored}}
   void operator() [[sycl::reqd_work_group_size(
       32)]] [[sycl::

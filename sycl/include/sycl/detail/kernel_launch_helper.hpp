@@ -36,7 +36,15 @@ enum class WrapAs { single_task, parallel_for, parallel_for_work_group };
 // getter.
 template <typename KernelType, typename PropertiesT, typename Cond = void>
 struct GetMergedKernelProperties {
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // Properties embedded via `get(sycl::khr::property::tag::kernel) const`
+  // (sycl_khr_kernel_properties), as their oneapi equivalents.
+  using type = ext::oneapi::experimental::detail::merged_properties_t<
+      PropertiesT, typename khr::property::detail::embedded_kernel_properties<
+                       KernelType>::oneapi_properties_t>;
+#else
   using type = PropertiesT;
+#endif
 };
 template <typename KernelType, typename PropertiesT>
 struct GetMergedKernelProperties<
@@ -228,6 +236,10 @@ struct KernelWrapper<
                 KernelType>::value),
         "get(sycl::ext::oneapi::experimental::properties_tag) member in "
         "kernel functor class must be declared as a const member function");
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+    ext::oneapi::experimental::detail::diagnoseKhrKernelProperties<
+        KernelType>();
+#endif
     auto L = [&](auto &&...args) {
       if constexpr (WrapAsVal == WrapAs::single_task) {
         kernel_single_task<KernelName, KernelType, MergedProps...>(

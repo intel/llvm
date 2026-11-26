@@ -15,6 +15,7 @@
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/free_function_kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties.hpp>
+#include <sycl/khr/kernel_properties.hpp>
 #include <type_traits>
 #include <utility>
 
@@ -160,15 +161,61 @@ struct HasKernelPropertiesGetMethod<T,
       decltype(std::declval<T>().get(std::declval<properties_tag>()));
 };
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+// Library-side diagnostics of the sycl_khr_kernel_properties getter of the
+// (decayed) kernel function object type `KernelType`. A kernel function object
+// must not embed properties via both get(properties_tag) and
+// get(sycl::khr::property::tag::kernel).
+template <typename KernelType> constexpr void diagnoseKhrKernelProperties() {
+  khr::property::detail::diagnose_embedded_kernel_properties<KernelType>();
+  static_assert(
+      !(HasKernelPropertiesGetMethod<KernelType>::value &&
+        khr::property::detail::has_kernel_properties_get<KernelType>::value),
+      "A kernel function object must not embed kernel properties via both "
+      "get(sycl::ext::oneapi::experimental::properties_tag) and "
+      "get(sycl::khr::property::tag::kernel).");
+}
+#endif // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+
+// Adds the properties embedded via the sycl_khr_kernel_properties getter of the
+// kernel function object (the last of `RestT`) to the properties passed
+// explicitly alongside reductions, as reductions wrap the kernel function
+// object.
+template <typename... RestT, typename PropertiesT>
+auto MergeKhrGetMethodProperties(const PropertiesT &Props) {
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  using KernelType = std::remove_cv_t<std::remove_reference_t<
+      properties_nth_type_t<sizeof...(RestT) - 1, RestT...>>>;
+  diagnoseKhrKernelProperties<KernelType>();
+  return merge_properties(
+      Props, typename khr::property::detail::embedded_kernel_properties<
+                 KernelType>::oneapi_properties_t{});
+#else
+  return Props;
+#endif
+}
+
 template <typename... RestT>
 auto RetrieveGetMethodPropertiesOrEmpty(RestT &&...Rest) {
   auto Identity = [](const auto &x) -> decltype(auto) { return x; };
   const auto &KernelObj = (Identity(Rest), ...);
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  // The kernel function object is wrapped (e.g. by reductions), so the
+  // properties embedded via the sycl_khr_kernel_properties getter are handed
+  // over as their oneapi equivalents.
+  diagnoseKhrKernelProperties<
+      std::remove_cv_t<std::remove_reference_t<decltype(KernelObj)>>>();
+  using EmptyOrKhrProps =
+      typename khr::property::detail::embedded_kernel_properties<
+          decltype(KernelObj)>::oneapi_properties_t;
+#else
+  using EmptyOrKhrProps = ext::oneapi::experimental::empty_properties_t;
+#endif
   if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
                     decltype(KernelObj)>::value) {
     return KernelObj.get(ext::oneapi::experimental::properties_tag{});
   } else {
-    return ext::oneapi::experimental::empty_properties_t{};
+    return EmptyOrKhrProps{};
   }
 }
 
