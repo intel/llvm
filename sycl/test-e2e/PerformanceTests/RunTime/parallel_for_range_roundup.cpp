@@ -2,25 +2,29 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/17872
 // RUN: echo "Running parallel_for benchmark without range rounding"
 // RUN: %{build} -fsycl-range-rounding=disable -o %t1.out
-// RUN: %{run} %t1.out
+// RUN: %{run} %t1.out --variant="rounding=disable"
 
 // RUN: echo "Running parallel_for benchmark with normal range rounding"
 // RUN: %{build} -fsycl-range-rounding=force -o %t2.out
-// RUN: %{run} %t2.out
+// RUN: %{run} %t2.out --variant="rounding=force"
 
 // RUN: echo "Running parallel_for benchmark with experimental range rounding"
 // RUN: %{build} -fsycl-exp-range-rounding -fsycl-range-rounding=force -o %t3.out
-// RUN: %{run} %t3.out
+// RUN: %{run} %t3.out --variant="rounding=exp+force"
 
-#include <chrono>
-#include <iostream>
+#include "../perf_harness.hpp"
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
 class FillData;
 class Compute;
 
-int main() {
+int main(int argc, char **argv) {
+  perf::Benchmark Bench(
+      argc, argv, "Range rounding",
+      "1000 submits of a 2D parallel_for per range rounding mode.",
+      perf::Unit::ms);
   constexpr static size_t width{788};
   constexpr static size_t height{1888};
   constexpr static size_t N{width * height};
@@ -42,28 +46,24 @@ int main() {
          });
    }).wait_and_throw();
 
-  auto start{std::chrono::steady_clock::now()};
-  for (size_t i{0}; i < iterations; ++i) {
-    q.submit([&](sycl::handler &cgh) {
-       cgh.parallel_for<Compute>(
-           sycl::range<2>{height, width}, [=](sycl::id<2> id) {
-             unsigned int row{static_cast<unsigned int>(id[0])};
-             unsigned int col{static_cast<unsigned int>(id[1])};
-             unsigned int ix{row * static_cast<unsigned int>(width) + col};
-             if (ix >= static_cast<unsigned int>(N)) {
-               return;
-             }
-             if (A[ix] > B[ix]) {
-               C[ix] = A[ix];
-             } else {
-               C[ix] = B[ix];
-             }
-           });
-     }).wait_and_throw();
-  }
-  auto end{std::chrono::steady_clock::now()};
-  std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end -
-                                                                     start)
-                   .count()
-            << " ms" << std::endl;
+  Bench.add_perf_test("range<2> 1888x788, 1000 submits", [&] {
+    for (size_t i{0}; i < iterations; ++i) {
+      q.submit([&](sycl::handler &cgh) {
+         cgh.parallel_for<Compute>(
+             sycl::range<2>{height, width}, [=](sycl::id<2> id) {
+               unsigned int row{static_cast<unsigned int>(id[0])};
+               unsigned int col{static_cast<unsigned int>(id[1])};
+               unsigned int ix{row * static_cast<unsigned int>(width) + col};
+               if (ix >= static_cast<unsigned int>(N)) {
+                 return;
+               }
+               if (A[ix] > B[ix]) {
+                 C[ix] = A[ix];
+               } else {
+                 C[ix] = B[ix];
+               }
+             });
+       }).wait_and_throw();
+    }
+  });
 }

@@ -9,11 +9,13 @@ on:
     - cron: '15 4 * * 2-6'
   # Run on pull requests only when a benchmark-related files were changed.
   pull_request:
-    # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there)
+    # These paths are exactly the same as in sycl-linux/windows-precommit.yml (to ignore over there),
+    # except sycl/test-e2e/PerformanceTests, which pre-commit also runs as lit tests.
     paths:
       - 'devops/scripts/benchmarks/**'
       - 'devops/actions/run-tests/benchmark/**'
       - '.github/workflows/sycl-ur-perf-benchmarking.yml'
+      - 'sycl/test-e2e/PerformanceTests/**'
   workflow_dispatch:
     inputs:
       preset:
@@ -27,6 +29,7 @@ on:
           - Core
           - Normal
           - Test
+          - SYCLPerf
           - OneDNN
           - Gromacs
           - LLama

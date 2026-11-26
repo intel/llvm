@@ -62,6 +62,10 @@ class Options:
     # include/offload. When set, the Offload benchmarks are built.
     offload_prefix: str = None
     offload_lib_dir: str = None
+    # Directory with the SYCL E2E PerformanceTests sources. When not set, the
+    # sycl/test-e2e/PerformanceTests dir of the checkout containing the scripts
+    # is used.
+    sycl_perf_tests_dir: str = None
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
