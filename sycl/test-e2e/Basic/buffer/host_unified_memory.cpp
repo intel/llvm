@@ -21,8 +21,12 @@ int main(int argc, char *argv[]) {
          dev.get_info<info::device::name>().c_str(), max_compute_units, BE);
 
   size_t size = 32;
-  void *p;
-  posix_memalign(&p, 8, size);
+  void *p = nullptr;
+  const int AllocResult = posix_memalign(&p, 8, size);
+  if (AllocResult != 0) {
+    fprintf(stderr, "posix_memalign failed: %d\n", AllocResult);
+    return 1;
+  }
   property::buffer::use_host_ptr prop_use_host_ptr;
   inBufP = new buffer<char, 1>((char *)p, size, prop_use_host_ptr);
 

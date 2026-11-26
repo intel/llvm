@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -29,13 +30,15 @@ void CaptureAndCopy(const DataT *data_arr, const DataT &data_scalar,
   // We need to copy data_arr, otherwise when using a device it tries to use the
   // host memory.
   DataT cpy_data_arr[ArrSize];
-  std::memcpy(cpy_data_arr, data_arr, sizeof(cpy_data_arr));
+  std::copy_n(data_arr, ArrSize, cpy_data_arr);
   sycl::buffer<DataT, 1> buf_arr{result_arr, sycl::range<1>(ArrSize)};
   sycl::buffer<DataT, 1> buf_scalar{result_scalar, sycl::range<1>(1)};
 
   q.submit([&](sycl::handler &cgh) {
-    auto acc_arr = sycl::accessor{buf_arr, cgh, sycl::read_write};
-    auto acc_scalar = sycl::accessor{buf_scalar, cgh, sycl::read_write};
+    // Some tested types need constructed objects. Avoid no_init, which would
+    // require explicit construction before assigning to the output elements.
+    auto acc_arr = sycl::accessor{buf_arr, cgh, sycl::write_only};
+    auto acc_scalar = sycl::accessor{buf_scalar, cgh, sycl::write_only};
     cgh.single_task([=]() {
       for (auto i = 0; i < ArrSize; i++) {
         acc_arr[i] = cpy_data_arr[i];
@@ -301,7 +304,7 @@ int main() {
   }
 
   {
-    using DataT = std ::string_view;
+    using DataT = std::string_view;
     std::string strv_arr_val[arr_size];
     std::string strv_val{std::to_string(ref_val)};
     DataT strv_arr[arr_size];

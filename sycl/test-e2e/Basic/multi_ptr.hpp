@@ -183,6 +183,7 @@ void testMultPtrArrowOperator() {
       cgh.parallel_for<class testMultPtrArrowOperatorKernel<T, IsDecorated>>(
           sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
             point<T> private_val = 0;
+            accessorData_2[0] = point<T>{2};
 
             auto ptr_1 =
                 multi_ptr<const point<T>, access::address_space::global_space,
