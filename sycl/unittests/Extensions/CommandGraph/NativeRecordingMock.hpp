@@ -48,12 +48,28 @@ struct MockState {
   std::vector<TraceEntry> Trace;
   std::unordered_map<ur_exp_graph_handle_t, GraphState> Graphs;
   std::unordered_map<ur_queue_handle_t, ur_exp_graph_handle_t> PrimaryCapturing;
+  // Queues the backend forked capture onto. SYCL never called
+  // urQueueBeginCaptureIntoGraphExp for these, so it cannot know about them,
+  // but the backend reports them as capturing. Tests populate this through
+  // forkTo(); ending capture on the primary queue clears the forks with it.
+  std::unordered_map<ur_queue_handle_t, ur_exp_graph_handle_t> ForkedCapturing;
   uint64_t NextGraphId = FirstGraphId;
 
   GraphState &graph(ur_exp_graph_handle_t Handle);
+
+  // The graph a queue is capturing into, whether capture was begun by SYCL or
+  // forked onto it by the backend. Null if the queue is not capturing.
+  ur_exp_graph_handle_t capturedGraph(ur_queue_handle_t Queue) const;
 };
 
 MockState &state();
+
+// Models the backend forking capture of Graph onto Queue, which SYCL never
+// began capture on and so cannot know about.
+void forkTo(
+    const sycl::queue &Queue,
+    const experimental::command_graph<experimental::graph_state::modifiable>
+        &Graph);
 
 // Records a call to EntryPoint, optionally against the object it was about.
 void trace(
