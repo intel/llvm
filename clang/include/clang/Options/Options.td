@@ -712,6 +712,9 @@ def rsp_quoting : Joined<["--"], "rsp-quoting=">, Group<internal_driver_Group>,
   Flags<[NoXarchOption, HelpHidden]>,
   Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Set the rsp quoting to either 'posix', or 'windows'">;
+def dpcpp_driver : Flag<["--"], "dpcpp-driver">, InternalDriverOpt,
+  Visibility<[ClangOption, FlangOption, CLOption, DXCOption]>,
+  HelpText<"Use the DPC++-prefixed driver name">;
 def ccc_gcc_name : Separate<["-"], "ccc-gcc-name">, InternalDriverOpt,
   HelpText<"Name for native GCC compiler">,
   MetaVarName<"<gcc-path>">;

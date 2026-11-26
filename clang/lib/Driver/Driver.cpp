@@ -2481,7 +2481,7 @@ bool Driver::getCrashDiagnosticFile(StringRef ReproCrashFilename,
   for (fs::directory_iterator File(CrashDiagDir, EC), FileEnd;
        File != FileEnd && !EC; File.increment(EC)) {
     StringRef FileName = path::filename(File->path());
-    if (!FileName.starts_with(Name))
+    if (!FileName.starts_with(path::filename(DriverExecutable)))
       continue;
     if (fs::status(File->path(), FileStatus))
       continue;
@@ -2880,7 +2880,8 @@ void Driver::generateCompilationDiagnostics(
       Diag(clang::diag::note_drv_command_failed_diag_msg)
           << ReproCrashFilename.str();
     } else { // Suggest a directory for the user to look for .crash files.
-      llvm::sys::path::append(CrashDiagDir, Name);
+      llvm::sys::path::append(CrashDiagDir,
+                              llvm::sys::path::filename(DriverExecutable));
       CrashDiagDir += "_<YYYY-MM-DD-HHMMSS>_<hostname>.crash";
       Diag(clang::diag::note_drv_command_failed_diag_msg)
           << "Crash backtrace is located in";

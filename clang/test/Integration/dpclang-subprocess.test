@@ -1,0 +1,20 @@
+# UNSUPPORTED: system-windows
+
+# A fake assembler launches an ordinary driver. Only the wrapping parent should
+# use the dp-prefixed diagnostic name, and the marker must not reach the assembler.
+# RUN: split-file %s %t
+# RUN: chmod +x %t/as
+# RUN: env TEST_CLANG="%clang" not %dpclang --target=x86_64-unknown-linux-gnu \
+# RUN:   -fno-integrated-as -B%t -c %t/input.s -o %t/input.o 2>&1 \
+# RUN:   | FileCheck %s --implicit-check-not=dpcpp-driver
+
+# CHECK: {{^}}clang{{(-[0-9]+)?}}: error: no input files
+# CHECK: {{^}}dpclang: error: assembler command failed with exit code 1
+
+#--- as
+#!/bin/sh
+printf 'assembler argument: %s\n' "$@"
+exec "$TEST_CLANG"
+
+#--- input.s
+.text

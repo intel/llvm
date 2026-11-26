@@ -128,6 +128,11 @@ tools = [
     "llvm-lto2",
     "llvm-profdata",
     "llvm-readtapi",
+    # Exercise the built dpllvm aliases, not clang with --driver-mode.
+    ToolSubst("%dpclang", command=FindTool("dpclang")),
+    ToolSubst("%dpclangxx", command=FindTool("dpclang++")),
+    ToolSubst("%dpclang_cl", command=FindTool("dpclang-cl")),
+    ToolSubst("%dpclang_cpp", command=FindTool("dpclang-cpp")),
     ToolSubst(
         "%clang_extdef_map",
         command=FindTool("clang-extdef-mapping"),
@@ -136,6 +141,12 @@ tools = [
     "clang-ssaf-linker",
     "clang-ssaf-format",
 ]
+
+# dpllvm needs the real driver aliases next to it, not on PATH.
+# CLANG_LINKS_TO_CREATE can omit some of these aliases.
+for clang_alias in ("clang++", "clang-cl", "clang-cpp"):
+    if lit.util.which(clang_alias, config.clang_tools_dir):
+        config.available_features.add(clang_alias)
 
 if config.clang_enable_cir:
     tools.append("cir-opt")

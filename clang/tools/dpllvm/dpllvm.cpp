@@ -73,7 +73,14 @@ int main(int argc, char *argv[]) {
                            DpllvmPath + "'."));
   StringRef BinaryPath = *BinaryPathOrErr;
 
+  const bool IsClangDriver = RealName == "clang" || RealName == "clang++" ||
+                             RealName == "clang-cl" || RealName == "clang-cpp";
+
   SmallVector<StringRef, 128> Args = {BinaryPath};
+  // Keep the real argv[0] for executable and resource discovery, and tell the
+  // Clang driver separately that it was invoked through a dp-prefixed alias.
+  if (IsClangDriver)
+    Args.push_back("--dpcpp-driver");
   Args.append(argv + 1, argv + argc);
 
   std::string ErrMsg;

@@ -197,14 +197,17 @@ static bool SetBackdoorDriverOutputsFromEnvVars(Driver &TheDriver) {
   return true;
 }
 
-static void FixupDiagPrefixExeName(TextDiagnosticPrinter *DiagClient,
-                                   const std::string &Path) {
+static std::string GetDriverName(StringRef Path, bool IsDPCPPDriver) {
   // If the clang binary happens to be named cl.exe for compatibility reasons,
-  // use clang-cl.exe as the prefix to avoid confusion between clang and MSVC.
+  // use clang-cl.exe as the name to avoid confusion between clang and MSVC.
   StringRef ExeBasename(llvm::sys::path::stem(Path));
   if (ExeBasename.equals_insensitive("cl"))
     ExeBasename = "clang-cl";
-  DiagClient->setPrefix(std::string(ExeBasename));
+
+  std::string DriverName = std::string(ExeBasename);
+  if (IsDPCPPDriver)
+    DriverName.insert(0, "dp");
+  return DriverName;
 }
 
 static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV,
@@ -256,6 +259,13 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   const char *ProgName =
       ToolContext.NeedsPrependArg ? ToolContext.PrependArg : ToolContext.Path;
+
+  // dpllvm prepends this marker; remove it before response-file expansion,
+  // which recognizes direct -cc1 invocations by their first argument.
+  const bool IsDPCPPDriver =
+      Args.size() > 1 && Args[1] && StringRef(Args[1]) == "--dpcpp-driver";
+  if (IsDPCPPDriver)
+    Args.erase(Args.begin() + 1);
 
   bool ClangCLMode =
       IsClangCL(getDriverMode(ProgName, llvm::ArrayRef(Args).slice(1)));
@@ -335,6 +345,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
                            .Case("-fintegrated-cc1", false)
                            .Default(UseNewCC1Process);
 
+  std::string DriverName = GetDriverName(ProgName, IsDPCPPDriver);
   std::unique_ptr<DiagnosticOptions> DiagOpts = CreateAndPopulateDiagOpts(Args);
   // Driver's diagnostics don't use suppression mappings, so don't bother
   // parsing them. CC1 still receives full args, so this doesn't impact other
@@ -343,7 +354,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   TextDiagnosticPrinter *DiagClient =
       new TextDiagnosticPrinter(llvm::errs(), *DiagOpts);
-  FixupDiagPrefixExeName(DiagClient, ProgName);
+  DiagClient->setPrefix(DriverName);
 
   DiagnosticsEngine Diags(DiagnosticIDs::create(), *DiagOpts, DiagClient);
 
@@ -359,6 +370,8 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags,
                    /*Title=*/"clang LLVM compiler", VFS);
+  if (IsDPCPPDriver)
+    TheDriver.setDriverName(DriverName);
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
   TheDriver.setTargetAndMode(TargetAndMode);
   // If -canonical-prefixes is set, GetExecutablePath will have resolved Path
