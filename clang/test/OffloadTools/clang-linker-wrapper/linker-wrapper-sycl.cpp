@@ -513,6 +513,33 @@
 // RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o /dev/null 2>&1 | FileCheck --check-prefix OPTIONS_DEFAULT_SPEC_CONSTS %s
 // OPTIONS_DEFAULT_SPEC_CONSTS: sycl-post-link{{.*}} -spec-const=emulation -properties -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -emit-imported-symbols -split-esimd -lower-esimd -generate-device-image-default-spec-consts
 
+// In --offload-arch mode, SYCL device code for Intel GPUs is compiled for an
+// IGCA target, and specialization constants are native even when AOT
+// compiling, so the image with default values isn't generated either.
+// TODO: Build the image with --offload-arch=xe-pvc and also check for
+// "ocloc -device xe-pvc" once spir64_gen device code is compiled per IGCA
+// target. Until then, --offload-arch=xe-pvc gives arch=xe-pvc rather than
+// arch=igca_20ca, so the image is built by hand.
+// RUN: %clang -cc1 %s -triple spir64_gen-unknown-unknown -emit-llvm-bc -o %t.igca.bc
+// RUN: llvm-offload-binary -o %t.igca.fat --image=file=%t.igca.bc,kind=sycl,triple=spir64_gen-unknown-unknown,arch=igca_20ca,code=xe-pvc
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.igca.o -fembed-offload-object=%t.igca.fat
+// RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --linker-path=/usr/bin/ld %t.igca.o -o /dev/null 2>&1 \
+// RUN:   | FileCheck --check-prefix SPEC_CONSTS_IGCA %s
+// RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   -sycl-add-default-spec-consts-image \
+// RUN:   --linker-path=/usr/bin/ld %t.igca.o -o /dev/null 2>&1 \
+// RUN:   | FileCheck --check-prefix SPEC_CONSTS_IGCA %s
+// SPEC_CONSTS_IGCA: sycl-post-link{{.*}} -spec-const=native
+// SPEC_CONSTS_IGCA-NOT: -generate-device-image-default-spec-consts
+
+// Outside --offload-arch mode (e.g. -fsycl-targets=intel_gpu_pvc), AOT
+// targets keep emulating specialization constants.
+// RUN: clang-linker-wrapper --dry-run --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --linker-path=/usr/bin/ld %t_aot_gpu.o -o /dev/null 2>&1 \
+// RUN:   | FileCheck --check-prefix SPEC_CONSTS_LEGACY_AOT %s
+// SPEC_CONSTS_LEGACY_AOT: sycl-post-link{{.*}} -spec-const=emulation
+
 // Check that bitcode libraries for NVPTX and AMD are linked for the matching target.
 // RUN: %clang -cc1 %s -triple nvptx64-nvidia-cuda -emit-llvm-bc -o %t.nvptx.devicelib.bc
 // RUN: %clang -cc1 %s -triple nvptx64-nvidia-cuda -emit-llvm-bc -o %t.nvptx.libdummy.bc
