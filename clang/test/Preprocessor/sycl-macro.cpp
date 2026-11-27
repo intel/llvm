@@ -20,15 +20,28 @@
 /// __CLANG_RDC__ tells a SYCL implementation whether device symbols may be
 /// referenced across translation units. It is predefined in both the device and
 /// the host pass, and only when relocatable device code is enabled.
-// RUN: %clang_cc1 %s -fsycl-is-device -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s
-// RUN: %clang_cc1 %s -fsycl-is-host -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s
-// RUN: %clang_cc1 %s -fsycl-is-device -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s
-// RUN: %clang_cc1 %s -fsycl-is-host -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s
+///
+/// SYCL_EXTERNAL is only defined if the implementation supports external
+/// linkage (SYCL 2020 5.6), so it is never predefined without relocatable
+/// device code. With relocatable device code it is defined in both the device
+/// and the host pass, so that its definition agrees across the compilation.
+// RUN: %clang_cc1 %s -fsycl-is-device -fgpu-rdc -E -dM | FileCheck --check-prefixes=CHECK-RDC,CHECK-RDC-DEVICE %s
+// RUN: %clang_cc1 %s -fsycl-is-host -fgpu-rdc -E -dM | FileCheck --check-prefixes=CHECK-RDC,CHECK-RDC-HOST %s
+// RUN: %clang_cc1 %s -fsycl-is-device -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s \
+// RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
+// RUN: %clang_cc1 %s -fsycl-is-host -fno-gpu-rdc -E -dM | FileCheck --check-prefix=CHECK-NO-RDC %s \
+// RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
+/// SYCL_EXTERNAL is SYCL-specific: CUDA and HIP with RDC must not define it.
+// RUN: %clang_cc1 %s -x cuda -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s \
+// RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
+// RUN: %clang_cc1 %s -x hip -fgpu-rdc -E -dM | FileCheck --check-prefix=CHECK-RDC %s \
+// RUN:   --implicit-check-not="#define SYCL_EXTERNAL"
 
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
-// CHECK-NOT:#define SYCL_EXTERNAL
 // CHECK-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 
+// CHECK-RDC-DEVICE:#define SYCL_EXTERNAL __attribute__((sycl_device)){{$}}
+// CHECK-RDC-HOST:#define SYCL_EXTERNAL {{$}}
 // CHECK-RDC:#define __CLANG_RDC__ 1
 // CHECK-NO-RDC-NOT:#define __CLANG_RDC__
 
