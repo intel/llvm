@@ -1,23 +1,37 @@
-// RUN: %{build} -fno-sycl-early-optimizations -o %t.out
-// RUN: %{run} %t.out
-//
+// RUN-IF: sg-8, %{build} -fno-sycl-early-optimizations -DSG_SIZE=8 -o %t8.out && %{run} %t8.out
+// On AVX-512 CPUs the opencl:cpu float exclusive scan at sub-group size 16
+// ignores group membership; only the i7-1165G7 CI runner is excluded since lit
+// has no AVX-512 feature: https://github.com/intel/llvm/issues/23769
+// RUN-IF: sg-16 && gpu, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// RUN-IF: sg-16 && cpu && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{build} -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.out && %{run} %t16.out
+// RUN-IF: sg-32, %{build} -fno-sycl-early-optimizations -DSG_SIZE=32 -o %t32.out && %{run} %t32.out
+
 // Test CPU AOT as well when possible.
-// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -o %t.x86.out %s
-// RUN-IF: cpu, %{run} %t.x86.out
-//
-// REQUIRES: sg-32
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -DSG_SIZE=8 -o %t8.x86.out %s
+// RUN-IF: sg-8 && cpu && opencl-aot, %{run} %t8.x86.out
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -DSG_SIZE=16 -o %t16.x86.out %s
+// RUN-IF: sg-16 && cpu && opencl-aot && !gpu-11th-gen-intel-r-core-tm-i7-1165g7-2-80ghz, %{run} %t16.x86.out
+// RUN-IF: any-device-is-cpu && opencl-aot, %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fno-sycl-early-optimizations -DSG_SIZE=32 -o %t32.x86.out %s
+// RUN-IF: sg-32 && cpu && opencl-aot, %{run} %t32.x86.out
+
+// REQUIRES: sg-8 || sg-16 || sg-32
 // REQUIRES: aspect-ext_oneapi_tangle
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
-#include <vector>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 class TestKernel;
 
-constexpr uint32_t SGSize = 32;
+constexpr uint32_t SGSize = SG_SIZE;
+
+// Sub-group is split into three tangles of unequal size: [0, Split1),
+// [Split1, Split2) and [Split2, SGSize).
+constexpr size_t Split1 = SGSize / 8;
+constexpr size_t Split2 = SGSize * 3 / 4;
 
 int main() {
   sycl::queue Q;
@@ -31,6 +45,10 @@ int main() {
   sycl::buffer<bool, 1> ReduceBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ExScanBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> IncScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanFloatBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanFloatBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ExScanInitBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> IncScanInitBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> SelectBuf{sycl::range{SGSize}};
@@ -47,6 +65,10 @@ int main() {
     sycl::accessor ReduceAcc{ReduceBuf, CGH, sycl::write_only};
     sycl::accessor ExScanAcc{ExScanBuf, CGH, sycl::write_only};
     sycl::accessor IncScanAcc{IncScanBuf, CGH, sycl::write_only};
+    sycl::accessor ExScanFloatAcc{ExScanFloatBuf, CGH, sycl::write_only};
+    sycl::accessor IncScanFloatAcc{IncScanFloatBuf, CGH, sycl::write_only};
+    sycl::accessor ExScanInitAcc{ExScanInitBuf, CGH, sycl::write_only};
+    sycl::accessor IncScanInitAcc{IncScanInitBuf, CGH, sycl::write_only};
     sycl::accessor ShiftLeftAcc{ShiftLeftBuf, CGH, sycl::write_only};
     sycl::accessor ShiftRightAcc{ShiftRightBuf, CGH, sycl::write_only};
     sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
@@ -98,6 +120,24 @@ int main() {
                 sycl::inclusive_scan_over_group(Tangle, 1, sycl::plus<>());
             IncScanAcc[WI] = (IncScanResult == LID + 1);
 
+            float ExScanFloatResult =
+                sycl::exclusive_scan_over_group(Tangle, 1.0f, sycl::plus<>());
+            ExScanFloatAcc[WI] = (ExScanFloatResult == static_cast<float>(LID));
+
+            float IncScanFloatResult =
+                sycl::inclusive_scan_over_group(Tangle, 1.0f, sycl::plus<>());
+            IncScanFloatAcc[WI] =
+                (IncScanFloatResult == static_cast<float>(LID + 1));
+
+            constexpr uint32_t Init = 42;
+            uint32_t ExScanInitResult = sycl::exclusive_scan_over_group(
+                Tangle, 1, Init, sycl::plus<>());
+            ExScanInitAcc[WI] = (ExScanInitResult == Init + LID);
+
+            uint32_t IncScanInitResult = sycl::inclusive_scan_over_group(
+                Tangle, 1, sycl::plus<>(), Init);
+            IncScanInitAcc[WI] = (IncScanInitResult == Init + LID + 1);
+
             uint32_t ShiftLeftResult = sycl::shift_group_left(Tangle, LID, 2);
             ShiftLeftAcc[WI] =
                 (LID + 2 >= TangleSize || ShiftLeftResult == LID + 2);
@@ -111,31 +151,32 @@ int main() {
 
             uint32_t PermuteXorResult =
                 sycl::permute_group_by_xor(Tangle, LID, 2);
-            PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ 2));
+            PermuteXorAcc[WI] =
+                ((LID ^ 2) >= TangleSize || PermuteXorResult == (LID ^ 2));
           };
 
           // Split into three groups of different sizes, using control flow
           // Body of each branch is deliberately duplicated
-          if (WI < 4) {
+          if (WI < Split1) {
             auto Tangle = syclex::entangle(SG);
             size_t TangleLeader = 0;
-            size_t TangleSize = 4;
-            auto IsMember = [](size_t Other) { return (Other < 4); };
+            size_t TangleSize = Split1;
+            auto IsMember = [](size_t Other) { return (Other < Split1); };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
-          } else if (WI < 24) {
+          } else if (WI < Split2) {
             auto Tangle = syclex::entangle(SG);
-            size_t TangleLeader = 4;
-            size_t TangleSize = 20;
+            size_t TangleLeader = Split1;
+            size_t TangleSize = Split2 - Split1;
             auto IsMember = [](size_t Other) {
-              return (Other >= 4 and Other < 24);
+              return (Other >= Split1 and Other < Split2);
             };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
-          } else /* if WI < 32) */ {
+          } else /* if WI < SGSize) */ {
             auto Tangle = syclex::entangle(SG);
-            size_t TangleLeader = 24;
-            size_t TangleSize = 8;
+            size_t TangleLeader = Split2;
+            size_t TangleSize = SGSize - Split2;
             auto IsMember = [](size_t Other) {
-              return (Other >= 24 and Other < 32);
+              return (Other >= Split2 and Other < SGSize);
             };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           };
@@ -152,6 +193,10 @@ int main() {
   sycl::host_accessor ReduceAcc{ReduceBuf, sycl::read_only};
   sycl::host_accessor ExScanAcc{ExScanBuf, sycl::read_only};
   sycl::host_accessor IncScanAcc{IncScanBuf, sycl::read_only};
+  sycl::host_accessor ExScanFloatAcc{ExScanFloatBuf, sycl::read_only};
+  sycl::host_accessor IncScanFloatAcc{IncScanFloatBuf, sycl::read_only};
+  sycl::host_accessor ExScanInitAcc{ExScanInitBuf, sycl::read_only};
+  sycl::host_accessor IncScanInitAcc{IncScanInitBuf, sycl::read_only};
   sycl::host_accessor ShiftLeftAcc{ShiftLeftBuf, sycl::read_only};
   sycl::host_accessor ShiftRightAcc{ShiftRightBuf, sycl::read_only};
   sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
@@ -165,6 +210,10 @@ int main() {
     assert(ReduceAcc[WI] == true);
     assert(ExScanAcc[WI] == true);
     assert(IncScanAcc[WI] == true);
+    assert(ExScanFloatAcc[WI] == true);
+    assert(IncScanFloatAcc[WI] == true);
+    assert(ExScanInitAcc[WI] == true);
+    assert(IncScanInitAcc[WI] == true);
     assert(ShiftLeftAcc[WI] == true);
     assert(ShiftRightAcc[WI] == true);
     assert(SelectAcc[WI] == true);
