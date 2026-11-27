@@ -104,7 +104,7 @@ namespace ext::oneapi::experimental {
 namespace __SYCL_DEPRECATED("The ipc_memory namespace is deprecated. Use the "
                             "ipc::memory namespace instead.") ipc_memory {
 
-  using handle_data_t = std::vector<std::byte>;
+using handle_data_t = std::vector<std::byte>;
 
 #if __cpp_lib_span
 using handle_data_view_t = std::span<const std::byte, std::dynamic_extent>;
