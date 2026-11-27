@@ -77,6 +77,8 @@
   "SYCL/work group dynamic local mem"
 /// PropertySetRegistry::SYCL_REGISTERED_KERNELS defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS "SYCL/registered kernels"
+/// PropertySetRegistry::SYCL_IGCA_METADATA defined in PropertySetIO.h
+#define __SYCL_PROPERTY_SET_SYCL_IGCA_METADATA "SYCL/igca metadata"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.

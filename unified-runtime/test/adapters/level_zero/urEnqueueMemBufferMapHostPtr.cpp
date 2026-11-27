@@ -24,7 +24,7 @@ TEST_P(urEnqueueMemBufferMapTestWithParamL0, MapWithHostPtr) {
 
   char *ptr = new char[4096];
 
-  ur_buffer_properties_t props;
+  ur_buffer_properties_t props = {};
   props.pHost = ptr;
 
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_USE_HOST_POINTER, 4096,

@@ -615,7 +615,7 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename To, typename From, typename Group, std::size_t M,
+template <typename Group, typename From, typename To, std::size_t M,
           std::size_t N, use Use, layout Layout>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_convert(Group,

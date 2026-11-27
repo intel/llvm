@@ -41,31 +41,16 @@ def do_configure(args, passthrough_args):
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
 
     llvm_dir = os.path.join(abs_src_dir, "llvm")
-    sycl_dir = os.path.join(abs_src_dir, "sycl")
-    spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
-    xpti_dir = os.path.join(abs_src_dir, "xpti")
-    xptifw_dir = os.path.join(abs_src_dir, "xptifw")
-    libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    jit_dir = os.path.join(abs_src_dir, "sycl-jit")
+    cmake_cache_file = os.path.join(
+        abs_src_dir, "sycl", "cmake", "caches", "DPCPP.cmake"
+    )
     llvm_targets_to_build = args.host_target + ";SPIRV"
     llvm_enable_projects = "clang;" + llvm_external_projects
     runtime_targets = "default" # for non-libclc runtimes
-    sycl_build_ur_hip_platform = "AMD"
-    sycl_clang_extra_flags = ""
-    sycl_werror = "OFF"
-    llvm_enable_assertions = "ON"
-    llvm_enable_doxygen = "OFF"
-    llvm_enable_sphinx = "OFF"
-    llvm_build_shared_libs = "OFF"
-    llvm_enable_lld = "OFF"
-    llvm_link_dylib = "OFF"
     sycl_enabled_backends = ["opencl"]
-    sycl_preview_lib = "ON"
 
-    sycl_enable_xpti_tracing = "ON"
-    xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "ON"
-    spirv_enable_dis = "OFF"
+    # Options that differ from the defaults in DPCPP.cmake.
+    cmake_options = {}
 
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
@@ -99,7 +84,7 @@ def do_configure(args, passthrough_args):
             llvm_targets_to_build += ";NVPTX"
             runtime_targets += libclc_nvidia_target_names
 
-        sycl_build_ur_hip_platform = args.hip_platform
+        cmake_options["SYCL_BUILD_UR_HIP_PLATFORM"] = args.hip_platform
         sycl_enabled_backends.append("hip")
 
     if args.native_cpu:
@@ -112,29 +97,30 @@ def do_configure(args, passthrough_args):
         llvm_targets_to_build += ";NVPTX;AMDGPU"
 
     if args.werror or args.ci_defaults:
-        sycl_werror = "ON"
-        xpti_enable_werror = "ON"
+        cmake_options["SYCL_ENABLE_WERROR"] = "ON"
+        cmake_options["XPTI_ENABLE_WERROR"] = "ON"
 
     if args.no_assertions:
-        llvm_enable_assertions = "OFF"
+        cmake_options["LLVM_ENABLE_ASSERTIONS"] = "OFF"
 
     if args.docs:
-        llvm_enable_sphinx = "ON"
+        cmake_options["LLVM_ENABLE_SPHINX"] = "ON"
 
     if args.shared_libs:
-        llvm_build_shared_libs = "ON"
+        cmake_options["BUILD_SHARED_LIBS"] = "ON"
 
     if args.build_lld:
         llvm_enable_projects += ";lld"
 
     if args.use_lld:
-        llvm_enable_lld = "ON"
+        cmake_options["LLVM_ENABLE_LLD"] = "ON"
 
     if args.llvm_link_dylib:
-        llvm_link_dylib = "ON"
+        cmake_options["LLVM_LINK_LLVM_DYLIB"] = "ON"
+        cmake_options["CLANG_LINK_CLANG_DYLIB"] = "ON"
 
     if args.use_zstd:
-        llvm_enable_zstd = "FORCE_ON"
+        cmake_options["LLVM_ENABLE_ZSTD"] = "FORCE_ON"
 
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
@@ -156,76 +142,35 @@ def do_configure(args, passthrough_args):
             # Add NVIDIA libclc targets
             if libclc_nvidia_target_names not in runtime_targets:
                 runtime_targets += libclc_nvidia_target_names
-            spirv_enable_dis = "ON"
+            cmake_options["LLVM_SPIRV_ENABLE_LIBSPIRV_DIS"] = "ON"
 
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
 
     if args.disable_preview_lib:
-        sycl_preview_lib = "OFF"
+        cmake_options["SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB"] = "OFF"
 
     # lld is needed on Windows or when building AMDGPU
     if platform.system() == "Windows" or "AMDGPU" in llvm_targets_to_build:
         llvm_enable_projects += ";lld"
 
-    install_dir = os.path.join(abs_obj_dir, "install")
+    if sys.platform != "darwin":
+        runtime_targets += ";spirv64-unknown-unknown"
 
     cmake_cmd = [
         "cmake",
         "-G",
         args.cmake_gen,
+        "-C",
+        cmake_cache_file,
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
-        "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),
         "-DLLVM_EXTERNAL_PROJECTS={}".format(llvm_external_projects),
-        "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
-        "-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR={}".format(spirv_dir),
-        "-DLLVM_EXTERNAL_XPTI_SOURCE_DIR={}".format(xpti_dir),
-        "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
-        "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
-        "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
-        "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
-        "-DSYCL_BUILD_UR_HIP_PLATFORM={}".format(sycl_build_ur_hip_platform),
-        "-DLLVM_BUILD_TOOLS=ON",
-        "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
-        "-DLLVM_USE_STATIC_ZSTD=ON",
-        "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
-        "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
-        "-DSYCL_INCLUDE_TESTS=ON",  # Explicitly include all kinds of SYCL tests.
-        "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
-        "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
-        "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DLLVM_LINK_LLVM_DYLIB={}".format(llvm_link_dylib),
-        "-DCLANG_LINK_CLANG_DYLIB={}".format(llvm_link_dylib),
-        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
-        "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
-        "-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS={}".format(spirv_enable_dis),
-        "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
-        "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_BACKENDS={}".format(";".join(set(sycl_enabled_backends))),
         "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
-        "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
-        "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
-
-    if sys.platform != "darwin":
-        llvm_spirv64_runtimes = "compiler-rt;libc"
-        llvm_spirv64_sanitizers = ""
-        runtime_targets += ";spirv64-unknown-unknown"
-        cmake_cmd.extend(
-            [
-                "-DRUNTIMES_spirv64-unknown-unknown_LLVM_ENABLE_RUNTIMES={}".format(
-                    llvm_spirv64_runtimes
-                ),
-                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_SANITIZERS_TO_BUILD={}".format(
-                    llvm_spirv64_sanitizers
-                ),
-                # Disable compiler-rt tests (e.g. builtins) for the spirv64
-                # runtime target so they are not added to `check-all`.
-                "-DRUNTIMES_spirv64-unknown-unknown_COMPILER_RT_INCLUDE_TESTS=OFF",
-            ]
-        )
+    cmake_cmd += ["-D{}={}".format(k, v) for k, v in cmake_options.items()]
 
     if llvm_enable_runtimes:
         cmake_cmd.extend(

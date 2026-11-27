@@ -48,6 +48,10 @@
 // RUN: %{run} %t.out --type int8 --channels 1 32x33
 // RUN: %{run} %t.out --type int8 --channels 2 32x33
 // RUN: %{run} %t.out --type int8 --channels 4 32x33
+// CUDA doesn't support unorm8
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 1 32x33
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 2 32x33
+// RUN-IF: !cuda, %{run} %t.out --type unorm8 --channels 4 32x33
 
 // RUN: %{run} %t.out --type float --channels 1 32x33 --semaphores
 // RUN: %{run} %t.out --type half --channels 2 32x33 --semaphores

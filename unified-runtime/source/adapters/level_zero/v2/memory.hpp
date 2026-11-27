@@ -141,11 +141,12 @@ private:
 // Manages memory buffer for discrete GPU.
 // Memory is allocated on the device and migrated/copies if necessary.
 struct ur_discrete_buffer_handle_t : ur_mem_buffer_t {
-  // If hostPtr is not null, the buffer is allocated immediately on the
-  // first device in the context. Otherwise, the buffer is allocated on
-  // firt getDevicePtr call.
+  // If hostPtr or hAllocDevice is not null, the buffer is allocated
+  // immediately on hAllocDevice (or the first device in the context).
+  // Otherwise, the buffer is allocated on first getDevicePtr call.
   ur_discrete_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
-                              size_t size, device_access_mode_t accessMode);
+                              size_t size, device_access_mode_t accessMode,
+                              ur_device_handle_t hAllocDevice = nullptr);
   ~ur_discrete_buffer_handle_t();
 
   // Create buffer on top of existing device memory.
@@ -258,8 +259,12 @@ struct ur_mem_image_t : v2::ur_object_t {
 
   ur_context_handle_t getContext() const { return hContext; }
 
+  // Device the image was created on; null for images from native handles.
+  ur_device_handle_t getDevice() const { return hDevice; }
+
 private:
   const ur_context_handle_t hContext;
+  ur_device_handle_t hDevice = nullptr;
   v2::raii::ze_image_handle_t zeImage;
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };

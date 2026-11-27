@@ -66,8 +66,7 @@ TEST_P(urMemBufferCreateTest, InvalidHostPtrNullHost) {
   uur::raii::Mem buffer = nullptr;
   ur_mem_flags_t flags =
       UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER;
-  ur_buffer_properties_t properties;
-  properties.pHost = nullptr;
+  ur_buffer_properties_t properties = {};
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_HOST_PTR,
       urMemBufferCreate(context, flags, 4096, &properties, buffer.ptr()));
@@ -76,7 +75,7 @@ TEST_P(urMemBufferCreateTest, InvalidHostPtrNullHost) {
 TEST_P(urMemBufferCreateTest, InvalidHostPtrValidHost) {
   uur::raii::Mem buffer = nullptr;
   ur_mem_flags_t flags = 0;
-  ur_buffer_properties_t properties;
+  ur_buffer_properties_t properties = {};
   int data = 42;
   properties.pHost = &data;
   ASSERT_EQ_RESULT(

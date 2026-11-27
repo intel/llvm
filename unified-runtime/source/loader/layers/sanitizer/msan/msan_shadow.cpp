@@ -199,6 +199,8 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
 }
 
 ur_result_t MsanShadowMemoryGPU::Setup() {
+  LocalWindowSize = RoundUpToPowerOfTwo(GetDeviceLocalMemorySize(Device));
+
   // Currently, Level-Zero doesn't create independent VAs for each contexts, if
   // we reserve shadow memory for each contexts, this will cause out-of-resource
   // error when user uses multiple contexts. Therefore, we just create one
@@ -389,9 +391,10 @@ MsanShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
 ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                                   uint32_t NumWG, uptr &Begin,
                                                   uptr &End) {
-  const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
+  // The device indexes the local shadow with a stride of the local window (see
+  // MsanRuntimeData::LocalWindowSize), so allocate with the same stride.
   const size_t RequiredShadowSize =
-      std::min(NumWG, MSAN_MAX_WG_LOCAL) * LocalMemorySize;
+      std::min(NumWG, MSAN_MAX_WG_LOCAL) * (size_t)LocalWindowSize;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {
     auto ContextInfo = getMsanInterceptor()->getContextInfo(Context);

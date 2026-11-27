@@ -56,6 +56,9 @@ struct MsanRuntimeData {
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
+  // Size of the local memory window shadowed for each work-group: the device's
+  // local memory size rounded up to a power of two.
+  uint32_t LocalWindowSize = 0;
 
   uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;

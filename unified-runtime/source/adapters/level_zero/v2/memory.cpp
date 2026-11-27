@@ -23,6 +23,20 @@ static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
          actual == ur_mem_buffer_t::device_access_mode_t::read_write;
 }
 
+// Device requested via ur_mem_alloc_properties_t in the pNext chain.
+template <typename T>
+static ur_device_handle_t getRequestedAllocDevice(ur_context_handle_t hContext,
+                                                  const T *pChainHead) {
+  auto *props = find_stype_node<ur_mem_alloc_properties_t>(pChainHead);
+  if (!props)
+    return nullptr;
+
+  auto hDevice = common_cast(props->hDevice);
+  if (!hDevice || !hContext->isValidDevice(hDevice))
+    throw UR_RESULT_ERROR_INVALID_DEVICE;
+  return hDevice;
+}
+
 ur_mem_buffer_t::ur_mem_buffer_t(ur_context_handle_t hContext, size_t size,
                                  device_access_mode_t accessMode)
     : hContext(hContext), size(size), accessMode(accessMode) {}
@@ -269,7 +283,7 @@ ur_discrete_buffer_handle_t::migrateBufferTo(ur_device_handle_t hDevice,
 
 ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
-    device_access_mode_t accessMode)
+    device_access_mode_t accessMode, ur_device_handle_t hAllocDevice)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
       activeAllocationDevice(nullptr), mapToPtr(nullptr, nullptr),
@@ -289,8 +303,11 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
       mapToPtr = usm_unique_ptr_t(hostPtr, [](void *) {});
     }
 
-    auto initialDevice = hContext->getDevices()[0];
+    auto initialDevice =
+        hAllocDevice ? hAllocDevice : hContext->getDevices()[0];
     UR_CALL_THROWS(migrateBufferTo(initialDevice, hostPtr, size));
+  } else if (hAllocDevice) {
+    allocateOnDevice(hAllocDevice, size);
   }
 }
 
@@ -595,11 +612,12 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
     : hContext(hContext) {
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 
-  // Currently we have the "0" device in context with mutliple root devices to
-  // own the image.
+  // Without an explicit request, the "0" device in the context owns the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  ur_device_handle_t hDevice = hContext->getDevices()[0];
+  hDevice = getRequestedAllocDevice(hContext, pImageDesc);
+  if (!hDevice)
+    hDevice = hContext->getDevices()[0];
   ZE2UR_CALL_THROWS(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
                                     &zeImageDesc, zeImage.ptr()));
 
@@ -702,7 +720,8 @@ ur_result_t urMemBufferCreate(::ur_context_handle_t hContextOpque,
         hContext, hostPtr, size, accessMode);
   } else {
     *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-        hContext, hostPtr, size, accessMode);
+        hContext, hostPtr, size, accessMode,
+        getRequestedAllocDevice(hContext, pProperties));
   }
 
   return UR_RESULT_SUCCESS;

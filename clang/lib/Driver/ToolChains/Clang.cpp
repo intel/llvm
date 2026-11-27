@@ -11349,7 +11349,7 @@ void OffloadDeps::ConstructJobMultipleOutputs(Compilation &C,
 // SPIR-V backend. This set of arguments is expected to get updated as we add
 // more features/extensions to the SPIR-V backend.
 static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
-                                ArgStringList &BackendArgs) {
+                                StringRef Arch, ArgStringList &BackendArgs) {
   BackendArgs.push_back(TCArgs.MakeArgString("-filetype=obj"));
   BackendArgs.push_back(
       TCArgs.MakeArgString("-mtriple=spirv64v1.6-unknown-unknown"));
@@ -11400,6 +11400,8 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                           ",+SPV_KHR_shader_clock"
                           ",+SPV_KHR_uniform_group_instructions";
   ExtArg = ExtArg + DefaultExtArg + IntelExtArg + KHRExtArg;
+  if (llvm::offloading::supportsBFloat16(Arch))
+    ExtArg += ",+SPV_KHR_bfloat16,+SPV_INTEL_16bit_atomics";
   BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 
   // TODO:
@@ -11508,18 +11510,17 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    llvm::Triple Triple = TC.getTriple();
+    StringRef Arch = JA.getOffloadingArch().ArchName;
+    ArgStringList BackendArgs;
+    if (Arch.empty() && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+      TC.TranslateBackendTargetArgs(Triple, TCArgs, BackendArgs);
+      Arch = tools::SYCL::gen::getEmbeddedDeviceArch(BackendArgs);
+    }
     if (UseSPIRVBackend) {
-      getSPIRVBackendOpts(TCArgs, TranslatorArgs);
+      getSPIRVBackendOpts(TCArgs, Arch, TranslatorArgs);
     } else {
       getNonTripleBasedSPIRVTransOpts(C, TCArgs, TranslatorArgs);
-      llvm::Triple Triple = TC.getTriple();
-      StringRef Arch = JA.getOffloadingArch().ArchName;
-      ArgStringList BackendArgs;
-      if (Arch.empty() &&
-          Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-        TC.TranslateBackendTargetArgs(Triple, TCArgs, BackendArgs);
-        Arch = tools::SYCL::gen::getEmbeddedDeviceArch(BackendArgs);
-      }
       getTripleBasedSPIRVTransOpts(C, TCArgs, Triple, Arch, TranslatorArgs);
       // Handle -Xspirv-translator
       TC.TranslateTargetOpt(

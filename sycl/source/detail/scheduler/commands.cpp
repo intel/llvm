@@ -33,6 +33,7 @@
 #include <sycl/sampler.hpp>
 
 #include <cassert>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <vector>
@@ -1998,6 +1999,10 @@ EventImplPtr ExecCGCommand::makeEvent(const detail::CG &CG, queue_impl *Queue) {
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+void XPTIEventDeleter::operator()(xpti_td *Event) const {
+  xptiReleaseEvent(Event);
+}
+
 std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
                                          const std::string_view FunctionName,
                                          DeviceKernelInfo &DeviceKernelInfo,
@@ -2059,8 +2064,13 @@ void instrumentationAddExtraKernelMetadata(
       Args.size()};
   xpti::addMetadata(CmdTraceEvent, "enqueue_kernel_data", KernelData);
   for (size_t i = 0; i < Args.size(); i++) {
-    xpti::offload_kernel_arg_data_t arg{(int)Args[i].MType, Args[i].MPtr,
-                                        Args[i].MSize, Args[i].MIndex};
+    // addMetadata hashes the raw bytes of the struct, so zero the padding too.
+    xpti::offload_kernel_arg_data_t arg;
+    std::memset(static_cast<void *>(&arg), 0, sizeof(arg));
+    arg.type = static_cast<int>(Args[i].MType);
+    arg.pointer = Args[i].MPtr;
+    arg.size = Args[i].MSize;
+    arg.index = Args[i].MIndex;
     xpti::addMetadata(CmdTraceEvent, "arg" + std::to_string(i), arg);
   }
 }
@@ -2088,9 +2098,9 @@ void instrumentationFillCommonData(
   uint64_t CGKernelInstanceNo = xptiGetUniqueId();
   // Create event using the payload
   xpti_td *CmdTraceEvent = Event ? Event->event_ref() : nullptr;
+  XPTIEventPtr EventOwner(CmdTraceEvent);
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
-    OutTraceEvent = CmdTraceEvent;
 
     addDeviceMetadata(CmdTraceEvent, Queue, StreamID);
     if (!KernelName.empty()) {
@@ -2117,18 +2127,19 @@ void instrumentationFillCommonData(
     // mutable value and multiple threads using the same queue created at the
     // same location will overwrite the metadata values creating inconsistencies
   }
+  OutTraceEvent = EventOwner.release();
 }
 #endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
+std::pair<XPTIEventPtr, uint64_t> emitKernelInstrumentationData(
     xpti::stream_id_t StreamID, const kernel_impl *SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
-  auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
+  std::pair<XPTIEventPtr, uint64_t> XptiObjects{nullptr, -1};
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   if (!xptiCheckTraceEnabled(StreamID))
     return XptiObjects;
@@ -2139,7 +2150,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
       instrumentationGetKernelName(SyclKernel, CodeLoc.functionName(),
                                    DeviceKernelInfo, Address, FromSource);
 
-  auto &[CmdTraceEvent, InstanceID] = XptiObjects;
+  auto &[EventOwner, InstanceID] = XptiObjects;
+  xpti_td *CmdTraceEvent = nullptr;
 
   std::string FileName =
       CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
@@ -2154,6 +2166,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                 CodeLoc.lineNumber(), CodeLoc.columnNumber(),
                                 Address, Queue, FromSource, InstanceID,
                                 CmdTraceEvent);
+  EventOwner.reset(CmdTraceEvent);
 
   if (CmdTraceEvent) {
     // Stash the queue_id mutable metadata in TLS

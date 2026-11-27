@@ -443,9 +443,9 @@ into function boundaries.
 The trace point event describes the event used to notify the subscriber and is
 usually associated with a payload that describes the event. Since application
 code is being instrumented with XPTI, the payload may consist of a `function`
-`name`, `source file name` and `line number`, which forms a unique combination
-of strings and numbers that is used to create the `unique_id` associated with
-an event. Using the `event` or the `unique_id`, one should be able to query the
+`name`, `source file name` and `line number`, which identify its source location.
+Registration assigns an opaque `unique_id` to each instance of that location.
+Using the `event` or the `unique_id`, one should be able to query the
 `payload` information. When a notification occurs for a trace point, the trace
 point event and trace point type information is sent to the subscriber. A given
 event may be used to notify subscribers as multiple trace point types. For
@@ -453,6 +453,11 @@ example, a node may represent a computational entity and an event created for
 the node may be emitted as `node_create`, `task_begin` and `task_end`
 notifications to record the creation, the beginning of the execution of an
 instance of the node and when the execution of that instance has completed.
+
+The reference dispatcher does not reuse an event's ID while it remains loaded,
+including across release, `xptiReset`, and framework reinitialization. Release
+or reset invalidates event and payload lookup by that ID. Saving an ID does not
+retain its event.
 
 #### Creating the Payload
 

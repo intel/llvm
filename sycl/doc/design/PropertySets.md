@@ -270,6 +270,21 @@ __Notes:__
 kernel names.
 
 
+### [SYCL/igca metadata]
+
+Set of information about a device code module containing one or more
+sub-modules, each compiled for a specific IGCA target.
+
+| Key            | Value type            | Value                                                                                                             |
+| -------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| "isIgcaModule" | 32 bit integer. ("1") | Always 1. Emitted for every module that contains one or more IGCA target sub-modules, so this set is never empty. |
+
+__Notes:__
+
+1. If this property set is missing, the module does not contain IGCA target
+   sub-modules.
+
+
 ### [SYCLBIN/global metadata]
 
 Set of global information about a SYCLBIN file.

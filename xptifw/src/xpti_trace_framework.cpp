@@ -27,6 +27,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -103,6 +104,10 @@ static std::once_flag g_use_strict_hash_flag;
 /// When set to true, the framework uses strict hash checking for payloads or
 /// events. Defaults to false.
 static bool g_use_strict_hash = false;
+
+// Retained across framework reset/reinitialization for the loaded dispatcher's
+// lifetime, so a saved ID cannot alias a later tracepoint allocation.
+static std::atomic<uint64_t> g_next_tracepoint_id{1};
 
 namespace xpti {
 namespace hash {
@@ -687,18 +692,8 @@ public:
   /// across the system.
   using uid_tracepoints_lut = phmap::flat_hash_map<uid128_t, uid_instances_t>;
 
-  /// @typedef uid64_validity_lut
-  /// @brief Represents a set for tracking the validity of 64-bit unique
-  /// identifiers (UIDs).
-  ///
-  /// This type alias defines a flat hash set optimized for fast lookup,
-  /// insertion, and deletion operations. It is used within the trace framework
-  /// to maintain a collection of 64-bit UIDs that have been validated or are
-  /// known to be in use. The `phmap::flat_hash_set` is chosen for its
-  /// performance efficiency, particularly in scenarios where the set size is
-  /// large and performance is critical. This set acts as a registry to quickly
-  /// verify the validity of UIDs encountered during trace operations.
-  using uid64_validity_lut = phmap::flat_hash_set<uint64_t>;
+  using uid64_tracepoint_lut =
+      phmap::flat_hash_map<uint64_t, xpti::TracePointImpl *>;
 
   /// @struct PayloadInstance
   /// @brief Represents an instance of a payload associated with its unique
@@ -776,6 +771,7 @@ public:
       }
     }
     MTracepoints.clear();
+    MTracepointsByID.clear();
   }
 
   /// @brief Generates a unique 64-bit identifier for use in the framwork.
@@ -853,9 +849,10 @@ public:
         static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable))
       return Event->reserved.payload;
     else {
-      auto TP = reinterpret_cast<xpti::TracePointImpl *>(Event->unique_id);
-      if (TP) {
-        Event->reserved.payload = &TP->MPayload;
+      xpti::SharedLock Lock(MTracepointMutex);
+      auto It = MTracepointsByID.find(Event->unique_id);
+      if (It != MTracepointsByID.end()) {
+        Event->reserved.payload = &It->second->MPayload;
         Event->flags |=
             static_cast<uint64_t>(xpti::trace_event_flag_t::PayloadAvailable);
         return Event->reserved.payload;
@@ -901,10 +898,11 @@ public:
 
     xpti::SharedLock Lock(MTracepointMutex);
 
-    if (MUID64Check.count(UId) == 0)
+    auto It = MTracepointsByID.find(UId);
+    if (It == MTracepointsByID.end())
       return nullptr;
 
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    xpti::TracePointImpl *TP = It->second;
     if (xpti::is_valid_event(&TP->MEvent))
       return dynamic_cast<xpti_trace_event_t *>(TP);
     else
@@ -955,17 +953,17 @@ public:
 
     std::lock_guard<xpti::SharedSpinLock> Lock(MTracepointMutex);
 
-    if (MUID64Check.count(Event->unique_id) == 0)
+    auto It = MTracepointsByID.find(Event->unique_id);
+    if (It == MTracepointsByID.end())
       return;
 
     // We have a valid unique ID and we can proceed to release the event
-    xpti::TracePointImpl *TP =
-        reinterpret_cast<xpti::TracePointImpl *>(Event->unique_id);
+    xpti::TracePointImpl *TP = It->second;
 
     xpti::uid128_t UId = TP->MUId;
     // Find the event list for a given UID
     auto &Instances = MTracepoints[UId];
-    MUID64Check.erase(UId.uid64);
+    MTracepointsByID.erase(It);
     // Now release the event associated with the UID instance
     delete Instances[UId.instance];
     Instances.erase(UId.instance);
@@ -1181,14 +1179,18 @@ public:
     MInsertions++;
 #endif
     TP = new xpti::TracePointImpl(UniversalId, InvarPayload);
+    uint64_t ID = g_next_tracepoint_id.fetch_add(1, std::memory_order_relaxed);
+    // Exhausting the ID space must not silently reuse an earlier identity.
+    if (ID == xpti::invalid_uid)
+      std::terminate();
     // Set various internal IDs and flags for the tracepoint and payload
     Payload->internal = TP->MEvent.unique_id = TP->MPayload.internal =
-        TP->MUId.uid64 = (uint64_t)TP;
+        TP->MUId.uid64 = ID;
     TP->MPayload.flags |=
         static_cast<uint64_t>(xpti::payload_flag_t::HashAvailable);
 
     // Add the 64-bit ID for validation purposes when legacy API are used
-    MUID64Check.insert(TP->MUId.uid64);
+    MTracepointsByID.emplace(ID, TP);
     // Return a pointer to the updated tracepoint instance which contains the
     // UID with the correct instance number, the payload with updated flags and
     // fields and the event that represents the tracepoint
@@ -1210,7 +1212,7 @@ public:
       // Find the tracepoint for a given UID
       auto &Instances = MTracepoints[UId];
       // Now release the 64-bit UID associated with tracepoint instance
-      MUID64Check.erase(UId.uid64);
+      MTracepointsByID.erase(UId.uid64);
       // Now release the tracepoint associated with the UID instance by deleting
       // the memory allocated first
       delete Instances[UId.instance];
@@ -1356,7 +1358,7 @@ public:
   ///
   bool isValidUID64(uint64_t UId) {
     xpti::SharedLock Lock(MTracepointMutex);
-    return (MUID64Check.count(UId) > 0);
+    return (MTracepointsByID.count(UId) > 0);
   }
 
   const xpti::trace_event_data_t *findEvent(uint64_t UId) {
@@ -1365,10 +1367,11 @@ public:
 
     xpti::SharedLock Lock(MTracepointMutex);
 
-    if (MUID64Check.count(UId) == 0)
+    auto It = MTracepointsByID.find(UId);
+    if (It == MTracepointsByID.end())
       return nullptr;
 
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    xpti::TracePointImpl *TP = It->second;
     if (TP && xpti::is_valid_event(&TP->MEvent))
       return &TP->MEvent;
     return nullptr;
@@ -1380,10 +1383,11 @@ public:
 
     xpti::SharedLock Lock(MTracepointMutex);
 
-    if (MUID64Check.count(UId) == 0)
+    auto It = MTracepointsByID.find(UId);
+    if (It == MTracepointsByID.end())
       return nullptr;
 
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    xpti::TracePointImpl *TP = It->second;
     if (TP && xpti::is_valid_payload(&TP->MPayload))
       return &TP->MPayload;
     return nullptr;
@@ -1395,10 +1399,11 @@ public:
 
     xpti::SharedLock Lock(MTracepointMutex);
 
-    if (MUID64Check.count(UId) == 0)
+    auto It = MTracepointsByID.find(UId);
+    if (It == MTracepointsByID.end())
       return nullptr;
 
-    xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
+    xpti::TracePointImpl *TP = It->second;
     if (TP && xpti::is_valid_payload(&TP->MPayload))
       return TP->payload();
     return nullptr;
@@ -1507,14 +1512,8 @@ private:
   /// `uid_tracepoints_lut` type.
   uid_tracepoints_lut MTracepoints;
 
-  /// @var uid64_validity_lut MUID64Check
-  /// @brief Set for validating 64-bit unique identifiers (UIDs).
-  ///
-  /// This set contains 64-bit UIDs that have been registered or are known to be
-  /// valid within the trace framework. It is used to quickly check the validity
-  /// of a 64-bit UID by seeing if it exists within this set. The
-  /// `uid64_validity_lut` type defines the structure of this validation set.
-  uid64_validity_lut MUID64Check;
+  // Protected by MTracepointMutex.
+  uid64_tracepoint_lut MTracepointsByID;
 
   /// @var std::mutex MMetadataMutex
   /// @brief Mutex for protecting access to metadata.

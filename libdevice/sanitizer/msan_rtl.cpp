@@ -174,9 +174,8 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
     const size_t wid = WorkGroupLinearId();
     if (shadow_offset != 0 && wid < MSAN_MAX_WG_LOCAL) {
-      // The size of SLM is 128KB on PVC
-      constexpr unsigned SLM_SIZE = 128 * 1024;
-      return shadow_offset + (wid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
+      const uptr window_size = GetMsanLaunchInfo->LocalWindowSize;
+      return shadow_offset + (wid * window_size) + (addr & (window_size - 1));
     }
   } else if (as == ADDRESS_SPACE_PRIVATE) {
     const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
