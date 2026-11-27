@@ -62,7 +62,7 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
 
     # Build liboffload runtime from the same source tree
     ExternalProject_Add(offload_ext
-        DEPENDS LLVMSupport clang clang-format lld FileCheck not
+        DEPENDS LLVMSupport clang lld FileCheck not
         SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/runtimes
         LIST_SEPARATOR |
         CMAKE_ARGS
