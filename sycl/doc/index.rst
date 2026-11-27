@@ -56,6 +56,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/SYCLNativeCPUVecz
    design/CommandGraph
    design/OffloadDesign
+   design/SYCLLinkMultipleTargets
    design/PrivateAlloca
    design/SYCLBINDesign
    design/PropertySets
