@@ -14,6 +14,8 @@
     sycl::vec<float> is sensitive to .get_size() vs .size() in SYCL headers
     (ie, byte size versus vector size)
 */
+#include <cmath>
+#include <cstdio>
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
@@ -22,44 +24,46 @@
 
 using namespace sycl;
 
-#define NX 32
-#define NZ 2
-#define NV 8
-using vecn = sycl::vec<float, NV>; // 8 floats
+constexpr int ItemsPerGroup = 32;
+constexpr int NumGroups = 2;
+constexpr int VecWidth = 8;
+constexpr int N = ItemsPerGroup * NumGroups * VecWidth;
+constexpr double Tolerance = 1e-10;
+using vecn = sycl::vec<float, VecWidth>;
 #ifdef FILE1
 
-SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k,
-                            sycl::group<2> &grp, const int i) {
+SYCL_EXTERNAL void groupSum(vecn *GroupSums, const vecn &InVec, const int GrId,
+                            sycl::group<2> &Group, const int Zid) {
 
-  vecn tin = (i == k ? in : vecn(0));
-  auto out = reduce_over_group(grp, tin, sycl::plus<>());
-  if (i == k && grp.get_local_id()[1] == 0)
-    r[k] = out;
+  vecn Contribution = (Zid == GrId ? InVec : vecn(0));
+  auto Sum = reduce_over_group(Group, Contribution, sycl::plus<>());
+  if (Zid == GrId && Group.get_local_id()[1] == 0)
+    GroupSums[GrId] = Sum;
 }
 #endif
 
 #ifdef FILE2
-SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k,
-                            sycl::group<2> &grp, const int i);
-void test(queue q, float *r, float *x,
-          int n) { // r is 16 floats, x is 512 floats. n is 512
+SYCL_EXTERNAL void groupSum(vecn *GroupSums, const vecn &InVec, const int GrId,
+                            sycl::group<2> &Group, const int Zid);
+void test(queue q, float *GroupSums, float *InData) {
 
-  sycl::range<2> globalSize(NZ, NX); // 2,32
-  sycl::range<2> localSize(1, NX);   // 1,32
-  sycl::nd_range<2> range{globalSize, localSize}; // 2 work groups
+  sycl::range<2> globalSize(NumGroups, ItemsPerGroup);
+  sycl::range<2> localSize(1, ItemsPerGroup);
+  sycl::nd_range<2> range{globalSize, localSize};
 
   q.submit([&](sycl::handler &h) {
     h.parallel_for<>(range, [=](sycl::nd_item<2> ndi) {
-      int i = ndi.get_global_id(1);
-      int k = ndi.get_global_id(0);
+      int ItId = ndi.get_global_id(1);
+      int GrId = ndi.get_global_id(0);
 
-      auto vx = reinterpret_cast<vecn *>(x);
-      auto vr = reinterpret_cast<vecn *>(r);
+      auto InVecs = reinterpret_cast<vecn *>(InData);
+      auto GroupSumVecs = reinterpret_cast<vecn *>(GroupSums);
 
-      auto myg = ndi.get_group();
+      auto ThisGr = ndi.get_group();
 
-      for (int iz = 0; iz < NZ; iz++) { // loop over Z (2)
-        groupSum(vr, vx[k * NX + i], k, myg, iz);
+      for (int iz = 0; iz < NumGroups; iz++) {
+        groupSum(GroupSumVecs, InVecs[GrId * ItemsPerGroup + ItId], GrId,
+                 ThisGr, iz);
       }
     });
   });
@@ -73,50 +77,48 @@ int main() {
   std::cout << "Device: " << dev.get_info<info::device::name>() << std::endl;
 
   auto ctx = q.get_context();
-  int n = NX * NZ * NV; // 32 * 2 * 8 => 512
-  auto *x =
-      (float *)sycl::aligned_alloc_shared(alignof(vecn), n * sizeof(float), dev,
-                                          ctx); // 512 * sizeof(float)
-  auto *r = (float *)sycl::aligned_alloc_shared(
-      alignof(vecn), NZ * NV * sizeof(float), dev,
-      ctx); // 2 * 8 => 16   ( * sizeof(float) )
+  auto *InData = (float *)sycl::aligned_alloc_shared(
+      alignof(vecn), N * sizeof(float), dev, ctx);
+  auto *GroupSums = (float *)sycl::aligned_alloc_shared(
+      alignof(vecn), NumGroups * VecWidth * sizeof(float), dev, ctx);
 
-  for (int i = 0; i < n; i++) {
-    x[i] = i;
+  for (int DataId = 0; DataId < N; DataId++) {
+    InData[DataId] = DataId;
   }
 
-  q.wait();
-
-  test(q, r, x, n);
+  test(q, GroupSums, InData);
 
   int fails = 0;
-  for (int k = 0; k < NZ; k++) {
-    float s[NV] = {0};
-    for (int i = 0; i < NX; i++) {
-      for (int j = 0; j < NV; j++) {
-        s[j] += x[(k * NX + i) * NV + j];
+  for (int GrId = 0; GrId < NumGroups; GrId++) {
+    float ExpectedVecSum[VecWidth] = {0};
+    for (int ItId = 0; ItId < ItemsPerGroup; ItId++) {
+      for (int VId = 0; VId < VecWidth; VId++) {
+        ExpectedVecSum[VId] +=
+            InData[(GrId * ItemsPerGroup + ItId) * VecWidth + VId];
       }
     }
-    for (int j = 0; j < NV; j++) {
-      auto d = s[j] - r[k * NV + j];
-      if (std::abs(d) > 1e-10) {
-        printf("partial fail ");
-        printf("%i\t%i\t%g\t%g\n", k, j, s[j], r[k * NV + j]);
+    for (int VId = 0; VId < VecWidth; VId++) {
+      auto d = ExpectedVecSum[VId] - GroupSums[GrId * VecWidth + VId];
+      if (std::abs(d) > Tolerance) {
+        std::printf("partial fail ");
+        std::printf("%i\t%i\t%g\t%g\n", GrId, VId, ExpectedVecSum[VId],
+                    GroupSums[GrId * VecWidth + VId]);
         fails++;
       } else {
-        printf("partial pass ");
-        printf("%i\t%i\t%g\t%g\n", k, j, s[j], r[k * NV + j]);
+        std::printf("partial pass ");
+        std::printf("%i\t%i\t%g\t%g\n", GrId, VId, ExpectedVecSum[VId],
+                    GroupSums[GrId * VecWidth + VId]);
       }
     }
   }
 
   if (fails == 0) {
-    printf("test passed!\n");
+    std::printf("test passed!\n");
   } else {
-    printf("test failed!\n");
+    std::printf("test failed!\n");
   }
-  free(x, ctx);
-  free(r, ctx);
+  free(InData, ctx);
+  free(GroupSums, ctx);
   return fails;
 }
 #endif
