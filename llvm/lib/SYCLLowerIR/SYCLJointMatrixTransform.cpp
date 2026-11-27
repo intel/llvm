@@ -51,15 +51,12 @@ Value *stripPointerCastsAndOffsets(Value *V, bool StopOnGEP = false) {
 
   Visited.insert(V);
   do {
-    if (auto *GEP = dyn_cast<GEPOperator>(V)) {
-      if (StopOnGEP && isa<GetElementPtrInst>(GEP))
+    if (auto *Base = sycl::utils::getAddressBasePointer(V)) {
+      // Stop on address-computing instructions (GEPs, and other similar);
+      // always look through constant-expression GEPs.
+      if (StopOnGEP && isa<Instruction>(V))
         return V;
-      V = GEP->getPointerOperand();
-    } else if (auto *ABP = sycl::utils::getAddressBasePointer(V)) {
-      // llvm.intel.subscript / llvm.intel.struct.fieldaccess
-      if (StopOnGEP)
-        return V;
-      V = ABP;
+      V = Base;
     } else if (auto *BC = dyn_cast<BitCastOperator>(V)) {
       Value *NewV = BC->getOperand(0);
       if (!NewV->getType()->isPointerTy())
