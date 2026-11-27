@@ -34,7 +34,11 @@ struct ur_kernel_handle_t_ : RefCounted {
     using args_ptr_t = std::vector<void *>;
     args_t Storage;
     size_t StorageUsed = 0;
+    // Argument sizes passed to olLaunchKernel.
     args_size_t ParamSizes;
+    // Bytes each argument occupies in Storage. Only differs from ParamSizes
+    // for local memory arguments.
+    args_size_t StorageSizes;
     args_ptr_t Pointers;
 
     struct MemObjArg {
@@ -47,22 +51,17 @@ struct ur_kernel_handle_t_ : RefCounted {
     // Add an argument. If it already exists, it is replaced. Gaps are filled
     // with empty arguments.
     void addArg(size_t Index, size_t Size, const void *Arg) {
-      if (Index + 1 > Pointers.size()) {
-        Pointers.resize(Index + 1);
-        ParamSizes.resize(Index + 1);
-      }
-      // Calculate the insertion point in the array.
-      size_t InsertPos = std::accumulate(std::begin(ParamSizes),
-                                         std::begin(ParamSizes) + Index, 0);
-      // Validate bounds before memcpy to prevent heap buffer overflow
-      // Check for integer overflow: validate Size first to avoid underflow
-      if (Size > MaxParamBytes || InsertPos > MaxParamBytes - Size) {
-        throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
-      }
-      ParamSizes[Index] = Size;
-      // Update the stored value for the argument.
-      std::memcpy(&Storage[InsertPos], Arg, Size);
-      Pointers[Index] = &Storage[InsertPos];
+      setArg(Index, Size, Arg, Size);
+    }
+
+    // Add a local memory argument of Size bytes. Only the Level Zero plugin
+    // takes local memory as kernel arguments, and it hands them to the driver
+    // in one of two ways: zeCommandListAppendLaunchKernelWithArguments reads
+    // the size from the size_t the argument pointer points to, and the
+    // zeKernelSetArgumentValue fallback takes the argument size as the size
+    // and ignores the value. Store the size in both places so that both work.
+    void addLocalArg(size_t Index, size_t Size) {
+      setArg(Index, sizeof(Size), &Size, Size);
     }
 
     void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
@@ -91,7 +90,35 @@ struct ur_kernel_handle_t_ : RefCounted {
     const char *getStorage() const noexcept { return Storage.data(); }
 
     size_t getStorageSize() const noexcept {
-      return std::accumulate(std::begin(ParamSizes), std::end(ParamSizes), 0);
+      return std::accumulate(std::begin(StorageSizes), std::end(StorageSizes),
+                             size_t{0});
+    }
+
+  private:
+    // Store StorageSize bytes from Arg as argument Index, and report its size
+    // to liboffload as ParamSize.
+    void setArg(size_t Index, size_t StorageSize, const void *Arg,
+                size_t ParamSize) {
+      if (Index + 1 > Pointers.size()) {
+        Pointers.resize(Index + 1);
+        ParamSizes.resize(Index + 1);
+        StorageSizes.resize(Index + 1);
+      }
+      // Calculate the insertion point in the array.
+      size_t InsertPos =
+          std::accumulate(std::begin(StorageSizes),
+                          std::begin(StorageSizes) + Index, size_t{0});
+      // Validate bounds before memcpy to prevent heap buffer overflow
+      // Check for integer overflow: validate Size first to avoid underflow
+      if (StorageSize > MaxParamBytes ||
+          InsertPos > MaxParamBytes - StorageSize) {
+        throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+      }
+      StorageSizes[Index] = StorageSize;
+      ParamSizes[Index] = ParamSize;
+      // Update the stored value for the argument.
+      std::memcpy(&Storage[InsertPos], Arg, StorageSize);
+      Pointers[Index] = &Storage[InsertPos];
     }
   };
 

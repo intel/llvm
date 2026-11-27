@@ -48,7 +48,8 @@ ur_result_t ur_adapter_handle_t_::init() {
 
           if (URPlatform == Platforms->end()) {
             URPlatform = Platforms->insert(
-                URPlatform, std::make_unique<ur_platform_handle_t_>(Platform));
+                URPlatform,
+                std::make_unique<ur_platform_handle_t_>(Platform, Backend));
           }
 
           (*URPlatform)

@@ -15,6 +15,7 @@
 #include "event.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "platform.hpp"
 #include "queue.hpp"
 #include "ur2offload.hpp"
 
@@ -537,6 +538,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
                                  pArgs[i].value.memObjTuple.flags);
       break;
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
+      // SPIR-V kernels take local memory as arguments. CUDA and AMDGPU kernels
+      // built by DPC++ instead take offsets into the dynamic shared memory,
+      // which is not implemented yet.
+      if (hQueue->UrContext->Device->Platform->Backend !=
+          OL_PLATFORM_BACKEND_LEVEL_ZERO)
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      hKernel->Args.addLocalArg(pArgs[i].index, pArgs[i].size);
+      break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER:
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     default:
