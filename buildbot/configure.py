@@ -341,9 +341,9 @@ def main():
     parser.add_argument(
         "--level_zero_adapter_version",
         type=str,
-        choices=["V1", "V2", "ALL"],
+        choices=["V1", "V2", "ALL", "NONE"],
         default="ALL",
-        help="Choose version of Level Zero adapter to build",
+        help="Choose Level Zero adapter version to build; use NONE to disable Level Zero",
     )
     parser.add_argument(
         "--host-target",
