@@ -1,8 +1,20 @@
+//===----------------------assert_in_multiple_tus.hpp----------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests device-side assertion failures in kernels defined in two translation
+/// units.
+///
+//===----------------------------------------------------------------------===//
 #include "Inputs/kernels_in_file2.hpp"
 #include <iostream>
-#include <sycl/detail/core.hpp>
-
 #include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
@@ -31,19 +43,16 @@ void enqueueKernel_1_fromFile1(queue *Q) {
   Q->submit([&](handler &CGH) {
     auto Acc = Buf.template get_access<access_mode::read_write>(CGH);
 
-    CGH.parallel_for<class Kernel_1>(
-        sycl::nd_range(Buf.get_range(), sycl::range<1>(4)),
-        [=](sycl::nd_item<1> ndi) {
-          auto gid = ndi.get_global_id(0);
-          int X = 0;
-          if (gid == 5)
-            X = checkFunction();
-          Acc[gid] = X;
-        });
+    CGH.parallel_for<class Kernel_1>(numOfItems, [=](sycl::id<1> wiID) {
+      int X = 0;
+      if (wiID == BUFFER_SIZE - 1)
+        X = checkFunction();
+      Acc[wiID] = X;
+    });
   });
 }
 
-int main(int Argc, const char *Argv[]) {
+int main() {
 
   queue Q({sycl::property::queue::in_order{}});
   enqueueKernel_1_fromFile1(&Q);

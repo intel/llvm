@@ -1,53 +1,69 @@
+//===------------------assert_in_simultaneous_kernels.hpp------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Tests device-side assertion handling in distinct kernels submitted
+/// concurrently from multiple host threads, each using its own queue.
+///
+//===----------------------------------------------------------------------===//
 #include <cassert>
 #include <cstdio>
 #include <iostream>
-#include <thread>
-
-#include <sycl/detail/core.hpp>
-
+#include <latch>
 #include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
+#include <thread>
 
 using namespace sycl;
 using namespace sycl::access;
 
 static constexpr size_t NUM_THREADS = 4;
-static constexpr size_t RANGE_SIZE = 1024;
+static constexpr size_t RANGE_SIZE = 16;
 
 void assertFunc() { assert(false && "from assert statement"); }
 
-template <class kernel_name> void assertTest(queue *Q) {
-  Q->submit([&](handler &CGH) {
-    CGH.parallel_for<kernel_name>(
-        nd_range<2>{{RANGE_SIZE, RANGE_SIZE}, {1, 1}}, [=](nd_item<2> it) {
-          if (it.get_global_id(0) == 7 && it.get_global_id(1) == 9)
-            assertFunc();
-        });
-  });
-  Q->wait();
+template <class kernel_name> void assertTest(queue *Q, std::latch *Sync) {
+  Sync->arrive_and_wait();
+
+  Q->parallel_for<kernel_name>(RANGE_SIZE, [=](sycl::id<1> wiID) {
+     if (wiID == RANGE_SIZE - 1)
+       assertFunc();
+   }).wait();
 }
 
 void runTestForTid(queue *Q, size_t Tid) {
+  // Passed to kernel functions to have better chance
+  // of running them simultaneously.
+  static std::latch Sync(NUM_THREADS);
+
+  // Select a distinct kernel name for each host thread to test
+  // concurrent assertion reporting from multiple unique kernels.
   switch (Tid % 4) {
   case 0: {
-    assertTest<class the_kernel1>(Q);
+    assertTest<class the_kernel1>(Q, &Sync);
     break;
   }
   case 1: {
-    assertTest<class the_kernel2>(Q);
+    assertTest<class the_kernel2>(Q, &Sync);
     break;
   }
   case 2: {
-    assertTest<class the_kernel3>(Q);
+    assertTest<class the_kernel3>(Q, &Sync);
     break;
   }
   case 3: {
-    assertTest<class the_kernel4>(Q);
+    assertTest<class the_kernel4>(Q, &Sync);
     break;
   }
   }
 }
 
-int main(int Argc, const char *Argv[]) {
+int main() {
   // On windows stderr output becomes messed up if several thread
   // output simultaneously. Hence, setting explicit line buffering here.
 #ifndef __SYCL_DEVICE_ONLY__
