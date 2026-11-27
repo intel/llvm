@@ -75,10 +75,10 @@
 /// -fsycl-host-compiler tells the device compilation that the host compiler is
 /// external, so that features needing host compiler support are disabled on
 /// both sides.
-// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -c %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver --no-offloadlib --sysroot=%S/Inputs/SYCL -fsycl-host-compiler=g++ -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=EXTERNAL_HOST_COMPILER %s
 // EXTERNAL_HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_EXTERNAL_HOST_COMPILER__"
-// RUN: %clangxx -### -fsycl --offload-new-driver --sysroot=%S/Inputs/SYCL -c %s 2>&1 \
+// RUN: %clangxx -### -fsycl --offload-new-driver --no-offloadlib --sysroot=%S/Inputs/SYCL -c %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=NO_EXTERNAL_HOST_COMPILER %s
 // NO_EXTERNAL_HOST_COMPILER-NOT: "-D__SYCL_EXTERNAL_HOST_COMPILER__"
 
