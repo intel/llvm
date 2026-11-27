@@ -551,9 +551,11 @@ int main(int argc, char **argv) {
     // platform discovery. The runtime does not override adapter loggers set by
     // the user, so silence those of the backends that were not selected.
     if (debug) {
+      // Only the basic (0x1) and calls (0x2) bits are meaningful to the
+      // runtime, so preserve the user's calls bit and force the basic bit.
       const char *TraceVar = std::getenv("SYCL_UR_TRACE");
-      int TraceLevel = TraceVar ? std::atoi(TraceVar) : 0;
-      setenv("SYCL_UR_TRACE", std::to_string(TraceLevel | 1).c_str(), 1);
+      bool TraceCalls = TraceVar && (std::atoi(TraceVar) & 0x2);
+      setenv("SYCL_UR_TRACE", TraceCalls ? "3" : "1", 1);
       for (const auto &Info : DebugBackendInfos)
         if (!isDebugEnabled(Info.Backend) && !std::getenv(Info.UrLogger))
           setenv(Info.UrLogger, "level:quiet", 1);
