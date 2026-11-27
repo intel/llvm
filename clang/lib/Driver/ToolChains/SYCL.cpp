@@ -878,6 +878,18 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "fallback-bfloat16",
     "native-bfloat16"};
 
+static bool CheckStdlibPath(const ToolChain &TC, const std::string &FileName) {
+  std::optional<std::string> StdlibPath = TC.getStdlibPath();
+  if (StdlibPath) {
+    llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
+    bool IsSamePath = false;
+    auto EC =
+        llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
+    return (!EC && IsSamePath);
+  }
+  return false;
+}
+
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const ArgList &Args, StringRef SubArchName, StringRef OutputFilePrefix,
@@ -931,17 +943,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         return true;
       if (InputFilename.starts_with("libclang_rt.builtins"))
         return true;
-      if (InputFilename == "libc.bc") {
-        std::optional<std::string> StdlibPath = getToolChain().getStdlibPath();
-        if (StdlibPath) {
-          llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
-          bool IsSamePath = false;
-          auto EC =
-              llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
-          return (!EC && IsSamePath);
-        }
-        return false;
-      }
+      if (InputFilename == "libc.bc")
+        return CheckStdlibPath(getToolChain(), FileName);
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix))
