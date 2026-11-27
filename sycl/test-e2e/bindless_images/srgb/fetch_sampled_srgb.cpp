@@ -1,8 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: preview-breaking-changes-supported
-// REQUIRES: level_zero
+// REQUIRES: aspect-ext_oneapi_bindless_images_srgb
 
-// RUN: %clangxx -fsycl -fpreview-breaking-changes %s -Wno-error=unused-command-line-argument -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Sampled fetch of an sRGB image_descriptor: hardware must apply the
@@ -10,7 +9,7 @@
 // image_descriptor with the same raw bytes must return the raw unorm value
 // unchanged.
 
-#include <cmath>
+#include "../helpers/common.hpp"
 #include <cstdint>
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -18,12 +17,6 @@
 #include <vector>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-static float srgb_to_linear(float c) {
-  if (c <= 0.04045f)
-    return c / 12.92f;
-  return std::pow((c + 0.055f) / 1.055f, 2.4f);
-}
 
 int main() {
   sycl::device dev;
@@ -36,7 +29,7 @@ int main() {
 
   const uint8_t rawByte = 186;
   const float rawNorm = static_cast<float>(rawByte) / 255.0f;
-  const float expectedLinear = srgb_to_linear(rawNorm);
+  const float expectedLinear = bindless_helpers::srgb_to_linear(rawNorm);
 
   std::vector<uint8_t> input(numElems * 4);
   for (size_t i = 0; i < numElems; i++) {
@@ -55,10 +48,9 @@ int main() {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest);
 
-    syclexp::image_descriptor srgbDesc(sycl::range<2>{width, height}, 4,
-                                       sycl::image_channel_type::unorm_int8,
-                                       syclexp::image_type::standard, 1, 1, 0,
-                                       0, 0, syclexp::image_color_space::srgb);
+    syclexp::image_descriptor srgbDesc(
+        sycl::range<2>{width, height}, 4,
+        sycl::image_channel_type::ext_oneapi_unorm_int8_srgb);
     syclexp::image_descriptor linearDesc(sycl::range<2>{width, height}, 4,
                                          sycl::image_channel_type::unorm_int8);
 

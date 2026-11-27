@@ -231,6 +231,9 @@ template <>
 ze_structure_type_t getZeStructureType<ze_image_bindless_exp_desc_t>() {
   return ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
 }
+template <> ze_structure_type_t getZeStructureType<ze_srgb_ext_desc_t>() {
+  return ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
+}
 template <>
 ze_structure_type_t getZeStructureType<ze_image_pitched_exp_desc_t>() {
   return ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;

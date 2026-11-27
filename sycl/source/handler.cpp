@@ -112,6 +112,7 @@ constexpr size_t get_channel_size(
     return sizeof(float);
   case sycl::image_channel_type::snorm_int8:
   case sycl::image_channel_type::unorm_int8:
+  case sycl::image_channel_type::ext_oneapi_unorm_int8_srgb:
   case sycl::image_channel_type::signed_int8:
   case sycl::image_channel_type::unsigned_int8:
     return sizeof(uint8_t);
@@ -154,20 +155,6 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
                                : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                   : UR_MEM_TYPE_IMAGE1D);
   return Desc.depth;
-}
-
-// Fill image format
-static ur_image_format_t
-fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
-  ur_image_format_t UrFormat;
-
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  return UrFormat;
 }
 
 static void
@@ -267,8 +254,8 @@ static void fill_copy_args(
 
   ur_image_desc_t UrSrcDesc = detail::fill_image_desc(SrcImgDesc);
   ur_image_desc_t UrDestDesc = detail::fill_image_desc(DestImgDesc);
-  ur_image_format_t UrSrcFormat = detail::fill_format(SrcImgDesc);
-  ur_image_format_t UrDestFormat = detail::fill_format(DestImgDesc);
+  ur_image_format_t UrSrcFormat = detail::convertImageFormat(SrcImgDesc);
+  ur_image_format_t UrDestFormat = detail::convertImageFormat(DestImgDesc);
   auto ZCopyExtentComponent = detail::fill_image_type(SrcImgDesc, UrSrcDesc);
   detail::fill_image_type(DestImgDesc, UrDestDesc);
 

@@ -304,6 +304,19 @@ ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
+// Chain an sRGB descriptor directly after ZeImageDesc if the format is
+// SRGBA. Every path that builds a ze_image_desc_t must call this, otherwise
+// the image silently reads sRGB-encoded values. Srgb must outlive ZeImageDesc.
+static void chainSrgbIfNeeded(const ur_image_format_t *pImageFormat,
+                              ZeStruct<ze_srgb_ext_desc_t> &Srgb,
+                              ze_image_desc_t &ZeImageDesc) {
+  if (pImageFormat->channelOrder != UR_IMAGE_CHANNEL_ORDER_SRGBA)
+    return;
+  Srgb.sRGB = true;
+  Srgb.pNext = ZeImageDesc.pNext;
+  ZeImageDesc.pNext = &Srgb;
+}
+
 ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice,
                                      ur_exp_image_mem_native_handle_t hImageMem,
@@ -319,14 +332,11 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
-  ze_srgb_ext_desc_t ZeSrgbDesc{};
-  ZeSrgbDesc.stype = ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
-  ZeSrgbDesc.pNext = nullptr;
-  ZeSrgbDesc.sRGB = true;
-
   ZeStruct<ze_image_bindless_exp_desc_t> BindlessDesc;
   BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &BindlessDesc;
+  ZeStruct<ze_srgb_ext_desc_t> ZeSrgbDesc;
+  chainSrgbIfNeeded(pImageFormat, ZeSrgbDesc, ZeImageDesc);
 
   ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
   const bool Sampled = (pSamplerDesc != nullptr);
@@ -335,15 +345,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         common_cast(hContext)->getPlatform()->ZeApiVersion;
     UR_CALL(ur::level_zero::ur2zeSamplerDesc(ZeApiVersion, pSamplerDesc,
                                              ZeSamplerDesc));
-    if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
-      ZeSrgbDesc.pNext = static_cast<void *>(&ZeSamplerDesc);
-      BindlessDesc.pNext = &ZeSrgbDesc;
-    } else {
-      BindlessDesc.pNext = &ZeSamplerDesc;
-    }
+    BindlessDesc.pNext = &ZeSamplerDesc;
     BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
-  } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
-    BindlessDesc.pNext = &ZeSrgbDesc;
   }
 
   v2::raii::ze_image_handle_t ZeImage;
@@ -378,8 +381,6 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
     if (Sampled) {
       ZeSamplerDesc.pNext = &PitchedDesc;
-    } else if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA) {
-      ZeSrgbDesc.pNext = &PitchedDesc;
     } else {
       BindlessDesc.pNext = &PitchedDesc;
     }
@@ -1180,18 +1181,12 @@ ur_result_t urBindlessImagesImageAllocateExp(
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
-  ze_srgb_ext_desc_t ZeSrgbDesc{};
-  ZeSrgbDesc.stype = ZE_STRUCTURE_TYPE_SRGB_EXT_DESC;
-  ZeSrgbDesc.pNext = nullptr;
-  ZeSrgbDesc.sRGB = true;
 
   ZeStruct<ze_image_bindless_exp_desc_t> ZeImageBindlessDesc;
-  ZeImageBindlessDesc.pNext =
-      (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_SRGBA)
-          ? static_cast<void *>(&ZeSrgbDesc)
-          : nullptr;
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
+  ZeStruct<ze_srgb_ext_desc_t> ZeSrgbDesc;
+  chainSrgbIfNeeded(pImageFormat, ZeSrgbDesc, ZeImageDesc);
 
   UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
                                  ZeImageDesc, phImageMem));
@@ -1476,6 +1471,8 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
   ZeImageBindlessDesc.pNext = externalMemoryData->importExtensionDesc;
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
+  ZeStruct<ze_srgb_ext_desc_t> ZeSrgbDesc;
+  chainSrgbIfNeeded(pImageFormat, ZeSrgbDesc, ZeImageDesc);
 
   UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
                                  ZeImageDesc, phImageMem));

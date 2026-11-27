@@ -86,7 +86,11 @@ enum class image_channel_type : unsigned int {
   unsigned_int16 = 11,
   unsigned_int32 = 12,
   fp16 = 13,
-  fp32 = 14
+  fp32 = 14,
+  // sRGB-encoded 8-bit unsigned normalized channels. Reads decode RGB from
+  // sRGB to linear; alpha is left linear. Bindless images only, see
+  // sycl_ext_oneapi_bindless_images.
+  ext_oneapi_unorm_int8_srgb = 15
 };
 
 // SYCL 2020 image_format

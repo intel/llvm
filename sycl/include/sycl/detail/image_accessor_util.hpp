@@ -342,6 +342,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     RetData = sycl::fmax(RetData, -1);
     break;
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     // (float)c / 255.0f
     RetData = (PixelData.template convert<float>()) / 255.0f;
     break;
@@ -430,6 +431,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     RetDataFloat = sycl::fmax(RetDataFloat, -1);
     break;
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     // (half)c / 255.0f
     RetDataFloat = (PixelData.template convert<float>()) / 255.0f;
     break;
@@ -563,6 +565,7 @@ convertWriteData(const float4 WriteData,
     // convert_short_sat_rte(f * 32767.0f)
     return processFloatDataToPixel<ChannelType>(WriteData, 32767.0f);
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     // convert_uchar_sat_rte(f * 255.0f)
     return processFloatDataToPixel<ChannelType>(WriteData, 255.0f);
   case image_channel_type::unorm_int16:
@@ -638,6 +641,7 @@ convertWriteData(const half4 WriteData,
     // convert_short_sat_rte(h * 32767.0f)
     return processFloatDataToPixel<ChannelType>(WriteDataFloat, 32767.0f);
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     // convert_uchar_sat_rte(h * 255.0f)
     return processFloatDataToPixel<ChannelType>(WriteDataFloat, 255.0f);
   case image_channel_type::unorm_int16:
@@ -708,6 +712,7 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
                ImgChannelType);
     break;
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     writePixel(convertWriteData<std::uint8_t>(Color, ImgChannelType),
                reinterpret_cast<std::uint8_t *>(Ptr), ImgChannelOrder,
                ImgChannelType);
@@ -811,6 +816,7 @@ DataT ReadPixelData(const int4 PixelCoord, const id<3> ImgPitch,
         image_channel_type::snorm_int16, Color);
     break;
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     convertReadData<std::uint8_t>(
         readPixel(reinterpret_cast<std::uint8_t *>(Ptr), ImageChannelOrder,
                   ImageChannelType),

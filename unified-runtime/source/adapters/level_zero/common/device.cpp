@@ -219,29 +219,23 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
-static bool
-supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
-#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
-  constexpr const char *ExtensionName =
-      ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME;
+static bool supportsDriverExtension(ur_platform_handle_t Platform,
+                                    const char *ExtensionName) {
   constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
-
   auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
   return Extension != Platform->zeDriverExtensionMap.end() &&
          Extension->second >= MinVersion;
+}
+
+static bool
+supportsDeviceUsableMemSizeExtension(ur_platform_handle_t Platform) {
+#ifdef ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME
+  return supportsDriverExtension(Platform,
+                                 ZE_DEVICE_USABLEMEM_SIZE_PROPERTIES_EXT_NAME);
 #else
   std::ignore = Platform;
   return false;
 #endif
-}
-
-static bool supportsDeviceIgcaTargetExtension(ur_platform_handle_t Platform) {
-  constexpr const char *ExtensionName = UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME;
-  constexpr uint32_t MinVersion = ZE_MAKE_VERSION(1, 0);
-
-  auto Extension = Platform->zeDriverExtensionMap.find(ExtensionName);
-  return Extension != Platform->zeDriverExtensionMap.end() &&
-         Extension->second >= MinVersion;
 }
 
 static std::optional<uint64_t>
@@ -1368,6 +1362,18 @@ ur_result_t urDeviceGetInfo(
     // L0 doesn't support sampled image gather.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SRGB_SUPPORT_EXP: {
+    // NEO accepts ze_srgb_ext_desc_t on bindless images since 26.18 but does
+    // not advertise ZE_extension_srgb. Older drivers reject the descriptor
+    // with ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION at image creation, so
+    // claiming support with bindless images fails loudly rather than
+    // returning undecoded values.
+    // shortcut: assumes the driver accepts the descriptor; switch to the
+    // extension check alone once NEO advertises it.
+    return ReturnValue(static_cast<ur_bool_t>(
+        Device->Platform->ZeBindlessImagesExtensionSupported ||
+        supportsDriverExtension(Device->Platform, ZE_SRGB_EXT_NAME)));
+  }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -1631,7 +1637,8 @@ ur_result_t urDeviceGetInfo(
         uint32_t{Device->ZeXEDeviceProperties->maxNumLanesPerHwThread});
   case UR_DEVICE_INFO_IGCA_TARGET:
   case UR_DEVICE_INFO_IGCA_FEATURE_SET: {
-    if (supportsDeviceIgcaTargetExtension(Device->Platform)) {
+    if (supportsDriverExtension(Device->Platform,
+                                UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME)) {
       const auto &IgcaProperties = Device->ZeDeviceIgcaTargetProperties.get();
       // A device implementing no IGCA feature set has no IGCA target.
       if (IgcaProperties.featureSets != 0) {
@@ -2116,7 +2123,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   ZeDeviceIgcaTargetProperties.Compute =
       [ZeDevice, Platform = Platform](
           ZexStruct<ur_ze_device_igca_target_ext_properties_t> &Properties) {
-        if (!supportsDeviceIgcaTargetExtension(Platform))
+        if (!supportsDriverExtension(Platform,
+                                     UR_ZE_DEVICE_IGCA_TARGET_EXT_NAME))
           return; // leave the target and the feature sets zero-initialized
         ZeStruct<ze_device_module_properties_t> P;
         P.pNext = &Properties;

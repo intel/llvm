@@ -1,8 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: preview-breaking-changes-supported
-// REQUIRES: level_zero
+// REQUIRES: aspect-ext_oneapi_bindless_images_srgb
 
-// RUN: %clangxx -fsycl -fpreview-breaking-changes %s -Wno-error=unused-command-line-argument -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Unsampled fetch of an sRGB image_descriptor: hardware must apply the
@@ -10,18 +9,12 @@
 // image_descriptor with the same raw bytes must return the raw unorm value
 // unchanged.
 
-#include <cmath>
+#include "../helpers/common.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-static float srgb_to_linear(float c) {
-  if (c <= 0.04045f)
-    return c / 12.92f;
-  return std::pow((c + 0.055f) / 1.055f, 2.4f);
-}
 
 int main() {
   sycl::device dev;
@@ -33,24 +26,24 @@ int main() {
 
   const uint8_t rawByte = 186;
   const float rawNorm = static_cast<float>(rawByte) / 255.0f;
-  const float expectedLinear = srgb_to_linear(rawNorm);
+  const float expectedLinear = bindless_helpers::srgb_to_linear(rawNorm);
 
   std::vector<uint8_t> input(numElems * 4);
   for (size_t i = 0; i < numElems; i++) {
     input[i * 4 + 0] = rawByte;
     input[i * 4 + 1] = rawByte;
     input[i * 4 + 2] = rawByte;
-    input[i * 4 + 3] = 255;
+    // Non-trivial alpha: decoding it would visibly change the value.
+    input[i * 4 + 3] = rawByte;
   }
 
   std::vector<sycl::float4> outputSrgb(numElems);
   std::vector<sycl::float4> outputLinear(numElems);
 
   try {
-    syclexp::image_descriptor srgbDesc(sycl::range<2>{width, height}, 4,
-                                       sycl::image_channel_type::unorm_int8,
-                                       syclexp::image_type::standard, 1, 1, 0,
-                                       0, 0, syclexp::image_color_space::srgb);
+    syclexp::image_descriptor srgbDesc(
+        sycl::range<2>{width, height}, 4,
+        sycl::image_channel_type::ext_oneapi_unorm_int8_srgb);
     syclexp::image_descriptor linearDesc(sycl::range<2>{width, height}, 4,
                                          sycl::image_channel_type::unorm_int8);
 
@@ -60,6 +53,23 @@ int main() {
     q.ext_oneapi_copy(input.data(), srgbMem.get_handle(), srgbDesc);
     q.ext_oneapi_copy(input.data(), linearMem.get_handle(), linearDesc);
     q.wait_and_throw();
+
+    // Copies are raw byte moves and must never apply the sRGB decode, in
+    // either direction or between images.
+    {
+      syclexp::image_mem srgbCopyMem(srgbDesc, q);
+      std::vector<uint8_t> readback(input.size());
+      q.ext_oneapi_copy(srgbMem.get_handle(), srgbDesc,
+                        srgbCopyMem.get_handle(), srgbDesc);
+      // No implicit dependency between bindless image copies.
+      q.wait_and_throw();
+      q.ext_oneapi_copy(srgbCopyMem.get_handle(), readback.data(), srgbDesc);
+      q.wait_and_throw();
+      if (readback != input) {
+        std::cerr << "sRGB image copy altered raw bytes" << std::endl;
+        return 1;
+      }
+    }
 
     auto srgbImg = syclexp::create_image(srgbMem, srgbDesc, q);
     auto linearImg = syclexp::create_image(linearMem, linearDesc, q);
@@ -111,9 +121,10 @@ int main() {
                   << std::endl;
         passed = false;
       }
-      if (std::abs(outputSrgb[i].w() - 1.0f) > epsilon) {
+      if (std::abs(outputSrgb[i].w() - rawNorm) > epsilon) {
         std::cerr << "sRGB alpha should not be decoded at " << i
-                  << ": expected 1.0, got " << outputSrgb[i].w() << std::endl;
+                  << ": expected " << rawNorm << ", got " << outputSrgb[i].w()
+                  << std::endl;
         passed = false;
       }
       if (std::abs(outputLinear[i].x() - rawNorm) > epsilon ||

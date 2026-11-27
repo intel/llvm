@@ -73,6 +73,7 @@ uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type) {
   switch (Type) {
   case image_channel_type::snorm_int8:
   case image_channel_type::unorm_int8:
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
   case image_channel_type::signed_int8:
   case image_channel_type::unsigned_int8:
     Retval = NumChannels;
@@ -186,6 +187,11 @@ ur_image_channel_type_t convertChannelType(image_channel_type Type) {
   case image_channel_type::snorm_int16:
     return UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
   case image_channel_type::unorm_int8:
+  // sRGB-ness is carried by the channel order (UR_IMAGE_CHANNEL_ORDER_SRGBA),
+  // the storage format is plain 8-bit unorm. The reverse conversion therefore
+  // cannot reconstruct it from the channel type alone and maps back to
+  // unorm_int8.
+  case image_channel_type::ext_oneapi_unorm_int8_srgb:
     return UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
   case image_channel_type::unorm_int16:
     return UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;

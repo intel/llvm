@@ -972,6 +972,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA does support sampled image gather.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SRGB_SUPPORT_EXP: {
+    // CUDA exposes sRGB decode through cudaTextureDesc::sRGB, but the adapter
+    // does not wire it up yet.
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     // CUDA supports recording timestamp events.
     return ReturnValue(static_cast<ur_bool_t>(true));

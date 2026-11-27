@@ -4,36 +4,27 @@
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-
 TEST(ImageDescriptorSRGBTest, SRGBRequiresFourChannels) {
   EXPECT_THROW(
-      syclexp::image_descriptor({4, 4}, 3, sycl::image_channel_type::unorm_int8,
-                                syclexp::image_type::standard, 1, 1, 0, 0, 0,
-                                syclexp::image_color_space::srgb),
+      syclexp::image_descriptor(
+          {4, 4}, 3, sycl::image_channel_type::ext_oneapi_unorm_int8_srgb),
       sycl::exception);
 }
 
-TEST(ImageDescriptorSRGBTest, SRGBRequiresUnormInt8) {
-  EXPECT_THROW(
-      syclexp::image_descriptor({4, 4}, 4, sycl::image_channel_type::fp32,
-                                syclexp::image_type::standard, 1, 1, 0, 0, 0,
-                                syclexp::image_color_space::srgb),
-      sycl::exception);
-}
-
-TEST(ImageDescriptorSRGBTest, SRGBWithFourChannelsAndUnormInt8Succeeds) {
-  EXPECT_NO_THROW(
-      syclexp::image_descriptor({4, 4}, 4, sycl::image_channel_type::unorm_int8,
-                                syclexp::image_type::standard, 1, 1, 0, 0, 0,
-                                syclexp::image_color_space::srgb));
+TEST(ImageDescriptorSRGBTest, SRGBWithFourChannelsSucceeds) {
+  EXPECT_NO_THROW(syclexp::image_descriptor(
+      {4, 4}, 4, sycl::image_channel_type::ext_oneapi_unorm_int8_srgb));
 }
 
 TEST(ImageDescriptorSRGBTest, LinearDoesNotRequireFourChannels) {
-  EXPECT_NO_THROW(
-      syclexp::image_descriptor({4, 4}, 3, sycl::image_channel_type::unorm_int8,
-                                syclexp::image_type::standard, 1, 1, 0, 0, 0,
-                                syclexp::image_color_space::linear));
+  EXPECT_NO_THROW(syclexp::image_descriptor(
+      {4, 4}, 3, sycl::image_channel_type::unorm_int8));
 }
 
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+TEST(ImageDescriptorSRGBTest, SRGBMipLevelKeepsChannelType) {
+  syclexp::image_descriptor Desc(
+      {16, 16}, 4, sycl::image_channel_type::ext_oneapi_unorm_int8_srgb,
+      syclexp::image_type::mipmap, 2);
+  EXPECT_EQ(Desc.get_mip_level_desc(1).channel_type,
+            sycl::image_channel_type::ext_oneapi_unorm_int8_srgb);
+}

@@ -19,6 +19,23 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
+ur_image_format_t
+convertImageFormat(const ext::oneapi::experimental::image_descriptor &Desc) {
+  ur_image_format_t UrFormat{};
+  UrFormat.channelType = convertChannelType(Desc.channel_type);
+  // sRGB is modelled as a channel order in UR, as it is in OpenCL and SPIR-V,
+  // but as a channel type in SYCL so that it does not need a descriptor field.
+  UrFormat.channelOrder =
+      Desc.channel_type == image_channel_type::ext_oneapi_unorm_int8_srgb
+          ? UR_IMAGE_CHANNEL_ORDER_SRGBA
+          : convertChannelOrder(
+                ext::oneapi::experimental::detail::
+                    get_image_default_channel_order(Desc.num_channels));
+  return UrFormat;
+}
+} // namespace detail
+
 namespace ext::oneapi::experimental {
 
 // If the caller passes a non-null UserPitchMarker, and the image_descriptor's
@@ -65,18 +82,7 @@ void populate_ur_structs(
     urDesc.pNext = UserPitchMarker;
   }
 
-  urFormat = {};
-  urFormat.channelType = sycl::detail::convertChannelType(desc.channel_type);
-  const auto channelOrder = sycl::detail::convertChannelOrder(
-      sycl::ext::oneapi::experimental::detail::get_image_default_channel_order(
-          desc.num_channels));
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  urFormat.channelOrder = (desc.color_space == image_color_space::srgb)
-                              ? UR_IMAGE_CHANNEL_ORDER_SRGBA
-                              : channelOrder;
-#else
-  urFormat.channelOrder = channelOrder;
-#endif
+  urFormat = sycl::detail::convertImageFormat(desc);
 }
 
 detail::image_mem_impl::image_mem_impl(const image_descriptor &desc,

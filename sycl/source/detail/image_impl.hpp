@@ -33,6 +33,9 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           typename property_listT>
 class accessor;
 class handler;
+namespace ext::oneapi::experimental {
+struct image_descriptor;
+}
 
 namespace detail {
 class devices_range;
@@ -53,6 +56,10 @@ image_channel_order convertChannelOrder(ur_image_channel_order_t Order);
 ur_image_channel_type_t convertChannelType(image_channel_type Type);
 
 image_channel_type convertChannelType(ur_image_channel_type_t Type);
+
+// UR format of a bindless image descriptor. Defined in bindless_images.cpp.
+ur_image_format_t
+convertImageFormat(const ext::oneapi::experimental::image_descriptor &Desc);
 
 class image_impl final : public SYCLMemObjT {
   using BaseT = SYCLMemObjT;
