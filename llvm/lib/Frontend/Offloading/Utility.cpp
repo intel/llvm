@@ -526,10 +526,10 @@ void sycl::writeSymbolTable(ArrayRef<StringRef> Names, SmallString<0> &Out) {
   }
 }
 
-Expected<bool>
-offloading::compressSYCLDeviceImage(ArrayRef<uint8_t> Input,
-                                    SmallVectorImpl<uint8_t> &Output, int Level,
-                                    size_t Threshold, bool Verbose) {
+Expected<bool> sycl::compressDeviceImage(ArrayRef<uint8_t> Input,
+                                         SmallVectorImpl<uint8_t> &Output,
+                                         int Level, size_t Threshold,
+                                         bool Verbose) {
   if (!compression::zstd::isAvailable())
     return createStringError(
         "'--offload-compress' is specified but the compiler is built without "
