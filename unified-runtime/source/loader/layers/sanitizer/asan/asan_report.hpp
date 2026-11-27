@@ -45,7 +45,7 @@ void ReportGenericError(const AsanErrorReport &Report,
                         ur_kernel_handle_t Kernel);
 
 void ReportUseAfterFree(const AsanErrorReport &Report,
-                        ur_kernel_handle_t Kernel, ur_context_handle_t Context);
+                        ur_kernel_handle_t Kernel);
 
 void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
                                  uptr Addr, const ValidateUSMResult &VR,

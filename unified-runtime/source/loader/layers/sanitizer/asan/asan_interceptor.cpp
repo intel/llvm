@@ -37,6 +37,7 @@ AsanInterceptor::~AsanInterceptor() {
   m_MemBufferMap.clear();
   m_KernelMap.clear();
   m_ContextMap.clear();
+  m_ReleasedContexts.clear();
   // AllocationMap need to be cleared after ContextMap because memory leak
   // detection depends on it.
   m_AllocationMap.clear();
@@ -182,6 +183,16 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
   }
 
+  // Check it before the context: memory of a released context is released
+  // together with the context, and may be freed again in another context.
+  if (AllocInfo->IsReleased && Addr == AllocInfo->UserBegin) {
+    ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
+    if (getContext()->Options.HaltOnError) {
+      exitWithErrors();
+    }
+    return UR_RESULT_SUCCESS;
+  }
+
   if (AllocInfo->Context != Context) {
     if (AllocInfo->UserBegin == Addr) {
       ReportBadContext(Addr, GetCurrentBacktrace(), AllocInfo);
@@ -197,14 +208,6 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
   if (Addr != AllocInfo->UserBegin) {
     ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
-    if (getContext()->Options.HaltOnError) {
-      exitWithErrors();
-    }
-    return UR_RESULT_SUCCESS;
-  }
-
-  if (AllocInfo->IsReleased) {
-    ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
     if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
@@ -410,7 +413,7 @@ ur_result_t AsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
       }
       switch (Report.ErrorTy) {
       case ErrorType::USE_AFTER_FREE:
-        ReportUseAfterFree(Report, Kernel, GetContext(Queue));
+        ReportUseAfterFree(Report, Kernel);
         break;
       case ErrorType::OUT_OF_BOUNDS:
       case ErrorType::MISALIGNED:
@@ -766,10 +769,55 @@ ur_result_t AsanInterceptor::insertContext(ur_context_handle_t Context,
 }
 
 ur_result_t AsanInterceptor::eraseContext(ur_context_handle_t Context) {
-  std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
-  assert(m_ContextMap.find(Context) != m_ContextMap.end());
-  m_ContextMap.erase(Context);
+  auto CI = getContextInfo(Context);
+
+  // Destroying the context destroys its USM pool, which frees all of its
+  // memory. Release the memory that is still allocated as if the program
+  // freed it, so that stale pointers to it are reported as use-after-free.
+  CI->reportMemoryLeaks();
+  std::vector<uptr> LiveAllocs;
+  for (const auto &It : findAllocInfoByContext(Context)) {
+    const auto &[_, AI] = *It;
+    if (!AI->IsReleased && AI->isAllocatedInContext()) {
+      LiveAllocs.push_back(AI->UserBegin);
+    }
+  }
+  for (uptr Ptr : LiveAllocs) {
+    UR_CALL(releaseMemory(Context, reinterpret_cast<void *>(Ptr)));
+  }
+
+  {
+    std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
+    m_ContextMap.erase(Context);
+  }
   // TODO: Remove devices in each context
+
+  // Keep the context while its quarantine holds memory, so that the memory
+  // isn't given to new allocations. A context whose native context the program
+  // owns can't be kept: the program may destroy the native context now.
+  // Destroy the oldest released contexts (outside of the lock) when they hold
+  // more than the quarantine size.
+  if (CI->ProgramOwnsNativeHandle || !CI->m_Quarantine ||
+      CI->m_Quarantine->size() == 0) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  std::vector<std::shared_ptr<ContextInfo>> Evicted;
+  {
+    std::scoped_lock<ur_mutex> Guard(m_ReleasedContextsMutex);
+    m_ReleasedContexts.push_back(std::move(CI));
+    uptr Size = 0;
+    for (const auto &Released : m_ReleasedContexts) {
+      Size += Released->m_Quarantine->size();
+    }
+    const uptr MaxSize =
+        getContext()->Options.MaxQuarantineSizeMB * 1024 * 1024;
+    while (Size > MaxSize) {
+      Size -= m_ReleasedContexts.front()->m_Quarantine->size();
+      Evicted.push_back(std::move(m_ReleasedContexts.front()));
+      m_ReleasedContexts.pop_front();
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -1095,6 +1143,17 @@ AsanInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
   return AllocInfos;
 }
 
+void AsanInterceptor::eraseAllocInfoByContext(ur_context_handle_t Context) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+  for (auto It = m_AllocationMap.begin(); It != m_AllocationMap.end();) {
+    if (It->second->Context == Context) {
+      It = m_AllocationMap.erase(It);
+    } else {
+      ++It;
+    }
+  }
+}
+
 bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
   return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
@@ -1114,6 +1173,13 @@ ContextInfo::~ContextInfo() {
 
   InternalQueueMap.clear();
 
+  reportMemoryLeaks();
+
+  // Releasing the USM pool frees all memory of this context, and new
+  // allocations may get the same addresses. Erase the allocation records first
+  // so that they aren't mistaken for the new allocations.
+  getAsanInterceptor()->eraseAllocInfoByContext(Handle);
+
   [[maybe_unused]] ur_result_t URes;
   if (USMPool) {
     URes = getContext()->urDdiTable.USM.pfnPoolRelease(USMPool);
@@ -1122,18 +1188,17 @@ ContextInfo::~ContextInfo() {
 
   URes = getContext()->urDdiTable.Context.pfnRelease(Handle);
   assert(URes == UR_RESULT_SUCCESS);
+}
 
-  // check memory leaks
-  if (getContext()->Options.DetectLeaks &&
-      getAsanInterceptor()->isNormalExit()) {
-    std::vector<AllocationIterator> AllocInfos =
-        getAsanInterceptor()->findAllocInfoByContext(Handle);
-    for (const auto &It : AllocInfos) {
-      const auto &[_, AI] = *It;
-      // Registered memory isn't allocated by us, so it can't be leaked by us
-      if (!AI->IsReleased && !AI->isRegistered()) {
-        ReportMemoryLeak(AI);
-      }
+void ContextInfo::reportMemoryLeaks() {
+  if (!getContext()->Options.DetectLeaks ||
+      !getAsanInterceptor()->isNormalExit()) {
+    return;
+  }
+  for (const auto &It : getAsanInterceptor()->findAllocInfoByContext(Handle)) {
+    const auto &[_, AI] = *It;
+    if (!AI->IsReleased && AI->isAllocatedInContext()) {
+      ReportMemoryLeak(AI);
     }
   }
 }

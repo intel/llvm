@@ -53,6 +53,13 @@ ValidateUSMResult ValidateUSMPointer(ur_kernel_handle_t Kernel,
 
   auto AllocInfo = AllocInfoItOp.value()->second;
 
+  // Check it before the context: memory of a released context is released
+  // together with the context.
+  if (AllocInfo->IsReleased) {
+    return ValidateUSMResult::fail(ValidateUSMResult::RELEASED_POINTER,
+                                   AllocInfo);
+  }
+
   auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(Kernel);
   if (!KI.IsIndirectAccess && AllocInfo->Context != Context) {
     return ValidateUSMResult::fail(ValidateUSMResult::BAD_CONTEXT, AllocInfo);
@@ -60,11 +67,6 @@ ValidateUSMResult ValidateUSMPointer(ur_kernel_handle_t Kernel,
 
   if (AllocInfo->Device && !IsSameDevice(AllocInfo->Device, Device)) {
     return ValidateUSMResult::fail(ValidateUSMResult::BAD_DEVICE, AllocInfo);
-  }
-
-  if (AllocInfo->IsReleased) {
-    return ValidateUSMResult::fail(ValidateUSMResult::RELEASED_POINTER,
-                                   AllocInfo);
   }
 
   if (Ptr < AllocInfo->UserBegin || Ptr >= AllocInfo->UserEnd) {
