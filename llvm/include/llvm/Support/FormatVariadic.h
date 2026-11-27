@@ -265,6 +265,10 @@ template <typename... Ts> inline auto formatv(const char *Fmt, Ts &&...Vals) {
   return formatv<Ts...>(true, Fmt, std::forward<Ts>(Vals)...);
 }
 
+template <typename... Ts> inline auto formatv(StringLiteral Fmt, Ts &&...Vals) {
+  return formatv<Ts...>(Fmt.data(), std::forward<Ts>(Vals)...);
+}
+
 #if 1 // INTEL_CUSTOMIZATION
 #if defined(__INTEL_LLVM_COMPILER)
 #pragma clang optimize on
