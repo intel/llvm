@@ -38,6 +38,7 @@ add_llvm_component_library(LLVMCore
   FPAccuracy.cpp
   FPEnv.cpp
   Function.cpp
+  FunctionLocalMetadata.cpp
   GCStrategy.cpp
   GVMaterializer.cpp
   Globals.cpp
