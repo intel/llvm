@@ -1040,7 +1040,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(SYCLConditionalCallOnDevicePass(LangOpts.SYCLUniquePrefix));
         MPM.addPass(SYCLPropagateAspectsUsagePass(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
-            /*ExcludeAspects=*/{"fp64"}));
+            /*ExcludeAspects=*/{"fp64", "fp16"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
         // Compile-time properties pass must create standard metadata as early
         // as possible to make them available for other passes.

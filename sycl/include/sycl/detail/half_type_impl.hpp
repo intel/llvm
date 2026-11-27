@@ -141,11 +141,7 @@ struct RawHostHalfToken {
   uint16_t Value;
 };
 
-#ifndef __SYCL_DEVICE_ONLY__
 class half {
-#else
-class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
-#endif
 public:
   half() = default;
   constexpr half(const half &) = default;

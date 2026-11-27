@@ -88,18 +88,6 @@ bool isZeroGEP(const Value *V) {
   return GEPI && GEPI->hasAllZeroIndices();
 }
 
-Type *getAddressSourceElementType(const Value *V) {
-  if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
-    return GEPI->getSourceElementType();
-  return nullptr;
-}
-
-Type *getAddressResultElementType(const Value *V) {
-  if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
-    return GEPI->getResultElementType();
-  return nullptr;
-}
-
 const Value *getAddressBasePointer(const Value *V) {
   if (const auto *GEPI = dyn_cast<GetElementPtrInst>(V))
     return GEPI->getPointerOperand();
