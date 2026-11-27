@@ -221,7 +221,6 @@ template <typename Fn> void forEachSymbol(StringRef Symbols, Fn &&Callback) {
         StringRef(Base + Entries[I].OffsetToSymbol, Entries[I].SymbolSize));
 }
 
-
 /// Default zstd compression level for SYCL device images (--compress).
 constexpr int DefaultCompressionLevel = 10;
 
@@ -234,10 +233,11 @@ constexpr int DefaultCompressionLevel = 10;
 /// \param Threshold Skip compression when Input.size() < Threshold.
 /// \param Verbose Emit the "[Compression]" size/level lines to errs().
 /// \returns true if compression ran.
-LLVM_ABI Expected<bool>
-compressDeviceImage(ArrayRef<uint8_t> Input, SmallVectorImpl<uint8_t> &Output,
-                    int Level = DefaultCompressionLevel, size_t Threshold = 512,
-                    bool Verbose = false);
+LLVM_ABI Expected<bool> compressDeviceImage(ArrayRef<uint8_t> Input,
+                                            SmallVectorImpl<uint8_t> &Output,
+                                            int Level = DefaultCompressionLevel,
+                                            size_t Threshold = 512,
+                                            bool Verbose = false);
 
 } // namespace sycl
 
