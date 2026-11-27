@@ -134,9 +134,7 @@ class LITLogParserTest(unittest.TestCase):
 
         names = LITLogParser(lines).extract_failed_test_names()
 
-        self.assertEqual(
-            names, ["SYCL :: Scheduler/foo.cpp", "SYCL :: USM/bar.cpp"]
-        )
+        self.assertEqual(names, ["SYCL :: Scheduler/foo.cpp", "SYCL :: USM/bar.cpp"])
 
     def test_parses_all_builtin_statuses(self):
         categories = [
