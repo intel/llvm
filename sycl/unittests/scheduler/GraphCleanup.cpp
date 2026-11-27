@@ -494,7 +494,6 @@ TEST_F(SchedulerTest, WaitCleanupDoesNotPollPendingAuxiliaryEvents) {
   queue Queue{Ctx, default_selector_v};
   detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
-  std::vector<std::unique_ptr<int>> Handles;
   auto *MSPtr = new AuxiliaryCleanupScheduler();
   AttachSchedulerWrapper AttachScheduler{MSPtr};
   constexpr int EventCount = 32;
@@ -503,9 +502,7 @@ TEST_F(SchedulerTest, WaitCleanupDoesNotPollPendingAuxiliaryEvents) {
   int Released = 0;
   for (int I = 0; I < EventCount; ++I) {
     auto Pending = detail::event_impl::create_device_event(QueueImpl);
-    Handles.push_back(std::make_unique<int>());
-    Pending->setHandle(
-        reinterpret_cast<ur_event_handle_t>(Handles.back().get()));
+    Pending->setHandle(mock::createDummyHandle<ur_event_handle_t>());
     MSPtr->registerAuxiliaryResources(Pending, {});
     PendingEvents.push_back(std::move(Pending));
 
