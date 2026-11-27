@@ -15,6 +15,23 @@
 // RUN:   -sycl-post-link-options=-properties --linker-path=/usr/bin/ld \
 // RUN:   %t.o -o %t.out 2>&1 | FileCheck %s
 
+// A device image compiled for an IGCA target (arch=igca_*) gets the
+// [SYCL/igca metadata] property set with isIgcaModule=1. Other device images
+// don't.
+// RUN: llvm-offload-binary -o %t.igca.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown,arch=igca_20ca
+// RUN: %clang_cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.igca.o -fembed-offload-object=%t.igca.fat
+// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   --linker-path=/usr/bin/ld %t.igca.o -o %t.igca.out 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=IGCA
+// IGCA-DAG: c"isIgcaModule\00"
+// IGCA-DAG: c"SYCL/igca metadata\00"
+// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
+// RUN:   --bitcode-library=spir64-unknown-unknown=%t.devicelib.bc \
+// RUN:   --linker-path=/usr/bin/ld %t.o -o %t.out 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=NO-IGCA --implicit-check-not="SYCL/igca metadata"
+// NO-IGCA: @.sycl_offloading.descriptor
+
 // With --emit-fatbin-only, the output is an offload container holding the
 // finalized SPIR-V with its runtime metadata. The host compilation wraps it
 // into the same descriptor-based registration.

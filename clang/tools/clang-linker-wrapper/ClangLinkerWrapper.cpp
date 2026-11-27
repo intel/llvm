@@ -1241,6 +1241,11 @@ static Error compressImages(SmallVectorImpl<offloading::SYCLImage> &Images,
   return Error::success();
 }
 
+/// \returns true if \p Arch is an IGCA target. In --offload-arch mode, SYCL
+/// device code for Intel GPUs is compiled per IGCA target, and its device
+/// images have arch=igca_*.
+static bool isIGCATarget(StringRef Arch) { return Arch.starts_with("igca_"); }
+
 /// Reads the post-link device images in \p SplitModules and prepares them for
 /// SYCL runtime registration: dumps them if requested, assigns the runtime
 /// target and compresses them if requested.
@@ -1257,6 +1262,8 @@ createSYCLImages(ArrayRef<module_split::SplitModule> SplitModules,
   StringRef RegularTarget(Target.getArchName());
   if (RegularTarget == "spirv64")
     RegularTarget = "spir64";
+  const bool IsIGCAModule =
+      !IsEmbeddedIR && isIGCATarget(Args.getLastArgValue(OPT_arch_EQ));
 
   for (const module_split::SplitModule &SI : SplitModules) {
     if (!OffloadImageDumpDir.empty() && !DryRun) {
@@ -1282,6 +1289,12 @@ createSYCLImages(ArrayRef<module_split::SplitModule> SplitModules,
         IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
     Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
                         ImageTarget, SI.CompileOptions, SI.LinkOptions);
+    // Mark the device images compiled for an IGCA target, so that the SYCL RT
+    // handles them as IGCA modules.
+    if (IsIGCAModule)
+      Images.back().PropertyRegistry.add(
+          llvm::util::PropertySetRegistry::SYCL_IGCA_METADATA, "isIgcaModule",
+          static_cast<uint32_t>(1));
   }
 
   if (Error E = compressImages(Images, Args))
