@@ -175,6 +175,13 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
       VECZ_FAIL_IF(!OpPacket);
       OpPackets.push_back(OpPacket);
     }
+    // The callee of an indirect call may differ between lanes, so it needs to
+    // be instantiated like any other operand.
+    Value *Callee = CI->getCalledOperand();
+    const bool VaryingCallee = packetizer.uniform().isVarying(Callee);
+    const PacketRange CalleePacket = VaryingCallee ? instantiateInternal(Callee)
+                                                   : packetizer.getEmptyRange();
+    VECZ_FAIL_IF(VaryingCallee && !CalleePacket);
     PacketRange P = packetizer.createPacket(CI, SimdWidth);
     VECZ_FAIL_IF(!P);
     IRBuilder<> B(CI);
@@ -183,8 +190,9 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
       for (unsigned i = 0; i < CI->arg_size(); i++) {
         Ops.push_back(OpPackets[i][j]);
       }
-      auto *NewCI = B.CreateCall(CI->getFunctionType(), CI->getCalledOperand(),
-                                 Ops, CI->getName());
+      auto *NewCI = B.CreateCall(CI->getFunctionType(),
+                                 VaryingCallee ? CalleePacket[j] : Callee, Ops,
+                                 CI->getName());
       NewCI->setCallingConv(CI->getCallingConv());
       NewCI->setAttributes(CI->getAttributes());
       P[j] = NewCI;
@@ -223,13 +231,22 @@ PacketRange InstantiationPass::instantiateCall(CallInst *CI) {
                     "The packetized Value has to be of a vector type");
       Operands.push_back(Packetized);
     }
+    // As above, a varying callee must be packetized so that each iteration
+    // calls the function pointer belonging to its own lane.
+    Value *CO = CI->getCalledOperand();
+    if (packetizer.uniform().isVarying(CO)) {
+      Value *PacketizedCO = packetizer.packetize(CO).getAsValue();
+      VECZ_FAIL_IF(!PacketizedCO);
+      VECZ_ERROR_IF(!PacketizedCO->getType()->isVectorTy(),
+                    "The packetized callee has to be of a vector type");
+      CO = B.CreateExtractElement(PacketizedCO, Ind);
+    }
     // Each Op is an element extracted from a packetized instruction.
     SmallVector<Value *, 4> Ops;
     for (unsigned i = 0; i < Operands.size(); ++i) {
       Ops.push_back(B.CreateExtractElement(Operands[i], Ind));
     }
     // Create the function call
-    auto CO = CI->getCalledOperand();
     FunctionType *FTy = CI->getFunctionType();
     CallInst *NewCI = B.CreateCall(FTy, CO, Ops);
     NewCI->setCallingConv(CI->getCallingConv());
