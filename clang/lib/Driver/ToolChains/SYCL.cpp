@@ -883,8 +883,7 @@ static bool CheckStdlibPath(const ToolChain &TC, const std::string &FileName) {
   if (StdlibPath) {
     llvm::StringRef LibcDirPath = llvm::sys::path::parent_path(FileName);
     bool IsSamePath = false;
-    auto EC =
-        llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
+    auto EC = llvm::sys::fs::equivalent(LibcDirPath, *StdlibPath, IsSamePath);
     return (!EC && IsSamePath);
   }
   return false;
