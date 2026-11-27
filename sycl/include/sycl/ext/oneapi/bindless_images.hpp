@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
+#include <sycl/builtins.hpp> // for device-side __assert_fail (SYCL_EXTERNAL)
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
 #include <sycl/device.hpp>                                // for device
@@ -26,6 +27,14 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/image_ocl_types.hpp> // for __invoke__*
+#endif
+
+// TODO: Remove once the front end predefines __OFFLOAD_ARCH_INTEL_GENERIC__.
+// Until then, treat every device compilation that is not for an IGCA target as
+// the legacy mode, so that bindless images keep working there.
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__OFFLOAD_ARCH_IGCA__) &&        \
+    !defined(__OFFLOAD_ARCH_INTEL_GENERIC__)
+#define __OFFLOAD_ARCH_INTEL_GENERIC__ 1
 #endif
 
 namespace sycl {
@@ -975,7 +984,8 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                 "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return FETCH_UNSAMPLED_IMAGE(
         DataT,
@@ -996,7 +1006,8 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
         coords));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1035,7 +1046,8 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
   static_assert(detail::is_recognized_standard_type<HintT>(),
                 "HintT must always be a recognized standard type");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   // Convert the raw handle to an image and use FETCH_UNSAMPLED_IMAGE since
   // fetch_image should not use the sampler
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
@@ -1052,7 +1064,8 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
         coords));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host.
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1116,7 +1129,8 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
   static_assert(detail::is_recognized_standard_type<HintT>(),
                 "HintT must always be a recognized standard type");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return SAMPLE_IMAGE_READ(
         DataT,
@@ -1129,7 +1143,8 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
         coords));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host.
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1158,7 +1173,8 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadLod<DataT>(
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
@@ -1174,7 +1190,8 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
         coords, level));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1205,7 +1222,8 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "Expected input coordinates and gradients to have 1, 2, or 3 "
                 "components for 1D, 2D, and 3D images, respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadGrad<DataT>(
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
@@ -1221,7 +1239,8 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
         coords, dX, dY));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1251,7 +1270,8 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
                 "Expected input coordinate to be have 1 or 2 components for 1D "
                 "and 2D images respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return FETCH_IMAGE_ARRAY(
@@ -1272,7 +1292,8 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
         coords, arrayLayer, coordsLayer));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host.
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1315,7 +1336,8 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
                      const sycl::float3 &dirVec [[maybe_unused]]) {
   [[maybe_unused]] constexpr size_t NDims = 2;
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageReadCubemap<DataT, uint64_t>(
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, NDims), dirVec);
@@ -1330,7 +1352,8 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
         dirVec));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1360,7 +1383,8 @@ DataT fetch_image_array(const sampled_image_handle &imageHandle
                 "Expected input coordinate to be have 1 or 2 components for 1D "
                 "and 2D images respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return FETCH_SAMPLED_IMAGE_ARRAY(DataT,
@@ -1380,7 +1404,8 @@ DataT fetch_image_array(const sampled_image_handle &imageHandle
                                   coords, arrayLayer, coordsLayer));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host.
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1410,7 +1435,8 @@ DataT sample_image_array(const sampled_image_handle &imageHandle
                 "Expected input coordinate to be have 1 or 2 components for 1D "
                 "and 2D images respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   sycl::vec<float, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return READ_SAMPLED_IMAGE_ARRAY(DataT,
@@ -1430,7 +1456,8 @@ DataT sample_image_array(const sampled_image_handle &imageHandle
                                  coords, arrayLayer, coordsLayer));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host.
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1454,7 +1481,8 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
                 "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     __invoke__ImageWrite(
         CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
@@ -1469,7 +1497,8 @@ void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
         coords, detail::convert_color(color));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
@@ -1495,7 +1524,8 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                 "Expected input coordinate to be have 1 or 2 components for 1D "
                 "and 2D images respectively.");
 
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__OFFLOAD_ARCH_INTEL_GENERIC__) ||                                 \
+    defined(__OFFLOAD_ARCH_IGCA_RENDER__)
   sycl::vec<int, coordSize + 1> coordsLayer{coords, arrayLayer};
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     WRITE_IMAGE_ARRAY(
@@ -1511,7 +1541,8 @@ void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
         coords, arrayLayer, coordsLayer, detail::convert_color(color));
   }
 #else
-  assert(false); // Bindless images not yet implemented on host.
+  // Bindless images are only supported on "render" devices.
+  assert(false);
 #endif
 }
 
