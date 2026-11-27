@@ -151,6 +151,7 @@ for offload_tool in (
     "spirv-to-ir-wrapper",
     "sycl-post-link",
     "file-table-tform",
+    "llvm-foreach",
     "llvm-spirv",
 ):
     if lit.util.which(offload_tool, config.clang_tools_dir) or lit.util.which(

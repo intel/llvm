@@ -194,6 +194,15 @@ if( NOT CLANG_BUILT_STANDALONE )
     yaml2obj
     )
 
+  # These tools are configured after Clang, so check their build options
+  # rather than testing whether the targets already exist.
+  foreach(tool file-table-tform llvm-foreach llvm-spirv spirv-to-ir-wrapper sycl-post-link)
+    canonicalize_tool_name(${tool} tool_name)
+    if(LLVM_TOOL_${tool_name}_BUILD)
+      list(APPEND CLANG_TEST_DEPS ${tool})
+    endif()
+  endforeach()
+
   if(TARGET lld)
     list(APPEND CLANG_TEST_DEPS lld)
   endif()
