@@ -62,4 +62,3 @@ int main(int, char **argv) {
 // CHECK-DF-LEAKED: urContextRelease
 // CHECK-DF: previously allocated here:
 // CHECK-DF: in main {{.*use-after-release.cpp:}}[[@LINE-38]]
-

@@ -28,4 +28,3 @@ int main() {
 
 // CHECK-NOT: ERROR: DeviceSanitizer
 // CHECK: done
-
