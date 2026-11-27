@@ -3908,6 +3908,18 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
       MemberExprBases.pop_back();
   }
 
+  Expr *buildDerivedToBaseCast(const CXXRecordDecl *RD, QualType BaseTy) {
+    ASTContext &Ctx = SemaSYCLRef.getASTContext();
+    CXXCastPath BasePath;
+    QualType DerivedTy = Ctx.getCanonicalTagType(RD);
+    SemaSYCLRef.SemaRef.CheckDerivedToBaseConversion(
+        DerivedTy, BaseTy, KernelCallerSrcLoc, SourceRange(), &BasePath,
+        /*IgnoreBaseAccess*/ true);
+    return ImplicitCastExpr::Create(
+        Ctx, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
+        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
+  }
+
   void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
                                SmallVectorImpl<Stmt *> &AddTo) {
     CXXMethodDecl *Method = getMethodByName(RD, MethodName);
@@ -4031,7 +4043,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return true;
   }
 
-  bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
+  bool handleSpecialType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                         QualType Ty) {
     const auto *BaseRecordDecl = BS.getType()->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
@@ -4042,7 +4055,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
     DefaultConstructor->setAccess(DefaultConstructorAccess);
+    MemberExprBases.push_back(buildDerivedToBaseCast(RD, BS.getType()));
     createSpecialMethodCall(BaseRecordDecl, getInitMethodName(), BodyStmts);
+    MemberExprBases.pop_back();
     return true;
   }
 
@@ -4201,9 +4216,9 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                             QualType Ty) final {
-    return handleSpecialType(BS, Ty);
+  bool handleSyclSpecialType(const CXXRecordDecl *RD,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    return handleSpecialType(RD, BS, Ty);
   }
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
@@ -4301,18 +4316,8 @@ public:
   bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                    QualType) final {
     ++StructDepth;
-
-    CXXCastPath BasePath;
-    QualType DerivedTy = SemaSYCLRef.getASTContext().getCanonicalTagType(RD);
     QualType BaseTy = BS.getType();
-    SemaSYCLRef.SemaRef.CheckDerivedToBaseConversion(
-        DerivedTy, BaseTy, KernelCallerSrcLoc, SourceRange(), &BasePath,
-        /*IgnoreBaseAccess*/ true);
-    auto Cast = ImplicitCastExpr::Create(
-        SemaSYCLRef.getASTContext(), BaseTy, CK_DerivedToBase,
-        MemberExprBases.back(),
-        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
-    MemberExprBases.push_back(Cast);
+    MemberExprBases.push_back(buildDerivedToBaseCast(RD, BaseTy));
     addCollectionInitListExpr(BaseTy->getAsCXXRecordDecl());
     return true;
   }

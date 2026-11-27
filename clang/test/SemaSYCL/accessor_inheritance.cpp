@@ -69,6 +69,7 @@ int main() {
 
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr{{.*}} lvalue .__init
+// CHECK-NEXT: ImplicitCastExpr {{.*}}'sycl::accessor<char, 1, sycl::access::mode::read>' lvalue <DerivedToBase (accessor)>
 // CHECK-NEXT: MemberExpr{{.*}}'AccessorDerived' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}accessor_inheritance.cpp
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global char *' <LValueToRValue>
