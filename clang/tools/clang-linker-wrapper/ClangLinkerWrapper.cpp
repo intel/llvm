@@ -653,6 +653,26 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   return *TempFileOrErr;
 }
 
+/// \returns true if SYCL specialization constants should be native for SYCL
+/// device code compiled for \p Triple and \p Arch, false if they should be
+/// emulated.
+///
+/// In --offload-arch mode, specialization constants are always native, even if
+/// the device code is AOT compiled, as all IGCA targets support them.
+/// Therefore, whenever the application sets non-default values, the SYCL RT
+/// passes them to the BE. If the virtual architecture module was dropped with
+/// --no-offload-embed-virtual-arch, the BE raises an error.
+///
+/// Outside --offload-arch mode, AOT targets keep emulating specialization
+/// constants.
+static bool useNativeSpecConsts(const llvm::Triple &Triple, StringRef Arch) {
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isNativeCPU())
+    return false;
+  if (Arch.starts_with("igca_"))
+    return true;
+  return !Triple.isSPIRAOT();
+}
+
 /// \brief Creates and configures PostLinkSettings for SYCL post-link
 /// processing.
 ///
@@ -669,9 +689,9 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
 static sycl_post_link::PostLinkSettings
 getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
   sycl_post_link::PostLinkSettings Settings;
-  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
-                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
-  if (SpecConstsSupported)
+  bool UseNativeSpecConsts =
+      useNativeSpecConsts(Triple, Args.getLastArgValue(OPT_arch_EQ));
+  if (UseNativeSpecConsts)
     Settings.SpecConstMode = SpecConstantsPass::HandlingMode::native;
   else
     Settings.SpecConstMode = SpecConstantsPass::HandlingMode::emulation;
@@ -711,7 +731,7 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
   bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
   if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
                    OPT_no_sycl_add_default_spec_consts_image, false) &&
-      IsAOT)
+      IsAOT && !UseNativeSpecConsts)
     Settings.GenerateModuleDescWithDefaultSpecConsts = true;
 
   Settings.SplitMode = Settings.ESIMDOptions.SplitMode = *SYCLModuleSplitMode;
@@ -734,9 +754,9 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                                SmallVector<StringRef, 8> &PostLinkArgs,
                                const llvm::Triple Triple) {
   const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
-  bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
-                              !Triple.isSPIRAOT() && !Triple.isNativeCPU());
-  if (SpecConstsSupported)
+  bool UseNativeSpecConsts =
+      useNativeSpecConsts(Triple, Args.getLastArgValue(OPT_arch_EQ));
+  if (UseNativeSpecConsts)
     PostLinkArgs.push_back("-spec-const=native");
   else
     PostLinkArgs.push_back("-spec-const=emulation");
@@ -781,7 +801,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   bool IsAOT = Triple.isNVPTX() || Triple.isAMDGCN() || Triple.isSPIRAOT();
   if (Args.hasFlag(OPT_sycl_add_default_spec_consts_image,
                    OPT_no_sycl_add_default_spec_consts_image, false) &&
-      IsAOT)
+      IsAOT && !UseNativeSpecConsts)
     PostLinkArgs.push_back("-generate-device-image-default-spec-consts");
 }
 
