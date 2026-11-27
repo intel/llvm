@@ -91,6 +91,7 @@ add_clang_library(clangBasic
   SourceLocation.cpp
   SourceManager.cpp
   SourceMgrAdapter.cpp
+  SYCL.cpp
   Stack.cpp
   StackExhaustionHandler.cpp
   TargetID.cpp

@@ -170,18 +170,6 @@ public:
   }
 };
 
-// Check if the given Arch value is a Generic AMD GPU.
-// Currently GFX*_GENERIC AMD GPUs do not support SYCL offloading.
-// This is used to filter out GFX*_GENERIC AMD GPUs in
-// `IsSYCLSupportedAMDGPUArch`.
-bool IsAMDGenericGPUArch(OffloadArch Arch);
-
-// Check if the given Arch value is a valid SYCL supported AMD GPU.
-bool IsSYCLSupportedAMDGPUArch(OffloadArch Arch);
-
-// Check if the given Arch value is a valid SYCL supported NVidia GPU.
-bool IsSYCLSupportedNVidiaGPUArch(OffloadArch Arch);
-
 const char *OffloadArchToString(OffloadArch A);
 const char *OffloadArchToVirtualArchString(OffloadArch A);
 

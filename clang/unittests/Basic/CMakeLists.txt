@@ -13,6 +13,7 @@ add_distinct_clang_unittest(BasicTests
   SanitizersTest.cpp
   SarifTest.cpp
   SourceManagerTest.cpp
+  SYCLTest.cpp
   CLANG_LIBS
   clangBasic
   clangLex
