@@ -1607,6 +1607,8 @@ ur_result_t urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP:
+    return ReturnValue(ur_exp_address_range_export_type_flags_t{0});
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:

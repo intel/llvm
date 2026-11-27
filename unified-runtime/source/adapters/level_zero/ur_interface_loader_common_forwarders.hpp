@@ -345,6 +345,14 @@ inline ur_result_t urMemoryExportExportMemoryHandleExp(
   return ::ur::level_zero::urMemoryExportExportMemoryHandleExp(
       hContext, hDevice, handleTypeToExport, pMem, pMemHandleRet);
 }
+inline ur_result_t urUSMGetHandleForAddressRangeExp(
+    ::ur_context_handle_t hContext, const void *pMem, size_t size,
+    ur_exp_address_range_export_type_t exportType,
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    ur_exp_address_range_export_t *pExport) {
+  return ::ur::level_zero::urUSMGetHandleForAddressRangeExp(
+      hContext, pMem, size, exportType, pProperties, pExport);
+}
 inline ur_result_t urUSMPitchedAllocExp(::ur_context_handle_t hContext,
                                         ::ur_device_handle_t hDevice,
                                         const ur_usm_desc_t *pUSMDesc,

@@ -558,3 +558,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAllocUnregisterExp(
     ur_context_handle_t /*hContext*/, void * /*pHostMem*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMGetHandleForAddressRangeExp(
+    ur_context_handle_t, const void *, size_t,
+    ur_exp_address_range_export_type_t,
+    const ur_exp_address_range_handle_properties_t *,
+    ur_exp_address_range_export_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

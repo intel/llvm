@@ -1400,6 +1400,14 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPitchedAllocExp_t)(
     ur_usm_pool_handle_t, size_t, size_t, size_t, void **, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMGetHandleForAddressRangeExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMGetHandleForAddressRangeExp_t)(
+    ur_context_handle_t, const void *, size_t,
+    ur_exp_address_range_export_type_t,
+    const ur_exp_address_range_handle_properties_t *,
+    ur_exp_address_range_export_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMContextMemcpyExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMContextMemcpyExp_t)(
     ur_context_handle_t, void *, const void *, size_t);
@@ -1437,6 +1445,7 @@ typedef struct ur_usm_exp_dditable_t {
   ur_pfnUSMPoolGetDevicePoolExp_t pfnPoolGetDevicePoolExp;
   ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;
   ur_pfnUSMPitchedAllocExp_t pfnPitchedAllocExp;
+  ur_pfnUSMGetHandleForAddressRangeExp_t pfnGetHandleForAddressRangeExp;
   ur_pfnUSMContextMemcpyExp_t pfnContextMemcpyExp;
   ur_pfnUSMHostAllocUnregisterExp_t pfnHostAllocUnregisterExp;
   ur_pfnUSMHostAllocRegisterExp_t pfnHostAllocRegisterExp;

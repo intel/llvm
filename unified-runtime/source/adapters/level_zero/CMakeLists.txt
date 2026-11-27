@@ -17,6 +17,7 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/common/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/enqueued_pool.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/memory_export.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/address_range_handle.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common/helpers/memory_helpers.cpp

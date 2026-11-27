@@ -179,4 +179,52 @@ typedef struct _ur_zex_counter_based_event_desc_t {
                  ///< a wait action after the event is complete
 } ur_zex_counter_based_event_desc_t;
 
+///////////////////////////////////////////////////////////////////////////////
+// ZE_intel_experimental_mem_get_handle_for_address_range
+// (driver_experimental/zex_memory.h)
+
+constexpr const char *UR_ZE_INTEL_MEM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP_NAME =
+    "ZE_intel_experimental_mem_get_handle_for_address_range";
+
+// Driver-experimental result code (ZE_RESULT_ERROR_INCOMPATIBLE_RESOURCE).
+constexpr ze_result_t UR_ZE_RESULT_ERROR_INCOMPATIBLE_RESOURCE =
+    static_cast<ze_result_t>(0x7fff0003);
+
+constexpr ur_ze_structure_type_ext_t
+    UR_ZE_INTEL_STRUCTURE_TYPE_MEM_RANGE_LOCATION_EXP_PROPERTIES = 0x00030039;
+constexpr ur_ze_structure_type_ext_t
+    UR_ZE_INTEL_STRUCTURE_TYPE_DEVICE_MEM_RANGE_HANDLE_EXP_PROPERTIES =
+        0x0003003A;
+
+typedef enum _ur_ze_intel_mem_range_handle_type_exp_t {
+  UR_ZE_INTEL_MEM_RANGE_HANDLE_TYPE_EXP_DMA_BUF_FD = 0, ///< returned as an int
+  UR_ZE_INTEL_MEM_RANGE_HANDLE_TYPE_EXP_FORCE_UINT32 = 0x7fffffff
+} ur_ze_intel_mem_range_handle_type_exp_t;
+
+// Location of a pointer within the object named by the returned handle, passed
+// via the pNext argument of zeIntelMemGetHandleForAddressRange.
+typedef struct _ur_ze_intel_mem_range_location_exp_properties_t {
+  ur_ze_structure_type_ext_t stype; ///< [in] type of this structure
+  void *pNext;     ///< [in,out][optional] must be null or a pointer to an
+                   ///< extension-specific structure
+  uint64_t offset; ///< [out] byte offset of ptr within the handle
+  void *base;      ///< [out] address that maps to offset 0 of the handle
+  size_t size;     ///< [out] size in bytes of the object named by the handle
+} ur_ze_intel_mem_range_location_exp_properties_t;
+
+// Device support for zeIntelMemGetHandleForAddressRange, passed via the pNext
+// member of ze_device_external_memory_properties_t.
+typedef struct _ur_ze_intel_device_mem_range_handle_exp_properties_t {
+  ur_ze_structure_type_ext_t stype; ///< [in] type of this structure
+  void *pNext; ///< [in,out][optional] must be null or a pointer to an
+               ///< extension-specific structure
+  ze_external_memory_type_flags_t
+      rangeExportTypes; ///< [out] handle types that can be returned for an
+                        ///< existing allocation, 0 if unsupported
+} ur_ze_intel_device_mem_range_handle_exp_properties_t;
+
+typedef ze_result_t (*ur_ze_pfnIntelMemGetHandleForAddressRange_t)(
+    ze_context_handle_t hContext, void *pHandle, const void *ptr, size_t size,
+    ur_ze_intel_mem_range_handle_type_exp_t handleType, void *pNext);
+
 } // namespace ur::level_zero

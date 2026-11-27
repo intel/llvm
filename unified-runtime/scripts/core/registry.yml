@@ -760,7 +760,10 @@ etors:
 - name: GRAPH_GET_ID_EXP
   desc: Enumerator for $xGraphGetIdExp
   value: '326'
-max_id: '326'
+- name: USM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP
+  desc: Enumerator for $xUSMGetHandleForAddressRangeExp
+  value: '327'
+max_id: '327'
 ---
 type: enum
 desc: Defines structure types

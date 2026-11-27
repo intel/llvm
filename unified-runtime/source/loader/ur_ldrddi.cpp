@@ -4965,6 +4965,35 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMGetHandleForAddressRangeExp
+__urdlllocal ur_result_t UR_APICALL urUSMGetHandleForAddressRangeExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] start of the address range
+    const void *pMem,
+    /// [in] size in bytes of the address range
+    size_t size,
+    /// [in] type of the handle to return
+    ur_exp_address_range_export_type_t exportType,
+    /// [in][optional] address range handle properties
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    /// [out] the OS handle and the location of `pMem` within the object it
+    /// names
+    ur_exp_address_range_export_t *pExport) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnGetHandleForAddressRangeExp =
+      dditable->USMExp.pfnGetHandleForAddressRangeExp;
+  if (nullptr == pfnGetHandleForAddressRangeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnGetHandleForAddressRangeExp(hContext, pMem, size, exportType,
+                                        pProperties, pExport);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMContextMemcpyExp
 __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
     /// [in] Context associated with the device(s) that own the allocations
@@ -7948,6 +7977,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       pDdiTable->pfnPoolGetDevicePoolExp = ur_loader::urUSMPoolGetDevicePoolExp;
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;
       pDdiTable->pfnPitchedAllocExp = ur_loader::urUSMPitchedAllocExp;
+      pDdiTable->pfnGetHandleForAddressRangeExp =
+          ur_loader::urUSMGetHandleForAddressRangeExp;
       pDdiTable->pfnContextMemcpyExp = ur_loader::urUSMContextMemcpyExp;
       pDdiTable->pfnHostAllocUnregisterExp =
           ur_loader::urUSMHostAllocUnregisterExp;

@@ -359,6 +359,11 @@
 		urPrintEventStatus;
 		urPrintEventWaitParams;
 		urPrintExecutionInfo;
+		urPrintExpAddressRangeExport;
+		urPrintExpAddressRangeExportType;
+		urPrintExpAddressRangeExportTypeFlags;
+		urPrintExpAddressRangeHandleFlags;
+		urPrintExpAddressRangeHandleProperties;
 		urPrintExpAsyncUsmAllocFlags;
 		urPrintExpAsyncUsmAllocProperties;
 		urPrintExpCommandBufferCommandInfo;
@@ -579,6 +584,7 @@
 		urPrintUsmDeviceDesc;
 		urPrintUsmDeviceMemFlags;
 		urPrintUsmFreeParams;
+		urPrintUsmGetHandleForAddressRangeExpParams;
 		urPrintUsmGetMemAllocInfoParams;
 		urPrintUsmHostAllocParams;
 		urPrintUsmHostAllocRegisterExpParams;
@@ -661,6 +667,7 @@
 		urUSMContextMemcpyExp;
 		urUSMDeviceAlloc;
 		urUSMFree;
+		urUSMGetHandleForAddressRangeExp;
 		urUSMGetMemAllocInfo;
 		urUSMHostAlloc;
 		urUSMHostAllocRegisterExp;

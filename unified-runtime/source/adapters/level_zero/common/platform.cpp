@@ -830,6 +830,20 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   ZeQueuePriorityExt.Supported =
       ZeQueuePriorityExt.zeDeviceGetPriorityLevels != nullptr;
+
+  const auto MemGetHandleForAddressRangeExtension = zeDriverExtensionMap.find(
+      UR_ZE_INTEL_MEM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP_NAME);
+  if (MemGetHandleForAddressRangeExtension != zeDriverExtensionMap.end() &&
+      MemGetHandleForAddressRangeExtension->second >= ZE_MAKE_VERSION(1, 0)) {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (ZeDriver, "zeIntelMemGetHandleForAddressRange",
+         reinterpret_cast<void **>(&ZeMemGetHandleForAddressRangeExt
+                                        .zeIntelMemGetHandleForAddressRange)));
+  }
+  ZeMemGetHandleForAddressRangeExt.Supported =
+      ZeMemGetHandleForAddressRangeExt.zeIntelMemGetHandleForAddressRange !=
+      nullptr;
   return UR_RESULT_SUCCESS;
 }
 

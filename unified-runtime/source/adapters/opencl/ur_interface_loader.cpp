@@ -552,6 +552,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolGetDevicePoolExp = ur::opencl::urUSMPoolGetDevicePoolExp;
   pDdiTable->pfnPoolTrimToExp = ur::opencl::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::opencl::urUSMPitchedAllocExp;
+  pDdiTable->pfnGetHandleForAddressRangeExp =
+      ur::opencl::urUSMGetHandleForAddressRangeExp;
   pDdiTable->pfnContextMemcpyExp = ur::opencl::urUSMContextMemcpyExp;
   pDdiTable->pfnHostAllocUnregisterExp =
       ur::opencl::urUSMHostAllocUnregisterExp;

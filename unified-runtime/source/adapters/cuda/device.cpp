@@ -1246,6 +1246,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP:
+    return ReturnValue(ur_exp_address_range_export_type_flags_t{0});
   case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
     // LUID and Device node mask are only available on Windows.

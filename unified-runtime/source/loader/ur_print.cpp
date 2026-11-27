@@ -1163,6 +1163,49 @@ ur_result_t urPrintExpQueuePriorityProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintExpAddressRangeExportType(enum ur_exp_address_range_export_type_t value,
+                                 char *buffer, const size_t buff_size,
+                                 size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpAddressRangeExportTypeFlags(
+    enum ur_exp_address_range_export_type_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpAddressRangeHandleFlags(enum ur_exp_address_range_handle_flag_t value,
+                                  char *buffer, const size_t buff_size,
+                                  size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpAddressRangeHandleProperties(
+    const struct ur_exp_address_range_handle_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpAddressRangeExport(const struct ur_exp_address_range_export_t params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpUsmHostAllocRegisterFlags(
     enum ur_exp_usm_host_alloc_register_flag_t value, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -3203,6 +3246,14 @@ ur_result_t urPrintUsmPoolTrimToExpParams(
 ur_result_t urPrintUsmPitchedAllocExpParams(
     const struct ur_usm_pitched_alloc_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmGetHandleForAddressRangeExpParams(
+    const struct ur_usm_get_handle_for_address_range_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

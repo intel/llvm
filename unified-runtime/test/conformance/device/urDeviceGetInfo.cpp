@@ -1994,6 +1994,24 @@ TEST_P(urDeviceGetInfoTest, SuccessVirtualMemorySupported) {
   ASSERT_TRUE(casted_value == false || casted_value == true);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessAddressRangeExportTypes) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(ur_exp_address_range_export_type_flags_t));
+
+  ur_exp_address_range_export_type_flags_t property_value =
+      UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FLAG_FORCE_UINT32;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+
+  ASSERT_EQ(property_value & UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FLAGS_MASK, 0);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessFp16Atomic) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_FP16_ATOMIC;

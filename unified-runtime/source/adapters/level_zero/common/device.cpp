@@ -1553,6 +1553,13 @@ ur_result_t urDeviceGetInfo(
         Device->ZeDeviceExternalMemoryProperties->memoryAllocationExportTypes !=
         0);
   }
+  case UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP: {
+    ur_exp_address_range_export_type_flags_t Types = 0;
+    if (Device->ZeDeviceMemRangeHandleProperties->rangeExportTypes &
+        ZE_EXTERNAL_MEMORY_TYPE_FLAG_DMA_BUF)
+      Types |= UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FLAG_DMA_BUF_FD;
+    return ReturnValue(Types);
+  }
   case UR_DEVICE_INFO_LUID:
   case UR_DEVICE_INFO_NODE_MASK: {
     // LUID and Device node mask are only available on Windows.
@@ -2163,6 +2170,29 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         // no export support is reported.
         ZE_CALL_NOCHECK(zeDeviceGetExternalMemoryProperties,
                         (ZeDevice, &Properties));
+      };
+
+  ZeDeviceMemRangeHandleProperties.Compute =
+      [ZeDevice, Platform = Platform](
+          ZexStruct<ur_ze_intel_device_mem_range_handle_exp_properties_t>
+              &Properties) {
+        // Report support only when the driver also provides the function, so
+        // the query and the API always agree, and drivers that don't know
+        // the extension never see its structure. Otherwise the export types
+        // remain zero.
+        if (!Platform->ZeMemGetHandleForAddressRangeExt.Supported)
+          return;
+        ZeStruct<ze_device_external_memory_properties_t> P;
+        P.pNext = &Properties;
+        ze_result_t ZeResult = ZE_CALL_NOCHECK(
+            zeDeviceGetExternalMemoryProperties, (ZeDevice, &P));
+        if (ZeResult != ZE_RESULT_SUCCESS) {
+          UR_LOG(DEBUG,
+                 "zeDeviceGetExternalMemoryProperties failed to query the "
+                 "address range handle properties, error code: {}",
+                 ZeResult);
+          Properties.rangeExportTypes = 0;
+        }
       };
 
   ZeDeviceCacheProperties.Compute =

@@ -8737,6 +8737,56 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMGetHandleForAddressRangeExp
+__urdlllocal ur_result_t UR_APICALL urUSMGetHandleForAddressRangeExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] start of the address range
+    const void *pMem,
+    /// [in] size in bytes of the address range
+    size_t size,
+    /// [in] type of the handle to return
+    ur_exp_address_range_export_type_t exportType,
+    /// [in][optional] address range handle properties
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    /// [out] the OS handle and the location of `pMem` within the object it
+    /// names
+    ur_exp_address_range_export_t *pExport) {
+  auto pfnGetHandleForAddressRangeExp =
+      getContext()->urDdiTable.USMExp.pfnGetHandleForAddressRangeExp;
+
+  if (nullptr == pfnGetHandleForAddressRangeExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_get_handle_for_address_range_exp_params_t params = {
+      &hContext, &pMem, &size, &exportType, &pProperties, &pExport};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_USM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP,
+      "urUSMGetHandleForAddressRangeExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urUSMGetHandleForAddressRangeExp\n");
+
+  ur_result_t result = pfnGetHandleForAddressRangeExp(
+      hContext, pMem, size, exportType, pProperties, pExport);
+
+  getContext()->notify_end(UR_FUNCTION_USM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP,
+                           "urUSMGetHandleForAddressRangeExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_USM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP, &params);
+    UR_LOG_L(logger, INFO,
+             "   <--- urUSMGetHandleForAddressRangeExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMContextMemcpyExp
 __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
     /// [in] Context associated with the device(s) that own the allocations
@@ -12895,6 +12945,11 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_tracing_layer::urUSMPitchedAllocExp;
+
+  dditable.pfnGetHandleForAddressRangeExp =
+      pDdiTable->pfnGetHandleForAddressRangeExp;
+  pDdiTable->pfnGetHandleForAddressRangeExp =
+      ur_tracing_layer::urUSMGetHandleForAddressRangeExp;
 
   dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
   pDdiTable->pfnContextMemcpyExp = ur_tracing_layer::urUSMContextMemcpyExp;
