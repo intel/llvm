@@ -122,6 +122,20 @@ class LITLogParserTest(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "Cannot read log file"):
                 read_log_file(str(missing_path))
 
+    def test_extract_failed_test_names_strips_detail_and_counts(self):
+        lines = [
+            "FAIL: SYCL :: Scheduler/foo.cpp (12 of 34)\n",
+            "******************** TEST 'SYCL :: Scheduler/foo.cpp' FAILED ********************\n",
+            "Exit Code: 1\n",
+            "\n",
+            "TIMEOUT: SYCL :: USM/bar.cpp (13 of 34)\n",
+            "******************** TEST 'SYCL :: USM/bar.cpp' FAILED ********************\n",
+        ]
+
+        names = LITLogParser(lines).extract_failed_test_names()
+
+        self.assertEqual(names, ["SYCL :: Scheduler/foo.cpp", "SYCL :: USM/bar.cpp"])
+
     def test_parses_all_builtin_statuses(self):
         categories = [
             ("Passed", TestStatus.PASS),

@@ -44,6 +44,9 @@ SLOWEST_TESTS_HEADER = "Slowest Tests"
 TEST_TIMES_HEADERS = ("Tests Times", "Test Times")
 
 FAIL_TIMEOUT_PATTERN = re.compile(r"^(FAIL|TIMEOUT):")
+FAIL_TIMEOUT_NAME_PATTERN = re.compile(
+    r"^(?:FAIL|TIMEOUT):\s*(.+?)(?:\s*\(\d+ of \d+\))?\s*$"
+)
 TEST_CATEGORY_PATTERN = re.compile(r"^([A-Za-z]+(?: [A-Za-z]+)*) Tests \((\d+)\):")
 TESTING_TIME_PATTERN = re.compile(r"^\s*Testing Time:\s*([0-9.]+)s")
 STAT_LINE_PATTERN = re.compile(r"^\s*(.+?)\s*:\s*(\d+)(?:\s|$)")

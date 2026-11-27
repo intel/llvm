@@ -59,8 +59,17 @@ def main_test_summary(command: str) -> int:
         if command == "extract-errors":
             details = parser.extract_error_details()
             if details:
+                names = parser.extract_failed_test_names()
+                if names:
+                    print(f"Failed tests ({len(names)}):")
+                    for name in names:
+                        print(name)
+                    print()
+
+                print("::group::Detailed failure log")
                 for line in details:
                     print(line, end="")
+                print("::endgroup::")
             else:
                 print(
                     "::error::Test run failed, but no FAIL/TIMEOUT entries were "

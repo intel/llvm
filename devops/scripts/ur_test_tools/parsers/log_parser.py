@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 from ..constants import (
     FAIL_TIMEOUT_PATTERN,
+    FAIL_TIMEOUT_NAME_PATTERN,
     STAT_LINE_PATTERN,
     TEST_CATEGORY_PATTERN,
     TESTING_TIME_PATTERN,
@@ -76,6 +77,15 @@ class LITLogParser:
                 result.append(line)
 
         return result
+
+    def extract_failed_test_names(self) -> List[str]:
+        """Return just the test names from FAIL/TIMEOUT lines, no verbose detail."""
+        names = []
+        for line in self.lines:
+            match = FAIL_TIMEOUT_NAME_PATTERN.match(line.rstrip("\n"))
+            if match:
+                names.append(match.group(1))
+        return names
 
     def extract_statistics(self) -> List[str]:
         result = []
