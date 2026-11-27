@@ -117,8 +117,7 @@ void ReportGenericError(const AsanErrorReport &Report,
 }
 
 void ReportUseAfterFree(const AsanErrorReport &Report,
-                        ur_kernel_handle_t Kernel,
-                        ur_context_handle_t Context) {
+                        ur_kernel_handle_t Kernel) {
   const char *File = Report.File[0] ? Report.File : "<unknown file>";
   const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
   auto KernelName = GetKernelName(Kernel);
@@ -148,11 +147,6 @@ void ReportUseAfterFree(const AsanErrorReport &Report,
                (void *)Report.Address);
     } else {
       auto &AllocInfo = (*AllocInfoItOp)->second;
-      if (AllocInfo->Context != Context) {
-        UR_LOG_L(getContext()->logger, QUIET,
-                 "Failed to find which chunck {} is allocated",
-                 (void *)Report.Address);
-      }
       assert(AllocInfo->IsReleased &&
              "It must be released since it's use-after-free");
 

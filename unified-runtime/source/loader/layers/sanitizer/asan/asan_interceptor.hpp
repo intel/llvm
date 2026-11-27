@@ -23,6 +23,7 @@
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
+#include <deque>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -155,6 +156,10 @@ struct ContextInfo {
 
   std::atomic<int32_t> RefCount = 1;
 
+  // The program owns the native context of this interop context, and may
+  // destroy it as soon as it releases the context.
+  bool ProgramOwnsNativeHandle = false;
+
   std::vector<ur_device_handle_t> DeviceList;
 
   ur_shared_mutex InternalQueueMapMutex;
@@ -178,6 +183,8 @@ struct ContextInfo {
   }
 
   ~ContextInfo();
+
+  void reportMemoryLeaks();
 
   ur_usm_pool_handle_t getUSMPool();
 
@@ -359,6 +366,8 @@ public:
   std::vector<AllocationIterator>
   findAllocInfoByContext(ur_context_handle_t Context);
 
+  void eraseAllocInfoByContext(ur_context_handle_t Context);
+
   std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
     std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
     assert(m_ContextMap.find(Context) != m_ContextMap.end());
@@ -415,6 +424,10 @@ private:
   std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
       m_ContextMap;
   ur_shared_mutex m_ContextMapMutex;
+  /// Released contexts whose quarantine still holds memory, oldest first. They
+  /// keep their USM pool alive, so the quarantined memory isn't reused.
+  std::deque<std::shared_ptr<ContextInfo>> m_ReleasedContexts;
+  ur_mutex m_ReleasedContextsMutex;
   std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
       m_DeviceMap;
   ur_shared_mutex m_DeviceMapMutex;

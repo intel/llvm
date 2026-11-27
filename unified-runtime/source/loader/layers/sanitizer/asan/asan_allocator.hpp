@@ -40,6 +40,11 @@ struct AllocInfo {
   bool isRegistered() const {
     return Type == AllocType::IPC_MEM || Type == AllocType::REGISTERED_HOST_MEM;
   }
+  // The memory is allocated by us in its context. Registered memory and the
+  // device globals of programs are only tracked.
+  bool isAllocatedInContext() const {
+    return !isRegistered() && Type != AllocType::DEVICE_GLOBAL;
+  }
 };
 
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;

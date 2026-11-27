@@ -61,6 +61,16 @@ public:
   std::vector<AllocationIterator> put(ur_device_handle_t Device,
                                       AllocationIterator &Ptr);
 
+  // Total size of the cached chunks of all devices.
+  uptr size() {
+    std::scoped_lock<ur_mutex> Guard(m_Mutex);
+    uptr Size = 0;
+    for (const auto &[_, Cache] : m_Map) {
+      Size += Cache.size();
+    }
+    return Size;
+  }
+
 private:
   QuarantineCache &getCache(ur_device_handle_t Device) {
     std::scoped_lock<ur_mutex> Guard(m_Mutex);

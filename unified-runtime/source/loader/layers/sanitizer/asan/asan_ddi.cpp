@@ -552,6 +552,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
   if (result == UR_RESULT_SUCCESS) {
     UR_CALL(setupContext(*phContext, numDevices, phDevices));
+    getAsanInterceptor()->getContextInfo(*phContext)->ProgramOwnsNativeHandle =
+        !pProperties || !pProperties->isNativeHandleOwned;
   }
 
   return result;
