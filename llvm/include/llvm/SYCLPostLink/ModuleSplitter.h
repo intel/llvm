@@ -362,6 +362,16 @@ Error splitSYCLModule(
     function_ref<Error(std::unique_ptr<ModuleDesc>)> PostSplitCallback);
 
 bool isESIMDFunction(const Function &F);
+
+/// Returns true if \p F is used but neither defined in its module nor an
+/// intrinsic or builtin which is resolved by the device backend.
+bool isCallToUndefinedFunction(const Function &F);
+
+/// Returns an error listing the symbols which are used but not defined in
+/// \p M, if there are any. These are the functions for which
+/// isCallToUndefinedFunction() is true and the global variables other than
+/// SPIR-V built-in variables.
+Error diagnoseUndefinedSymbols(const Module &M);
 bool canBeImportedFunction(const Function &F,
                            bool AllowDeviceImageDependencies);
 

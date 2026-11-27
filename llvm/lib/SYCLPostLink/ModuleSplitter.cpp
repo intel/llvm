@@ -307,7 +307,7 @@ checkForCallsToUndefinedFunctions(const Module &M,
   if (AllowDeviceImageDependencies || SuppressUndefinedFuncWarnings)
     return;
   for (const Function &F : M) {
-    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
+    if (isCallToUndefinedFunction(F))
       WithColor::warning()
           << "Undefined function " << F.getName() << " found in " << M.getName()
           << ". This may result in runtime errors. Use "
@@ -1262,13 +1262,34 @@ Error splitSYCLModule(
   while (Splitter->hasMoreSplits()) {
     std::unique_ptr<ModuleDesc> MD2 = Splitter->nextSplit();
     if (Error E = PostSplitCallback(std::move(MD2)); E)
-      return createStringError(formatv(
-          "SYCL Module split failed for part index {0}. error: {1}", ID, E));
+      return createStringError(
+          formatv("SYCL Module split failed for part index {0}. error: {1}", ID,
+                  toString(std::move(E))));
 
     ++ID;
   }
 
   return Error::success();
+}
+
+bool isCallToUndefinedFunction(const Function &F) {
+  return !isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty();
+}
+
+Error diagnoseUndefinedSymbols(const Module &M) {
+  SmallVector<StringRef> Names;
+  for (const Function &F : M)
+    if (isCallToUndefinedFunction(F))
+      Names.push_back(F.getName());
+  // SPIR-V built-in variables are resolved by the device backend.
+  for (const GlobalVariable &GV : M.globals())
+    if (GV.isDeclaration() && !GV.use_empty() &&
+        !GV.getName().starts_with("__spirv_BuiltIn"))
+      Names.push_back(GV.getName());
+  if (Names.empty())
+    return Error::success();
+  return createStringError(formatv("undefined symbol(s) {0} found in {1}",
+                                   join(Names, ", "), M.getName()));
 }
 
 bool canBeImportedFunction(const Function &F,

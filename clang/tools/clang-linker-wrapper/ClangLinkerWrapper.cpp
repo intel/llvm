@@ -616,6 +616,15 @@ fatbinary(ArrayRef<std::tuple<StringRef, StringRef, StringRef>> InputFiles,
 } // namespace amdgcn
 
 namespace sycl {
+
+/// Returns true if the SYCL device code described by \p LinkerArgs was
+/// compiled in "no-rdc" mode with `--offload-arch` for an IGCA target.
+static bool isIGCANoRDCMode(const ArgList &LinkerArgs) {
+  // TODO: Query the OffloadArch IGCA target list once it is available here.
+  return LinkerArgs.hasArg(OPT_no_sycl_rdc) &&
+         LinkerArgs.getLastArgValue(OPT_arch_EQ).starts_with("igca_");
+}
+
 /// This routine is used to convert SPIR-V input files into LLVM IR files.
 /// 'llvm-spirv -r' command is used for this purpose.
 /// If input is not a SPIR-V file, then the original file is returned.
@@ -722,6 +731,12 @@ getSYCLPostLinkSettings(const ArgList &Args, const llvm::Triple Triple) {
       Settings.ESIMDOptions.SuppressUndefinedFuncWarnings =
           Args.hasArg(OPT_sycl_suppress_undefined_func_warnings);
 
+  // In "no-rdc" mode with `--offload-arch` the device code is fully linked, so
+  // undefined symbols are errors.
+  Settings.UndefinedSymbolsAreErrors =
+      isIGCANoRDCMode(Args) &&
+      !Args.hasArg(OPT_sycl_allow_device_image_dependencies);
+
   return Settings;
 }
 
@@ -783,6 +798,12 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                    OPT_no_sycl_add_default_spec_consts_image, false) &&
       IsAOT)
     PostLinkArgs.push_back("-generate-device-image-default-spec-consts");
+
+  // In "no-rdc" mode with `--offload-arch` the device code is fully linked, so
+  // undefined symbols are errors.
+  if (isIGCANoRDCMode(Args) &&
+      !Args.hasArg(OPT_sycl_allow_device_image_dependencies))
+    PostLinkArgs.push_back("-undefined-symbols-are-errors");
 }
 
 /// Run sycl-post-link tool for SYCL offloading.
@@ -2371,6 +2392,83 @@ Expected<std::vector<module_split::SplitModule>> postLinkProcessModule(
   return std::move(SplitModules);
 }
 
+/// The device images produced for one IGCA target in "no-rdc" mode.
+struct IGCATargetModules {
+  std::string Arch;
+  llvm::Triple Triple;
+  std::vector<module_split::SplitModule> Modules;
+};
+
+/// Combines the device images of all IGCA targets in \p Targets into
+/// uber-modules. Every IGCA target defines the same kernels, so the images
+/// which define the same set of kernels, one from each IGCA target, are
+/// concatenated via `ocloc concat`.
+///
+/// \returns The list of uber-modules.
+static Expected<std::vector<module_split::SplitModule>>
+createIGCAUberModules(MutableArrayRef<IGCATargetModules> Targets,
+                      const ArgList &Args) {
+  // Targets are collected in parallel, sort them for a deterministic output.
+  llvm::sort(Targets,
+             [](const IGCATargetModules &A, const IGCATargetModules &B) {
+               return A.Arch < B.Arch;
+             });
+
+  // Group the images of all targets by the set of kernels they define.
+  StringMap<size_t> GroupIndex;
+  SmallVector<SmallVector<module_split::SplitModule *>> Groups;
+  for (IGCATargetModules &Target : Targets) {
+    for (module_split::SplitModule &SM : Target.Modules) {
+      SmallVector<StringRef> Symbols;
+      StringRef(SM.Symbols)
+          .split(Symbols, '\n', /*MaxSplit=*/-1,
+                 /*KeepEmpty=*/false);
+      llvm::sort(Symbols);
+      auto [It, Inserted] =
+          GroupIndex.try_emplace(llvm::join(Symbols, "\n"), Groups.size());
+      if (Inserted)
+        Groups.emplace_back();
+      SmallVector<module_split::SplitModule *> &Group = Groups[It->second];
+      if (Group.size() != static_cast<size_t>(&Target - Targets.begin()))
+        return createStringError(
+            "device images of IGCA target '" + Target.Arch +
+            "' do not define the same kernels as other IGCA targets");
+      Group.push_back(&SM);
+    }
+  }
+
+  std::vector<module_split::SplitModule> UberModules;
+  for (SmallVector<module_split::SplitModule *> &Group : Groups) {
+    if (Group.size() != Targets.size())
+      return createStringError(
+          "device images of IGCA targets do not define the same kernels");
+
+    module_split::SplitModule &UberModule =
+        UberModules.emplace_back(std::move(*Group.front()));
+    if (Group.size() == 1)
+      continue;
+
+    Expected<std::string> OclocPath = findOcloc(Args);
+    if (!OclocPath)
+      return OclocPath.takeError();
+    auto OutputFileOrErr = createOutputFile(
+        sys::path::filename(ExecutableName) + ".sycl.uber", "bin");
+    if (!OutputFileOrErr)
+      return OutputFileOrErr.takeError();
+
+    SmallVector<StringRef, 8> CmdArgs = {*OclocPath, "concat",
+                                         UberModule.ModuleFilePath};
+    for (const module_split::SplitModule *SM : drop_begin(Group))
+      CmdArgs.push_back(SM->ModuleFilePath);
+    CmdArgs.push_back("-out");
+    CmdArgs.push_back(*OutputFileOrErr);
+    if (Error Err = executeCommands(*OclocPath, CmdArgs))
+      return std::move(Err);
+    UberModule.ModuleFilePath = *OutputFileOrErr;
+  }
+  return std::move(UberModules);
+}
+
 /// Run SYCL offloading pipeline for the given \p InputModules.
 /// Here steps consists of:
 /// * Link all input Modules.
@@ -3060,6 +3158,11 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   std::mutex SYCLBINModulesMtx;
   SmallVector<SYCLBIN::SYCLBINModuleDesc> SYCLBINModules;
 
+  // In "no-rdc" mode with `--offload-arch`, the device images of all IGCA
+  // targets are combined into uber-modules once every target is processed.
+  std::mutex IGCAModulesMtx;
+  SmallVector<sycl::IGCATargetModules> IGCAModules;
+
   // Initialize the images with any overriding inputs.
   if (Args.hasArg(OPT_override_image))
     if (Error Err = handleOverrideImages(Args, Images))
@@ -3175,6 +3278,10 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         MD.SplitModules = std::move(Modules);
         std::scoped_lock<std::mutex> Guard(SYCLBINModulesMtx);
         SYCLBINModules.emplace_back(std::move(MD));
+      } else if (sycl::isIGCANoRDCMode(LinkerArgs)) {
+        std::scoped_lock<std::mutex> Guard(IGCAModulesMtx);
+        IGCAModules.push_back({LinkerArgs.getLastArgValue(OPT_arch_EQ).str(),
+                               TargetTriple, std::move(Modules)});
       } else if (EmitFatbinOnly) {
         // Package the finalized images with their runtime metadata; the host
         // compilation wraps them for registration with the SYCL runtime.
@@ -3293,6 +3400,48 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
     if (!OutputOrErr)
       return OutputOrErr.takeError();
     WrappedOutput.push_back(*OutputOrErr);
+  }
+
+  if (!IGCAModules.empty()) {
+    Expected<std::vector<module_split::SplitModule>> UberModulesOrErr =
+        sycl::createIGCAUberModules(IGCAModules, Args);
+    if (!UberModulesOrErr)
+      return UberModulesOrErr.takeError();
+
+    // TODO: Use a dedicated runtime target for the uber-modules. Until then,
+    // all IGCA targets share the triple of the first one.
+    const llvm::Triple &Triple = IGCAModules.front().Triple;
+    if (EmitFatbinOnly) {
+      Expected<SmallVector<offloading::SYCLImage>> SYCLImagesOrErr =
+          sycl::createSYCLImages(*UberModulesOrErr, Args,
+                                 /*IsEmbeddedIR=*/false, Triple);
+      if (!SYCLImagesOrErr)
+        return SYCLImagesOrErr.takeError();
+
+      // The uber-modules are final, so they carry only the SYCL runtime
+      // metadata and no compilation target.
+      auto &SYCLImages = Images[OFK_SYCL];
+      for (offloading::SYCLImage &SYCLImage : *SYCLImagesOrErr) {
+        OffloadingImage TheImage{};
+        TheImage.TheImageKind =
+            Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
+        TheImage.TheOffloadKind = OFK_SYCL;
+        offloading::addSYCLImageStrings(SYCLImage, TheImage.StringData,
+                                        SYCLImageStringSaver);
+        TheImage.Image = std::move(SYCLImage.Image);
+        SYCLImages.emplace_back(std::move(TheImage));
+      }
+    } else {
+      Expected<StringRef> WrapperFileOrErr = sycl::wrapSYCLBinariesFromFile(
+          *UberModulesOrErr, Args, /*IsEmbeddedIR=*/false, Triple);
+      if (!WrapperFileOrErr)
+        return WrapperFileOrErr.takeError();
+      Expected<StringRef> OutputFileOrErr =
+          sycl::runCompile(*WrapperFileOrErr, Args);
+      if (!OutputFileOrErr)
+        return OutputFileOrErr.takeError();
+      WrappedOutput.push_back(*OutputFileOrErr);
+    }
   }
 
   for (auto &[Kind, Input] : Images) {
