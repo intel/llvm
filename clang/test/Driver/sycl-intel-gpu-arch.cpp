@@ -1,21 +1,69 @@
 /// Tests for Intel GPU names in --offload-arch.
 
-/// An Intel GPU name names a device job.
+/// A device job is named after the IGCA target of an Intel GPU, e.g. igca_40r
+/// for xe-bmg-g21.
 // RUN: %clang --offload-new-driver -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=xe-bmg-g21 \
 // RUN:   --offload-arch=xe-dg2 -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-SYCL %s
-// CHK-SYCL-DAG: offload, "device-sycl (spirv64-unknown-unknown:xe-bmg-g21)"
-// CHK-SYCL-DAG: offload, "device-sycl (spirv64-unknown-unknown:xe-dg2)"
+// CHK-SYCL-DAG: offload, "device-sycl (spirv64-unknown-unknown:igca_40r)"
+// CHK-SYCL-DAG: offload, "device-sycl (spirv64-unknown-unknown:igca_15ra)"
 
-/// A device name, an alias and a numeric name are kept as given.
-// RUN: %clang --offload-new-driver -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl \
+/// A device name, an alias and a numeric name of the same device result in one
+/// device image for its IGCA target, with all names kept as given. On sycl-web,
+/// a SPIR-V image also gets compile-opts for the default GRF mode.
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
 // RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=xe-mtl-u \
 // RUN:   --offload-arch=xe-arl-u --offload-arch=xe_12.70.0 -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-AS-GIVEN %s
-// CHK-AS-GIVEN-DAG: offload, "device-sycl (spirv64-unknown-unknown:xe-mtl-u)"
-// CHK-AS-GIVEN-DAG: offload, "device-sycl (spirv64-unknown-unknown:xe-arl-u)"
-// CHK-AS-GIVEN-DAG: offload, "device-sycl (spirv64-unknown-unknown:xe_12.70.0)"
+// CHK-AS-GIVEN: llvm-offload-binary" "-o" "{{[^"]*}}" "--image=file={{[^"]*}},triple=spirv64-unknown-unknown,arch=igca_30r,kind=sycl,code=xe-arl-u,code=xe-mtl-u,code=xe_12.70.0,compile-opts={{[^",]*}}"{{$}}
+
+/// The devices are sorted, so that objects compiled for the same devices in any
+/// order have the same list.
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=xe-mtl-h,xe-mtl-u -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-SORTED %s
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=xe-mtl-u,xe-mtl-h -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-SORTED %s
+// CHK-SORTED: "--image=file={{[^"]*}},triple=spirv64-unknown-unknown,arch=igca_30r,kind=sycl,code=xe-mtl-h,code=xe-mtl-u,compile-opts=
+
+/// An IGCA target given directly together with one of its Intel GPUs gives one
+/// device compile, which lists that GPU.
+// RUN: %clang --offload-new-driver -ccc-print-phases --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=igca_30r,xe-mtl-u -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-MIXED-PHASES %s
+// CHK-MIXED-PHASES: offload, "device-sycl (spirv64-unknown-unknown:igca_30r)"
+// CHK-MIXED-PHASES-NOT: device-sycl (spirv
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=igca_30r,xe-mtl-u -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-MIXED %s
+// CHK-MIXED: "--image=file={{[^"]*}},triple=spirv64-unknown-unknown,arch=igca_30r,kind=sycl,code=xe-mtl-u,compile-opts={{[^",]*}}"{{$}}
+
+/// An IGCA target given directly lists no devices.
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=igca_30r -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-IGCA-ONLY %s
+// CHK-IGCA-ONLY: "--image=file={{[^"]*}},triple=spirv64-unknown-unknown,arch=igca_30r,kind=sycl,compile-opts=
+
+/// -Xarch_ names the IGCA target of the device compile, not an Intel GPU, as
+/// one device compile can be for several Intel GPUs.
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=xe-pvc -Xarch_igca_20ca -DFOO -Xarch_xe-pvc -DBAR \
+// RUN:   -c %s 2>&1 | FileCheck -check-prefixes=CHK-XARCH %s
+// CHK-XARCH: warning: argument unused during compilation: '-Xarch_xe-pvc -DBAR'
+// CHK-XARCH-NOT: "-D" "BAR"
+// CHK-XARCH: "-cc1" "-triple" "spirv64-unknown-unknown"{{.*}} "-D" "FOO"
+// CHK-XARCH-NOT: "-D" "BAR"
+
+/// Static libraries are searched for the IGCA target of an Intel GPU, once for
+/// Intel GPUs that share it.
+// RUN: %clang --offload-new-driver -### --target=x86_64-unknown-linux-gnu -fsycl \
+// RUN:   --offload-targets=spirv64-unknown-unknown --offload-arch=xe-mtl-u,xe-mtl-h %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-EXTRACT %s
+// CHK-EXTRACT: clang-linker-wrapper"
+// CHK-EXTRACT-SAME: "--should-extract=igca_30r"
+// CHK-EXTRACT-NOT: --should-extract=
 
 /// Without --offload-targets, an IGCA target or "generic" picks SPIR-V of the
 /// host's width. On sycl-web, an Intel GPU (by name or numeric name) or an Intel

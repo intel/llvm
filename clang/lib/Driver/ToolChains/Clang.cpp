@@ -39,6 +39,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Frontend/Debug/Options.h"
@@ -11127,6 +11128,12 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
     }
 
+    // Add one "code=" per Intel GPU requested for this IGCA target.
+    // llvm-offload-binary joins them, so the image gets
+    // "code=xe-mtl-h,xe-mtl-u".
+    for (StringRef Device : C.getIGCADevices(TC, Arch.ArchName))
+      Parts.emplace_back("code=" + Device.str());
+
     if (TC->isUsingLTO(TCArgs, OffloadAction->getOffloadingDeviceKind()))
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
@@ -12298,11 +12305,21 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // If the user explicitly requested it via `--offload-arch` we should
       // extract it from any static libraries if present. Device images are
       // labeled with the canonical target ID, so request that.
+      llvm::StringSet<> ShouldExtract;
       for (StringRef Arg : ToolChainArgs.getAllArgValues(OPT_offload_arch_EQ)) {
         std::optional<std::string> TargetID =
             getCanonicalTargetID(TC->getTriple(), Arg);
-        CmdArgs.emplace_back(Args.MakeArgString(
-            "--should-extract=" + (TargetID ? StringRef(*TargetID) : Arg)));
+        StringRef Name = TargetID ? StringRef(*TargetID) : Arg;
+        // A SYCL device image for an Intel GPU is labeled with the GPU's IGCA
+        // target.
+        // TODO: Drop the SYCL check along with the one in getOffloadArchs.
+        if (Kind == Action::OFK_SYCL && !TC->getTriple().isSPIRAOT())
+          if (OffloadArch ID = StringToOffloadArch(Name);
+              ID.isIntelGPU() && !ID.isIntelArchKind())
+            Name = OffloadArchToVirtualArchString(ID);
+        // Intel GPUs that share an IGCA target ask for it once.
+        if (ShouldExtract.insert(Name).second)
+          CmdArgs.emplace_back(Args.MakeArgString("--should-extract=" + Name));
       }
 
       // If this is OpenMP the device linker will need `-lompdevice`.
