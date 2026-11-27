@@ -2149,8 +2149,6 @@ public:
            matrix_type::fp32, matrix_type::fp32},
           {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
-          {16, 16, 16, 0, 0, 0, matrix_type::tf32, matrix_type::tf32,
-           matrix_type::fp32, matrix_type::fp32},
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
