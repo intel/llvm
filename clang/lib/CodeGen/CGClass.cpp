@@ -2960,11 +2960,7 @@ void CodeGenFunction::EmitVTableCheck(CFITypeCheckKind TCK, CanQualType T,
     return;
   }
 
-  llvm::Constant *StaticData[] = {
-      llvm::ConstantInt::get(Int8Ty, TCK),
-      EmitCheckSourceLocation(Loc),
-      EmitCheckTypeDescriptor(T),
-  };
+  auto StaticData = EmitCFICheckFailStaticArgs(TCK, Loc, T);
 
   if (CrossDsoTypeId) {
     EmitCfiSlowPathCheck(M, TypeTest, CrossDsoTypeId, VTable, StaticData);
