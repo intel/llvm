@@ -324,6 +324,16 @@ struct ur_platform_handle_t_ : ur::level_zero::ur_object_t, public ur_platform {
     ze_result_t (*zeDeviceGetPriorityLevels)(ze_device_handle_t, int32_t *,
                                              int32_t *) = nullptr;
   } ZeQueuePriorityExt;
+
+  // Intel driver extension for exporting existing device allocations, see
+  // ze_intel_ext.hpp. The function is obtained directly from the driver, so
+  // the context handle passed to it must be translated with
+  // zelLoaderTranslateHandle.
+  struct ZeMemGetHandleForAddressRangeExtension {
+    bool Supported = false;
+    ur_ze_pfnIntelMemGetHandleForAddressRange_t
+        zeIntelMemGetHandleForAddressRange = nullptr;
+  } ZeMemGetHandleForAddressRangeExt;
 };
 
 } // namespace ur::level_zero

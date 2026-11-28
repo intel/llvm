@@ -201,6 +201,13 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
     ur_exp_external_mem_type_t handleTypeToExport, void *pMem,
     void *pMemHandleRet);
 
+// USM address range handles
+ur_result_t urUSMGetHandleForAddressRangeExp(
+    ::ur_context_handle_t hContextOpque, const void *pMem, size_t size,
+    ur_exp_address_range_export_type_t exportType,
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    ur_exp_address_range_export_t *pExport);
+
 // Bindless images / pitched USM
 ur_result_t urUSMPitchedAllocExp(::ur_context_handle_t hContextOpque,
                                  ::ur_device_handle_t hDeviceOpque,

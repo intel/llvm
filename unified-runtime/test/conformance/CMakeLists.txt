@@ -75,6 +75,7 @@ add_subdirectory(exp_graph)
 add_subdirectory(exp_usm_host_mem_register)
 add_subdirectory(exp_reusable_events)
 add_subdirectory(exp_queue_priority)
+add_subdirectory(exp_usm_address_range_handle)
 
 set(TEST_SUBDIRECTORIES_DPCXX
     "device_code"

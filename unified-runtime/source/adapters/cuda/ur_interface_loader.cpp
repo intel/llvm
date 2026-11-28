@@ -451,6 +451,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolGetDevicePoolExp = urUSMPoolGetDevicePoolExp;
   pDdiTable->pfnPoolTrimToExp = urUSMPoolTrimToExp;
   pDdiTable->pfnContextMemcpyExp = urUSMContextMemcpyExp;
+  pDdiTable->pfnGetHandleForAddressRangeExp = urUSMGetHandleForAddressRangeExp;
   return UR_RESULT_SUCCESS;
 }
 

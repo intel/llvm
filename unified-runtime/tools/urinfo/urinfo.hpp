@@ -510,6 +510,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP);
   std::cout << prefix;
+  printDeviceInfo<ur_exp_address_range_export_type_flags_t>(
+      hDevice, UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,

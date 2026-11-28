@@ -450,6 +450,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   }
   pDdiTable->pfnPitchedAllocExp = urUSMPitchedAllocExp;
   pDdiTable->pfnContextMemcpyExp = urUSMContextMemcpyExp;
+  pDdiTable->pfnGetHandleForAddressRangeExp = urUSMGetHandleForAddressRangeExp;
   return UR_RESULT_SUCCESS;
 }
 

@@ -179,6 +179,9 @@ template <>
 struct stype_map<ur_exp_async_usm_alloc_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES> {};
 template <>
+struct stype_map<ur_exp_address_range_handle_properties_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ADDRESS_RANGE_HANDLE_PROPERTIES> {};
+template <>
 struct stype_map<ur_exp_enqueue_native_command_properties_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES> {
 };

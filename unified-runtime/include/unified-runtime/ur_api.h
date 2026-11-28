@@ -534,6 +534,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_IPC_OPEN_EVENT_HANDLE_EXP = 325,
   /// Enumerator for ::urGraphGetIdExp
   UR_FUNCTION_GRAPH_GET_ID_EXP = 326,
+  /// Enumerator for ::urUSMGetHandleForAddressRangeExp
+  UR_FUNCTION_USM_GET_HANDLE_FOR_ADDRESS_RANGE_EXP = 327,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -655,6 +657,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_IMAGE_USER_PITCH_DESC = 0x2009,
   /// ::ur_exp_async_usm_alloc_properties_t
   UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES = 0x2050,
+  /// ::ur_exp_address_range_handle_properties_t
+  UR_STRUCTURE_TYPE_EXP_ADDRESS_RANGE_HANDLE_PROPERTIES = 0x20C0,
   /// ::ur_exp_enqueue_native_command_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
   /// ::ur_exp_enqueue_ext_properties_t
@@ -2607,6 +2611,11 @@ typedef enum ur_device_info_t {
   /// value, which corresponds to the lowest queue priority. It is never
   /// less than 0.
   UR_DEVICE_INFO_QUEUE_PRIORITY_LOWEST_EXP = 0x20B2,
+  /// [::ur_exp_address_range_export_type_flags_t] returns the handle types
+  /// that ::urUSMGetHandleForAddressRangeExp can return for device memory
+  /// of this device. Returns 0 if the device does not support address range
+  /// handles.
+  UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP = 0x20C0,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -11977,6 +11986,181 @@ typedef struct ur_exp_queue_priority_properties_t {
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for obtaining OS handles to
+// USM address ranges
+#if !defined(__GNUC__)
+#pragma region usm_address_range_handle_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Type of OS handle that can be obtained for a device memory address
+///        range
+typedef enum ur_exp_address_range_export_type_t {
+  /// Linux DMA-BUF file descriptor. The handle is returned as an `int`.
+  UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD = 0,
+  /// @cond
+  UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_address_range_export_type_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Supported address range handle types
+typedef uint32_t ur_exp_address_range_export_type_flags_t;
+typedef enum ur_exp_address_range_export_type_flag_t {
+  /// ::UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD is supported
+  UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FLAG_DMA_BUF_FD = UR_BIT(0),
+  /// @cond
+  UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_address_range_export_type_flag_t;
+/// @brief Bit Mask for validating ur_exp_address_range_export_type_flags_t
+#define UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Address range handle flags
+typedef uint32_t ur_exp_address_range_handle_flags_t;
+typedef enum ur_exp_address_range_handle_flag_t {
+  /// Reserved for future use.
+  UR_EXP_ADDRESS_RANGE_HANDLE_FLAG_TBD = UR_BIT(0),
+  /// @cond
+  UR_EXP_ADDRESS_RANGE_HANDLE_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_address_range_handle_flag_t;
+/// @brief Bit Mask for validating ur_exp_address_range_handle_flags_t
+#define UR_EXP_ADDRESS_RANGE_HANDLE_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Address range handle properties
+///
+/// @details
+///     - Reserved for future extensions.
+typedef struct ur_exp_address_range_handle_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_ADDRESS_RANGE_HANDLE_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] address range handle flags, must be 0
+  ur_exp_address_range_handle_flags_t flags;
+
+} ur_exp_address_range_handle_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief OS handle to the memory backing an address range
+typedef union ur_exp_address_range_handle_value_t {
+  /// [out] Linux DMA-BUF file descriptor, for
+  /// ::UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD
+  int fd;
+
+} ur_exp_address_range_handle_value_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief OS handle to the memory backing an address range, and the location of
+///        the range within the object that the handle names
+///
+/// @details
+///     - The handle names device addresses [`base`, `base` + `size`). Byte
+///       `offset` of the handle corresponds to the `pMem` passed to
+///       ::urUSMGetHandleForAddressRangeExp, i.e. `pMem == base + offset`.
+///     - `base` is aligned to the host page size, so `offset` has the same
+///       remainder modulo the host page size as `pMem`.
+typedef struct ur_exp_address_range_export_t {
+  /// [out] type of the OS handle stored in `handle`
+  ur_exp_address_range_export_type_t type;
+  /// [out][tagged_by(type)] OS handle to the memory backing the range
+  ur_exp_address_range_handle_value_t handle;
+  /// [out] byte offset within the handle that corresponds to `pMem`
+  uint64_t offset;
+  /// [out] device address that corresponds to offset 0 of the handle
+  void *base;
+  /// [out] size in bytes of the region named by the handle
+  size_t size;
+
+} ur_exp_address_range_export_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get an OS handle to the memory backing a device memory address range
+///
+/// @details
+///     - `pMem` may point anywhere inside a device USM allocation of
+///       `hContext`, or into a virtual memory range of `hContext` that is
+///       mapped to physical memory. Neither `pMem` nor `size` needs to be
+///       aligned.
+///     - The returned handle names device addresses [`pExport->base`,
+///       `pExport->base` + `pExport->size`), which may extend beyond the
+///       requested range, e.g. when the allocation is sub-allocated from a
+///       larger object. The handle is therefore not an isolation boundary.
+///     - On success, if [`pMem`, `pMem` + `size`) lies within a single device
+///       USM allocation, the handle covers the whole requested range. Otherwise
+///       the handle may cover only a prefix of it; the remainder can be
+///       obtained by calling this function again with `pExport->base` +
+///       `pExport->size`.
+///     - The caller owns the returned handle. A DMA-BUF file descriptor is
+///       released with the OS `close()` function, or by passing it to an API
+///       that takes ownership of it. The handle may be closed before or after
+///       the memory is freed, but must not be used to access the memory after
+///       the memory has been freed or unmapped.
+///     - Device writes to the memory are visible through the handle once the
+///       host has synchronized with the commands that performed them. Writes
+///       made through the handle are visible to commands enqueued after those
+///       writes have completed.
+///     - No commands that access device memory of the device owning `pMem` may
+///       be executing during the call. The implementation may need to transform
+///       the whole object backing the range, e.g. decompress it, which affects
+///       unrelated allocations that share that object.
+///     - The application must not free or unmap the memory while the handle, or
+///       anything created from it, is in use. After the memory is freed, it may
+///       be reused by subsequent allocations.
+///     - The application may call this function from simultaneous threads.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD < exportType`
+///         + `NULL != pProperties && ::UR_EXP_ADDRESS_RANGE_HANDLE_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pExport`
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + The device owning `pMem` does not report `exportType` in
+///         ::UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP
+///         + `NULL != pProperties && pProperties->flags != 0`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `pMem` is not device memory of `hContext`
+///         + The memory backing the range cannot be exported, e.g. it is split
+///         across several objects, maps only part of an object, or is
+///         compressed and cannot be decompressed
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urUSMGetHandleForAddressRangeExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] start of the address range
+    const void *pMem,
+    /// [in] size in bytes of the address range
+    size_t size,
+    /// [in] type of the handle to return
+    ur_exp_address_range_export_type_t exportType,
+    /// [in][optional] address range handle properties
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    /// [out] the OS handle and the location of `pMem` within the object it
+    /// names
+    ur_exp_address_range_export_t *pExport);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for USM Context Memcpy
 #if !defined(__GNUC__)
 #pragma region usm_context_memcpy_(experimental)
@@ -16405,6 +16589,19 @@ typedef struct ur_usm_pitched_alloc_exp_params_t {
   void ***pppMem;
   size_t **ppResultPitch;
 } ur_usm_pitched_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMGetHandleForAddressRangeExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_get_handle_for_address_range_exp_params_t {
+  ur_context_handle_t *phContext;
+  const void **ppMem;
+  size_t *psize;
+  ur_exp_address_range_export_type_t *pexportType;
+  const ur_exp_address_range_handle_properties_t **ppProperties;
+  ur_exp_address_range_export_t **ppExport;
+} ur_usm_get_handle_for_address_range_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMContextMemcpyExp

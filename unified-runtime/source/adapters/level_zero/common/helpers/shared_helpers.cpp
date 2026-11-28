@@ -407,6 +407,16 @@ getZexStructureType<ze_record_replay_graph_ext_properties_t>() {
   return ZE_STRUCTURE_TYPE_RECORD_REPLAY_GRAPH_EXT_PROPERTIES;
 }
 template <>
+ur_ze_structure_type_ext_t
+getZexStructureType<ur_ze_intel_mem_range_location_exp_properties_t>() {
+  return UR_ZE_INTEL_STRUCTURE_TYPE_MEM_RANGE_LOCATION_EXP_PROPERTIES;
+}
+template <>
+ur_ze_structure_type_ext_t
+getZexStructureType<ur_ze_intel_device_mem_range_handle_exp_properties_t>() {
+  return UR_ZE_INTEL_STRUCTURE_TYPE_DEVICE_MEM_RANGE_HANDLE_EXP_PROPERTIES;
+}
+template <>
 ur_ze_structure_type_ext_t getZexStructureType<ur_ze_queue_priority_desc_t>() {
   return UR_ZE_STRUCTURE_TYPE_QUEUE_PRIORITY_DESC;
 }

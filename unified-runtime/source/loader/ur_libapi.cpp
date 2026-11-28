@@ -9261,6 +9261,94 @@ ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get an OS handle to the memory backing a device memory address range
+///
+/// @details
+///     - `pMem` may point anywhere inside a device USM allocation of
+///       `hContext`, or into a virtual memory range of `hContext` that is
+///       mapped to physical memory. Neither `pMem` nor `size` needs to be
+///       aligned.
+///     - The returned handle names device addresses [`pExport->base`,
+///       `pExport->base` + `pExport->size`), which may extend beyond the
+///       requested range, e.g. when the allocation is sub-allocated from a
+///       larger object. The handle is therefore not an isolation boundary.
+///     - On success, if [`pMem`, `pMem` + `size`) lies within a single device
+///       USM allocation, the handle covers the whole requested range. Otherwise
+///       the handle may cover only a prefix of it; the remainder can be
+///       obtained by calling this function again with `pExport->base` +
+///       `pExport->size`.
+///     - The caller owns the returned handle. A DMA-BUF file descriptor is
+///       released with the OS `close()` function, or by passing it to an API
+///       that takes ownership of it. The handle may be closed before or after
+///       the memory is freed, but must not be used to access the memory after
+///       the memory has been freed or unmapped.
+///     - Device writes to the memory are visible through the handle once the
+///       host has synchronized with the commands that performed them. Writes
+///       made through the handle are visible to commands enqueued after those
+///       writes have completed.
+///     - No commands that access device memory of the device owning `pMem` may
+///       be executing during the call. The implementation may need to transform
+///       the whole object backing the range, e.g. decompress it, which affects
+///       unrelated allocations that share that object.
+///     - The application must not free or unmap the memory while the handle, or
+///       anything created from it, is in use. After the memory is freed, it may
+///       be reused by subsequent allocations.
+///     - The application may call this function from simultaneous threads.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD < exportType`
+///         + `NULL != pProperties && ::UR_EXP_ADDRESS_RANGE_HANDLE_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pExport`
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + The device owning `pMem` does not report `exportType` in
+///         ::UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP
+///         + `NULL != pProperties && pProperties->flags != 0`
+///     - ::UR_RESULT_ERROR_INVALID_ARGUMENT
+///         + `pMem` is not device memory of `hContext`
+///         + The memory backing the range cannot be exported, e.g. it is split
+///         across several objects, maps only part of an object, or is
+///         compressed and cannot be decompressed
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urUSMGetHandleForAddressRangeExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] start of the address range
+    const void *pMem,
+    /// [in] size in bytes of the address range
+    size_t size,
+    /// [in] type of the handle to return
+    ur_exp_address_range_export_type_t exportType,
+    /// [in][optional] address range handle properties
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    /// [out] the OS handle and the location of `pMem` within the object it
+    /// names
+    ur_exp_address_range_export_t *pExport) try {
+  auto pfnGetHandleForAddressRangeExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnGetHandleForAddressRangeExp;
+  if (nullptr == pfnGetHandleForAddressRangeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetHandleForAddressRangeExp(hContext, pMem, size, exportType,
+                                        pProperties, pExport);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Perform a synchronous, blocking memcpy operation between USM
 ///        allocations.
 ///

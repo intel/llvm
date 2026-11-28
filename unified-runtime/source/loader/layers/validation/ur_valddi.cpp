@@ -9694,6 +9694,64 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMGetHandleForAddressRangeExp
+__urdlllocal ur_result_t UR_APICALL urUSMGetHandleForAddressRangeExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] start of the address range
+    const void *pMem,
+    /// [in] size in bytes of the address range
+    size_t size,
+    /// [in] type of the handle to return
+    ur_exp_address_range_export_type_t exportType,
+    /// [in][optional] address range handle properties
+    const ur_exp_address_range_handle_properties_t *pProperties,
+    /// [out] the OS handle and the location of `pMem` within the object it
+    /// names
+    ur_exp_address_range_export_t *pExport) {
+  auto pfnGetHandleForAddressRangeExp =
+      getContext()->urDdiTable.USMExp.pfnGetHandleForAddressRangeExp;
+
+  if (nullptr == pfnGetHandleForAddressRangeExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pExport)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_ADDRESS_RANGE_EXPORT_TYPE_DMA_BUF_FD < exportType)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (NULL != pProperties &&
+        UR_EXP_ADDRESS_RANGE_HANDLE_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (size == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
+
+    if (NULL != pProperties && pProperties->flags != 0)
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnGetHandleForAddressRangeExp(
+      hContext, pMem, size, exportType, pProperties, pExport);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMContextMemcpyExp
 __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
     /// [in] Context associated with the device(s) that own the allocations
@@ -13777,6 +13835,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
+
+  dditable.pfnGetHandleForAddressRangeExp =
+      pDdiTable->pfnGetHandleForAddressRangeExp;
+  pDdiTable->pfnGetHandleForAddressRangeExp =
+      ur_validation_layer::urUSMGetHandleForAddressRangeExp;
 
   dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
   pDdiTable->pfnContextMemcpyExp = ur_validation_layer::urUSMContextMemcpyExp;

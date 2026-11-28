@@ -1115,6 +1115,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0);
   case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ADDRESS_RANGE_EXPORT_TYPES_EXP:
+    return ReturnValue(ur_exp_address_range_export_type_flags_t{0});
   case UR_DEVICE_INFO_ENQUEUE_HOST_TASK_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_GRAPH_RECORD_AND_REPLAY_SUPPORT_EXP:
