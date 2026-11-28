@@ -8,6 +8,7 @@
 
 #include "clang/CodeGen/BackendUtil.h"
 #include "BackendConsumer.h"
+#include "CodeGenCLOptions.h"
 #include "LinkInModulesPass.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
@@ -140,33 +141,10 @@ using namespace llvm;
 #include "llvm/Support/Extension.def"
 
 namespace llvm {
-// Experiment to move sanitizers earlier.
-static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
-    "sanitizer-early-opt-ep",
-    cl::desc("Insert sanitizers on OptimizerEarlyEP."));
-
-// Experiment to mark cold functions as optsize/minsize/optnone.
-// TODO: remove once this is exposed as a proper driver flag.
-static cl::opt<PGOOptions::ColdFuncOpt> ClPGOColdFuncAttr(
-    "pgo-cold-func-opt", cl::init(PGOOptions::ColdFuncOpt::Default), cl::Hidden,
-    cl::desc(
-        "Function attribute to apply to cold functions as determined by PGO"),
-    cl::values(clEnumValN(PGOOptions::ColdFuncOpt::Default, "default",
-                          "Default (no attribute)"),
-               clEnumValN(PGOOptions::ColdFuncOpt::OptSize, "optsize",
-                          "Mark cold functions with optsize."),
-               clEnumValN(PGOOptions::ColdFuncOpt::MinSize, "minsize",
-                          "Mark cold functions with minsize."),
-               clEnumValN(PGOOptions::ColdFuncOpt::OptNone, "optnone",
-                          "Mark cold functions with optnone.")));
-
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
     cl::desc("Re-link builtin bitcodes after optimization."));
 } // namespace llvm
-namespace clang {
-extern llvm::cl::opt<bool> ClSanitizeGuardChecks;
-}
 
 // Path and name of file used for profile generation
 static std::string
@@ -699,7 +677,8 @@ static void addKCFIPass(const Triple &TargetTriple, const LangOptions &LangOpts,
       });
 }
 
-static void addSanitizers(const Triple &TargetTriple,
+static void addSanitizers(const CodeGen::CodeGenCLOptions &CLOpts,
+                          const Triple &TargetTriple,
                           const CodeGenOptions &CodeGenOpts,
                           const LangOptions &LangOpts, PassBuilder &PB) {
   auto SanitizersCallback = [&](ModulePassManager &MPM, OptimizationLevel Level,
@@ -800,7 +779,7 @@ static void addSanitizers(const Triple &TargetTriple,
                                         PB.getVirtualFileSystemPtr()));
     }
   };
-  if (ClSanitizeOnOptimizerEarlyEP) {
+  if (CLOpts.sanitizer_early_opt_ep) {
     PB.registerOptimizerEarlyEPCallback(
         [SanitizersCallback](ModulePassManager &MPM, OptimizationLevel Level,
                              ThinOrFullLTOPhase Phase) {
@@ -892,13 +871,15 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS, BackendConsumer *BC) {
   const cl::LibraryOptionsContext &LibraryOptions =
       TheModule->getContext().getLibraryOptions();
+  const CodeGen::CodeGenCLOptions &CLOpts =
+      CodeGen::getCodeGenCLOptions(TheModule->getContext());
   std::optional<PGOOptions> PGOOpt;
 
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
     PGOOpt = PGOOptions(getProfileGenName(LibraryOptions, CodeGenOpts), "", "",
                         CodeGenOpts.MemoryProfileUsePath, PGOOptions::IRInstr,
-                        PGOOptions::NoCSAction, ClPGOColdFuncAttr,
+                        PGOOptions::NoCSAction, CLOpts.pgo_cold_func_opt,
                         CodeGenOpts.DebugInfoForProfiling,
                         /*PseudoProbeForProfiling=*/false,
                         CodeGenOpts.AtomicProfileUpdate);
@@ -909,29 +890,30 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     PGOOpt = PGOOptions(CodeGenOpts.ProfileInstrumentUsePath, "",
                         CodeGenOpts.ProfileRemappingFile,
                         CodeGenOpts.MemoryProfileUsePath, PGOOptions::IRUse,
-                        CSAction, ClPGOColdFuncAttr,
+                        CSAction, CLOpts.pgo_cold_func_opt,
                         CodeGenOpts.DebugInfoForProfiling);
   } else if (!CodeGenOpts.SampleProfileFile.empty())
     // -fprofile-sample-use
     PGOOpt = PGOOptions(
         CodeGenOpts.SampleProfileFile, "", CodeGenOpts.ProfileRemappingFile,
         CodeGenOpts.MemoryProfileUsePath, PGOOptions::SampleUse,
-        PGOOptions::NoCSAction, ClPGOColdFuncAttr,
+        PGOOptions::NoCSAction, CLOpts.pgo_cold_func_opt,
         CodeGenOpts.DebugInfoForProfiling, CodeGenOpts.PseudoProbeForProfiling);
   else if (!CodeGenOpts.MemoryProfileUsePath.empty())
     // -fmemory-profile-use (without any of the above options)
-    PGOOpt = PGOOptions("", "", "", CodeGenOpts.MemoryProfileUsePath,
-                        PGOOptions::NoAction, PGOOptions::NoCSAction,
-                        ClPGOColdFuncAttr, CodeGenOpts.DebugInfoForProfiling);
+    PGOOpt =
+        PGOOptions("", "", "", CodeGenOpts.MemoryProfileUsePath,
+                   PGOOptions::NoAction, PGOOptions::NoCSAction,
+                   CLOpts.pgo_cold_func_opt, CodeGenOpts.DebugInfoForProfiling);
   else if (CodeGenOpts.PseudoProbeForProfiling)
     // -fpseudo-probe-for-profiling
     PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", PGOOptions::NoAction,
-                        PGOOptions::NoCSAction, ClPGOColdFuncAttr,
+                        PGOOptions::NoCSAction, CLOpts.pgo_cold_func_opt,
                         CodeGenOpts.DebugInfoForProfiling, true);
   else if (CodeGenOpts.DebugInfoForProfiling)
     // -fdebug-info-for-profiling
     PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", PGOOptions::NoAction,
-                        PGOOptions::NoCSAction, ClPGOColdFuncAttr, true);
+                        PGOOptions::NoCSAction, CLOpts.pgo_cold_func_opt, true);
 
   // Check to see if we want to generate a CS profile.
   if (CodeGenOpts.hasProfileCSIRInstr()) {
@@ -949,7 +931,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PGOOpt = PGOOptions(
           "", getProfileGenName(LibraryOptions, CodeGenOpts), "",
           /*MemoryProfile=*/"", PGOOptions::NoAction, PGOOptions::CSIRInstr,
-          ClPGOColdFuncAttr, CodeGenOpts.DebugInfoForProfiling);
+          CLOpts.pgo_cold_func_opt, CodeGenOpts.DebugInfoForProfiling);
   }
   if (TM)
     TM->setPGOOption(PGOOpt);
@@ -1168,11 +1150,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // Register callbacks to schedule sanitizer passes at the appropriate part
     // of the pipeline.
     if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
-      PB.registerScalarOptimizerLateEPCallback([this](FunctionPassManager &FPM,
-                                                      OptimizationLevel Level) {
+      PB.registerScalarOptimizerLateEPCallback([this, &CLOpts](
+                                                   FunctionPassManager &FPM,
+                                                   OptimizationLevel Level) {
         BoundsCheckingPass::Options Options;
         if (CodeGenOpts.SanitizeSkipHotCutoffs[SanitizerKind::SO_LocalBounds] ||
-            ClSanitizeGuardChecks) {
+            CLOpts.ubsan_guard_checks) {
           static_assert(SanitizerKind::SO_LocalBounds <=
                             std::numeric_limits<
                                 decltype(Options.GuardKind)::value_type>::max(),
@@ -1197,7 +1180,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     if (!IsThinLTOPostLink) {
       // Most sanitizers only run during PreLink stage.
-      addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
+      addSanitizers(CLOpts, TargetTriple, CodeGenOpts, LangOpts, PB);
       addKCFIPass(TargetTriple, LangOpts, PB);
       addLowerAllowCheckPass(LibraryOptions, CodeGenOpts, LangOpts, PB);
 
