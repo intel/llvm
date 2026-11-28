@@ -234,6 +234,41 @@ void SPIRVRegularizeLLVMBase::buildUMulWithOverflowFunc(Function *UMulFunc) {
   Builder.CreateRet(Res);
 }
 
+void SPIRVRegularizeLLVMBase::lowerFMinimumMaximum(IntrinsicInst *II) {
+  // For llvm.minimum (llvm.maximum is symmetrical):
+  //   %m = call @llvm.minnum(%x, %y)
+  //   ; unless nsz: for non-NaN operands, the result has the sign of %x if
+  //   ; that is set (maximum: clear), and the sign of %y otherwise. This only
+  //   ; changes %m if it is a zero of the wrong sign.
+  //   %xsign = call @llvm.copysign(1.0, %x)
+  //   %xneg = fcmp olt %xsign, 0.0
+  //   %s = select %xneg, %x, %y
+  //   %m.s = call @llvm.copysign(%m, %s)
+  //   ; unless nnan
+  //   %uno = fcmp uno %x, %y
+  //   %res = select %uno, NaN, %m.s
+  bool IsMax = II->getIntrinsicID() == Intrinsic::maximum;
+  Value *X = II->getArgOperand(0);
+  Value *Y = II->getArgOperand(1);
+  Type *Ty = II->getType();
+  IRBuilder<> Builder(II);
+  Value *Res = Builder.CreateIntrinsic(
+      IsMax ? Intrinsic::maxnum : Intrinsic::minnum, {Ty}, {X, Y}, II);
+  if (!II->hasNoSignedZeros()) {
+    Value *XSign = Builder.CreateCopySign(ConstantFP::get(Ty, 1.0), X);
+    Value *XNeg = Builder.CreateFCmpOLT(XSign, ConstantFP::getZero(Ty));
+    Value *Sign = IsMax ? Builder.CreateSelect(XNeg, Y, X)
+                        : Builder.CreateSelect(XNeg, X, Y);
+    Res = Builder.CreateCopySign(Res, Sign);
+  }
+  if (!II->hasNoNaNs()) {
+    Value *Uno = Builder.CreateFCmpUNO(X, Y);
+    Res = Builder.CreateSelect(Uno, ConstantFP::getQNaN(Ty), Res);
+  }
+  Res->takeName(II);
+  II->replaceAllUsesWith(Res);
+}
+
 void SPIRVRegularizeLLVMBase::lowerUMulWithOverflow(
     IntrinsicInst *UMulIntrinsic) {
   // Get a separate function - otherwise, we'd have to rework the CFG of the
@@ -665,7 +700,11 @@ bool SPIRVRegularizeLLVMBase::regularize() {
               lowerFunnelShift(II);
             else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow)
               lowerUMulWithOverflow(II);
-            else if (II->getIntrinsicID() == Intrinsic::uadd_with_overflow) {
+            else if (II->getIntrinsicID() == Intrinsic::minimum ||
+                     II->getIntrinsicID() == Intrinsic::maximum) {
+              lowerFMinimumMaximum(II);
+              ToErase.push_back(II);
+            } else if (II->getIntrinsicID() == Intrinsic::uadd_with_overflow) {
               BuiltinFuncMangleInfo Info;
               std::string MangledName =
                   mangleBuiltin("__spirv_IAddCarry",

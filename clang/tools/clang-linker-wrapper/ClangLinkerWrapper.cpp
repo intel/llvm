@@ -55,6 +55,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/LibraryOptionsContext.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Parallel.h"
@@ -298,20 +299,34 @@ Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
 }
 
 /// Execute the command \p ExecutablePath with the arguments \p Args.
-Error executeCommands(StringRef ExecutablePath, ArrayRef<StringRef> Args) {
+/// If \p Proc is set, launch without waiting and store the process handle.
+Error executeCommands(StringRef ExecutablePath, ArrayRef<StringRef> Args,
+                      sys::ProcessInfo *Proc = nullptr) {
   if (Verbose || DryRun)
     printCommands(Args);
 
   if (DryRun)
     return Error::success();
 
-  // If the command line fits within system limits, execute directly.
-  if (sys::commandLineFitsWithinSystemLimits(ExecutablePath, Args)) {
-    if (sys::ExecuteAndWait(ExecutablePath, Args))
+  auto Launch = [&](ArrayRef<StringRef> ExecArgs) -> Error {
+    if (Proc) {
+      bool ExecutionFailed = false;
+      *Proc = sys::ExecuteNoWait(ExecutablePath, ExecArgs, std::nullopt, {}, 0,
+                                 nullptr, &ExecutionFailed);
+      if (ExecutionFailed)
+        return createStringError(
+            "'%s' failed", sys::path::filename(ExecutablePath).str().c_str());
+      return Error::success();
+    }
+    if (sys::ExecuteAndWait(ExecutablePath, ExecArgs))
       return createStringError(
           "'%s' failed", sys::path::filename(ExecutablePath).str().c_str());
     return Error::success();
-  }
+  };
+
+  // If the command line fits within system limits, execute directly.
+  if (sys::commandLineFitsWithinSystemLimits(ExecutablePath, Args))
+    return Launch(Args);
 
   // Write the arguments to a response file and pass that instead.
   auto TempFileOrErr = createOutputFile("response", "rsp");
@@ -331,10 +346,7 @@ Error executeCommands(StringRef ExecutablePath, ArrayRef<StringRef> Args) {
 
   std::string ResponseFile = ("@" + *TempFileOrErr).str();
   SmallVector<StringRef, 2> NewArgs = {Args.front(), ResponseFile};
-  if (sys::ExecuteAndWait(ExecutablePath, NewArgs))
-    return createStringError("'%s' failed",
-                             sys::path::filename(ExecutablePath).str().c_str());
-  return Error::success();
+  return Launch(NewArgs);
 }
 
 Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
@@ -2184,8 +2196,24 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ))
     CmdArgs.append({"-mllvm", "-openmp-opt-disable"});
 
+  // We cannot generate temporary assembly files to satisfy `--save-temps`
+  // through the LTO pipeline. Launch a separate clang job to emit the file.
+  sys::ProcessInfo AsmProc;
+  if (SaveTemps && Triple.isAMDGPU()) {
+    SmallVector<StringRef, 16> AsmArgs(CmdArgs);
+    llvm::erase(AsmArgs, "-Wl,--save-temps");
+    AsmArgs.append({"-Xlinker", "--lto-emit-asm"});
+    if (Error Err = executeCommands(*ClangPath, AsmArgs, &AsmProc))
+      return std::move(Err);
+  }
 
-  if (Error Err = executeCommands(*ClangPath, CmdArgs))
+  Error Err = executeCommands(*ClangPath, CmdArgs);
+  if (SaveTemps && Triple.isAMDGPU() && !DryRun) {
+    if (sys::Wait(AsmProc, std::nullopt).ReturnCode && !Err)
+      Err = createStringError("'%s' failed",
+                              sys::path::filename(*ClangPath).str().c_str());
+  }
+  if (Err)
     return std::move(Err);
 
   return *TempFileOrErr;
@@ -2557,15 +2585,16 @@ Expected<StringRef> writeOffloadFile(const OffloadFile &File,
 
 // Compile the module to an object file using the appropriate target machine for
 // the host triple.
-Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
+Expected<StringRef>
+compileModule(const cl::LibraryOptionsContext &LibraryOptions, Module &M,
+              OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Compile module");
   std::string Msg;
   const Target *T = TargetRegistry::lookupTarget(M.getTargetTriple(), Msg);
   if (!T)
     return createStringError(Msg);
 
-  auto Options =
-      codegen::InitTargetOptionsFromCodeGenFlags(M.getTargetTriple());
+  auto Options = codegen::getTargetOptions(LibraryOptions, M.getTargetTriple());
   StringRef CPU = "";
   StringRef Features = "";
   std::unique_ptr<TargetMachine> TM(
@@ -2603,8 +2632,9 @@ static std::unique_ptr<Module> createHostWrapperModule(LLVMContext &C,
   return M;
 }
 
-static Expected<StringRef> emitWrapperObject(Module &M, const ArgList &Args,
-                                             OffloadKind Kind) {
+static Expected<StringRef>
+emitWrapperObject(const cl::LibraryOptionsContext &LibraryOptions, Module &M,
+                  const ArgList &Args, OffloadKind Kind) {
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << M;
   if (Args.hasArg(OPT_save_temps)) {
@@ -2623,15 +2653,17 @@ static Expected<StringRef> emitWrapperObject(Module &M, const ArgList &Args,
     return createOutputFile(ExecutableName + "." + getOffloadKindName(Kind) +
                                 ".image.wrapper",
                             "o");
-  return compileModule(M, Kind);
+  return compileModule(LibraryOptions, M, Kind);
 }
 
 /// Emit the host object required by device pre-linking when there are no device
 /// inputs, without requiring a device triple or introducing runtime references.
-static Expected<StringRef> emitEmptySYCLWrapperObject(const ArgList &Args) {
+static Expected<StringRef>
+emitEmptySYCLWrapperObject(const cl::LibraryOptionsContext &LibraryOptions,
+                           const ArgList &Args) {
   LLVMContext C;
   auto M = createHostWrapperModule(C, Args);
-  return emitWrapperObject(*M, Args, OFK_SYCL);
+  return emitWrapperObject(LibraryOptions, *M, Args, OFK_SYCL);
 }
 
 /// Performs the wrapping stage with individual tool invocations for verbose
@@ -2698,7 +2730,8 @@ wrapDeviceImagesVerbose(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
 /// Creates the object file containing the device image and runtime
 /// registration code from the device images stored in \p Images.
 Expected<StringRef>
-wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
+wrapDeviceImages(const cl::LibraryOptionsContext &LibraryOptions,
+                 ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
                  const ArgList &Args, OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Wrap bundled images");
 
@@ -2746,7 +2779,7 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
                              " wrapping is not supported");
   }
 
-  return emitWrapperObject(M, Args, Kind);
+  return emitWrapperObject(LibraryOptions, M, Args, Kind);
 }
 
 /// Perform the OpenMP bundling with 'llvm-offload-binary' in verbose mode.
@@ -2876,9 +2909,6 @@ Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
 bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
                    OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Bundle linked output");
-  if (usesLLVMOffloadWrapper(Images))
-    return bundleOpenMP(Images);
-
   switch (Kind) {
   case OFK_OpenMP:
     return (Verbose && SaveTemps) ? bundleOpenMPVerbose(Images)
@@ -3041,7 +3071,8 @@ extractCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
 /// be registered by the runtime. If EmitFatbinOnly is true, writes bundled
 /// output directly without wrapping or host linking.
 Expected<SmallVector<StringRef>>
-linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
+linkAndWrapDeviceFiles(const cl::LibraryOptionsContext &LibraryOptions,
+                       ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
                        const InputArgList &Args, char **Argv, int Argc,
                        bool EmitFatbinOnly) {
   llvm::TimeTraceScope TimeScope("Handle all device input");
@@ -3298,6 +3329,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
   for (auto &[Kind, Input] : Images) {
     if (Kind == OFK_SYCL && !EmitFatbinOnly)
       continue;
+    OffloadKind WrapperKind = usesLLVMOffloadWrapper(Input) ? OFK_OpenMP : Kind;
     // We sort the entries before bundling so they appear in a deterministic
     // order in the final binary.
     llvm::sort(Input, [](OffloadingImage &A, OffloadingImage &B) {
@@ -3334,7 +3366,7 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       continue;
     }
 
-    auto BundledImagesOrErr = bundleLinkedOutput(Input, Args, Kind);
+    auto BundledImagesOrErr = bundleLinkedOutput(Input, Args, WrapperKind);
     if (!BundledImagesOrErr)
       return BundledImagesOrErr.takeError();
 
@@ -3357,8 +3389,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
       continue;
     }
 
-    OffloadKind WrapperKind = usesLLVMOffloadWrapper(Input) ? OFK_OpenMP : Kind;
-    auto OutputOrErr = wrapDeviceImages(*BundledImagesOrErr, Args, WrapperKind);
+    auto OutputOrErr = wrapDeviceImages(LibraryOptions, *BundledImagesOrErr,
+                                        Args, WrapperKind);
     if (!OutputOrErr)
       return OutputOrErr.takeError();
     WrappedOutput.push_back(*OutputOrErr);
@@ -3821,7 +3853,8 @@ int main(int Argc, char **Argv) {
     NewArgv.push_back(Arg->getValue());
   for (const opt::Arg *Arg : Args.filtered(OPT_offload_opt_eq_minus))
     NewArgv.push_back(Arg->getValue());
-  cl::ParseCommandLineOptions(NewArgv.size(), &NewArgv[0]);
+  cl::LibraryOptionsContext LibraryOptions;
+  cl::parseCommandLineOptions(LibraryOptions, NewArgv);
 
   Verbose = Args.hasArg(OPT_verbose);
   DryRun = Args.hasArg(OPT_dry_run);
@@ -3932,8 +3965,8 @@ int main(int Argc, char **Argv) {
 
     // Link and process the device images. The function may emit a direct fat
     // binary if --emit-fatbin-only is specified.
-    auto FilesOrErr = linkAndWrapDeviceFiles(*DeviceInputFiles, Args, Argv,
-                                             Argc, EmitFatbinOnly);
+    auto FilesOrErr = linkAndWrapDeviceFiles(LibraryOptions, *DeviceInputFiles,
+                                             Args, Argv, Argc, EmitFatbinOnly);
     if (!FilesOrErr)
       reportError(FilesOrErr.takeError());
 
@@ -3946,7 +3979,7 @@ int main(int Argc, char **Argv) {
         // Skip host linker if --sycl-device-link option is set.
         // Just copy the output of device linking and wrapping action.
         if (FilesOrErr->empty()) {
-          auto OutputFile = emitEmptySYCLWrapperObject(Args);
+          auto OutputFile = emitEmptySYCLWrapperObject(LibraryOptions, Args);
           if (!OutputFile)
             reportError(OutputFile.takeError());
           FilesOrErr->push_back(*OutputFile);

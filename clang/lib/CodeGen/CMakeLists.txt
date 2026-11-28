@@ -165,6 +165,7 @@ add_clang_library(clangCodeGen
   Targets/WebAssembly.cpp
   Targets/X86.cpp
   Targets/XCore.cpp
+  Targets/Xtensa.cpp
   TrapReasonBuilder.cpp
   VarBypassDetector.cpp
 
@@ -178,6 +179,7 @@ add_clang_library(clangCodeGen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.
+  analysis_gen
   target_parser_gen
 
   LINK_LIBS

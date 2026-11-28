@@ -10,8 +10,8 @@
 #define LLVM_PASSES_RUN_CODEGEN_H
 
 #include "llvm/IR/Module.h"
-#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
@@ -24,8 +24,8 @@ class TargetLibraryInfoImpl;
 /// math library from -faltmathlib=). It must outlive this call.
 LLVM_ABI Error runCodeGenPipeline(
     TargetMachine &TM, Module &M, raw_pwrite_stream &OS,
-    std::unique_ptr<ToolOutputFile> &DwoOS, CodeGenFileType CGFT,
-    bool DisableVerify = true, bool DisableSimplifyLibCalls = false,
+    raw_pwrite_stream *DwoOS, CodeGenFileType CGFT, bool DisableVerify = true,
+    bool DisableSimplifyLibCalls = false,
     IntrusiveRefCntPtr<vfs::FileSystem> VFS = vfs::getRealFileSystem(),
     const TargetLibraryInfoImpl *TLII = nullptr);
 

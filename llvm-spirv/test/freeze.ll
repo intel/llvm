@@ -26,7 +26,7 @@ define spir_func i32 @testfunction_i32A(i32 %val) {
 }
 
 ; CHECK-LLC: @testfunction_i32A
-; CHECK-LLC-NEXT: add i32 %val, 1
+; CHECK-LLC-NEXT: add nsw i32 %val, 1
 
 ; CHECK-LLVM: @testfunction_i32B
 ; Frozen poison/undef should produce a constant.

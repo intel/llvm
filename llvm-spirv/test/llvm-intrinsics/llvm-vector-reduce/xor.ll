@@ -2,9 +2,12 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck --check-prefix CHECK-SPIRV %s
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck --check-prefix CHECK-LLVM %s
 
 target triple = "spir64-unknown-unknown"
 
+; CHECK-SPIRV-DAG: TypeBool [[#BOOLTYPE:]]
 ; CHECK-SPIRV-DAG: TypeInt [[#I8TYPE:]] 8
 ; CHECK-SPIRV-DAG: TypeInt [[#I32TYPE:]] 32
 ; CHECK-SPIRV-DAG: TypeInt [[#I16TYPE:]] 16
@@ -25,6 +28,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV-DAG: Constant [[#I32TYPE]] [[#CONST_13:]] 13
 ; CHECK-SPIRV-DAG: Constant [[#I32TYPE]] [[#CONST_14:]] 14
 ; CHECK-SPIRV-DAG: Constant [[#I32TYPE]] [[#CONST_15:]] 15
+; CHECK-SPIRV-DAG: TypeVector [[#V4XI1TYPE:]] [[#BOOLTYPE]] 4
 ; CHECK-SPIRV-DAG: TypeVector [[#V2XI8TYPE:]] [[#I8TYPE]] 2
 ; CHECK-SPIRV-DAG: TypeVector [[#V3XI8TYPE:]] [[#I8TYPE]] 3
 ; CHECK-SPIRV-DAG: TypeVector [[#V4XI8TYPE:]] [[#I8TYPE]] 4
@@ -45,6 +49,30 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV-DAG: TypeVector [[#V4XI64TYPE:]] [[#I64TYPE]] 4
 ; CHECK-SPIRV-DAG: TypeVector [[#V8XI64TYPE:]] [[#I64TYPE]] 8
 ; CHECK-SPIRV-DAG: TypeVector [[#V16XI64TYPE:]] [[#I64TYPE]] 16
+
+; -------- I1 --------
+
+; CHECK-SPIRV: FunctionParameter [[#V4XI1TYPE]] [[#VEC_V4XI1TYPE:]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_0_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_0]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_1_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_1]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_2_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_2]]
+; CHECK-SPIRV: VectorExtractDynamic [[#BOOLTYPE]] [[#EXTRACT_3_V4XI1TYPE:]] [[#VEC_V4XI1TYPE]] [[#CONST_3]]
+
+; CHECK-SPIRV: LogicalNotEqual [[#BOOLTYPE]] [[#XOR_0_V4XI1TYPE:]] [[#EXTRACT_0_V4XI1TYPE]] [[#EXTRACT_1_V4XI1TYPE]]
+; CHECK-SPIRV: LogicalNotEqual [[#BOOLTYPE]] [[#XOR_1_V4XI1TYPE:]] [[#EXTRACT_2_V4XI1TYPE]] [[#EXTRACT_3_V4XI1TYPE]]
+
+; CHECK-SPIRV: LogicalNotEqual [[#BOOLTYPE]] [[#XOR_2_V4XI1TYPE:]] [[#XOR_0_V4XI1TYPE]] [[#XOR_1_V4XI1TYPE]]
+; CHECK-SPIRV: ReturnValue [[#XOR_2_V4XI1TYPE]]
+
+; CHECK-LLVM-LABEL: define spir_func i1 @test_vector_reduce_xor_v4i1(
+; CHECK-LLVM: %[[#E0:]] = extractelement <4 x i1> %v, i32 0
+; CHECK-LLVM: %[[#E1:]] = extractelement <4 x i1> %v, i32 1
+; CHECK-LLVM: %[[#E2:]] = extractelement <4 x i1> %v, i32 2
+; CHECK-LLVM: %[[#E3:]] = extractelement <4 x i1> %v, i32 3
+; CHECK-LLVM: %[[#R0:]] = icmp ne i1 %[[#E0]], %[[#E1]]
+; CHECK-LLVM: %[[#R1:]] = icmp ne i1 %[[#E2]], %[[#E3]]
+; CHECK-LLVM: %res = icmp ne i1 %[[#R0]], %[[#R1]]
+; CHECK-LLVM: ret i1 %res
 
 ; -------- I8 --------
 
@@ -406,6 +434,12 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: BitwiseXor [[#I64TYPE]] [[#XOR_14_V16XI64TYPE:]] [[#XOR_12_V16XI64TYPE]] [[#XOR_13_V16XI64TYPE]]
 ; CHECK-SPIRV: ReturnValue [[#XOR_14_V16XI64TYPE]]
 
+define spir_func i1 @test_vector_reduce_xor_v4i1(<4 x i1> %v) {
+entry:
+  %res = call i1 @llvm.vector.reduce.xor.v4i1(<4 x i1> %v)
+  ret i1 %res
+}
+
 define spir_func i8 @test_vector_reduce_xor_v2i8(<2 x i8> %v) {
 entry:
   %0 = call i8 @llvm.vector.reduce.xor.v2i8(<2 x i8> %v)
@@ -526,6 +560,8 @@ entry:
   %0 = call i64 @llvm.vector.reduce.xor.v16i64(<16 x i64> %v)
   ret i64 %0
 }
+
+declare i1 @llvm.vector.reduce.xor.v4i1(<4 x i1>)
 
 declare i8 @llvm.vector.reduce.xor.v2i8(<2 x i8>)
 declare i8 @llvm.vector.reduce.xor.v3i8(<3 x i8>)

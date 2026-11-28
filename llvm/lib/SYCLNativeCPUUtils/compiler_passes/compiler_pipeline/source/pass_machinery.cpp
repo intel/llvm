@@ -82,7 +82,7 @@ PassMachinery::~PassMachinery() {}
 
 void PassMachinery::initializeStart(PipelineTuningOptions PTO) {
   const std::optional<PGOOptions> PGOOpt;
-  PB.emplace(TM, PTO, PGOOpt, &PIC, FS);
+  PB.emplace(LLVMCtx, TM, PTO, PGOOpt, &PIC, FS);
 }
 
 void PassMachinery::registerPasses() {

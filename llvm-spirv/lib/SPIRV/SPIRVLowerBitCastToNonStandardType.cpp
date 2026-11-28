@@ -366,7 +366,7 @@ SPIRVLowerBitCastToNonStandardTypePass::run(Function &F,
       Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
     return PreservedAnalyses::all();
 
-  NFIRBuilder Builder(F.getContext());
+  NFIRBuilder Builder(*F.getParent());
 
   // Split vectors whose number of components is not supported by SPIR-V, but
   // whose half is, into a pair of halves. This covers the vectors that SROA

@@ -855,6 +855,10 @@ void CodeGenFunction::markAsIgnoreThreadCheckingAtRuntime(llvm::Function *Fn) {
     Fn->addFnAttr("sanitize_thread_no_checking_at_run_time");
     Fn->removeFnAttr(llvm::Attribute::SanitizeThread);
   }
+  if (SanOpts.has(SanitizerKind::Concurrency)) {
+    Fn->addFnAttr("sanitize_concurrency_no_checking_at_run_time");
+    Fn->removeFnAttr(llvm::Attribute::SanitizeConcurrency);
+  }
 }
 
 /// Check if the return value of this function requires sanitization.
@@ -991,6 +995,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       Fn->addFnAttr(llvm::Attribute::SanitizeMemTag);
     if (SanOpts.has(SanitizerKind::Thread))
       Fn->addFnAttr(llvm::Attribute::SanitizeThread);
+    if (SanOpts.has(SanitizerKind::Concurrency))
+      Fn->addFnAttr(llvm::Attribute::SanitizeConcurrency);
     if (SanOpts.has(SanitizerKind::Type))
       Fn->addFnAttr(llvm::Attribute::SanitizeType);
     if (SanOpts.has(SanitizerKind::NumericalStability))
@@ -1018,9 +1024,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (SanOpts.hasOneOf(SanitizerKind::Fuzzer | SanitizerKind::FuzzerNoLink))
     Fn->addFnAttr(llvm::Attribute::OptForFuzzing);
 
-  // Ignore TSan memory acesses from within ObjC/ObjC++ dealloc, initialize,
-  // .cxx_destruct, __destroy_helper_block_ and all of their calees at run time.
-  if (SanOpts.has(SanitizerKind::Thread)) {
+  // Ignore TSan/CSan memory accesses from within ObjC/ObjC++ dealloc,
+  // initialize, .cxx_destruct, __destroy_helper_block_ and all of their callees
+  // at run time.
+  if (SanOpts.hasOneOf(SanitizerKind::Thread | SanitizerKind::Concurrency)) {
     if (const auto *OMD = dyn_cast_or_null<ObjCMethodDecl>(D)) {
       const IdentifierInfo *II = OMD->getSelector().getIdentifierInfoForSlot(0);
       if (OMD->getMethodFamily() == OMF_dealloc ||
@@ -1421,6 +1428,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   if (!CGM.getCodeGenOpts().ZOSPPA1Name)
     Fn->addFnAttr("zos-ppa1-name", "");
+  else if (getContext().getTargetInfo().getTriple().isOSzOS() && FD &&
+           FD->hasAttr<AsmLabelAttr>()) {
+    std::string SrcName = CGM.getMangledNameIgnoringAsmLabel(GD, FD);
+    Fn->addFnAttr("zos-ppa1-name", SrcName);
+  }
 
   if (CGM.getCodeGenOpts().WarnStackSize != UINT_MAX &&
       !CGM.getDiags().isIgnored(diag::warn_fe_backend_frame_larger_than, Loc))
@@ -1713,6 +1725,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       Clone = llvm::Function::Create(Fn->getFunctionType(),
                                      llvm::GlobalValue::InternalLinkage,
                                      Fn->getAddressSpace(), FDInlineName, M);
+      Clone->setCallingConv(Fn->getCallingConv());
+      Clone->setAttributes(Fn->getAttributes());
       Clone->addFnAttr(llvm::Attribute::AlwaysInline);
     }
     Fn->setLinkage(llvm::GlobalValue::ExternalLinkage);
@@ -3395,7 +3409,6 @@ void CodeGenFunction::EmitPPCAIXMultiVersionResolver(
   // entry:
   llvm::BasicBlock *CurBlock = createBasicBlock("entry", Resolver);
 
-  SmallVector<std::pair<llvm::Value *, llvm::BasicBlock *>, 3> PhiArgs;
   for (const FMVResolverOption &RO : Options) {
     Builder.SetInsertPoint(CurBlock);
     // The 'default' or 'generic' case.

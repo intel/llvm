@@ -4,6 +4,7 @@
 # installed. Don't add them here to "complete" the list. An installed header
 # must not include an internal one, or the installed tree won't compile.
 set(ORC_RT_HEADERS
+    orc-rt-c/bedrock/ControllerHandlerTag.h
     orc-rt-c/bedrock/Session.h
     orc-rt-c/support/Compiler.h
     orc-rt-c/support/CoreTypes.h
@@ -26,12 +27,15 @@ set(ORC_RT_HEADERS
     orc-rt/bedrock/sps/AllSPSCI.h
     orc-rt/bedrock/sps/CallSPSCI.h
     orc-rt/bedrock/sps/GDBJITRegistrarSPSCI.h
+    orc-rt/bedrock/sps/LookupInJITDylibSPS.h
     orc-rt/bedrock/sps/MemoryAccessSPSCI.h
     orc-rt/bedrock/sps/NativeDylibManagerSPSCI.h
     orc-rt/bedrock/sps/SimpleNativeMemoryMapSPSCI.h
     orc-rt/connect-socket/SocketConnector.h
     orc-rt/connect-socket/SocketHandle.h
     orc-rt/connect-socket/sps/SimpleRemoteCAOverSocket.h
+    orc-rt/connect-tcp/TCP.h
+    orc-rt/connect-tcp/TCPConnector.h
     orc-rt/connect/ConnectionSpec.h
     orc-rt/connect/ConnectorRegistry.h
     orc-rt/connect/VettedPeer.h
@@ -45,6 +49,7 @@ set(ORC_RT_HEADERS
     orc-rt/support/ExecutorAddress.h
     orc-rt/support/IntervalMap.h
     orc-rt/support/IntervalSet.h
+    orc-rt/support/JITDylibLookupFlags.h
     orc-rt/support/LockedAccess.h
     orc-rt/support/MacroUtils.h
     orc-rt/support/Mangling.h
@@ -62,6 +67,7 @@ set(ORC_RT_HEADERS
     orc-rt/support/scope_exit.h
     orc-rt/support/span.h
     orc-rt/support/sps/SPSAllocAction.h
+    orc-rt/support/sps/SPSJITDylibLookupFlags.h
     orc-rt/support/sps/SPSMemoryFlags.h
     orc-rt/support/sps/SPSSymbolLookupSet.h
     orc-rt/support/sps/SPSWrapperFunction.h
@@ -73,7 +79,6 @@ set(ORC_RT_HEADERS
 if (ORC_RT_TARGET_POSIX)
   list(APPEND ORC_RT_HEADERS
     orc-rt/bedrock/sps/DWARFEHFrameRegistrarSPSCI.h
-    orc-rt/connect-tcp/TCP.h
   )
 endif()
 

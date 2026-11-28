@@ -153,8 +153,7 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
     return;
   }
 
-  this->Triple = llvm::Triple(T.getArchName(), T.getVendorName(), T.getOSName(),
-                              T.getEnvironmentName());
+  this->Triple = std::move(T);
 }
 
 bool OffloadTargetInfo::hasHostKind() const {
@@ -1528,33 +1527,20 @@ CreateFileHandler(MemoryBuffer &FirstInput,
                   const OffloadBundlerConfig &BundlerConfig) {
   std::string FilesType = BundlerConfig.FilesType;
 
-  if (FilesType == "i")
-    return std::make_unique<TextFileHandler>(/*Comment=*/"//");
-  if (FilesType == "ii")
-    return std::make_unique<TextFileHandler>(/*Comment=*/"//");
-  if (FilesType == "cui")
-    return std::make_unique<TextFileHandler>(/*Comment=*/"//");
-  if (FilesType == "hipi")
+  if (FilesType == "i" || FilesType == "ii" || FilesType == "cui" ||
+      FilesType == "hipi")
     return std::make_unique<TextFileHandler>(/*Comment=*/"//");
   // TODO: `.d` should be eventually removed once `-M` and its variants are
   // handled properly in offload compilation.
-  if (FilesType == "d")
+  if (FilesType == "d" || FilesType == "s")
     return std::make_unique<TextFileHandler>(/*Comment=*/"#");
   if (FilesType == "ll")
     return std::make_unique<TextFileHandler>(/*Comment=*/";");
-  if (FilesType == "bc")
+  if (FilesType == "bc" || FilesType == "gch" || FilesType == "ast")
     return std::make_unique<BinaryFileHandler>(BundlerConfig);
-  if (FilesType == "s")
-    return std::make_unique<TextFileHandler>(/*Comment=*/"#");
-  if (FilesType == "o")
+  if (FilesType == "o" || FilesType == "a")
     return CreateObjectFileHandler(FirstInput, BundlerConfig);
-  if (FilesType == "a")
-    return CreateObjectFileHandler(FirstInput, BundlerConfig);
-  if (FilesType == "gch")
-    return std::make_unique<BinaryFileHandler>(BundlerConfig);
   if (FilesType == "pch")
-    return std::make_unique<BinaryFileHandler>(BundlerConfig);
-  if (FilesType == "ast")
     return std::make_unique<BinaryFileHandler>(BundlerConfig);
   if (FilesTypeIsArchive(FilesType))
     return std::make_unique<ArchiveFileHandler>(BundlerConfig);

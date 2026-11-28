@@ -2856,8 +2856,6 @@ bool Type::isSveVLSBuiltinType() const {
     case BuiltinType::SveFloat64:
     case BuiltinType::SveBFloat16:
     case BuiltinType::SveBool:
-    case BuiltinType::SveBoolx2:
-    case BuiltinType::SveBoolx4:
     case BuiltinType::SveMFloat8:
       return true;
     default:

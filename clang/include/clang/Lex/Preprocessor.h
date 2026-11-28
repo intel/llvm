@@ -377,10 +377,6 @@ private:
   /// lexed, if any.
   SourceLocation ModuleImportLoc;
 
-  /// The source location of the \c module contextual keyword we just
-  /// lexed, if any.
-  SourceLocation ModuleDeclLoc;
-
   llvm::DenseMap<FileID, SmallVector<const char *>> CheckPoints;
   unsigned CheckPointCounter = 0;
 

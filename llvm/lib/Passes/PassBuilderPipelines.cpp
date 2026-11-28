@@ -19,6 +19,7 @@
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/InlineAdvisor.h"
@@ -152,6 +153,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 #include "llvm/Transforms/Utils/MoveAutoInit.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
+#include "llvm/Transforms/Utils/ProfileVerify.h"
 #include "llvm/Transforms/Utils/RelLookupTableConverter.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
@@ -168,30 +170,29 @@ static cl::opt<bool>
 extern cl::opt<std::string> UseCtxProfile;
 
 extern cl::opt<bool> EnableMemProfContextDisambiguation;
+
+extern cl::opt<bool> EnableProfcheckInPipeline;
 } // namespace llvm
 
-PipelineTuningOptions::PipelineTuningOptions() {
-  const PassesOptions &Opts = PassesOptions::Global;
-  LoopInterleaving = true;
-  LoopVectorization = true;
-  SLPVectorization = false;
-  LoopUnrolling = true;
-  LoopInterchange = Opts.enable_loopinterchange;
-  LoopFusion = false;
-  ForgetAllSCEVInLoopUnroll = getForgetSCEVInLoopUnroll();
-  LicmMssaOptCap = getLicmMssaOptCap();
-  LicmMssaNoAccForPromotionCap = getLicmMssaNoAccForPromotionCap();
-  CallGraphProfile = true;
-  UnifiedLTO = false;
-  MergeFunctions = Opts.enable_merge_functions;
-  InlinerThreshold = -1;
-  EagerlyInvalidateAnalyses = Opts.eagerly_invalidate_analyses;
-  DevirtualizeSpeculatively = Opts.enable_devirtualize_speculatively;
+PipelineTuningOptions PipelineTuningOptions::resolve(
+    const cl::LibraryOptionsContext &LibraryOptions) const {
+  const PassesOptions &Opts = LibraryOptions.get<PassesOptions>();
+  PipelineTuningOptions R = *this;
+  R.LoopInterchange = LoopInterchange.value_or(Opts.enable_loopinterchange);
+  R.ForgetAllSCEVInLoopUnroll = ForgetAllSCEVInLoopUnroll.value_or(
+      getForgetSCEVInLoopUnroll(LibraryOptions));
+  R.LicmMssaOptCap = LicmMssaOptCap.value_or(getLicmMssaOptCap(LibraryOptions));
+  R.LicmMssaNoAccForPromotionCap = LicmMssaNoAccForPromotionCap.value_or(
+      getLicmMssaNoAccForPromotionCap(LibraryOptions));
+  R.MergeFunctions = MergeFunctions.value_or(Opts.enable_merge_functions);
+  R.MaxDevirtIterations =
+      MaxDevirtIterations.value_or(getMaxDevirtIterations(LibraryOptions));
+  R.EagerlyInvalidateAnalyses =
+      EagerlyInvalidateAnalyses.value_or(Opts.eagerly_invalidate_analyses);
+  R.DevirtualizeSpeculatively = DevirtualizeSpeculatively.value_or(
+      Opts.enable_devirtualize_speculatively);
+  return R;
 }
-
-namespace llvm {
-extern cl::opt<unsigned> MaxDevirtIterations;
-} // namespace llvm
 
 void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
                                             OptimizationLevel Level) {
@@ -282,6 +283,24 @@ static void instructionCountersPass(ModulePassManager &MPM,
   }
 }
 
+// Add passes to run at the start of the pipeline. This includes things like
+// statistics passes.
+static void addPipelineStartPasses(ModulePassManager &MPM,
+                                   const PassesOptions &Opts) {
+  instructionCountersPass(MPM, /*IsPreOptimization=*/true);
+  if (EnableProfcheckInPipeline)
+    MPM.addPass(createModuleToFunctionPassAdaptor(ProfileInjectorPass()));
+}
+
+// Add passes to run at the end of the pipeline. This includes things like
+// statistics passes.
+static void addPipelineEndPasses(ModulePassManager &MPM,
+                                 const PassesOptions &Opts) {
+  instructionCountersPass(MPM, /*IsPreOptimization=*/false);
+  if (EnableProfcheckInPipeline)
+    MPM.addPass(ProfileVerifierPass());
+}
+
 // Helper to add AnnotationRemarksPass.
 static void addAnnotationRemarksPass(ModulePassManager &MPM) {
   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
@@ -332,15 +351,17 @@ static CoroConditionalWrapper buildCoroWrapper(ThinOrFullLTOPhase Phase) {
   return CoroConditionalWrapper(std::move(CoroPM));
 }
 
-static InlineParams getInlineParamsFromOptLevel(OptimizationLevel Level) {
-  return getInlineParamsFromOptLevel(static_cast<unsigned>(Level));
+static InlineParams getInlineParamsFromOptLevel(const LLVMContext &Context,
+                                                OptimizationLevel Level) {
+  return getInlineParamsFromOptLevel(Context, static_cast<unsigned>(Level));
 }
 
 static void addModuleInlinerPass(ModulePassManager &MPM,
-                                 const PassesOptions &Opts,
+                                 const LLVMContext &Context,
                                  OptimizationLevel Level,
                                  ThinOrFullLTOPhase Phase) {
-  InlineParams IP = ::getInlineParamsFromOptLevel(Level);
+  const PassesOptions &Opts = getPassesOptions(Context);
+  InlineParams IP = ::getInlineParamsFromOptLevel(Context, Level);
   if (Opts.enable_module_inliner)
     MPM.addPass(ModuleInlinerPass(IP, Opts.enable_ml_inliner, Phase));
   else
@@ -413,14 +434,16 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
     // will destroy metadata that may not need to be destroyed if run
     // after loop rotation.
     // TODO: Investigate promotion cap for O1.
-    LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+    LPM1.addPass(LICMPass(*PTO.LicmMssaOptCap,
+                          *PTO.LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/false));
 
     LPM1.addPass(
       LoopRotatePass(/*EnableHeaderDuplication=*/true, isLTOPreLink(Phase)));
 
     // TODO: Investigate promotion cap for O1.
-    LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+    LPM1.addPass(LICMPass(*PTO.LicmMssaOptCap,
+                          *PTO.LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/true));
     LPM1.addPass(SimpleLoopUnswitchPass());
     if (Opts.enable_loop_flatten)
@@ -442,7 +465,7 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
       PGOOpt->Action != PGOOptions::SampleUse)
     LPM2.addPass(LoopFullUnrollPass(static_cast<int>(Level),
                                     /* OnlyWhenForced= */ !PTO.LoopUnrolling,
-                                    PTO.ForgetAllSCEVInLoopUnroll));
+                                    *PTO.ForgetAllSCEVInLoopUnroll));
 
     FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM1),
                                                 /*UseMemorySSA=*/true));
@@ -592,13 +615,15 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
     // will destroy metadata that may not need to be destroyed if run
     // after loop rotation.
     // TODO: Investigate promotion cap for O1.
-    LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+    LPM1.addPass(LICMPass(*PTO.LicmMssaOptCap,
+                          *PTO.LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/false));
 
     LPM1.addPass(
       LoopRotatePass(/*EnableHeaderDuplication=*/true, isLTOPreLink(Phase)));
     // TODO: Investigate promotion cap for O1.
-    LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+    LPM1.addPass(LICMPass(*PTO.LicmMssaOptCap,
+                          *PTO.LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/true));
     LPM1.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
                                         OptimizationLevel::O3));
@@ -628,7 +653,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
       PGOOpt->Action != PGOOptions::SampleUse)
     LPM2.addPass(LoopFullUnrollPass(static_cast<int>(Level),
                                     /* OnlyWhenForced= */ !PTO.LoopUnrolling,
-                                    PTO.ForgetAllSCEVInLoopUnroll));
+                                    *PTO.ForgetAllSCEVInLoopUnroll));
 
     invokeLoopOptimizerEndEPCallbacks(LPM2, Level);
 
@@ -693,7 +718,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(MoveAutoInitPass());
 
   FPM.addPass(createFunctionToLoopPassAdaptor(
-      LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+      LICMPass(*PTO.LicmMssaOptCap, *PTO.LicmMssaNoAccForPromotionCap,
                /*AllowSpeculation=*/true),
       /*UseMemorySSA=*/true));
 
@@ -723,13 +748,15 @@ void PassBuilder::addRequiredLTOPreLinkPasses(ModulePassManager &MPM) {
 
 void PassBuilder::addPreInlinerPasses(ModulePassManager &MPM,
                                       OptimizationLevel Level,
-                                      ThinOrFullLTOPhase LTOPhase) {
+                                      ThinOrFullLTOPhase LTOPhase,
+                                      bool IgnoreProfile) {
   assert(Level != OptimizationLevel::O0 && "Not expecting O0 here!");
   if (Opts.disable_preinline)
     return;
   InlineParams IP;
 
   IP.DefaultThreshold = Opts.preinline_threshold;
+  IP.IgnoreProfile = IgnoreProfile;
 
   // FIXME: The hint threshold has the same value used by the regular inliner
   // when not optimzing for size. This should probably be lowered after
@@ -751,7 +778,7 @@ void PassBuilder::addPreInlinerPasses(ModulePassManager &MPM,
   invokePeepholeEPCallbacks(FPM, Level);
 
   CGPipeline.addPass(createCGSCCToFunctionPassAdaptor(
-      std::move(FPM), PTO.EagerlyInvalidateAnalyses));
+      std::move(FPM), *PTO.EagerlyInvalidateAnalyses));
 
   MPM.addPass(std::move(MIWP));
 
@@ -768,7 +795,7 @@ void PassBuilder::addPostPGOLoopRotation(ModulePassManager &MPM,
     MPM.addPass(createModuleToFunctionPassAdaptor(
         createFunctionToLoopPassAdaptor(LoopRotatePass(),
                                         /*UseMemorySSA=*/false),
-        PTO.EagerlyInvalidateAnalyses));
+        *PTO.EagerlyInvalidateAnalyses));
   }
 }
 
@@ -845,9 +872,9 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
                                   ThinOrFullLTOPhase Phase) {
   InlineParams IP;
   if (PTO.InlinerThreshold == -1)
-    IP = ::getInlineParamsFromOptLevel(Level);
+    IP = ::getInlineParamsFromOptLevel(Context, Level);
   else
-    IP = getInlineParams(PTO.InlinerThreshold);
+    IP = getInlineParams(Context, PTO.InlinerThreshold);
   // For PreLinkThinLTO + SamplePGO or PreLinkFullLTO + SamplePGO,
   // set hot-caller threshold to 0 to disable hot
   // callsite inline (as much as possible [1]) because it makes
@@ -863,7 +890,8 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
 
   ModuleInlinerWrapperPass MIWP(IP, Opts.mandatory_inlining_first,
                                 InlineContext{Phase, InlinePass::CGSCCInliner},
-                                Opts.enable_ml_inliner, MaxDevirtIterations);
+                                Opts.enable_ml_inliner,
+                                *PTO.MaxDevirtIterations);
 
   // Require the GlobalsAA analysis for the module so we can query it within
   // the CGSCC pipeline.
@@ -920,7 +948,7 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
   // CGSCC walk.
   MainCGPipeline.addPass(createCGSCCToFunctionPassAdaptor(
       buildFunctionSimplificationPipeline(Level, Phase),
-      PTO.EagerlyInvalidateAnalyses, /*NoRerun=*/true));
+      *PTO.EagerlyInvalidateAnalyses, /*NoRerun=*/true));
 
   // Finally, deduce any function attributes based on the fully simplified
   // function.
@@ -952,7 +980,7 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
                                         ThinOrFullLTOPhase Phase) {
   ModulePassManager MPM;
 
-  InlineParams IP = ::getInlineParamsFromOptLevel(Level);
+  InlineParams IP = ::getInlineParamsFromOptLevel(Context, Level);
   // For PreLinkThinLTO + SamplePGO or PreLinkFullLTO + SamplePGO,
   // set hot-caller threshold to 0 to disable hot
   // callsite inline (as much as possible [1]) because it makes
@@ -984,7 +1012,7 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
 
   MPM.addPass(createModuleToFunctionPassAdaptor(
       buildFunctionSimplificationPipeline(Level, Phase),
-      PTO.EagerlyInvalidateAnalyses));
+      *PTO.EagerlyInvalidateAnalyses));
 
   if (!isThinLTOPreLink(Phase)) {
     MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(
@@ -1058,7 +1086,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
     if (Level == OptimizationLevel::O3)
       EarlyFPM.addPass(CallSiteSplittingPass());
     MPM.addPass(createModuleToFunctionPassAdaptor(
-        std::move(EarlyFPM), PTO.EagerlyInvalidateAnalyses));
+        std::move(EarlyFPM), *PTO.EagerlyInvalidateAnalyses));
   }
 
   if (LoadSampleProfile) {
@@ -1120,14 +1148,15 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   invokePeepholeEPCallbacks(GlobalCleanupPM, Level);
   GlobalCleanupPM.addPass(
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(GlobalCleanupPM),
-                                                PTO.EagerlyInvalidateAnalyses));
+  MPM.addPass(createModuleToFunctionPassAdaptor(
+      std::move(GlobalCleanupPM), *PTO.EagerlyInvalidateAnalyses));
 
   // We already asserted this happens in non-FullLTOPostLink earlier.
   const bool IsPreLink = !isThinLTOPostLink(Phase);
   // Enable contextual profiling instrumentation.
   const bool IsCtxProfGen =
-      IsPreLink && PGOCtxProfLoweringPass::isCtxIRPGOInstrEnabled();
+      IsPreLink && PGOCtxProfLoweringPass::isCtxIRPGOInstrEnabled(
+                       Context.getLibraryOptions());
   const bool IsPGOPreLink = !IsCtxProfGen && PGOOpt && IsPreLink;
   const bool IsPGOInstrGen =
       IsPGOPreLink && PGOOpt->Action == PGOOptions::IRInstr;
@@ -1136,22 +1165,33 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   const bool IsMemprofUse = IsPGOPreLink && !PGOOpt->MemoryProfile.empty();
   // We don't want to mix pgo ctx gen and pgo gen; we also don't currently
   // enable ctx profiling from the frontend.
-  assert(!(IsPGOInstrGen && PGOCtxProfLoweringPass::isCtxIRPGOInstrEnabled()) &&
+  assert(!(IsPGOInstrGen && PGOCtxProfLoweringPass::isCtxIRPGOInstrEnabled(
+                                Context.getLibraryOptions())) &&
          "Enabling both instrumented PGO and contextual instrumentation is not "
          "supported.");
   const bool IsCtxProfUse = !UseCtxProfile.empty() && isThinLTOPreLink(Phase);
 
   assert((Opts.instrument_cold_function_only_path.empty() ||
-          isPGOInstrumentColdFunctionOnly()) &&
+          isPGOInstrumentColdFunctionOnly(Context.getLibraryOptions())) &&
          "--instrument-cold-function-only-path is provided but "
          "--pgo-instrument-cold-function-only is not enabled");
   const bool IsColdFuncOnlyInstrGen =
-      isPGOInstrumentColdFunctionOnly() && IsPGOPreLink &&
-      !Opts.instrument_cold_function_only_path.empty();
+      isPGOInstrumentColdFunctionOnly(Context.getLibraryOptions()) &&
+      IsPGOPreLink && !Opts.instrument_cold_function_only_path.empty();
 
+  // When a memory profile is used together with a sample profile, the
+  // pre-inliner runs after the sample profile has been loaded. By default make
+  // it ignore the sample profile, so that the inlining seen by MemProfUsePass
+  // doesn't depend on the sample profile. Otherwise, a different sample profile
+  // than the one used to build the memory-profiled binary can cause additional
+  // inlining (e.g. of newly hot callees) that leads to memprof matching
+  // failures. This matches the IR PGO pipeline, where the pre-inliner runs
+  // before the profile is annotated.
+  const bool PreInlinerIgnoreProfile =
+      IsMemprofUse && HasSampleProfile && Opts.memprof_preinline_ignore_profile;
   if (IsPGOInstrGen || IsPGOInstrUse || IsMemprofUse || IsCtxProfGen ||
       IsCtxProfUse || IsColdFuncOnlyInstrGen)
-    addPreInlinerPasses(MPM, Level, Phase);
+    addPreInlinerPasses(MPM, Level, Phase, PreInlinerIgnoreProfile);
 
   // Add all the requested passes for instrumentation PGO, if requested.
   if (IsPGOInstrGen || IsPGOInstrUse) {
@@ -1251,7 +1291,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
           LoopUnrollAndJamPass(static_cast<int>(Level))));
     FPM.addPass(LoopUnrollPass(LoopUnrollOptions(
         static_cast<int>(Level), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
-        PTO.ForgetAllSCEVInLoopUnroll)));
+        *PTO.ForgetAllSCEVInLoopUnroll)));
     FPM.addPass(WarnMissedTransformationsPass());
     // Now that we are done with loop unrolling, be it either by LoopVectorizer,
     // or LoopUnroll passes, some variable-offset GEP's into alloca's could have
@@ -1291,7 +1331,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     ExtraPasses.addPass(CorrelatedValuePropagationPass());
     ExtraPasses.addPass(InstCombinePass());
     LoopPassManager LPM;
-    LPM.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+    LPM.addPass(LICMPass(*PTO.LicmMssaOptCap, *PTO.LicmMssaNoAccForPromotionCap,
                          /*AllowSpeculation=*/true));
     LPM.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
                                        OptimizationLevel::O3));
@@ -1352,7 +1392,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     }
     FPM.addPass(LoopUnrollPass(LoopUnrollOptions(
         static_cast<int>(Level), /*OnlyWhenForced=*/!PTO.LoopUnrolling,
-        PTO.ForgetAllSCEVInLoopUnroll)));
+        *PTO.ForgetAllSCEVInLoopUnroll)));
     FPM.addPass(WarnMissedTransformationsPass());
     // Now that we are done with loop unrolling, be it either by LoopVectorizer,
     // or LoopUnroll passes, some variable-offset GEP's into alloca's could have
@@ -1382,7 +1422,7 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   //   2. It helps to clean up some loop-invariant code created by the loop
   //      unroll pass when IsFullLTO=false.
   FPM.addPass(createFunctionToLoopPassAdaptor(
-      LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+      LICMPass(*PTO.LicmMssaOptCap, *PTO.LicmMssaNoAccForPromotionCap,
                /*AllowSpeculation=*/true),
       /*UseMemorySSA=*/true));
 
@@ -1466,7 +1506,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
         createFunctionToLoopPassAdaptor(LoopVersioningLICMPass()));
     // LoopVersioningLICM pass might increase new LICM opportunities.
     OptimizePM.addPass(createFunctionToLoopPassAdaptor(
-        LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+        LICMPass(*PTO.LicmMssaOptCap, *PTO.LicmMssaNoAccForPromotionCap,
                  /*AllowSpeculation=*/true),
         /*USeMemorySSA=*/true));
   }
@@ -1508,7 +1548,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     //        in the simplification pipeline.
     LPM.addPass(LoopDeletionPass());
 
-    if (PTO.LoopInterchange)
+    if (*PTO.LoopInterchange)
       LPM.addPass(LoopInterchangePass());
 
     OptimizePM.addPass(
@@ -1569,8 +1609,8 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
                           .hoistLoadsStoresWithCondFaulting(true)));
 
   // Add the core optimizing pipeline.
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(OptimizePM),
-                                                PTO.EagerlyInvalidateAnalyses));
+  MPM.addPass(createModuleToFunctionPassAdaptor(
+      std::move(OptimizePM), *PTO.EagerlyInvalidateAnalyses));
 
   // AllocToken transforms heap allocation calls; this needs to run late after
   // other allocation call transformations (such as those in InstCombine).
@@ -1598,7 +1638,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
 
   // Merge functions if requested. It has a better chance to merge functions
   // after ConstantMerge folded jump tables.
-  if (PTO.MergeFunctions)
+  if (*PTO.MergeFunctions)
     MPM.addPass(MergeFunctionsPass());
 
   if (PTO.CallGraphProfile && !isLTOPreLink(LTOPhase))
@@ -1610,7 +1650,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
 
   // Add devirtualization pass only when LTO is not enabled, as otherwise
   // the pass is already enabled in the LTO pipeline.
-  if (PTO.DevirtualizeSpeculatively && LTOPhase == ThinOrFullLTOPhase::None) {
+  if (*PTO.DevirtualizeSpeculatively && LTOPhase == ThinOrFullLTOPhase::None) {
     // TODO: explore a better pipeline configuration that can improve
     // compilation time overhead.
     // FIXME: move this earlier (lots of pass ordering tests will need fixing)
@@ -1618,7 +1658,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     MPM.addPass(WholeProgramDevirtPass(
         /*ExportSummary*/ nullptr,
         /*ImportSummary*/ nullptr,
-        /*DevirtSpeculatively*/ PTO.DevirtualizeSpeculatively));
+        /*DevirtSpeculatively*/ *PTO.DevirtualizeSpeculatively));
     MPM.addPass(DropTypeTestsPass());
     // Given that the devirtualization creates more opportunities for inlining,
     // we run the Inliner again here to maximize the optimization gain we
@@ -1626,7 +1666,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     // Also, we can't run devirtualization before inlining because the
     // devirtualization depends on the passes optimizing/eliminating vtable GVs
     // and those passes are only effective after inlining.
-    addModuleInlinerPass(MPM, Opts, Level, ThinOrFullLTOPhase::None);
+    addModuleInlinerPass(MPM, Context, Level, ThinOrFullLTOPhase::None);
   }
 
   // Attach !implicit.ref metadata from all functions to copyright strings.
@@ -1642,7 +1682,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
     return buildO0DefaultPipeline(Level, Phase);
 
   ModulePassManager MPM;
-  instructionCountersPass(MPM, /* IsPreOptimization */ true);
+  addPipelineStartPasses(MPM, Opts);
   // Currently this pipeline is only invoked in an LTO pre link pass or when we
   // are not running LTO. If that changes the below checks may need updating.
   assert(isLTOPreLink(Phase) || Phase == ThinOrFullLTOPhase::None);
@@ -1684,7 +1724,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   if (isLTOPreLink(Phase))
     addRequiredLTOPreLinkPasses(MPM);
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ false);
+  addPipelineEndPasses(MPM, Opts);
   return MPM;
 }
 
@@ -1693,7 +1733,7 @@ PassBuilder::buildFatLTODefaultPipeline(OptimizationLevel Level, bool ThinLTO,
                                         bool EmitSummary, bool Verify) {
   ModulePassManager MPM;
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ true);
+  addPipelineStartPasses(MPM, Opts);
 
   if (ThinLTO)
     MPM.addPass(buildThinLTOPreLinkDefaultPipeline(Level));
@@ -1711,7 +1751,8 @@ PassBuilder::buildFatLTODefaultPipeline(OptimizationLevel Level, bool ThinLTO,
   // Perform any cleanups to the IR that aren't suitable for per TU compilation,
   // like removing CFI/WPD related instructions. Note, we reuse
   // DropTypeTestsPass to clean up type tests rather than duplicate that logic
-  // in FatLtoCleanup.
+  // in FatLtoCleanup; checked-load cleanup is shared the other way, with
+  // FatLtoCleanup calling lowertypetests::cleanUpTypeCheckedLoad.
   MPM.addPass(FatLtoCleanup());
 
   // If we're doing FatLTO w/ CFI enabled, we don't want the type tests in the
@@ -1744,7 +1785,7 @@ PassBuilder::buildFatLTODefaultPipeline(OptimizationLevel Level, bool ThinLTO,
     addAnnotationRemarksPass(MPM);
   }
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ false);
+  addPipelineEndPasses(MPM, Opts);
 
   return MPM;
 }
@@ -1756,7 +1797,7 @@ PassBuilder::buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level) {
 
   ModulePassManager MPM;
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ true);
+  addPipelineStartPasses(MPM, Opts);
 
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
@@ -1813,7 +1854,7 @@ PassBuilder::buildThinLTOPreLinkDefaultPipeline(OptimizationLevel Level) {
 
   addRequiredLTOPreLinkPasses(MPM);
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ false);
+  addPipelineEndPasses(MPM, Opts);
 
   return MPM;
 }
@@ -1822,7 +1863,7 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
     OptimizationLevel Level, const ModuleSummaryIndex *ImportSummary) {
   ModulePassManager MPM;
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ true);
+  addPipelineStartPasses(MPM, Opts);
 
   invokeThinLinkTimeOptimizationEarlyEPCallbacks(MPM, Level);
 
@@ -1895,7 +1936,7 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ false);
+  addPipelineEndPasses(MPM, Opts);
 
   return MPM;
 }
@@ -1912,7 +1953,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
                                      ModuleSummaryIndex *ExportSummary) {
   ModulePassManager MPM;
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ true);
+  addPipelineStartPasses(MPM, Opts);
 
   invokeFullLinkTimeOptimizationEarlyEPCallbacks(MPM, Level);
 
@@ -1972,7 +2013,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   if (Level >= OptimizationLevel::O2) {
     MPM.addPass(createModuleToFunctionPassAdaptor(
-        CallSiteSplittingPass(), PTO.EagerlyInvalidateAnalyses));
+        CallSiteSplittingPass(), *PTO.EagerlyInvalidateAnalyses));
 
     // Indirect call promotion. This should promote all the targets that are
     // left by the earlier promotion pass that promotes intra-module targets.
@@ -2022,7 +2063,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Stop here at -O1.
   if (Level == OptimizationLevel::O1) {
     MPM.addPass(createModuleToFunctionPassAdaptor(
-        LowerConstantIntrinsicsPass(), PTO.EagerlyInvalidateAnalyses));
+        LowerConstantIntrinsicsPass(), *PTO.EagerlyInvalidateAnalyses));
 
     // The LowerTypeTestsPass needs to run to lower type metadata and the
     // type.test intrinsics. The pass does nothing if CFI is disabled.
@@ -2043,7 +2084,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     // Emit annotation remarks.
     addAnnotationRemarksPass(MPM);
 
-    instructionCountersPass(MPM, /* IsPreOptimization */ false);
+    addPipelineEndPasses(MPM, Opts);
 
     return MPM;
   }
@@ -2074,8 +2115,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     PeepholeFPM.addPass(AggressiveInstCombinePass());
   invokePeepholeEPCallbacks(PeepholeFPM, Level);
 
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(PeepholeFPM),
-                                                PTO.EagerlyInvalidateAnalyses));
+  MPM.addPass(createModuleToFunctionPassAdaptor(
+      std::move(PeepholeFPM), *PTO.EagerlyInvalidateAnalyses));
 
   // Lower variadic functions for supported targets prior to inlining.
   MPM.addPass(ExpandVariadicsPass(ExpandVariadicsMode::Optimize));
@@ -2085,7 +2126,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // valuable as the inliner doesn't currently care whether it is inlining an
   // invoke or a call.
   // Run the inliner now.
-  addModuleInlinerPass(MPM, Opts, Level, ThinOrFullLTOPhase::FullLTOPostLink);
+  addModuleInlinerPass(MPM, Context, Level,
+                       ThinOrFullLTOPhase::FullLTOPostLink);
 
   // Perform context disambiguation after inlining, since that would reduce the
   // amount of additional cloning required to distinguish the allocation
@@ -2145,8 +2187,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
       TailCallElimPass(/*UpdateFunctionEntryCount=*/isInstrumentedPGOUse()));
 
   // Run a few AA driver optimizations here and now to cleanup the code.
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM),
-                                                PTO.EagerlyInvalidateAnalyses));
+  MPM.addPass(createModuleToFunctionPassAdaptor(
+      std::move(FPM), *PTO.EagerlyInvalidateAnalyses));
 
   if (Opts.attributor_enable & AttributorRunOption::CGSCC_LIGHT) {
     MPM.addPass(
@@ -2168,7 +2210,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   FunctionPassManager MainFPM;
   MainFPM.addPass(createFunctionToLoopPassAdaptor(
-      LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
+      LICMPass(*PTO.LicmMssaOptCap, *PTO.LicmMssaNoAccForPromotionCap,
                /*AllowSpeculation=*/true),
       /*USeMemorySSA=*/true));
 
@@ -2196,12 +2238,10 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   LPM.addPass(LoopDeletionPass());
   // FIXME: Add loop interchange.
 
-  // Unroll small loops and perform peeling.
-  LPM.addPass(LoopFullUnrollPass(static_cast<int>(Level),
-                                 /* OnlyWhenForced= */ !PTO.LoopUnrolling,
-                                 PTO.ForgetAllSCEVInLoopUnroll));
   // The loop passes in LPM (LoopFullUnrollPass) do not preserve MemorySSA.
   // *All* loop passes must preserve it, in order to be able to use it.
+  // TODO: Explore enabling MemorySSA for loop passes after we remove the
+  // LoopFullUnrollPass.
   MainFPM.addPass(
       createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false));
 
@@ -2217,8 +2257,8 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   invokePeepholeEPCallbacks(MainFPM, Level);
   MainFPM.addPass(JumpThreadingPass());
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM),
-                                                PTO.EagerlyInvalidateAnalyses));
+  MPM.addPass(createModuleToFunctionPassAdaptor(
+      std::move(MainFPM), *PTO.EagerlyInvalidateAnalyses));
 
   // Lower type metadata and the type.test intrinsic. This pass supports
   // clang's control flow integrity mechanisms (-fsanitize=cfi*) and needs
@@ -2267,7 +2307,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Now that we have optimized the program, discard unreachable functions.
   MPM.addPass(GlobalDCEPass(/*InLTOPostLink=*/true));
 
-  if (PTO.MergeFunctions)
+  if (*PTO.MergeFunctions)
     MPM.addPass(MergeFunctionsPass());
 
   MPM.addPass(RelLookupTableConverterPass());
@@ -2286,7 +2326,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ false);
+  addPipelineEndPasses(MPM, Opts);
 
   return MPM;
 }
@@ -2299,7 +2339,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   ModulePassManager MPM;
 
-  instructionCountersPass(MPM, /* IsPreOptimization */ true);
+  addPipelineStartPasses(MPM, Opts);
 
   // Perform pseudo probe instrumentation in O0 mode. This is for the
   // consistency between different build modes. For example, a LTO build can be
@@ -2347,7 +2387,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
   MPM.addPass(AlwaysInlinerPass(
       /*InsertLifetimeIntrinsics=*/false));
 
-  if (PTO.MergeFunctions)
+  if (*PTO.MergeFunctions)
     MPM.addPass(MergeFunctionsPass());
 
   if (Opts.enable_matrix)
@@ -2422,7 +2462,7 @@ PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   if (PTO.OptimizeSYCLFramework)
     addDefaultSYCLFrameworkOptimizationPipeline(MPM);
-  instructionCountersPass(MPM, /* IsPreOptimization */ false);
+  addPipelineEndPasses(MPM, Opts);
 
   return MPM;
 }

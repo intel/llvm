@@ -117,12 +117,13 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // so that %1 is trivially known to be the address of the @.str literal.
 
     Value *TmpPtr = L->getPointerOperand();
-    auto ValueIsAlloca = [](Value *V) {
+    const DataLayout &DL = L->getDataLayout();
+    auto ValueIsAlloca = [&DL](Value *V) {
       if (auto *ASC = dyn_cast<AddrSpaceCastInst>(V))
         V = ASC->getPointerOperand()->stripPointerCasts();
       using namespace PatternMatch;
       Value *X;
-      if (match(V, m_PtrAdd(m_Value(X), m_Constant())))
+      if (match(V, m_PtrAdd(DL, m_Value(X), m_Constant())))
         V = X;
       return isa<AllocaInst>(V);
     };

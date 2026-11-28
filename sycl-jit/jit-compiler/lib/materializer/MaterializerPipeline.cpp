@@ -25,7 +25,7 @@ using namespace jit_compiler;
 
 bool MaterializerPipeline::runMaterializerPasses(
     llvm::Module &Mod, llvm::ArrayRef<unsigned char> SpecConstData) {
-  PassBuilder PB;
+  PassBuilder PB(Mod.getContext());
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
   CGSCCAnalysisManager CGAM;

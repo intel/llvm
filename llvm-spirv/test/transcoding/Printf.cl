@@ -7,7 +7,10 @@
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 // RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-// CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] printf [[#]]
+// CHECK-SPIRV: TypeInt [[#Int8:]] 8 0
+// CHECK-SPIRV: TypePointer [[#Int8PtrTy:]] 0 [[#Int8]]
+// CHECK-SPIRV: Bitcast [[#Int8PtrTy]] [[#Format:]]
+// CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] printf [[#Format]]
 // CHECK-LLVM: call spir_func i32 (ptr addrspace(2), ...) @printf(ptr addrspace(2) {{.*}})
 
 

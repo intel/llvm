@@ -79,6 +79,13 @@ public:
   void lowerUMulWithOverflow(llvm::IntrinsicInst *UMulIntrinsic);
   void buildUMulWithOverflowFunc(llvm::Function *UMulFunc);
 
+  /// @llvm.minimum.* and @llvm.maximum.* return NaN if either operand is NaN
+  /// and order -0.0 before +0.0, whereas OpenCL.std fmin/fmax return the other
+  /// operand for a NaN and may return either zero. Expand them into
+  /// @llvm.minnum.*/@llvm.maxnum.* with fix-ups for signed zeros (unless nsz)
+  /// and NaNs (unless nnan).
+  void lowerFMinimumMaximum(llvm::IntrinsicInst *II);
+
   // For some cases Clang emits VectorExtractDynamic as:
   // void @_Z28__spirv_VectorExtractDynamic(<Ty>* sret(<Ty>), jointMatrix, idx);
   // Instead of:

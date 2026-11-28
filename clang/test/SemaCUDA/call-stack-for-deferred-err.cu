@@ -16,3 +16,32 @@ __global__ void kernel() { device_fn2(); } // expected-note {{called by 'kernel'
 inline __host__ __device__ void hd_fn(int n) {
   int vla[n]; // expected-error {{variable-length array}}
 }
+
+// A constructor calls the constructors of its bases and members from its
+// initializer list.
+struct Member {
+  __host__ __device__ Member() {
+    int n = 42;
+    int vla[n]; // expected-error {{variable-length array}}
+  }
+};
+struct HasMember { // expected-note {{called by 'HasMember'}}
+  Member m;
+};
+
+struct Base {
+  __host__ __device__ Base() {
+    int n = 42;
+    int vla[n]; // expected-error {{variable-length array}}
+  }
+};
+struct Derived : Base {}; // expected-note {{called by 'Derived'}}
+
+// FIXME: intel/llvm currently lacks the deferred-diagnostic deduplication of
+// upstream #185926 (reverted downstream, see CMPLRLLVM-74216). Until it is
+// relanded, call stack notes read 'called by' instead of 'which is called by'.
+// Restore the upstream expectations when the deduplication is relanded.
+__global__ void ctor_kernel() {
+  HasMember h; // expected-note {{called by 'ctor_kernel'}}
+  Derived d;   // expected-note {{called by 'ctor_kernel'}}
+}

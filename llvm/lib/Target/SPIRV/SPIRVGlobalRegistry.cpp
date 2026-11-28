@@ -163,23 +163,10 @@ SPIRVTypeInst SPIRVGlobalRegistry::getOpTypeInt(unsigned Width,
                                                 MachineIRBuilder &MIRBuilder,
                                                 bool IsSigned) {
   Width = adjustOpTypeIntWidth(Width);
-  const SPIRVSubtarget &ST =
-      cast<SPIRVSubtarget>(MIRBuilder.getMF().getSubtarget());
+  // SPIRVModuleAnalysis adds the extension and capability that the width
+  // needs, so a type that legalization later removes does not require them.
   return createConstOrTypeAtFunctionEntry(MIRBuilder, [&](MachineIRBuilder
                                                               &MIRBuilder) {
-    if (Width == 4 && ST.canUseExtension(SPIRV::Extension::SPV_INTEL_int4)) {
-      MIRBuilder.buildInstr(SPIRV::OpExtension)
-          .addImm(SPIRV::Extension::SPV_INTEL_int4);
-      MIRBuilder.buildInstr(SPIRV::OpCapability)
-          .addImm(SPIRV::Capability::Int4TypeINTEL);
-    } else if ((!isPowerOf2_32(Width) || Width < 8) &&
-               ST.canUseExtension(
-                   SPIRV::Extension::SPV_ALTERA_arbitrary_precision_integers)) {
-      MIRBuilder.buildInstr(SPIRV::OpExtension)
-          .addImm(SPIRV::Extension::SPV_ALTERA_arbitrary_precision_integers);
-      MIRBuilder.buildInstr(SPIRV::OpCapability)
-          .addImm(SPIRV::Capability::ArbitraryPrecisionIntegersALTERA);
-    }
     return MIRBuilder.buildInstr(SPIRV::OpTypeInt)
         .addDef(createTypeVReg(MIRBuilder))
         .addImm(Width)
@@ -266,6 +253,7 @@ const MachineInstr *SPIRVGlobalRegistry::createConstOrTypeAtFunctionEntry(
     MachineIRBuilder &MIRBuilder,
     std::function<MachineInstr *(MachineIRBuilder &)> Op) {
   auto oldInsertPoint = MIRBuilder.getInsertPt();
+  assert(oldInsertPoint.isValid() && "Builder must have insertion point set!");
   MachineBasicBlock *OldMBB = &MIRBuilder.getMBB();
   MachineBasicBlock *NewMBB = &*MIRBuilder.getMF().begin();
 
@@ -360,8 +348,9 @@ SPIRVGlobalRegistry::getOpTypeVector(uint32_t NumElems, SPIRVTypeInst ElemType,
 
 SPIRVTypeInst SPIRVGlobalRegistry::getOpTypeVectorIdEXT(
     uint32_t NumElems, SPIRVTypeInst ElemType, MachineIRBuilder &MIRBuilder) {
-  assert((NumElems < 2 || NumElems > 16 ||
-          (NumElems != 3 && NumElems != 4 && NumElems != 8)) &&
+  assert(NumElems != 2 && NumElems != 3 && NumElems != 4 &&
+         (!MIRBuilder.getMF().getSubtarget<SPIRVSubtarget>().isKernel() ||
+          (NumElems != 8 && NumElems != 16)) &&
          "SPIR-V OpTypeVectorIdExt should only be used for extended vectors");
   return getOpTypeVectorImpl(NumElems, ElemType, MIRBuilder, true);
 }
@@ -1259,7 +1248,7 @@ SPIRVTypeInst SPIRVGlobalRegistry::createSPIRVType(
                       AccQual, ExplicitLayoutRequired, EmitIR);
     unsigned NumElts = cast<FixedVectorType>(Ty)->getNumElements();
     const auto &STI = MIRBuilder.getMF().getSubtarget<SPIRVSubtarget>();
-    if (isLongVectorEXT(Ty) &&
+    if (isLongVectorEXT(Ty, STI.isKernel()) &&
         STI.canUseExtension(SPIRV::Extension::SPV_EXT_long_vector))
       return getOpTypeVectorIdEXT(NumElts, El, MIRBuilder);
     return getOpTypeVector(NumElts, El, MIRBuilder);
@@ -1346,6 +1335,7 @@ SPIRVTypeInst SPIRVGlobalRegistry::restOfCreateSPIRVType(
   SPIRVToLLVMType[SpirvType] = unifyPtrType(Ty);
 
   if (SpirvType->getOpcode() == SPIRV::OpTypeForwardPointer ||
+      SpirvType->getOpcode() == SPIRV::OpTypeUntypedPointerKHR ||
       findMI(Ty, false, &MIRBuilder.getMF()) || isSpecialOpaqueType(Ty))
     return SpirvType;
 
@@ -1817,13 +1807,6 @@ SPIRVTypeInst SPIRVGlobalRegistry::getOrCreateOpTypeCoopMatr(
       MIRBuilder, [&](MachineIRBuilder &MIRBuilder) {
         SPIRVTypeInst SpvTypeInt32 =
             getOrCreateSPIRVIntegerType(32, MIRBuilder);
-        const Type *ET = getTypeForSPIRVType(ElemType);
-        if (ET->isIntegerTy() && ET->getIntegerBitWidth() == 4 &&
-            cast<SPIRVSubtarget>(MIRBuilder.getMF().getSubtarget())
-                .canUseExtension(SPIRV::Extension::SPV_INTEL_int4)) {
-          MIRBuilder.buildInstr(SPIRV::OpCapability)
-              .addImm(SPIRV::Capability::Int4CooperativeMatrixINTEL);
-        }
         return MIRBuilder.buildInstr(SPIRV::OpTypeCooperativeMatrixKHR)
             .addDef(createTypeVReg(MIRBuilder))
             .addUse(getSPIRVTypeID(ElemType))

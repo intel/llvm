@@ -8,6 +8,8 @@
 // We declare anonymous record types to represent lambdas. Rather than trying to
 // to match the declarations, we establish variables for these when they are used.
 
+// A lambda in a namespace-scope variable initializer is mangled in the
+// variable's context (intel/llvm#20176).
 auto global_lambda = [](){};
 void use_global_lambda() {
   global_lambda();
@@ -16,27 +18,27 @@ void use_global_lambda() {
 // CIR: cir.global "private" internal dso_local @global_lambda = #cir.zero : ![[REC_LAM_GLOBAL_LAMBDA:.*]] align(1)
 // CIR: cir.func {{.*}} @_Z17use_global_lambdav()
 // CIR:   %[[LAMBDA:.*]] = cir.get_global @global_lambda : !cir.ptr<![[REC_LAM_GLOBAL_LAMBDA]]>
-// CIR:   cir.call @_ZNK3$_0clEv(%[[LAMBDA]]) : (!cir.ptr<![[REC_LAM_GLOBAL_LAMBDA]]> {llvm.align = 1 : i64, llvm.dereferenceable = 1 : i64, llvm.nonnull, llvm.noundef}) -> ()
+// CIR:   cir.call @_ZNK13global_lambdaM3$_0clEv(%[[LAMBDA]]) : (!cir.ptr<![[REC_LAM_GLOBAL_LAMBDA]]> {llvm.align = 1 : i64, llvm.dereferenceable = 1 : i64, llvm.nonnull, llvm.noundef}) -> ()
 //
-// CIR: cir.func {{.*}} lambda alignment(2) internal private dso_local @_ZNK3$_0clEv(%[[THIS_ARG:.*]]: !cir.ptr<![[REC_LAM_GLOBAL_LAMBDA]]> {{.*}})
+// CIR: cir.func {{.*}} lambda alignment(2) internal private dso_local @_ZNK13global_lambdaM3$_0clEv(%[[THIS_ARG:.*]]: !cir.ptr<![[REC_LAM_GLOBAL_LAMBDA]]> {{.*}})
 // CIR:   %[[THIS:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_GLOBAL_LAMBDA]]>>
 // CIR:   cir.store %[[THIS_ARG]], %[[THIS]]
 // CIR:   cir.load %[[THIS]]
 
 // LLVM: @global_lambda = internal global %[[REC_LAM_GLOBAL_LAMBDA:.*]] zeroinitializer, align 1
 // LLVM: define dso_local void @_Z17use_global_lambdav()
-// LLVM:   call void @"_ZNK3$_0clEv"(ptr noundef nonnull align 1 dereferenceable(1) @global_lambda)
+// LLVM:   call void @"_ZNK13global_lambdaM3$_0clEv"(ptr noundef nonnull align 1 dereferenceable(1) @global_lambda)
 //
-// LLVM: define internal void @"_ZNK3$_0clEv"(ptr {{.*}} %[[THIS_ARG:.*]])
+// LLVM: define internal void @"_ZNK13global_lambdaM3$_0clEv"(ptr {{.*}} %[[THIS_ARG:.*]])
 // LLVM:   %[[THIS_ADDR:.*]] = alloca ptr
 // LLVM:   store ptr %[[THIS_ARG]], ptr %[[THIS_ADDR]]
 // LLVM:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ADDR]]
 
 // OGCG: @global_lambda = internal global %[[REC_LAM_GLOBAL_LAMBDA:.*]] undef, align 1
 // OGCG: define dso_local void @_Z17use_global_lambdav()
-// OGCG:   call void @"_ZNK3$_0clEv"(ptr noundef nonnull align 1 dereferenceable(1) @global_lambda)
+// OGCG:   call void @"_ZNK13global_lambdaM3$_0clEv"(ptr noundef nonnull align 1 dereferenceable(1) @global_lambda)
 //
-// OGCG: define internal void @"_ZNK3$_0clEv"(ptr {{.*}} %[[THIS_ARG:.*]])
+// OGCG: define internal void @"_ZNK13global_lambdaM3$_0clEv"(ptr {{.*}} %[[THIS_ARG:.*]])
 // OGCG:   %[[THIS_ADDR:.*]] = alloca ptr
 // OGCG:   store ptr %[[THIS_ARG]], ptr %[[THIS_ADDR]]
 // OGCG:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ADDR]]
@@ -157,7 +159,7 @@ auto g() {
   };
 }
 
-// CIR: cir.func {{.*}} @_Z1gv() -> !cir.ptr<!void> attributes {{{.*}}nothrow} {
+// CIR: cir.func {{.*}} @_Z1gv() -> !cir.ptr<!void> attributes {{{.*}}nothrow{{.*}}} {
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} : !cir.ptr<![[REC_LAM_G:.*]]>
 // CIR:   %[[I_ADDR:.*]] = cir.alloca "i" {{.*}} init : !cir.ptr<!s32i>
 // CIR:   %[[TWELVE:.*]] = cir.const #cir.int<12> : !s32i
@@ -197,7 +199,7 @@ auto g2() {
 }
 
 // Should be same as above because of NRVO
-// CIR: cir.func {{.*}} @_Z2g2v() -> !cir.ptr<!void> attributes {{{.*}}nothrow} {
+// CIR: cir.func {{.*}} @_Z2g2v() -> !cir.ptr<!void> attributes {{{.*}}nothrow{{.*}}} {
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} init : !cir.ptr<![[REC_LAM_G2:.*]]>
 // CIR:   %[[I_ADDR:.*]] = cir.alloca "i" {{.*}} init : !cir.ptr<!s32i>
 // CIR:   %[[TWELVE:.*]] = cir.const #cir.int<12> : !s32i
@@ -238,16 +240,15 @@ int f() {
 // CIR:   %[[G2:.*]] = cir.call @_Z2g2v() : () -> !cir.ptr<!void>
 // CIR:   cir.store %[[G2]], %[[COERCE]] : !cir.ptr<!void>, !cir.ptr<!cir.ptr<!void>>
 // CIR:   %[[COERCE_REC:.*]] = cir.cast bitcast %[[COERCE]] : !cir.ptr<!cir.ptr<!void>> -> !cir.ptr<![[REC_LAM_G2]]>
-// CIR:   %[[LAM:.*]] = cir.load %[[COERCE_REC]] : !cir.ptr<![[REC_LAM_G2]]>, ![[REC_LAM_G2]]
-// CIR:   cir.store{{.*}} %[[LAM]], %[[TMP]]
+// CIR:   cir.copy %[[COERCE_REC]] align(8) to %[[TMP]] align(8) : !cir.ptr<![[REC_LAM_G2]]>
 // CIR:   %[[RESULT:.*]] = cir.call @_ZZ2g2vENK3$_0clEv(%[[TMP]])
 // CIR:   cir.store{{.*}} %[[RESULT]], %[[RETVAL]]
 // CIR:   %[[RET:.*]] = cir.load{{.*}} %[[RETVAL]]
 // CIR:   cir.return %[[RET]]
 
 // CIR:cir.func {{.*}} lambda alignment(2) internal private dso_local @_ZZ2g2vENK3$_0clEv(%[[THIS_ARG:.*]]: !cir.ptr<![[REC_LAM_G2]]> {{.*}}) -> (!s32i {llvm.noundef})
-// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_G2]]>>
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} : !cir.ptr<!s32i>
+// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_G2]]>>
 // CIR:   cir.store %[[THIS_ARG]], %[[THIS_ADDR]]
 // CIR:   %[[THIS:.*]] = cir.load %[[THIS_ADDR]]
 // CIR:   %[[ONE_HUNDRED:.*]] = cir.const #cir.int<100> : !s32i
@@ -269,16 +270,15 @@ int f() {
 // LLVM:   %[[TMP:.*]] = alloca %[[REC_LAM_G2:[^,]*]],
 // LLVM:   %[[G2:.*]] = call ptr @_Z2g2v()
 // LLVM:   store ptr %[[G2]], ptr %[[COERCE]]
-// LLVM:   %[[LAM:.*]] = load %[[REC_LAM_G2]], ptr %[[COERCE]]
-// LLVM:   store %[[REC_LAM_G2]] %[[LAM]], ptr %[[TMP]]
+// LLVM:   call void @llvm.memcpy.p0.p0.i64(ptr align 8 %[[TMP]], ptr align 8 %[[COERCE]], i64 8, i1 false)
 // LLVM:   %[[RESULT:.*]] = call {{.*}}i32 @"_ZZ2g2vENK3$_0clEv"(ptr {{.*}} %[[TMP]])
 // LLVM:   store i32 %[[RESULT]], ptr %[[RETVAL]]
 // LLVM:   %[[RET:.*]] = load i32, ptr %[[RETVAL]]
 // LLVM:   ret i32 %[[RET]]
 
 // LLVM: define internal noundef i32 @"_ZZ2g2vENK3$_0clEv"(ptr {{.*}} %[[THIS_ARG:.*]])
-// LLVM:   %[[THIS_ALLOCA:.*]] = alloca ptr
 // LLVM:   %[[I_ALLOCA:.*]] = alloca i32
+// LLVM:   %[[THIS_ALLOCA:.*]] = alloca ptr
 // LLVM:   store ptr %[[THIS_ARG]], ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[I_ADDR_ADDR:.*]] = getelementptr inbounds nuw %[[REC_LAM_G2]], ptr %[[THIS]], i32 0, i32 0
@@ -340,8 +340,8 @@ struct A {
 
 // A::foo()
 // CIR: cir.func {{.*}} @_ZN1A3fooEv(%[[THIS_ARG:.*]]: !cir.ptr<!rec_A> {{.*}}) -> (!s32i {llvm.noundef})
-// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<!rec_A>>
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} : !cir.ptr<!s32i>
+// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<!rec_A>>
 // CIR:   %[[LAM_ADDR:.*]] = cir.alloca "ref.tmp0" {{.*}} : !cir.ptr<![[REC_LAM_A:[^>]*]]>
 // CIR:   cir.store %[[THIS_ARG]], %[[THIS_ADDR]]
 // CIR:   %[[THIS:.*]] = cir.load deref %[[THIS_ADDR]] : !cir.ptr<!cir.ptr<!rec_A>>, !cir.ptr<!rec_A>
@@ -353,8 +353,8 @@ struct A {
 // CIR:   cir.return %[[RET]]
 
 // LLVM: define linkonce_odr noundef i32 @_ZN1A3fooEv(ptr {{.*}} %[[THIS_ARG:.*]])
-// LLVM:   %[[THIS_ALLOCA:.*]] = alloca ptr
 // LLVM:   %[[RETVAL:.*]] = alloca i32
+// LLVM:   %[[THIS_ALLOCA:.*]] = alloca ptr
 // LLVM:   %[[LAM_ALLOCA:.*]] = alloca %[[REC_LAM_A:[^,]*]],
 // LLVM:   store ptr %[[THIS_ARG]], ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ALLOCA]]
@@ -377,8 +377,8 @@ struct A {
 
 // A::bar()
 // CIR: cir.func {{.*}} @_ZN1A3barEv(%[[THIS_ARG:.*]]: !cir.ptr<!rec_A> {{.*}}) -> (!s32i {llvm.noundef})
-// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<!rec_A>>
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} : !cir.ptr<!s32i>
+// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<!rec_A>>
 // CIR:   %[[LAM_ADDR:.*]] = cir.alloca "ref.tmp0" {{.*}} : !cir.ptr<![[REC_LAM_PTR_A:[^>]*]]>
 // CIR:   cir.store %[[THIS_ARG]], %[[THIS_ADDR]]
 // CIR:   %[[THIS:.*]] = cir.load %[[THIS_ADDR]] : !cir.ptr<!cir.ptr<!rec_A>>, !cir.ptr<!rec_A>
@@ -390,8 +390,8 @@ struct A {
 // CIR:   cir.return %[[RET]]
 
 // LLVM: define linkonce_odr noundef i32 @_ZN1A3barEv(ptr {{.*}} %[[THIS_ARG:.*]])
-// LLVM:   %[[THIS_ALLOCA:.*]] = alloca ptr
 // LLVM:   %[[RETVAL:.*]] = alloca i32
+// LLVM:   %[[THIS_ALLOCA:.*]] = alloca ptr
 // LLVM:   %[[LAM_ALLOCA:.*]] = alloca %[[REC_LAM_PTR_A:[^,]*]],
 // LLVM:   store ptr %[[THIS_ARG]], ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ALLOCA]]
@@ -414,8 +414,8 @@ struct A {
 
 // lambda operator() in foo()
 // CIR: cir.func {{.*}} lambda comdat alignment(2) linkonce_odr @_ZZN1A3fooEvENKUlvE_clEv(%[[THIS_ARG:.*]]: !cir.ptr<![[REC_LAM_A]]> {{.*}})
-// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_A]]>>
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} : !cir.ptr<!s32i>
+// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_A]]>>
 // CIR:   cir.store{{.*}} %[[THIS_ARG]], %[[THIS_ADDR]]
 // CIR:   %[[THIS:.*]] = cir.load{{.*}} %[[THIS_ADDR]]
 // CIR:   %[[STRUCT_A:.*]] = cir.get_member %[[THIS]][0] {name = "this"}
@@ -426,8 +426,8 @@ struct A {
 // CIR:   cir.return %[[RET]]
 
 // LLVM: define linkonce_odr {{.*}}i32 @_ZZN1A3fooEvENKUlvE_clEv(ptr {{.*}} %[[THIS_ARG:.*]])
-// LLVM:   %[[THIS_ALLOCA:.*]]  = alloca ptr
 // LLVM:   %[[RETVAL:.*]] = alloca i32
+// LLVM:   %[[THIS_ALLOCA:.*]]  = alloca ptr
 // LLVM:   store ptr %[[THIS_ARG]], ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[PTR_A:.*]] = getelementptr inbounds nuw %[[REC_LAM_A]], ptr %[[THIS]], i32 0, i32 0
@@ -448,8 +448,8 @@ struct A {
 
 // lambda operator() in bar()
 // CIR: cir.func {{.*}} @_ZZN1A3barEvENKUlvE_clEv(%[[THIS_ARG2:.*]]: !cir.ptr<![[REC_LAM_PTR_A]]> {{.*}}) -> (!s32i {llvm.noundef})
-// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_PTR_A]]>>
 // CIR:   %[[RETVAL:.*]] = cir.alloca "__retval" {{.*}} : !cir.ptr<!s32i>
+// CIR:   %[[THIS_ADDR:.*]] = cir.alloca "this" {{.*}} init : !cir.ptr<!cir.ptr<![[REC_LAM_PTR_A]]>>
 // CIR:   cir.store{{.*}} %[[THIS_ARG]], %[[THIS_ADDR]]
 // CIR:   %[[THIS:.*]] = cir.load{{.*}} %[[THIS_ADDR]]
 // CIR:   %[[STRUCT_A_ADDR_ADDR:.*]] = cir.get_member %[[THIS]][0] {name = "this"}
@@ -461,8 +461,8 @@ struct A {
 // CIR:   cir.return %[[RET]]
 
 // LLVM: define linkonce_odr noundef i32 @_ZZN1A3barEvENKUlvE_clEv(ptr {{.*}} %[[THIS_ARG:.*]])
-// LLVM:   %[[THIS_ALLOCA:.*]]  = alloca ptr
 // LLVM:   %[[RETVAL:.*]] = alloca i32
+// LLVM:   %[[THIS_ALLOCA:.*]]  = alloca ptr
 // LLVM:   store ptr %[[THIS_ARG]], ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[THIS:.*]] = load ptr, ptr %[[THIS_ALLOCA]]
 // LLVM:   %[[STRUCT_A_ADDRR_ADDR:.*]] = getelementptr inbounds nuw %[[REC_LAM_PTR_A]], ptr %[[THIS]], i32 0, i32 0

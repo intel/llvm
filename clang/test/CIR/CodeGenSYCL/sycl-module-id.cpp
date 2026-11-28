@@ -26,10 +26,11 @@ void use() { kernel_single_task<KN>(K{}); }
 // Both the kernel and the sycl_external function must carry sycl-module-id
 // with a value equal to the module identifier (the source file path).
 // CIR: module @"[[MODID:.*]]" attributes
-// CIR-DAG: cir.func {{.*}}@_Z3exti({{.*}} attributes {{{.*}}"sycl-module-id" = "[[MODID]]"}
+// CIR-DAG: cir.func {{.*}}@_Z3exti({{.*}} attributes {{{.*}}"sycl-module-id" = "[[MODID]]", uniform_work_group_size}
 // CIR-DAG: cir.func {{.*}}@_ZTS2KN({{.*}} attributes {{{.*}}"sycl-module-id" = "[[MODID]]"}
 
 // LLVM: source_filename = "[[MODID:.*]]"
-// LLVM-DAG: define {{.*}}spir_kernel {{.*}}@{{.*}}2KN{{.*}} #[[SATTR:[0-9]+]]
-// LLVM-DAG: define {{.*}}spir_func {{.*}}@_Z3exti{{.*}} #[[SATTR]]
-// LLVM: attributes #[[SATTR]] = { {{.*}}"sycl-module-id"="[[MODID]]"
+// LLVM-DAG: define {{.*}}spir_kernel {{.*}}@{{.*}}2KN{{.*}} #[[KATTR:[0-9]+]]
+// LLVM-DAG: define {{.*}}spir_func {{.*}}@_Z3exti{{.*}} #[[EATTR:[0-9]+]]
+// LLVM-DAG: attributes #[[KATTR]] = { {{.*}}"sycl-module-id"="[[MODID]]"
+// LLVM-DAG: attributes #[[EATTR]] = { {{.*}}"sycl-module-id"="[[MODID]]"

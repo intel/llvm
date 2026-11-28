@@ -52,6 +52,7 @@ enum ImageKind : uint16_t {
   IMG_PTX,
   IMG_SPIRV,
   IMG_SYCLBIN,
+  IMG_PISA,
   IMG_LAST,
 };
 
@@ -117,6 +118,9 @@ public:
     uint64_t KeyOffset;
     uint64_t ValueOffset;
   };
+
+  /// True if \p Buf is a compressed offload package, false otherwise.
+  LLVM_ABI static bool isCompressed(MemoryBufferRef Buf);
 
   /// Attempt to extract and validate the header from the offloading binary in
   /// \p Buf.

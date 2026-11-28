@@ -70,6 +70,12 @@ target triple = "spirv64-unknown-unknown"
 ; CHECK-SPIRV: 8 ExtInst [[BFLOAT]] [[#]] [[#]] fma [[DATA1]] [[DATA2]] [[DATA3]]
 ; CHECK-SPIRV: 7 ExtInst [[BFLOAT]] [[#]] [[#]] fmax [[DATA1]] [[DATA2]]
 ; CHECK-SPIRV: 7 ExtInst [[BFLOAT]] [[#]] [[#]] fmin [[DATA1]] [[DATA2]]
+; CHECK-SPIRV: 7 ExtInst [[BFLOAT]] [[#]] [[#]] fmax [[DATA1]] [[DATA2]]
+; CHECK-SPIRV: 7 ExtInst [[BFLOAT]] [[#]] [[#]] copysign [[#]] [[DATA1]]
+; CHECK-SPIRV: 5 Unordered [[#]] [[#]] [[DATA1]] [[DATA2]]
+; CHECK-SPIRV: 7 ExtInst [[BFLOAT]] [[#]] [[#]] fmin [[DATA1]] [[DATA2]]
+; CHECK-SPIRV: 7 ExtInst [[BFLOAT]] [[#]] [[#]] copysign [[#]] [[DATA1]]
+; CHECK-SPIRV: 5 Unordered [[#]] [[#]] [[DATA1]] [[DATA2]]
 ; CHECK-SPIRV: 8 ExtInst [[BFLOAT]] [[#]] [[#]] mad [[DATA1]] [[DATA2]] [[DATA3]]
 ; CHECK-SPIRV: 6 ExtInst [[BFLOAT]] [[#]] [[#]] nan [[DATA1]]
 ; CHECK-SPIRV: 6 ExtInst [[BFLOAT]] [[#]] [[#]] native_cos [[DATA1]]
@@ -139,6 +145,20 @@ target triple = "spirv64-unknown-unknown"
 ; CHECK-LLVM: %fma = call spir_func bfloat @_Z3fmaDF16bDF16bDF16b(bfloat [[DATA1]], bfloat [[DATA2]], bfloat [[DATA3]])
 ; CHECK-LLVM: %fmax = call spir_func bfloat @_Z4fmaxDF16bDF16b(bfloat [[DATA1]], bfloat [[DATA2]])
 ; CHECK-LLVM: %fmin = call spir_func bfloat @_Z4fminDF16bDF16b(bfloat [[DATA1]], bfloat [[DATA2]])
+; CHECK-LLVM: [[FMAXIMUMM:%[0-9]+]] = call spir_func bfloat @_Z4fmaxDF16bDF16b(bfloat [[DATA1]], bfloat [[DATA2]])
+; CHECK-LLVM-NEXT: [[FMAXIMUMXSIGN:%[0-9]+]] = call spir_func bfloat @_Z8copysignDF16bDF16b(bfloat 1.000000e+00, bfloat [[DATA1]])
+; CHECK-LLVM-NEXT: [[FMAXIMUMXNEG:%[0-9]+]] = fcmp olt bfloat [[FMAXIMUMXSIGN]], 0.000000e+00
+; CHECK-LLVM-NEXT: [[FMAXIMUMS:%[0-9]+]] = select i1 [[FMAXIMUMXNEG]], bfloat [[DATA2]], bfloat [[DATA1]]
+; CHECK-LLVM-NEXT: [[FMAXIMUMMS:%[0-9]+]] = call spir_func bfloat @_Z8copysignDF16bDF16b(bfloat [[FMAXIMUMM]], bfloat [[FMAXIMUMS]])
+; CHECK-LLVM-NEXT: [[FMAXIMUMUNO:%[0-9]+]] = fcmp uno bfloat [[DATA1]], [[DATA2]]
+; CHECK-LLVM-NEXT: %fmaximum = select i1 [[FMAXIMUMUNO]], bfloat +qnan, bfloat [[FMAXIMUMMS]]
+; CHECK-LLVM: [[FMINIMUMM:%[0-9]+]] = call spir_func bfloat @_Z4fminDF16bDF16b(bfloat [[DATA1]], bfloat [[DATA2]])
+; CHECK-LLVM-NEXT: [[FMINIMUMXSIGN:%[0-9]+]] = call spir_func bfloat @_Z8copysignDF16bDF16b(bfloat 1.000000e+00, bfloat [[DATA1]])
+; CHECK-LLVM-NEXT: [[FMINIMUMXNEG:%[0-9]+]] = fcmp olt bfloat [[FMINIMUMXSIGN]], 0.000000e+00
+; CHECK-LLVM-NEXT: [[FMINIMUMS:%[0-9]+]] = select i1 [[FMINIMUMXNEG]], bfloat [[DATA1]], bfloat [[DATA2]]
+; CHECK-LLVM-NEXT: [[FMINIMUMMS:%[0-9]+]] = call spir_func bfloat @_Z8copysignDF16bDF16b(bfloat [[FMINIMUMM]], bfloat [[FMINIMUMS]])
+; CHECK-LLVM-NEXT: [[FMINIMUMUNO:%[0-9]+]] = fcmp uno bfloat [[DATA1]], [[DATA2]]
+; CHECK-LLVM-NEXT: %fminimum = select i1 [[FMINIMUMUNO]], bfloat +qnan, bfloat [[FMINIMUMMS]]
 ; CHECK-LLVM: %mad = call spir_func bfloat @_Z3madDF16bDF16bDF16b(bfloat [[DATA1]], bfloat [[DATA2]], bfloat [[DATA3]])
 ; CHECK-LLVM: %nan = call spir_func bfloat @_Z3nanDF16b(bfloat [[DATA1]])
 ; CHECK-LLVM: %native_cos = call spir_func bfloat @_Z10native_cosDF16b(bfloat [[DATA1]])
@@ -239,6 +259,8 @@ entry:
   %fma = call bfloat @llvm.fma.bfloat(bfloat %data1, bfloat %data2, bfloat %data3)
   %fmax = call bfloat @llvm.maxnum.bfloat(bfloat %data1, bfloat %data2)
   %fmin = call bfloat @llvm.minnum.bfloat(bfloat %data1, bfloat %data2)
+  %fmaximum = call bfloat @llvm.maximum.bfloat(bfloat %data1, bfloat %data2)
+  %fminimum = call bfloat @llvm.minimum.bfloat(bfloat %data1, bfloat %data2)
   %mad = call bfloat @llvm.fmuladd.bfloat(bfloat %data1, bfloat %data2, bfloat %data3)
   %nan = call spir_func bfloat @_Z3nanDF16b(bfloat %data1)
   %native_cos = call spir_func bfloat @_Z10native_cosDF16b(bfloat %data1)

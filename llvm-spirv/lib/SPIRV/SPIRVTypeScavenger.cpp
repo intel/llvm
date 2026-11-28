@@ -489,7 +489,8 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
 
   if (auto IntrinID = TargetFn->getIntrinsicID()) {
     switch (IntrinID) {
-    case Intrinsic::memcpy: {
+    case Intrinsic::memcpy:
+    case Intrinsic::memcpy_inline: {
       // First two parameters are pointers, but they point to the same thing
       // (albeit maybe in different address spaces).
       TypeRules.push_back(TypeRule::isIndirect(CB, 0, 1));
@@ -560,7 +561,8 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     default:
       return false;
     }
-  } else if (TargetFn->getName().starts_with("_Z18__spirv_ocl_printf")) {
+  } else if (TargetFn->getName() == "printf" ||
+             TargetFn->getName().starts_with("_Z18__spirv_ocl_printf")) {
     Type *Int8Ty = Type::getInt8Ty(Ctx);
     // The first argument is a string pointer. Subsequent arguments may include
     // pointer-valued arguments, corresponding to %s or %p parameters.

@@ -52,9 +52,9 @@ entry:
 ; CHECK: load float
 ; CHECK-SAME: !noalias ![[#]]
 ; CHECK: store float
-; CHECK-SAME: !alias.scope ![[#Scope3:]], !noalias ![[#Scope4:]]
+; CHECK-SAME: !alias.scope ![[#Scope3:]]{{$}}
 ; CHECK: store float
-; CHECK-SAME: !alias.scope ![[#Scope4:]], !noalias ![[#Scope3:]]
+; CHECK-SAME: !alias.scope ![[#Scope4:]]{{$}}
 
 define void @caller2(ptr nocapture %a, ptr nocapture %b, ptr nocapture readonly %c) #0 {
 entry:

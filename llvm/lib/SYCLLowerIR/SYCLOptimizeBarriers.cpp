@@ -912,7 +912,7 @@ static bool isAtKernelEntry(const BarrierDesc &BD,
     return true;
 
   // Otherwise it is redundant only if it is the first inst.
-  return &*Entry.getFirstNonPHIOrDbgOrAlloca() == BD.CI;
+  return &*Entry.getFirstNonPHIOrAlloca() == BD.CI;
 }
 
 // True if BD is immediately before a return/unreachable and nothing follows.

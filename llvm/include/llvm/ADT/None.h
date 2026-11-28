@@ -22,9 +22,9 @@
 namespace llvm {
 /// A simple null object to allow implicit construction of std::optional<T>
 /// and similar types without having to spell out the specialization's name.
-LLVM_DEPRECATED("Use std::nullopt_t instead", "std::nullopt_t")
+LLVM_DEPRECATED_WITH_FIXIT("Use std::nullopt_t instead", "std::nullopt_t")
 typedef std::nullopt_t NoneType;
-LLVM_DEPRECATED("Use std::nullopt instead.", "std::nullopt")
+LLVM_DEPRECATED_WITH_FIXIT("Use std::nullopt instead.", "std::nullopt")
 inline constexpr std::nullopt_t None = std::nullopt;
 }
 
