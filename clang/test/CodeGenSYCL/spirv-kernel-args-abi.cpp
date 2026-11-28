@@ -14,11 +14,13 @@ template <typename KernelName, typename KernelType>
 void kernel_single_task(KernelType kf) { kf(); }
 
 struct Small { int a, b; };
+// sycl-web diagnoses calls to undefined device functions without
+// SYCL_EXTERNAL, so the special members are declared sycl_external.
 struct NonCopyable {
   int i;
-  NonCopyable();
-  NonCopyable(const NonCopyable &);
-  ~NonCopyable();
+  [[clang::sycl_external]] NonCopyable();
+  [[clang::sycl_external]] NonCopyable(const NonCopyable &);
+  [[clang::sycl_external]] ~NonCopyable();
 };
 
 // Pointers and references keep their address space outside kernels.
@@ -69,10 +71,10 @@ struct KLambda;
 struct KEmpty;
 
 // Kernel objects are copied byval: a functor, a lambda with captures, and an
-// empty lambda.
-// CHECK: define spir_kernel void @_ZTS8KFunctor(ptr noundef byval(%struct.Functor) align 8 %{{[^,)]+}})
-// CHECK: define spir_kernel void @_ZTS7KLambda(ptr noundef byval(%class.anon{{[.0-9]*}}) align 8 %{{[^,)]+}})
-// CHECK: define spir_kernel void @_ZTS6KEmpty(ptr noundef byval(%class.anon{{[.0-9]*}}) align 1 %{{[^,)]+}})
+// empty lambda. sycl-web emits kernels with weak_odr linkage.
+// CHECK: define {{.*}}spir_kernel void @_ZTS8KFunctor(ptr noundef byval(%struct.Functor) align 8 %{{[^,)]+}})
+// CHECK: define {{.*}}spir_kernel void @_ZTS7KLambda(ptr noundef byval(%class.anon{{[.0-9]*}}) align 8 %{{[^,)]+}})
+// CHECK: define {{.*}}spir_kernel void @_ZTS6KEmpty(ptr noundef byval(%class.anon{{[.0-9]*}}) align 1 %{{[^,)]+}})
 void test(int *p, Small s) {
   kernel_single_task<KFunctor>(Functor{p, s});
   kernel_single_task<KLambda>([=] { *p = s.a; });
