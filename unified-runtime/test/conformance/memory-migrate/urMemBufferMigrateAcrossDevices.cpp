@@ -89,7 +89,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
 
   // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
   void AddBuffer1DArg(size_t kernel_index, size_t current_arg_index,
-                      ur_mem_handle_t buffer) {
+                      ur_mem_handle_t buffer_arg) {
     // SYCL device kernels have different interfaces depending on the
     // backend being used. Typically a kernel which takes a buffer argument
     // will take a pointer to the start of the buffer and a sycl::id param
@@ -102,7 +102,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     auto &args = kernel_args[kernel_index];
 
     ur_exp_kernel_arg_value_t mem_val = {};
-    mem_val.memObjTuple = {buffer, UR_MEM_FLAG_READ_WRITE};
+    mem_val.memObjTuple = {buffer_arg, UR_MEM_FLAG_READ_WRITE};
     ur_exp_kernel_arg_properties_t mem_arg = {
         UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES,
         nullptr,

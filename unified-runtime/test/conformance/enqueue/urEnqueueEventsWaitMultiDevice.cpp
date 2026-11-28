@@ -58,9 +58,9 @@ struct urEnqueueEventsWaitMultiDeviceTest
     EXPECT_SUCCESS(urQueueFinish(queues[0]));
   }
 
-  void verifyData(void *ptr, uint32_t pattern) {
+  void verifyData(void *ptr, uint32_t expected_pattern) {
     for (size_t i = 0; i < count; i++) {
-      ASSERT_EQ(reinterpret_cast<uint32_t *>(ptr)[i], pattern);
+      ASSERT_EQ(reinterpret_cast<uint32_t *>(ptr)[i], expected_pattern);
     }
   }
 
@@ -159,9 +159,9 @@ struct urEnqueueEventsWaitMultiDeviceMTTest
     EXPECT_SUCCESS(urQueueFinish(queues[0]));
   }
 
-  void verifyData(void *ptr, uint32_t pattern) {
+  void verifyData(void *ptr, uint32_t expected_pattern) {
     for (size_t i = 0; i < count; i++) {
-      ASSERT_EQ(reinterpret_cast<uint32_t *>(ptr)[i], pattern);
+      ASSERT_EQ(reinterpret_cast<uint32_t *>(ptr)[i], expected_pattern);
     }
   }
 
@@ -241,9 +241,10 @@ TEST_P(urEnqueueEventsWaitMultiDeviceMTTest,
                                      eventHandles.data(), hGatherEvent.ptr()));
   ASSERT_SUCCESS(urEventWait(1, hGatherEvent.ptr()));
 
-  for (auto &event : eventHandles) {
+  for (auto &hEvent : eventHandles) {
     ur_event_status_t status;
-    ASSERT_SUCCESS(urEventGetInfo(event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+    ASSERT_SUCCESS(urEventGetInfo(hEvent,
+                                  UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
                                   sizeof(ur_event_status_t), &status, nullptr));
     ASSERT_EQ(status, UR_EVENT_STATUS_COMPLETE);
   }

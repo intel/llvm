@@ -162,8 +162,8 @@ ur_result_t MsanInterceptor::registerMemory(ur_context_handle_t Context,
     UR_CALL(EnqueueUnpoison(Device));
   } else {
     auto ContextInfo = getContextInfo(Context);
-    for (ur_device_handle_t Device : ContextInfo->DeviceList)
-      UR_CALL(EnqueueUnpoison(Device));
+    for (ur_device_handle_t CtxDevice : ContextInfo->DeviceList)
+      UR_CALL(EnqueueUnpoison(CtxDevice));
   }
   return UR_RESULT_SUCCESS;
 }

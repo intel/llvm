@@ -77,9 +77,9 @@ context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
   GURCallEvent = Event ? Event->event_ref() : nullptr;
 }
 
-void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
+void context_t::notify(uint16_t trace_type, uint32_t id, const char *func_name,
                        void *args, ur_result_t *resultp, uint64_t instance) {
-  xpti::function_with_args_t payload{id, name, args, resultp, nullptr};
+  xpti::function_with_args_t payload{id, func_name, args, resultp, nullptr};
   if (xptiCheckTraceEnabled(debug_call_stream_id)) {
     xptiNotifySubscribers(debug_call_stream_id, trace_type, nullptr,
                           activeEvent, instance, &payload);
@@ -90,7 +90,8 @@ void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
   }
 }
 
-uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
+uint64_t context_t::notify_begin(uint32_t id, const char *func_name,
+                                 void *args) {
   if (xptiCheckTraceEnabled(debug_call_stream_id)) {
     // Create a new tracepoint with code location info for each UR API call.
     // This adds significant overhead to the tracing toolchain, so do this only
@@ -110,19 +111,19 @@ uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
     return UINT64_MAX;
   }
   uint64_t instance = xptiGetUniqueId();
-  notify((uint16_t)xpti::trace_point_type_t::function_with_args_begin, id, name,
-         args, nullptr, instance);
+  notify((uint16_t)xpti::trace_point_type_t::function_with_args_begin, id,
+         func_name, args, nullptr, instance);
   return instance;
 }
 
-void context_t::notify_end(uint32_t id, const char *name, void *args,
+void context_t::notify_end(uint32_t id, const char *func_name, void *args,
                            ur_result_t *resultp, uint64_t instance) {
   if (instance == UINT64_MAX) { // tracing disabled
     return;
   }
 
-  notify((uint16_t)xpti::trace_point_type_t::function_with_args_end, id, name,
-         args, resultp, instance);
+  notify((uint16_t)xpti::trace_point_type_t::function_with_args_end, id,
+         func_name, args, resultp, instance);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

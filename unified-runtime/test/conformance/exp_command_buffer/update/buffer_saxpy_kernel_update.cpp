@@ -117,7 +117,7 @@ struct BufferSaxpyKernelTest
   }
 
   void Validate(ur_mem_handle_t output, ur_mem_handle_t X, ur_mem_handle_t Y,
-                uint32_t A, size_t length) {
+                uint32_t expected_A, size_t length) {
 
     std::vector<uint32_t> output_data(length, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, output, true, 0, length,
@@ -133,7 +133,7 @@ struct BufferSaxpyKernelTest
                                           Y_data.data(), 0, nullptr, nullptr));
 
     for (size_t i = 0; i < length; i++) {
-      uint32_t result = A * X_data[i] + Y_data[i];
+      uint32_t result = expected_A * X_data[i] + Y_data[i];
       ASSERT_EQ(result, output_data[i]);
     }
   }
