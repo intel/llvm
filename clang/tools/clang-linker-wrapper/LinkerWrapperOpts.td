@@ -156,6 +156,9 @@ def r : Flag<["-"], "r">, Alias<relocatable>;
 def shared : Flag<["--", "-"], "shared">,
     HelpText<"Link device code to create a shared library">;
 
+// ld64-style linker options.
+def syslibroot : Separate<["-"], "syslibroot">, Flags<[HelpHidden]>;
+
 // ld64-style linker options, defined so they are not parsed as -l or -o.
 def lto_library : Separate<["-"], "lto_library">, Flags<[HelpHidden]>;
 def object_path_lto : Separate<["-"], "object_path_lto">, Flags<[HelpHidden]>;
