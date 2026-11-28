@@ -1057,7 +1057,6 @@ void ASTStmtReader::VisitOMPArrayShapingExpr(OMPArrayShapingExpr *E) {
   E->setBracketsRanges(SRs);
   E->setLParenLoc(readSourceLocation());
   E->setRParenLoc(readSourceLocation());
-  E->setShapedType(Record.readType());
 }
 
 void ASTStmtReader::VisitOMPIteratorExpr(OMPIteratorExpr *E) {

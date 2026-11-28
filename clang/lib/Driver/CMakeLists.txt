@@ -66,7 +66,6 @@ add_clang_library(clangDriver
   ToolChains/Clang.cpp
   ToolChains/CommonArgs.cpp
   ToolChains/CrossWindows.cpp
-  ToolChains/CSKYToolChain.cpp
   ToolChains/Cuda.cpp
   ToolChains/Cygwin.cpp
   ToolChains/Darwin.cpp
