@@ -103,7 +103,6 @@ inline void close(void *Ptr) {
 namespace ext::oneapi::experimental {
 namespace __SYCL_DEPRECATED("The ipc_memory namespace is deprecated. Use the "
                             "ipc::memory namespace instead.") ipc_memory {
-__SYCL_SUPPRESS_DEPRECATED_PUSH
 
 using handle_data_t = std::vector<std::byte>;
 
@@ -189,7 +188,6 @@ inline void close(void *Ptr) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   ipc_memory::close(Ptr, Ctx);
 }
-__SYCL_SUPPRESS_DEPRECATED_POP
 // clang-format off
 } // namespace ipc_memory
 // clang-format on
