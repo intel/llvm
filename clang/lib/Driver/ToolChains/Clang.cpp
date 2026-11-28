@@ -11333,8 +11333,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                             ",+SPV_INTEL_tensor_float32_conversion"
                             ",+SPV_INTEL_variable_length_array"
                             ",+SPV_INTEL_memory_access_aliasing";
-  std::string KHRExtArg = ",+SPV_KHR_16bit_storage"
-                          ",+SPV_KHR_cooperative_matrix"
+  std::string KHRExtArg = ",+SPV_KHR_cooperative_matrix"
                           ",+SPV_KHR_expect_assume"
                           ",+SPV_KHR_float_controls"
                           ",+SPV_KHR_linkonce_odr"
