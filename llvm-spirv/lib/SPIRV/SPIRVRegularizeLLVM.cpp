@@ -43,6 +43,7 @@
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/ADT/StringExtras.h" // llvm::isDigit
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -125,7 +126,10 @@ void SPIRVRegularizeLLVMBase::lowerIntrinsicToFunction(
     auto *MemSet = IRB.CreateMemSet(Dest, Val, Len, MSI->getDestAlign(),
                                     MSI->isVolatile());
     IRB.CreateRetVoid();
-    expandMemSetAsLoop(cast<MemSetInst>(MemSet));
+    // expandMemSetAsLoop() requires a TTI; the target-independent baseline
+    // TTI keeps the byte-wise loop expansion used previously.
+    TargetTransformInfo TTI(M->getDataLayout());
+    expandMemSetAsLoop(cast<MemSetInst>(MemSet), TTI);
     MemSet->eraseFromParent();
     break;
   }

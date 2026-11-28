@@ -2149,7 +2149,9 @@ define void @f() "no-sse" { ... }
       will match that of the `allocptr` argument and the `allocptr`
       argument is invalidated, even if the function returns the same address.
     * "free": the function frees the block of memory specified by `allocptr`.
-      Functions marked as "free" `allockind` must return void.
+      Functions marked as "free" `allockind` must return void or an integer.
+      When it returns an integer, calling the function on the pointer returned
+      by an "alloc" `allockind` call of the matching `alloc-family` must return 0.
     * "uninitialized": Any newly-allocated memory (either a new block from
       a "alloc" function or the enlarged capacity from a "realloc" function)
       will be uninitialized.
@@ -2430,6 +2432,12 @@ define void @f() "no-sse" { ... }
     divergence even if its inputs are uniform. A call with no further information
     would normally be considered a source of divergence; setting this attribute
     on a function means that a call to it is not a source of divergence.
+
+`alwaysuniform`
+:   Setting this attribute on a function means that a call to it always returns
+    a {ref}`uniform <convergence-uniformity>` result regardless of the uniformity
+    of the inputs.  If a call to a function with this attribute returns a value
+    that is not uniform, the behavior is undefined.
 
 `noduplicate`
 :   This attribute indicates that calls to the function cannot be
